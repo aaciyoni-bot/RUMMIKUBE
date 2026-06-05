@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -11,13 +12,28 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-    <!-- פוליפיל למסכי מגע (מאפשר Drag & Drop בטלפונים וטאבלטים) -->
-    <script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.1.4/DragDropTouch.min.js"></script>
+    <!-- הפוליפיל החדש והמתקדם למסכי מגע -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/default.css">
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/scroll-behaviour.min.js"></script>
+    <script>
+        // הפעלת הפוליפיל ברגע שהדף עולה
+        window.addEventListener('DOMContentLoaded', function() {
+            MobileDragDrop.polyfill({
+                holdToDrag: 0, // גרירה מיידית ברגע שנוגעים, בלי דיליי
+                dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+            });
+            // מניעת באגים של גלילה כשהמשתמש מנסה לגרור אבן
+            window.addEventListener('touchmove', function(e) {
+                if(e.target.draggable) { e.preventDefault(); }
+            }, {passive: false});
+        });
+    </script>
 
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #020617; }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #020617; touch-action: none; }
         .tile-grab:active { cursor: grabbing !important; }
         
         /* אפקט הילה למי שהתור שלו */
@@ -131,8 +147,6 @@
           };
           
           const backToClub = () => { 
-              // אפשר להשאיר את השחקן רשום בשולחן או למחוק אותו
-              // db.ref(`tables/${activeTable.id}/players/${myId}`).remove(); 
               setActiveTable(null); 
               setCurrentView('dashboard'); 
           };
@@ -206,7 +220,7 @@
 
           const handleDropOnBoard = (e) => {
             e.preventDefault(); e.stopPropagation();
-            if (!isMyTurn) return; // הגנה שרק בעל התור ישנה את הלוח
+            if (!isMyTurn) return;
 
             const dataString = e.dataTransfer.getData('application/json');
             if (!dataString) return;
@@ -256,7 +270,6 @@
             const data = JSON.parse(dataString);
             const tableRefStr = `tables/${activeTable.id}`;
             
-            // מותר להחזיר רק מהלוח (אם התחרטנו) - בגרסה סופית צריך להגביל חזרה של אבנים ישנות
             if (data.source === 'board' && isMyTurn) {
               let newGroups = [...boardGroups];
               newGroups[data.groupIndex] = newGroups[data.groupIndex].filter(t => t.id !== data.tile.id);
@@ -311,19 +324,17 @@
           );
 
           const GameTableScreen = () => {
-            // חישוב שחקנים אחרים להצגה סביב השולחן
             const opponents = Object.entries(players).filter(([id, _]) => id !== myId);
 
             return (
                 <div className="flex flex-col h-[100dvh] bg-[#080d14] text-white relative font-sans overflow-hidden">
                 
-                {/* הדר שולחן מרובה שחקנים */}
+                {/* הדר שולחן */}
                 <div className="absolute top-0 w-full z-30 p-4 bg-gradient-to-b from-black/90 to-transparent">
                     <div className="flex justify-between items-center">
                         <button onClick={backToClub} className="bg-black/50 p-2 rounded-full border border-white/10"><ChevronRight size={24} className="rotate-180" /></button>
                         <div className="flex flex-col items-center">
                             <div className="font-extrabold tracking-widest">{activeTable?.name}</div>
-                            {/* מידע על התור */}
                             {turn && (
                                 <div className={`text-xs font-bold px-3 py-1 rounded-full mt-2 ${isMyTurn ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-slate-800 text-slate-300'}`}>
                                     {isMyTurn ? 'התור שלך!' : `תור: ${players[turn]?.name || 'ממתין...'}`}
@@ -333,7 +344,6 @@
                         <button className="bg-black/50 p-2 rounded-full border border-white/10"><Menu size={24} /></button>
                     </div>
                     
-                    {/* תצוגת יריבים */}
                     <div className="flex justify-center gap-4 mt-4">
                         {opponents.map(([id, player]) => (
                             <div key={id} className={`flex flex-col items-center bg-slate-900/80 px-4 py-2 rounded-xl border ${turn === id ? 'turn-glow' : 'border-slate-700'}`}>
@@ -344,14 +354,13 @@
                     </div>
                 </div>
 
-                {/* כפתור מנהל צף */}
                 <div className="absolute left-4 top-32 z-50">
                     <button onClick={startNewGame} className="text-[10px] bg-red-900 text-white px-3 py-2 rounded-lg font-bold shadow-lg border border-red-500">
                         התחל משחק וחלוקה
                     </button>
                 </div>
 
-                {/* הלוח המרכזי */}
+                {/* הלוח */}
                 <div className="flex-1 relative flex flex-col items-center justify-center pt-40 pb-44 px-4" onDragOver={handleDragOver} onDrop={handleDropOnBoard}>
                     <div className="absolute inset-2 md:inset-8 rounded-[80px] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0f6b40] via-[#084226] to-[#041a0f] border-[12px] border-[#1a100b] shadow-[inset_0_0_80px_rgba(0,0,0,1)] flex flex-col p-8 overflow-y-auto no-scrollbar ring-4 ring-[#3b2313]/40">
                     
@@ -364,7 +373,7 @@
                         <div key={`group-${groupIdx}`} className="flex gap-1 p-3 rounded-xl bg-black/20 border border-white/5 min-w-[70px] min-h-[90px] transition-all hover:bg-black/40" onDragOver={handleDragOver} onDrop={(e) => handleDropOnGroup(e, groupIdx)}>
                             {group.length === 0 && <span className="text-white/20 text-xs my-auto mx-2">גרור לכאן</span>}
                             {group.map(tile => (
-                            <div key={`board-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'board', tile, groupIdx)} className="relative w-11 h-16 rounded-[8px] bg-gradient-to-b from-[#ffffff] to-[#e0e0e0] flex items-center justify-center shadow-[1px_3px_8px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-1 transition-transform touch-none">
+                            <div key={`board-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'board', tile, groupIdx)} className="relative w-11 h-16 rounded-[8px] bg-gradient-to-b from-[#ffffff] to-[#e0e0e0] flex items-center justify-center shadow-[1px_3px_8px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-1 transition-transform touch-none select-none">
                                 <span className={`text-2xl font-black ${tile.color}`} style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.8), -1px -1px 0px rgba(0,0,0,0.2)' }}>{tile.num}</span>
                             </div>
                             ))}
@@ -374,7 +383,7 @@
                     </div>
                 </div>
 
-                {/* אזור המעמד של השחקן (Rack) */}
+                {/* המעמד */}
                 <div className={`absolute bottom-0 w-full h-44 bg-gradient-to-t from-black to-transparent z-40 flex flex-col justify-end pb-2 transition-opacity ${!isMyTurn && turn !== null ? 'opacity-70' : 'opacity-100'}`}>
                     <div className="flex justify-between items-center mb-4 px-6 z-50">
                     <button onClick={drawTileFromBank} disabled={!isMyTurn} className={`px-6 py-2.5 rounded-xl font-bold shadow-lg border transition-transform flex items-center gap-2 ${isMyTurn ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 text-white border-emerald-800 active:scale-95' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}>
@@ -390,7 +399,7 @@
                     
                     <div className="flex gap-1.5 z-10 px-4 overflow-x-auto pb-4 pt-4 no-scrollbar items-end min-h-[5rem] w-full justify-center">
                         {rackTiles.map((tile, idx) => (
-                        <div key={`rack-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'rack', tile)} className="relative w-[3rem] h-[4.5rem] md:w-14 md:h-20 rounded-[10px] bg-gradient-to-b from-white to-[#e3e3e3] flex flex-col items-center justify-center shadow-[2px_6px_12px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-4 hover:scale-110 transition-all duration-200 touch-none" style={{ zIndex: rackTiles.length - idx }}>
+                        <div key={`rack-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'rack', tile)} className="relative w-[3rem] h-[4.5rem] md:w-14 md:h-20 rounded-[10px] bg-gradient-to-b from-white to-[#e3e3e3] flex flex-col items-center justify-center shadow-[2px_6px_12px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-4 hover:scale-110 transition-all duration-200 touch-none select-none" style={{ zIndex: rackTiles.length - idx }}>
                             <span className={`text-3xl font-black ${tile.color} tracking-tighter`} style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.9), -1px -1px 0px rgba(0,0,0,0.25)' }}>{tile.num}</span>
                         </div>
                         ))}
