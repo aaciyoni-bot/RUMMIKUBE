@@ -37,6 +37,7 @@
             touch-action: none; /* קריטי למניעת גלילה בזמן גרירת אבנים */
             user-select: none;
             -webkit-user-select: none;
+            font-family: 'Heebo', sans-serif;
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -65,22 +66,24 @@
             box-shadow: inset 0 0 150px rgba(0,0,0,1);
         }
         
+        /* עיצוב אבן הרמיקוב (תלת ממד חזק יותר) */
         .rummi-tile {
-            background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
-            border-bottom: 6px solid #94a3b8;
-            border-right: 2px solid #94a3b8;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            border-bottom: 6px solid #64748b;
+            border-right: 2px solid #64748b;
             border-top: 1px solid #ffffff;
             border-left: 1px solid #ffffff;
             border-radius: 8px;
-            box-shadow: 2px 6px 12px rgba(0,0,0,0.8);
+            box-shadow: 2px 6px 12px rgba(0,0,0,0.9);
             font-family: 'Rubik', sans-serif;
             font-weight: 900;
             display: flex;
             align-items: center;
             justify-content: center;
             user-select: none;
-            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+            transition: box-shadow 0.1s ease-out;
             cursor: grab;
+            text-shadow: 0px 1px 1px rgba(0,0,0,0.2);
         }
         
         .rummi-tile:active { cursor: grabbing; }
@@ -108,7 +111,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        // הגדרות האמת שלך!
+        // FIREBASE HOOK: ההגדרות שלך
         const firebaseConfig = {
             apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
             authDomain: "rummikube-5c138.firebaseapp.com",
@@ -124,7 +127,6 @@
         const db = getFirestore(app);
         const googleProvider = new GoogleAuthProvider();
 
-        // חשיפת האובייקטים ל-React
         window.fb = { 
             auth, db, googleProvider, 
             signInWithPopup, onAuthStateChanged, signOut,
@@ -161,6 +163,16 @@
         const formatMoney = (amount) => {
             if (amount === undefined || amount === null) return '🪙 0';
             return amount.toLocaleString();
+        };
+
+        // פונקציה לייצור מזהה מועדון קצר של 6 תווים (אותיות ומספרים)
+        const generateClubId = () => {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
         };
 
         function App() {
@@ -209,14 +221,22 @@
                 if (userSnap.exists()) {
                     let data = userSnap.data();
                     
-                    // בונוס התחלתי: אם אתה הבעלים ויש לך מיליון, שדרג ל-10 מיליון
-                    if (data.role === ROLES.OWNER && data.balance === 1000000) {
+                    // בונוס התחלתי: אם אתה הבעלים ויש לך פחות מ-10 מיליון, שדרג (רק פעם אחת)
+                    if (data.role === ROLES.OWNER && data.balance < 10000000) {
                          await window.fb.updateDoc(userRef, { balance: 10000000 });
                          data.balance = 10000000;
                     }
+                    
+                    // הבטחת קיום מזהה קצר גם ליוזרים ישנים
+                    if (!data.clubId) {
+                        const newClubId = generateClubId();
+                        await window.fb.updateDoc(userRef, { clubId: newClubId });
+                        data.clubId = newClubId;
+                    }
+                    
                     setDbUser({ uid: user.uid, ...data });
                 } else {
-                    // יוזר חדש! בדיקה אם זה היוזר הראשון במערכת
+                    // יוזר חדש! 
                     const usersQuery = await window.fb.getDocs(window.fb.collection(window.fb.db, "users"));
                     const isFirstUser = usersQuery.empty;
                     const isSecondUser = usersQuery.size === 1;
@@ -225,18 +245,20 @@
                     let status = 'pending';
                     let balance = 0;
 
-                    // חלוקת תפקידים אוטומטית בהקמה
                     if (isFirstUser) {
                         role = ROLES.OWNER;
                         status = 'approved';
-                        balance = 10000000; // הבעלים מתחיל עם 10 מיליון צ'יפים בקופה
+                        balance = 10000000; 
                     } else if (isSecondUser) {
                         role = ROLES.MANAGER;
                         status = 'approved';
                     }
 
+                    const newClubId = generateClubId();
+
                     const newUser = {
-                        username: user.displayName || 'שחקן ' + Math.floor(Math.random()*1000),
+                        username: user.displayName || 'שחקן_' + newClubId,
+                        clubId: newClubId,
                         email: user.email,
                         role: role,
                         status: status,
@@ -255,26 +277,21 @@
             useEffect(() => {
                 if (!fbReady || !dbUser) return;
                 
-                // מאזין לשולחנות הפעילים
                 const unsubTables = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (snapshot) => {
                     setTablesDB(snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() })));
                 });
 
-                // מאזין ליוזר שלי
                 const unsubMe = window.fb.onSnapshot(window.fb.doc(window.fb.db, "users", dbUser.uid), (doc) => {
                     if (doc.exists()) {
                         const data = doc.data();
                         setDbUser({ uid: doc.id, ...data });
                         
-                        // ניתוב מסכים לפי סטטוס
                         if (data.status === 'pending') setCurrentView('pending');
                         else if (currentView === 'auth' || currentView === 'pending') setCurrentView('lobby');
                     }
                 });
 
                 let unsubUsers = () => {};
-
-                // מנהלים צריכים לראות את כל המשתמשים
                 if (dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER) {
                     unsubUsers = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snapshot) => {
                         setUsersDB(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
@@ -289,13 +306,12 @@
             const userAvatar = AVATARS.find(a => a.id === dbUser?.avatarId) || AVATARS[0];
 
             return (
-                <div className="h-full flex flex-col relative">
+                <div className="h-full flex flex-col relative bg-slate-950">
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-950 p-3 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20 pointer-events-none"></div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/10 to-purple-900/10 pointer-events-none"></div>
                             <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10">
                                 
-                                {/* אזור משתמש (שמאל) */}
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 text-rose-500 hover:bg-rose-500/20 transition-all flex items-center justify-center" title="התנתק">
                                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -329,7 +345,6 @@
                                     </div>
                                 </div>
 
-                                {/* לוגו (ימין) */}
                                 <div className="flex flex-col items-end cursor-pointer" onClick={() => setCurrentView('lobby')}>
                                     <h1 className="text-2xl sm:text-3xl font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
                                         RUMMIKUBE<span className="text-blue-500">.COM</span>
@@ -340,7 +355,6 @@
                         </nav>
                     )}
 
-                    {/* View Controller */}
                     <main className="flex-1 relative overflow-hidden flex flex-col">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
@@ -350,7 +364,6 @@
                         {currentView === 'table' && <GameTableView tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
 
-                    {/* Toast Notification */}
                     {toast && (
                         <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-slate-600 text-white px-6 py-3 rounded-2xl shadow-2xl z-[9999] font-bold whitespace-nowrap animate-bounce">
                             {toast}
@@ -418,14 +431,14 @@
                 <div className="flex-1 p-4 flex justify-center items-start overflow-y-auto pt-10 pb-20">
                     <div className="glass-panel p-8 rounded-3xl w-full max-w-lg border border-slate-700 shadow-2xl">
                         <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                            <h2 className="text-2xl font-black text-white">הגדרות שחקן</h2>
+                            <h2 className="text-2xl font-black text-white">הגדרות פרופיל שחקן</h2>
                             <button onClick={onSave} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-2xl"></i></button>
                         </div>
 
                         <div className="mb-8 text-center bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                            <p className="text-slate-400 text-xs mb-2 uppercase tracking-widest font-bold">מזהה מערכת קבוע (ID)</p>
-                            <code className="text-slate-500 text-xs">{user.uid}</code>
-                            <p className="text-[10px] text-slate-500 mt-2">המזהה הזה לא משתנה לעולם, גם אם תשנה שם.</p>
+                            <p className="text-slate-400 text-xs mb-2 uppercase tracking-widest font-bold">מזהה מועדון קבוע (ID)</p>
+                            <code className="text-gold-400 text-2xl font-black tracking-widest">{user.clubId}</code>
+                            <p className="text-[10px] text-slate-500 mt-2">זהו המזהה שלך מול ההנהלה. הוא לא משתנה גם אם תשנה שם.</p>
                         </div>
 
                         <div className="mb-8">
@@ -468,7 +481,7 @@
             const [selectedUser, setSelectedUser] = useState(null);
             const [amount, setAmount] = useState('');
 
-            // פעולת העברה אטומית - מונעת הדפסת כסף!
+            // Zero-Sum Transaction for Chip Transfers
             const handleTransfer = async (type) => {
                 if (!selectedUser || !amount || isNaN(amount) || amount <= 0) return showToast("הזן סכום תקין");
                 const amt = parseInt(amount);
@@ -476,6 +489,7 @@
 
                 if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים בקופה המרכזית!");
                 if (!isDeposit && selectedUser.balance < amt) return showToast("לשחקן אין מספיק צ'יפים למשיכה!");
+                if (selectedUser.uid === user.uid) return showToast("אי אפשר להעביר צ'יפים לעצמך.");
 
                 try {
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
@@ -504,21 +518,19 @@
             const toggleApproval = async (targetUser) => {
                 const newStatus = targetUser.status === 'pending' ? 'approved' : 'pending';
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { status: newStatus });
-                showToast(`סטטוס עודכן ל-${newStatus}`);
+                showToast(`סטטוס של ${targetUser.username} עודכן ל-${newStatus}`);
             };
 
             return (
                 <div className="flex-1 bg-slate-950 p-4 sm:p-8 overflow-y-auto">
                     <div className="max-w-6xl mx-auto">
-                        
                         <div className="mb-8 border-b border-slate-800 pb-6">
-                            <h2 className="text-3xl font-black text-white mb-2"><i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> ניהול מועדון</h2>
-                            <p className="text-slate-400">ניהול שחקנים, אישורים והעברות צ'יפים (בנק).</p>
+                            <h2 className="text-3xl font-black text-white mb-2"><i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> ניהול מועדון עליון</h2>
+                            <p className="text-slate-400">העברות כספים אטומיות, אישורי שחקנים וסטטיסטיקות (חיפוש עפ"י ID מועדון).</p>
                         </div>
 
-                        {/* מודול העברות צ'יפים */}
-                        <div className="glass-panel p-6 rounded-2xl mb-8 border border-slate-700">
-                            <h3 className="text-lg font-bold text-white mb-4">קופת הבית והעברות</h3>
+                        <div className="glass-panel p-6 rounded-2xl mb-8 border border-slate-700 shadow-2xl">
+                            <h3 className="text-lg font-bold text-white mb-4">קופת הבית (Zero-Sum Transfers)</h3>
                             <div className="flex flex-col md:flex-row gap-4 items-end">
                                 <div className="flex-1 w-full">
                                     <label className="block text-xs font-bold text-slate-400 mb-2">בחר שחקן להעברה</label>
@@ -529,7 +541,7 @@
                                     >
                                         <option value="">-- בחר שחקן --</option>
                                         {usersDB.filter(u => u.uid !== user.uid && u.status === 'approved').map(u => (
-                                            <option key={u.uid} value={u.uid}>{u.username} (יתרה: {u.balance})</option>
+                                            <option key={u.uid} value={u.uid}>[{u.clubId}] {u.username} (יתרה: {u.balance})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -538,7 +550,7 @@
                                     <input 
                                         type="number" 
                                         value={amount} onChange={e=>setAmount(e.target.value)}
-                                        className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500 text-xl font-black"
+                                        className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500 text-xl font-black font-rubik"
                                         placeholder="0"
                                     />
                                 </div>
@@ -553,28 +565,29 @@
                             </div>
                         </div>
 
-                        {/* רשימת שחקנים ואישורים */}
                         <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
                             <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-                                <h3 className="text-lg font-bold text-white">ניהול הרשאות ושחקנים</h3>
+                                <h3 className="text-lg font-bold text-white">רשימת משתמשים והרשאות</h3>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-right text-sm">
                                     <thead className="bg-slate-950/80 text-slate-400">
                                         <tr>
-                                            <th className="p-4">שחקן</th>
+                                            <th className="p-4">מזהה (ID)</th>
+                                            <th className="p-4">כינוי שחקן</th>
                                             <th className="p-4">תפקיד</th>
-                                            <th className="p-4">יתרה</th>
+                                            <th className="p-4">יתרה נוכחית</th>
                                             <th className="p-4">סטטוס</th>
-                                            <th className="p-4">פעולות</th>
+                                            <th className="p-4">פעולות הנהלה</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/50">
                                         {usersDB.map(u => (
                                             <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
-                                                <td className="p-4 font-bold text-white">{u.username} <div className="text-[10px] text-slate-500 font-normal">{u.uid}</div></td>
-                                                <td className="p-4 text-blue-400 uppercase text-xs font-bold">{u.role}</td>
-                                                <td className="p-4 text-gold-400 font-bold">{formatMoney(u.balance)}</td>
+                                                <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
+                                                <td className="p-4 font-bold text-white">{u.username}</td>
+                                                <td className="p-4 uppercase text-xs font-bold text-slate-400">{u.role}</td>
+                                                <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
                                                 <td className="p-4">
                                                     <span className={`px-2 py-1 rounded text-xs font-bold ${u.status === 'approved' ? 'bg-emerald-900 text-emerald-400' : 'bg-rose-900 text-rose-400'}`}>
                                                         {u.status}
@@ -582,8 +595,8 @@
                                                 </td>
                                                 <td className="p-4">
                                                     {u.uid !== user.uid && (
-                                                        <button onClick={() => toggleApproval(u)} className="text-xs bg-slate-800 border border-slate-600 px-3 py-1.5 rounded hover:bg-slate-700 text-white transition-colors">
-                                                            {u.status === 'pending' ? 'אשר שחקן' : 'השעה שחקן'}
+                                                        <button onClick={() => toggleApproval(u)} className="text-xs bg-slate-800 border border-slate-600 px-4 py-2 rounded-lg hover:bg-slate-700 text-white transition-colors font-bold shadow-lg">
+                                                            {u.status === 'pending' ? 'אשר שחקן' : 'השעה'}
                                                         </button>
                                                     )}
                                                 </td>
@@ -593,7 +606,6 @@
                                 </table>
                             </div>
                         </div>
-
                     </div>
                 </div>
             );
@@ -620,16 +632,14 @@
                         status: 'waiting',
                         players: {}, 
                         board: [], 
+                        deck: [], // תווסף בהמשך
+                        currentTurn: null,
                         createdAt: new Date().toISOString(),
                         createdBy: user.uid
                     });
                     setShowCreate(false);
                     showToast("שולחן נפתח בהצלחה!");
                 } catch(e) { showToast("שגיאה בפתיחת שולחן"); console.error(e); }
-            };
-
-            const joinTable = (table) => {
-                onJoin(table); // מאפשר לכולם להיכנס כ"צופים" קודם
             };
 
             return (
@@ -655,21 +665,21 @@
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">
                                 <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 15px ${typeInfo.hex}` }}></div>
-                                שולחנות {typeInfo.name}
+                                שולחנות {typeInfo.name} פעילים
                             </h2>
                             {isAdmin && (
                                 <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all flex items-center gap-2 text-sm">
-                                    <i className={`fa-solid ${showCreate ? 'fa-xmark' : 'fa-plus'}`}></i> {showCreate ? 'ביטול פתיחה' : 'פתח שולחן מנהל'}
+                                    <i className={`fa-solid ${showCreate ? 'fa-xmark' : 'fa-plus'}`}></i> {showCreate ? 'ביטול פתיחה' : 'פתח שולחן הנהלה'}
                                 </button>
                             )}
                         </div>
 
                         {showCreate && isAdmin && (
                             <div className="glass-panel p-6 rounded-2xl mb-8 flex flex-wrap gap-4 items-end border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
-                                <div><label className="block text-xs font-bold text-slate-400 mb-1">ערך נקודה בצ'יפים</label><input type="number" value={stakes} onChange={e=>setStakes(e.target.value)} className="bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 w-32 font-bold outline-none focus:border-blue-500" /></div>
-                                <div><label className="block text-xs font-bold text-slate-400 mb-1">דמי כניסה (Buy-in)</label><input type="number" value={buyIn} onChange={e=>setBuyIn(e.target.value)} className="bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 w-32 font-bold outline-none focus:border-blue-500" /></div>
+                                <div><label className="block text-xs font-bold text-slate-400 mb-1">ערך נקודה בצ'יפים</label><input type="number" value={stakes} onChange={e=>setStakes(e.target.value)} className="bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 w-32 font-bold font-rubik outline-none focus:border-blue-500" /></div>
+                                <div><label className="block text-xs font-bold text-slate-400 mb-1">דמי כניסה (Buy-in)</label><input type="number" value={buyIn} onChange={e=>setBuyIn(e.target.value)} className="bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 w-32 font-bold font-rubik outline-none focus:border-blue-500" /></div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 mb-1">זמן תור</label>
+                                    <label className="block text-xs font-bold text-slate-400 mb-1">זמן תור (שניות)</label>
                                     <select value={turnTime} onChange={e=>setTurnTime(e.target.value)} className="bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 w-32 font-bold outline-none focus:border-blue-500">
                                         <option value="30">30 שניות</option>
                                         <option value="45">45 שניות</option>
@@ -683,7 +693,7 @@
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                             {filteredTables.map(t => (
-                                <div key={t.docId} onClick={() => joinTable(t)} className={`glass-panel rounded-2xl p-6 border border-slate-700 cursor-pointer hover:border-slate-400 transition-all hover:-translate-y-1 relative overflow-hidden group shadow-xl`}>
+                                <div key={t.docId} onClick={() => onJoin(t)} className={`glass-panel rounded-2xl p-6 border border-slate-700 cursor-pointer hover:border-slate-400 transition-all hover:-translate-y-1 relative overflow-hidden group shadow-xl`}>
                                     <div className="absolute top-0 right-0 w-full h-1.5 transition-all" style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 20px ${typeInfo.hex}` }}></div>
                                     
                                     <div className="flex justify-between items-start mb-6">
@@ -699,7 +709,7 @@
                                     
                                     <div className="flex justify-between items-center bg-slate-950/80 p-3 rounded-xl border border-slate-800 mb-4 shadow-inner">
                                         <span className="text-xs text-slate-400 font-bold">כניסה מינימלית לשולחן:</span>
-                                        <span className="text-lg font-black text-white">{formatMoney(t.buyIn)}</span>
+                                        <span className="text-lg font-black text-white font-rubik">{formatMoney(t.buyIn)}</span>
                                     </div>
 
                                     <div className="flex justify-between items-center mt-2">
@@ -714,7 +724,7 @@
                                 <div className="col-span-full text-center p-16 glass-panel rounded-3xl border border-dashed border-slate-700 text-slate-500">
                                     <i className="fa-solid fa-layer-group text-5xl mb-4 opacity-40" style={{ color: typeInfo.hex }}></i>
                                     <h3 className="text-lg font-bold text-slate-300 mb-2">אין שולחנות פעילים בקטגוריה זו</h3>
-                                    <p className="text-sm">פנה למנהל הקלאב כדי לפתוח שולחן.</p>
+                                    <p className="text-sm">פנה להנהלת המועדון לפתיחת שולחן חדש.</p>
                                 </div>
                             )}
                         </div>
@@ -723,111 +733,130 @@
             );
         }
 
+        const generateRummikubDeck = () => {
+            const colors = ['#f43f5e', '#3b82f6', '#fbbf24', '#0f172a']; // אדום, כחול, צהוב, שחור
+            let deck = [];
+            let idCounter = 1;
+            
+            for (let s = 0; s < 2; s++) {
+                colors.forEach(hex => {
+                    for (let i = 1; i <= 13; i++) {
+                        deck.push({ id: `t_${idCounter++}`, val: i, hex });
+                    }
+                });
+            }
+            // שני ג'וקרים
+            deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
+            deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
+            
+            // Shuffle
+            return deck.sort(() => Math.random() - 0.5);
+        };
+
         function GameTableView({ tableDocId, user, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
-            
-            // המצב המקומי (האבנים בתושבת שלך)
-            const [localRack, setLocalRack] = useState([
-                { id: `r1_${Date.now()}`, val: 7, hex: '#f43f5e' }, 
-                { id: `r2_${Date.now()}`, val: 8, hex: '#3b82f6' },
-                { id: `r3_${Date.now()}`, val: 9, hex: '#0f172a' }
-            ]); 
-            
+            const [localRack, setLocalRack] = useState([]); 
             const [dragData, setDragData] = useState(null);
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-            const [hoverZone, setHoverZone] = useState(null);
-            
+            const [hoverTarget, setHoverTarget] = useState(null);
             const tableRef = useRef(null);
 
-            // מאזין ל-Firebase לשינויים בלוח המשותף! (Multiplayer Sync)
+            // סנכרון מצב השולחן מול פיירבייס בזמן אמת!
             useEffect(() => {
                 if (!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), (doc) => {
                     if (doc.exists()) {
-                        setTableState({ id: doc.id, ...doc.data() });
+                        const data = { id: doc.id, ...doc.data() };
+                        setTableState(data);
+                        
+                        // קבלת האבנים שלי מהשרת (אם התושבת המקומית ריקה, או שהשרת אילץ עדכון)
+                        if (data.players && data.players[user.uid] && data.players[user.uid].rack && !dragData) {
+                            setLocalRack(data.players[user.uid].rack);
+                        }
                     }
                 });
                 return () => unsub();
-            }, [tableDocId]);
+            }, [tableDocId, user.uid]);
 
-            // מנוע גרירה חכם ומשופר (Pointer Events) לזיהוי מרחבי מדויק
+            const isSeated = tableState?.players && tableState.players[user.uid];
+            const isPlaying = tableState?.status === 'playing';
+            const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
+
+            // --- מנוע גרירה מתמטי ורציף (Pointer Events) ---
             useEffect(() => {
                 const handlePointerMove = (e) => {
-                    if (!dragData) return;
+                    if (!dragData || !isMyTurn) return;
                     e.preventDefault(); 
                     
                     const clientX = e.clientX || (e.touches && e.touches[0].clientX);
                     const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                    
                     setDragPos({ x: clientX, y: clientY });
 
                     if (!tableRef.current) return;
-                    
-                    // זיהוי אובייקטים שהאצבע נמצאת מעליהם
+
+                    // חיפוש חכם של קבוצות השולחן (Snapping גיאומטרי)
                     const elements = document.elementsFromPoint(clientX, clientY);
                     let foundZone = null;
                     for (let el of elements) {
                         const zone = el.getAttribute('data-zone');
-                        if (zone) {
-                            foundZone = zone;
-                            break; 
-                        }
+                        if (zone) { foundZone = zone; break; }
                     }
-                    setHoverZone(foundZone);
+                    setHoverTarget(foundZone);
                 };
 
                 const handlePointerUp = async (e) => {
-                    if (!dragData || !tableState) return;
+                    if (!dragData || !tableState || !isMyTurn) return;
                     
                     let newRack = [...localRack];
-                    // העתק עמוק של הלוח הציבורי מ-Firebase
                     let newBoard = (tableState.board || []).map(g => [...g]); 
-                    let syncRequired = false;
+                    let boardChanged = false;
 
-                    // מחיקה ממקור ההתחלה
+                    // מחיקת האבן ממקום המקור שלה
                     if (dragData.source === 'rack') {
                         newRack.splice(dragData.tileIndex, 1);
                     } else if (dragData.source === 'board') {
                         newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1);
                         if (newBoard[dragData.groupIndex].length === 0) newBoard.splice(dragData.groupIndex, 1);
-                        syncRequired = true;
+                        boardChanged = true;
                     }
 
-                    // הזרקה ליעד (Snapping)
-                    if (hoverZone && hoverZone.startsWith('board-group-')) {
-                        const tIdx = parseInt(hoverZone.replace('board-group-', ''));
-                        const actualIdx = (dragData.source === 'board' && dragData.groupIndex < tIdx && newBoard.length < (tableState.board||[]).length) ? tIdx - 1 : tIdx;
+                    // שילוב האבן ביעד החדש
+                    if (hoverTarget && hoverTarget.startsWith('board-group-')) {
+                        const targetIdx = parseInt(hoverTarget.replace('board-group-', ''));
+                        const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < (tableState.board||[]).length) ? targetIdx - 1 : targetIdx;
                         
                         if(newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile);
                         else newBoard.push([dragData.tile]);
-                        syncRequired = true;
-                    } else if (hoverZone === 'board-main') {
+                        boardChanged = true;
+                    } 
+                    else if (hoverTarget === 'board-main') {
+                        // יצירת קבוצה חדשה על לוח ריק
                         newBoard.push([dragData.tile]);
-                        syncRequired = true;
-                    } else if (hoverZone === 'rack') {
+                        boardChanged = true;
+                    } 
+                    else if (hoverTarget === 'rack') {
+                        // חזרה לתושבת
                         newRack.push(dragData.tile);
-                    } else {
-                        // יעד לא חוקי - ביטול גרירה
+                    } 
+                    else {
+                        // עזיבה במקום לא מוגדר - ביטול פעולה
                         if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 0, dragData.tile);
                         else {
                             newBoard[dragData.groupIndex].splice(dragData.tileIndex, 0, dragData.tile);
-                            syncRequired = true;
+                            boardChanged = true; // במקרה ששלפנו מסדרה אחרת ובטלנו
                         }
                     }
 
                     setLocalRack(newRack);
                     
-                    // סנכרון ל-Firebase בזמן אמת!
-                    if (syncRequired) {
-                        try {
-                            await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                                board: newBoard
-                            });
-                        } catch(err) { console.error("Sync error", err); }
+                    // סנכרון הלוח מול Firebase בזמן אמת כדי שכולם יראו!
+                    if (boardChanged) {
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard }); } 
+                        catch(err) { console.error("Sync error", err); }
                     }
 
                     setDragData(null);
-                    setHoverZone(null);
+                    setHoverTarget(null);
                 };
 
                 if (dragData) {
@@ -842,9 +871,12 @@
                     window.removeEventListener('touchmove', handlePointerMove);
                     window.removeEventListener('touchend', handlePointerUp);
                 };
-            }, [dragData, hoverZone, localRack, tableState]);
+            }, [dragData, hoverTarget, localRack, tableState, isMyTurn]);
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
+                if (!isPlaying) return showToast("המשחק טרם החל.");
+                if (!isMyTurn) return showToast("זה לא התור שלך!");
+                
                 e.stopPropagation();
                 const clientX = e.clientX || (e.touches && e.touches[0].clientX);
                 const clientY = e.clientY || (e.touches && e.touches[0].clientY);
@@ -852,15 +884,13 @@
                 setDragPos({ x: clientX, y: clientY });
             };
 
-            // מנגנון הושבה בשולחן (Seats)
             const handleSitDown = async () => {
                 if (user.balance < tableState.buyIn && user.role !== ROLES.OWNER) {
                     return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.");
                 }
                 
                 const currentPlayers = tableState.players || {};
-                const seatCount = Object.keys(currentPlayers).length;
-                if (seatCount >= 4) return showToast("השולחן מלא.");
+                if (Object.keys(currentPlayers).length >= 4) return showToast("השולחן מלא.");
 
                 const takenSeats = Object.values(currentPlayers).map(p => p.seat);
                 let emptySeat = 0;
@@ -871,115 +901,211 @@
                     username: user.username,
                     avatarId: user.avatarId,
                     seat: emptySeat,
-                    status: 'seated'
+                    rack: [] // התושבת מתחילה ריקה
                 };
 
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                    players: updatedPlayers
-                });
-                showToast("תפסת מקום בשולחן!");
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
             };
 
-            if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white font-sans text-xl">טוען שולחן מולטיפלייר...</div>;
+            const handleStartGame = async () => {
+                const uids = Object.keys(tableState.players || {});
+                if (uids.length < 2) return showToast("צריך לפחות 2 שחקנים כדי להתחיל משחק.");
+
+                const deck = generateRummikubDeck();
+                const updatedPlayers = { ...tableState.players };
+
+                // חלוקת 14 אבנים לכל שחקן
+                uids.forEach(uid => {
+                    updatedPlayers[uid].rack = deck.splice(0, 14);
+                });
+
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
+                    status: 'playing',
+                    deck: deck,
+                    players: updatedPlayers,
+                    currentTurn: uids[0], 
+                    board: []
+                });
+                showToast("המשחק התחיל! שיהיה בהצלחה.");
+            };
+
+            const passTurn = async (newRack, newDeck = null) => {
+                const uids = Object.keys(tableState.players);
+                const currentIndex = uids.indexOf(user.uid);
+                const nextTurnUid = uids[(currentIndex + 1) % uids.length];
+
+                const updates = { 
+                    currentTurn: nextTurnUid,
+                    [`players.${user.uid}.rack`]: newRack
+                };
+                if (newDeck) updates.deck = newDeck;
+
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
+            };
+
+            const handleEndTurn = () => {
+                // בשלב הבא (שלב 2) נכניס כאן את בדיקת ה-Validation של הלוח!
+                passTurn(localRack);
+            };
+
+            const handleDrawTile = () => {
+                if (!isMyTurn) return;
+                const currentDeck = [...(tableState.deck || [])];
+                if (currentDeck.length === 0) return showToast("הקופה ריקה!");
+                
+                const drawnTile = currentDeck.shift(); // מושך אבן
+                const newRack = [...localRack, drawnTile];
+                setLocalRack(newRack);
+                
+                passTurn(newRack, currentDeck); // מעביר תור
+            };
+
+            if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white font-sans text-xl">טוען שולחן...</div>;
 
             const typeInfo = GAME_TYPES.find(g => g.id === tableState.type) || GAME_TYPES[0];
             const hex = typeInfo.hex;
             const sharedBoard = tableState.board || [];
-            const isSeated = tableState.players && tableState.players[user.uid];
+            const playersList = Object.entries(tableState.players || {});
 
             return (
-                <div className="flex-1 flex flex-col relative select-none game-felt overflow-hidden touch-none" ref={tableRef}>
-                    
-                    {/* תאורת אווירה מותאמת לסוג המשחק */}
+                <div className="flex-1 flex flex-col relative select-none game-felt overflow-hidden" ref={tableRef} style={{ touchAction: 'none' }}>
                     <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-screen" style={{ background: `radial-gradient(circle at 50% 30%, ${hex} 0%, transparent 60%)` }}></div>
 
-                    {/* לוח עליון (HUD) - מהודק ומעוצב */}
+                    {/* Header Top Bar */}
                     <div className="relative z-20 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-slate-800">
                         <div className="flex items-center gap-3">
                             <button onClick={onLeave} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold hover:text-white transition-colors text-sm flex items-center gap-2">
                                 <i className="fa-solid fa-arrow-right"></i> עזוב
                             </button>
-                            <div className="bg-slate-900 border px-4 py-1.5 rounded-xl font-black chip-text shadow-inner" style={{ borderColor: `${hex}50` }}>
-                                {formatMoney(user.balance)}
-                            </div>
+                            {isSeated && (
+                                <div className="bg-slate-900 border px-4 py-1.5 rounded-xl font-black chip-text shadow-inner hidden sm:block font-rubik" style={{ borderColor: `${hex}50` }}>
+                                    {formatMoney(user.balance)}
+                                </div>
+                            )}
                         </div>
                         
                         <div className="text-center absolute left-1/2 transform -translate-x-1/2">
                             <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-widest font-sans" style={{ textShadow: `0 0 20px ${hex}` }}>{typeInfo.name}</h2>
                             <div className="flex items-center justify-center gap-2 mt-0.5 font-sans">
-                                <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">נקודה: <span style={{color: hex}}>{tableState.stakes}</span></span>
-                                <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">כניסה: {formatMoney(tableState.buyIn)}</span>
+                                <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">נקודה: <span style={{color: hex}} className="font-rubik">{tableState.stakes}</span></span>
+                                <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">כניסה: <span className="font-rubik">{formatMoney(tableState.buyIn)}</span></span>
                             </div>
                         </div>
 
                         {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
-                            <button onClick={() => showToast('מערכת סגירת שולחן וחישוב עץ מת תיבנה בשלב הבא')} className="text-slate-500 hover:text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 transition-colors text-xs font-bold flex items-center gap-2" title="הנהלה">
+                            <button onClick={() => showToast('סגירת שולחן וחישוב עץ מת תיבנה בשלב 3')} className="text-slate-500 hover:text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 transition-colors text-xs font-bold flex items-center gap-2">
                                 <i className="fa-solid fa-lock"></i> <span className="hidden sm:inline">הנהלה</span>
                             </button>
                         )}
                     </div>
 
-                    {/* הלוח הציבורי המשותף (Board Zone) */}
+                    {/* Main Board Drop Zone */}
                     <div 
                         data-zone="board-main" 
-                        className={`flex-1 mx-2 sm:mx-6 mt-4 mb-2 rounded-[2rem] border-[4px] relative p-4 sm:p-6 overflow-y-auto transition-all ${hoverZone === 'board-main' ? 'bg-white/5 scale-[1.01]' : ''}`} 
+                        className={`flex-1 mx-2 sm:mx-6 mt-4 mb-2 rounded-[2rem] border-[4px] relative p-4 sm:p-6 overflow-y-auto transition-all ${hoverTarget === 'board-main' ? 'bg-white/5 scale-[1.01]' : ''}`} 
                         style={{ borderColor: `${hex}30`, backgroundColor: 'rgba(5, 8, 15, 0.7)', boxShadow: `inset 0 0 100px rgba(0,0,0,1)` }}
                     >
+                        {/* Not Seated State */}
                         {!isSeated && (
-                            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-[1.8rem]">
+                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-[1.8rem]">
                                 <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3 transition-transform hover:scale-105">
-                                    <i className="fa-solid fa-chair"></i> שב בשולחן ושלם כניסה
+                                    <i className="fa-solid fa-chair"></i> שב בשולחן (מינ' {formatMoney(tableState.buyIn)})
                                 </button>
+                                <p className="mt-4 text-slate-300 font-bold">({playersList.length}/4 שחקנים יושבים)</p>
                             </div>
                         )}
 
-                        <div className="flex flex-wrap gap-4 sm:gap-6 items-start pb-24 relative z-10 pointer-events-none">
+                        {/* Waiting for Manager to Start */}
+                        {isSeated && !isPlaying && (
+                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-[1.8rem]">
+                                <h3 className="text-2xl text-white font-black mb-4">ממתין לתחילת משחק...</h3>
+                                <p className="text-slate-300 mb-6 font-bold">{playersList.length} שחקנים מחוברים.</p>
+                                {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                                    <button onClick={handleStartGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-transform hover:scale-105">
+                                        התחל משחק וחלוק 14 אבנים
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Opponents Display */}
+                        {isPlaying && (
+                            <div className="absolute top-4 left-4 right-4 flex justify-center gap-8 pointer-events-none opacity-80">
+                                {playersList.filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
+                                    const av = AVATARS.find(a => a.id === pData.avatarId) || AVATARS[0];
+                                    const isTheirTurn = tableState.currentTurn === uid;
+                                    return (
+                                        <div key={uid} className={`flex flex-col items-center transition-all ${isTheirTurn ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'opacity-50'}`}>
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 mb-1 ${isTheirTurn ? 'border-white bg-slate-800' : 'border-slate-600 bg-slate-900'}`}>
+                                                <i className={`fa-solid ${av.icon} ${av.color}`}></i>
+                                            </div>
+                                            <span className={`text-[10px] font-bold ${isTheirTurn ? 'text-white' : 'text-slate-400'}`}>{pData.username}</span>
+                                            <span className="text-[10px] text-emerald-400 font-rubik bg-slate-900 px-2 rounded-full mt-0.5">{pData.rack?.length || 0} אבנים</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+
+                        {/* Rendering the Board Groups */}
+                        <div className="flex flex-wrap gap-4 sm:gap-6 items-start pb-24 mt-20 relative z-10 pointer-events-none">
                             {sharedBoard.map((group, gIdx) => (
                                 <div 
                                     key={gIdx} data-zone={`board-group-${gIdx}`}
-                                    className={`flex p-2 sm:p-3 rounded-2xl border-[3px] min-h-[85px] min-w-[70px] transition-all duration-200 pointer-events-auto ${hoverZone === `board-group-${gIdx}` ? `bg-white/10 scale-110 shadow-[0_0_40px_${hex}80]` : 'bg-black/50 border-white/5'}`}
-                                    style={hoverZone === `board-group-${gIdx}` ? { borderColor: hex } : {}}
+                                    className={`flex p-2 sm:p-3 rounded-2xl border-[3px] min-h-[85px] min-w-[70px] transition-all duration-200 pointer-events-auto ${hoverTarget === `board-group-${gIdx}` ? `bg-white/10 scale-110 shadow-[0_0_40px_${hex}80]` : 'bg-black/50 border-white/5'}`}
+                                    style={hoverTarget === `board-group-${gIdx}` ? { borderColor: hex } : {}}
                                 >
                                     {group.map((tile, tIdx) => (
-                                        <div key={tile.id} onPointerDown={(e) => isSeated && startDrag(e, tile, 'board', gIdx, tIdx)}
-                                            onTouchStart={(e) => isSeated && startDrag(e, tile, 'board', gIdx, tIdx)}
+                                        <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'board', gIdx, tIdx)}
+                                            onTouchStart={(e) => startDrag(e, tile, 'board', gIdx, tIdx)}
                                             className={`rummi-tile w-12 h-16 sm:w-14 sm:h-20 text-3xl sm:text-4xl mx-0.5 ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`}
-                                            style={{ color: tile.hex }}>{tile.val === 'J' ? '☻' : tile.val}</div>
+                                            style={{ color: tile.hex }}>{tile.val}</div>
                                     ))}
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* התושבת הפרטית (Rack Zone) */}
+                    {/* Bottom Rack Zone */}
                     <div data-zone="rack" className="relative z-20 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center pb-6 bg-slate-950 border-t-[3px]" style={{ borderTopColor: `${hex}50`, boxShadow: `0 -20px 50px rgba(0,0,0,0.9)` }}>
                         
-                        <div className="absolute top-[-20px] sm:top-[-24px] flex gap-2 z-30">
-                            <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-600 flex items-center gap-2 text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans">
-                                <i className="fa-solid fa-layer-group text-gold-400"></i> משיכה (104)
-                            </button>
-                            <button className="text-slate-950 px-6 py-2.5 rounded-xl font-black shadow-[0_0_20px_rgba(16,185,129,0.5)] uppercase text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans" style={{ backgroundColor: hex }}>
-                                סיום תור
-                            </button>
-                        </div>
+                        {/* Turn Actions */}
+                        {isPlaying && (
+                            <div className="absolute top-[-20px] sm:top-[-24px] flex gap-2 z-30">
+                                {!isMyTurn ? (
+                                    <div className="bg-slate-900 text-slate-400 px-6 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-800 flex items-center gap-2 text-sm">
+                                        <i className="fa-solid fa-hourglass-half fa-spin"></i> ממתין לתור השחקן הבא...
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button onClick={handleDrawTile} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-600 flex items-center gap-2 text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans">
+                                            <i className="fa-solid fa-layer-group text-gold-400"></i> משיכה (<span className="font-rubik">{tableState.deck?.length || 0}</span>)
+                                        </button>
+                                        <button onClick={handleEndTurn} className="text-slate-950 px-6 py-2.5 rounded-xl font-black shadow-[0_0_20px_rgba(16,185,129,0.5)] uppercase text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans animate-pulse" style={{ backgroundColor: hex }}>
+                                            <i className="fa-solid fa-check mr-2"></i> סיום תור
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
 
-                        <div className={`w-[98%] max-w-4xl min-h-[100px] sm:min-h-[130px] bg-gradient-to-b from-slate-800 to-slate-950 rounded-t-3xl border-x-[12px] sm:border-x-[20px] border-b-[10px] sm:border-b-[16px] border-slate-900 shadow-[0_20px_50px_#000] flex flex-wrap justify-center items-end px-2 py-3 sm:py-5 gap-1 relative ${hoverZone === 'rack' ? `shadow-[0_0_40px_${hex}40]` : ''}`} style={hoverZone === 'rack' ? {borderColor: `${hex}80`} : {}}>
+                        <div className={`w-[98%] max-w-4xl min-h-[100px] sm:min-h-[130px] bg-gradient-to-b from-slate-800 to-slate-950 rounded-t-3xl border-x-[12px] sm:border-x-[20px] border-b-[10px] sm:border-b-[16px] border-slate-900 shadow-[0_20px_50px_#000] flex flex-wrap justify-center items-end px-2 py-3 sm:py-5 gap-1 relative ${hoverTarget === 'rack' ? `shadow-[0_0_40px_${hex}40]` : ''}`} style={hoverTarget === 'rack' ? {borderColor: `${hex}80`} : {}}>
                             <div className="absolute inset-0 border-t-8 border-black/50 rounded-t-2xl pointer-events-none"></div>
 
                             {localRack.map((tile, tIdx) => (
                                 <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, tIdx)}
                                     onTouchStart={(e) => startDrag(e, tile, 'rack', null, tIdx)}
                                     className={`rummi-tile w-12 h-16 sm:w-16 sm:h-24 text-3xl sm:text-5xl mx-0.5 z-10 ${dragData?.tile?.id === tile.id ? 'opacity-10 scale-90' : 'hover:-translate-y-3'}`}
-                                    style={{ color: tile.hex }}>{tile.val === 'J' ? '☻' : tile.val}</div>
+                                    style={{ color: tile.hex }}>{tile.val}</div>
                             ))}
                         </div>
                     </div>
 
-                    {/* ייצוג האבן הנגררת (Ghost Element) */}
+                    {/* The Dragging Ghost (Follows Pointer) */}
                     {dragData && (
                         <div className="fixed dragging-ghost rummi-tile w-16 h-24 sm:w-20 sm:h-28 text-5xl sm:text-6xl z-[99999]"
                             style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(4deg)', color: dragData.tile.hex }}>
-                            {dragData.tile.val === 'J' ? '☻' : dragData.tile.val}
+                            {dragData.tile.val}
                         </div>
                     )}
                 </div>
