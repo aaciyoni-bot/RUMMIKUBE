@@ -91,7 +91,7 @@
             transform: scale(1.15) rotate(5deg);
             box-shadow: 15px 25px 40px rgba(0,0,0,0.9);
             pointer-events: none;
-            z-index: 9999;
+            z-index: 99999;
         }
 
         .bg-dots {
@@ -293,7 +293,8 @@
                 
                 if (userSnap.exists()) {
                     let data = userSnap.data();
-                    if (data.role === ROLES.OWNER && data.balance === 1000000) {
+                    // Owner Auto-Recharge Security
+                    if (data.role === ROLES.OWNER && (!data.balance || data.balance < 1000000)) {
                          await window.fb.updateDoc(userRef, { balance: 10000000 });
                          data.balance = 10000000;
                     }
@@ -359,7 +360,7 @@
                 });
 
                 let unsubUsers = () => {};
-                if (dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER) {
+                if (dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER || dbUser.role === ROLES.AGENT) {
                     unsubUsers = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snapshot) => {
                         setUsersDB(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
                     });
@@ -384,11 +385,11 @@
                                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                                     </button>
                                     
-                                    {(dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER) && (
+                                    {(dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER || dbUser.role === ROLES.AGENT) && (
                                         <button 
                                             onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')}
                                             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${currentView === 'backoffice' ? 'bg-slate-200 text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
-                                            title="ניהול מועדון"
+                                            title={dbUser.role === ROLES.AGENT ? "ניהול סוכן" : "ניהול מועדון"}
                                         >
                                             <i className="fa-solid fa-users-gear"></i>
                                         </button>
@@ -433,7 +434,7 @@
                     </main>
 
                     {/* Toast Container */}
-                    <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+                    <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (
                             <div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : t.type === 'success' ? 'bg-emerald-900 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>
                                 {t.msg}
@@ -477,7 +478,7 @@
                     <div className="glass-panel p-10 rounded-3xl max-w-sm">
                         <i className="fa-solid fa-clock-rotate-left text-6xl text-gold-500 mb-6 animate-pulse"></i>
                         <h2 className="text-2xl font-black text-white mb-3">ממתין לאישור הנהלה</h2>
-                        <p className="text-slate-400 text-sm leading-relaxed mb-8">הבקשה שלך נמצאת אצל מנהלי הקלאב. רק לאחר אישור והפקדת צ'יפים תוכל להיכנס.</p>
+                        <p className="text-slate-400 text-sm leading-relaxed mb-8">הבקשה שלך נמצאת אצל מנהלי הקלאב/סוכנים. רק לאחר אישור והפקדת צ'יפים תוכל להיכנס.</p>
                         <button onClick={() => window.fb.signOut(window.fb.auth)} className="text-slate-400 font-bold hover:text-white underline">התנתק וחזור למסך הראשי</button>
                     </div>
                 </div>
@@ -507,9 +508,9 @@
                         </div>
 
                         <div className="mb-8 text-center bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                            <p className="text-slate-400 text-xs mb-2 uppercase tracking-widest font-bold">מזהה מועדון קבוע (ID)</p>
+                            <p className="text-slate-400 text-xs mb-2 uppercase tracking-widest font-bold">מזהה מועדון (ID שחקן)</p>
                             <code className="text-gold-400 text-2xl font-black tracking-widest">{user.clubId}</code>
-                            <p className="text-[10px] text-slate-500 mt-2">זהו המזהה הייחודי שלך לטובת העברות כספים וסטטיסטיקה.</p>
+                            <p className="text-[10px] text-slate-500 mt-2">העבר מזהה זה לסוכן או להנהלה כדי שיפקידו לך צ'יפים.</p>
                         </div>
 
                         <div className="mb-8">
@@ -552,28 +553,37 @@
             const [selectedUser, setSelectedUser] = useState(null);
             const [amount, setAmount] = useState('');
 
+            // Agents see only their players. Owners/Managers see everyone.
+            const isAgent = user.role === ROLES.AGENT;
+            const isGlobalAdmin = user.role === ROLES.OWNER || user.role === ROLES.MANAGER;
+            
+            const visibleUsers = usersDB.filter(u => {
+                if (u.uid === user.uid) return false;
+                if (isGlobalAdmin) return true;
+                return u.agentId === user.uid; // Agent sees only their assigned players
+            });
+
             const handleTransfer = async (type) => {
                 if (!selectedUser || !amount || isNaN(amount) || amount <= 0) return showToast("הזן סכום תקין", "error");
                 const amt = parseInt(amount);
                 const isDeposit = type === 'deposit';
 
-                if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים בקופה המרכזית!", "error");
+                if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים להפקדה לשחקן!", "error");
                 if (!isDeposit && selectedUser.balance < amt) return showToast("לשחקן אין מספיק צ'יפים למשיכה!", "error");
-                if (selectedUser.uid === user.uid) return showToast("אי אפשר להעביר צ'יפים לעצמך.", "error");
 
                 try {
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const ownerRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const playerRef = window.fb.doc(window.fb.db, "users", selectedUser.uid);
+                        const senderRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const receiverRef = window.fb.doc(window.fb.db, "users", selectedUser.uid);
                         
-                        const ownerDoc = await transaction.get(ownerRef);
-                        const playerDoc = await transaction.get(playerRef);
+                        const senderDoc = await transaction.get(senderRef);
+                        const receiverDoc = await transaction.get(receiverRef);
 
-                        const newOwnerBalance = isDeposit ? ownerDoc.data().balance - amt : ownerDoc.data().balance + amt;
-                        const newPlayerBalance = isDeposit ? playerDoc.data().balance + amt : playerDoc.data().balance - amt;
+                        const newSenderBalance = isDeposit ? senderDoc.data().balance - amt : senderDoc.data().balance + amt;
+                        const newReceiverBalance = isDeposit ? receiverDoc.data().balance + amt : receiverDoc.data().balance - amt;
 
-                        transaction.update(ownerRef, { balance: newOwnerBalance });
-                        transaction.update(playerRef, { balance: newPlayerBalance });
+                        transaction.update(senderRef, { balance: newSenderBalance });
+                        transaction.update(receiverRef, { balance: newReceiverBalance });
                     });
                     
                     showToast(`הפעולה בוצעה. ${formatMoney(amt)} הועברו.`, "success");
@@ -598,7 +608,7 @@
 
             const changeAgent = async (targetUser, agentId) => {
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentId: agentId || null });
-                showToast("סוכן עודכן בהצלחה", "success");
+                showToast("סוכן משויך עודכן בהצלחה", "success");
             };
             
             const changeAgentShare = async (targetUser, shareStr) => {
@@ -614,22 +624,28 @@
                 <div className="flex-1 bg-slate-950 p-4 sm:p-8 overflow-y-auto">
                     <div className="max-w-7xl mx-auto">
                         <div className="mb-8 border-b border-slate-800 pb-6">
-                            <h2 className="text-3xl font-black text-white mb-2"><i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> ניהול מועדון עליון</h2>
-                            <p className="text-slate-400">העברות כספים, ניהול סוכנים, ואישורי שחקנים.</p>
+                            <h2 className="text-3xl font-black text-white mb-2">
+                                <i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> 
+                                {isAgent ? 'פאנל סוכן (Agent)' : 'ניהול מועדון עליון'}
+                            </h2>
+                            <p className="text-slate-400">
+                                {isAgent ? 'הפקדה ומשיכת צ\'יפים מהשחקנים המשויכים אליך בלבד.' : 'ניהול גלובלי, הרשאות והעברות צ\'יפים.'}
+                            </p>
                         </div>
 
+                        {/* Transfer Form - Visible to Both Admin and Agent */}
                         <div className="glass-panel p-6 rounded-2xl mb-8 border border-slate-700 shadow-2xl">
-                            <h3 className="text-lg font-bold text-white mb-4">קופת הבית (העברת צ'יפים אטומית)</h3>
+                            <h3 className="text-lg font-bold text-white mb-4">ניהול צ'יפים לשחקנים (Cashier)</h3>
                             <div className="flex flex-col md:flex-row gap-4 items-end">
                                 <div className="flex-1 w-full">
                                     <label className="block text-xs font-bold text-slate-400 mb-2">בחר שחקן להעברה</label>
                                     <select 
                                         className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500"
-                                        onChange={(e) => setSelectedUser(usersDB.find(u => u.uid === e.target.value))}
+                                        onChange={(e) => setSelectedUser(visibleUsers.find(u => u.uid === e.target.value))}
                                         value={selectedUser?.uid || ''}
                                     >
                                         <option value="">-- בחר שחקן --</option>
-                                        {usersDB.filter(u => u.uid !== user.uid && u.status === 'approved').map(u => (
+                                        {visibleUsers.map(u => (
                                             <option key={u.uid} value={u.uid}>[{u.clubId}] {u.username} (יתרה: {u.balance})</option>
                                         ))}
                                     </select>
@@ -654,85 +670,125 @@
                             </div>
                         </div>
 
-                        <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
-                            <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-                                <h3 className="text-lg font-bold text-white">רשימת משתמשים, סוכנים והרשאות</h3>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-right text-sm">
-                                    <thead className="bg-slate-950/80 text-slate-400">
-                                        <tr>
-                                            <th className="p-4">ID מועדון</th>
-                                            <th className="p-4">כינוי שחקן</th>
-                                            <th className="p-4">תפקיד</th>
-                                            <th className="p-4">סוכן אחראי</th>
-                                            <th className="p-4">% עמלת סוכן</th>
-                                            <th className="p-4">יתרה נוכחית</th>
-                                            <th className="p-4">פעולות הנהלה</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800/50">
-                                        {usersDB.map(u => (
-                                            <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
-                                                <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
-                                                <td className="p-4 font-bold text-white flex items-center gap-2">
-                                                     {u.username}
-                                                </td>
-                                                <td className="p-4 uppercase text-xs font-bold text-slate-400">
-                                                    {user.role === ROLES.OWNER && u.uid !== user.uid ? (
-                                                        <select 
-                                                            value={u.role} 
-                                                            onChange={(e) => changeRole(u, e.target.value)}
-                                                            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-white"
-                                                        >
-                                                            <option value={ROLES.PLAYER}>Player</option>
-                                                            <option value={ROLES.AGENT}>Agent</option>
-                                                            <option value={ROLES.MANAGER}>Manager</option>
-                                                        </select>
-                                                    ) : (
-                                                        <span>{u.role}</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4">
-                                                    {u.role === ROLES.PLAYER && user.role === ROLES.OWNER && (
-                                                        <select 
-                                                            value={u.agentId || ''} 
-                                                            onChange={(e) => changeAgent(u, e.target.value)}
-                                                            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-slate-300 w-full"
-                                                        >
-                                                            <option value="">ללא סוכן (הכל לבית)</option>
-                                                            {agentsList.filter(a => a.uid !== u.uid).map(a => (
-                                                                <option key={a.uid} value={a.uid}>{a.username}</option>
-                                                            ))}
-                                                        </select>
-                                                    )}
-                                                </td>
-                                                <td className="p-4">
-                                                    {u.role === ROLES.PLAYER && u.agentId && user.role === ROLES.OWNER && (
-                                                        <div className="flex items-center gap-1">
-                                                            <input 
-                                                                type="number" defaultValue={u.agentRakeShare} 
-                                                                onBlur={(e) => changeAgentShare(u, e.target.value)}
-                                                                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center text-white" 
-                                                                min="0" max="100"
-                                                            /> <span className="text-slate-500">%</span>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
-                                                <td className="p-4">
-                                                    {u.uid !== user.uid && (
-                                                        <button onClick={() => toggleApproval(u)} className="text-xs bg-slate-800 border border-slate-600 px-4 py-2 rounded-lg hover:bg-slate-700 text-white transition-colors font-bold shadow-lg">
-                                                            {u.status === 'pending' ? 'אשר שחקן' : 'השעה'}
-                                                        </button>
-                                                    )}
-                                                </td>
+                        {/* Admin Table - Roles and Percentages (Admins only) */}
+                        {isGlobalAdmin && (
+                            <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
+                                <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+                                    <h3 className="text-lg font-bold text-white">רשימת משתמשים, סוכנים והרשאות (Global Admin)</h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-right text-sm">
+                                        <thead className="bg-slate-950/80 text-slate-400">
+                                            <tr>
+                                                <th className="p-4">ID מועדון</th>
+                                                <th className="p-4">כינוי שחקן</th>
+                                                <th className="p-4">תפקיד</th>
+                                                <th className="p-4">סוכן אחראי</th>
+                                                <th className="p-4">% עמלת סוכן</th>
+                                                <th className="p-4">יתרה נוכחית</th>
+                                                <th className="p-4">סטטוס</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/50">
+                                            {usersDB.map(u => (
+                                                <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
+                                                    <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
+                                                    <td className="p-4 font-bold text-white flex items-center gap-2">
+                                                         {u.username}
+                                                    </td>
+                                                    <td className="p-4 uppercase text-xs font-bold text-slate-400">
+                                                        {user.role === ROLES.OWNER && u.uid !== user.uid ? (
+                                                            <select 
+                                                                value={u.role} 
+                                                                onChange={(e) => changeRole(u, e.target.value)}
+                                                                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-white"
+                                                            >
+                                                                <option value={ROLES.PLAYER}>Player</option>
+                                                                <option value={ROLES.AGENT}>Agent</option>
+                                                                <option value={ROLES.MANAGER}>Manager</option>
+                                                            </select>
+                                                        ) : (
+                                                            <span>{u.role}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {u.role === ROLES.PLAYER && user.role === ROLES.OWNER && (
+                                                            <select 
+                                                                value={u.agentId || ''} 
+                                                                onChange={(e) => changeAgent(u, e.target.value)}
+                                                                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-slate-300 w-full"
+                                                            >
+                                                                <option value="">ללא סוכן (הכל לבית)</option>
+                                                                {agentsList.filter(a => a.uid !== u.uid).map(a => (
+                                                                    <option key={a.uid} value={a.uid}>{a.username}</option>
+                                                                ))}
+                                                            </select>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {u.role === ROLES.PLAYER && u.agentId && user.role === ROLES.OWNER && (
+                                                            <div className="flex items-center gap-1">
+                                                                <input 
+                                                                    type="number" defaultValue={u.agentRakeShare} 
+                                                                    onBlur={(e) => changeAgentShare(u, e.target.value)}
+                                                                    className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center text-white" 
+                                                                    min="0" max="100"
+                                                                /> <span className="text-slate-500">%</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
+                                                    <td className="p-4">
+                                                        {u.uid !== user.uid && (
+                                                            <button onClick={() => toggleApproval(u)} className={`text-xs border px-4 py-2 rounded-lg transition-colors font-bold shadow-lg ${u.status === 'pending' ? 'bg-emerald-900 border-emerald-600 text-emerald-300 hover:bg-emerald-800' : 'bg-slate-800 border-slate-600 text-white hover:bg-slate-700'}`}>
+                                                                {u.status === 'pending' ? 'אשר שחקן' : 'השעה פעילות'}
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Agent Restricted View */}
+                        {isAgent && !isGlobalAdmin && (
+                            <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
+                                <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+                                    <h3 className="text-lg font-bold text-white">השחקנים המשויכים אליי</h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-right text-sm">
+                                        <thead className="bg-slate-950/80 text-slate-400">
+                                            <tr>
+                                                <th className="p-4">ID מועדון</th>
+                                                <th className="p-4">כינוי שחקן</th>
+                                                <th className="p-4">יתרה נוכחית</th>
+                                                <th className="p-4">סטטוס</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/50">
+                                            {visibleUsers.length === 0 && <tr><td colSpan="4" className="text-center p-6 text-slate-500">אין שחקנים משויכים תחת הניהול שלך.</td></tr>}
+                                            {visibleUsers.map(u => (
+                                                <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
+                                                    <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
+                                                    <td className="p-4 font-bold text-white">{u.username}</td>
+                                                    <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
+                                                    <td className="p-4">
+                                                        <span className={`text-xs px-2 py-1 rounded ${u.status === 'approved' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>
+                                                            {u.status === 'approved' ? 'פעיל' : 'מושעה/ממתין'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                 </div>
             );
@@ -766,6 +822,9 @@
                         board: [], 
                         deck: [], 
                         currentTurn: null,
+                        chatEnabled: true,
+                        mutedPlayers: [],
+                        chat: [],
                         createdAt: new Date().toISOString(),
                         createdBy: user.uid
                     });
@@ -1001,7 +1060,16 @@
             const originalRackRef = useRef([]);
 
             const [showEmojis, setShowEmojis] = useState(false);
+            const [showChat, setShowChat] = useState(false);
+            const [chatMsg, setChatMsg] = useState("");      
+            const chatEndRef = useRef(null);                 
             const [floatingEmojis, setFloatingEmojis] = useState([]);
+
+            useEffect(() => {
+                if (showChat && chatEndRef.current) {
+                    chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, [tableState?.chat, showChat]);
 
             useEffect(() => {
                 if (!tableDocId) return;
@@ -1215,6 +1283,8 @@
             };
 
             const handleSitDown = async () => {
+                showToast("בודק מקום בשולחן ומוודא יתרה...", "info");
+                
                 const currentPlayers = tableState.players || {};
                 if (Object.keys(currentPlayers).length >= 4) return showToast("השולחן מלא.", "error");
                 
@@ -1227,8 +1297,9 @@
                             const userDoc = await transaction.get(userRef);
                             const tableDoc = await transaction.get(tableRef);
                             
-                            if (userDoc.data().balance < tableState.buyIn && user.role !== ROLES.OWNER) {
-                                throw "אין לך מספיק צ'יפים להרשמה לטורניר.";
+                            // Check explicit Number values to prevent string comparison bugs
+                            if (Number(userDoc.data().balance) < Number(tableState.buyIn)) {
+                                throw "אין לך מספיק צ'יפים להרשמה לטורניר. פנה לסוכן להפקדה.";
                             }
                             
                             const tData = tableDoc.data();
@@ -1246,8 +1317,9 @@
                                 hasOpened: false
                             };
                             
-                            const newBalance = user.role === ROLES.OWNER ? userDoc.data().balance : userDoc.data().balance - tableState.buyIn;
-                            const newPrizePool = (tData.prizePool || 0) + tableState.buyIn;
+                            // Deduct from ALL users, even owner (ensures Prize Pool math works)
+                            const newBalance = Number(userDoc.data().balance) - Number(tableState.buyIn);
+                            const newPrizePool = Number(tData.prizePool || 0) + Number(tableState.buyIn);
                             
                             transaction.update(userRef, { balance: newBalance });
                             transaction.update(tableRef, { prizePool: newPrizePool, players: updatedPlayers });
@@ -1259,23 +1331,64 @@
                     }
                 } else {
                     // Cash Game Sit Down
-                    if (user.balance < tableState.buyIn && user.role !== ROLES.OWNER) {
-                        return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.", "error");
+                    if (Number(user.balance) < Number(tableState.buyIn)) {
+                        return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה. פנה לסוכן.", "error");
                     }
-                    const takenSeats = Object.values(currentPlayers).map(p => p.seat);
-                    let emptySeat = 0;
-                    while (takenSeats.includes(emptySeat)) emptySeat++;
+                    try {
+                        const takenSeats = Object.values(currentPlayers).map(p => p.seat);
+                        let emptySeat = 0;
+                        while (takenSeats.includes(emptySeat)) emptySeat++;
 
-                    const updatedPlayers = { ...currentPlayers };
-                    updatedPlayers[user.uid] = {
-                        username: user.username,
-                        avatarId: user.avatarId,
-                        seat: emptySeat,
-                        rack: [],
-                        hasOpened: false
-                    };
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                        const updatedPlayers = { ...currentPlayers };
+                        updatedPlayers[user.uid] = {
+                            username: user.username,
+                            avatarId: user.avatarId,
+                            seat: emptySeat,
+                            rack: [],
+                            hasOpened: false
+                        };
+                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                        showToast("התיישבת בהצלחה!", "success");
+                    } catch(e) {
+                        showToast("שגיאה בהתיישבות: " + e.message, "error");
+                    }
                 }
+            };
+
+            const handleSendChat = async (e) => {
+                e.preventDefault();
+                if (!chatMsg.trim()) return;
+                
+                if (tableState.chatEnabled === false && user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER) {
+                    return showToast("הצ'אט מושתק על ידי ההנהלה.", "error");
+                }
+                if ((tableState.mutedPlayers || []).includes(user.uid)) {
+                    return showToast("הושתקת בשולחן זה.", "error");
+                }
+
+                const newMsg = { uid: user.uid, username: user.username, text: chatMsg.trim(), ts: Date.now() };
+                const newChat = [...(tableState.chat || []), newMsg].slice(-40);
+                
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chat: newChat });
+                    setChatMsg("");
+                } catch(e) { console.error("Chat error", e); }
+            };
+
+            const toggleGlobalChat = async () => {
+                const newState = tableState.chatEnabled === false ? true : false;
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chatEnabled: newState });
+                showToast(newState ? "צ'אט נפתח לכולם" : "צ'אט הושתק לכולם", "info");
+            };
+            
+            const toggleMutePlayer = async (targetUid, targetName) => {
+                if (user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER) return;
+                const muted = tableState.mutedPlayers || [];
+                const isMuted = muted.includes(targetUid);
+                const newMuted = isMuted ? muted.filter(id => id !== targetUid) : [...muted, targetUid];
+                
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { mutedPlayers: newMuted });
+                showToast(isMuted ? `הוסרה השתקה מ-${targetName}` : `${targetName} הושתק`, "info");
             };
 
             const handleStartGame = async () => {
@@ -1313,7 +1426,6 @@
                         let isGameOver = false;
                         const updatedPlayers = { ...tableState.players };
                         
-                        // Calculate Penalties
                         losers.forEach(loserUid => {
                             let deadwoodPoints = 0;
                             const loserRack = updatedPlayers[loserUid].rack || [];
@@ -1329,10 +1441,6 @@
                                 isGameOver = true;
                             }
                         });
-                        
-                        // Wait, Standard Rummikub: Winner gets 0 in their score, or positive sum? Usually just stays at 0 and others go negative.
-                        // We will just leave winner at 0 for simplicity, or give them the sum. Let's give them the sum to reward finishing.
-                        // updatedPlayers[user.uid].score = (updatedPlayers[user.uid].score || 0) + roundWinnerSum;
                         
                         if (isGameOver) {
                             showToast("🏆 הטורניר הסתיים! מחלק את הקופה...", "success");
@@ -1352,21 +1460,19 @@
                                 const winnerRef = window.fb.doc(window.fb.db, "users", bestUid);
                                 const winnerDoc = await transaction.get(winnerRef);
                                 
-                                const totalPot = tableState.prizePool;
+                                const totalPot = Number(tableState.prizePool);
                                 const rake = Math.floor(totalPot * 0.06);
                                 const winnerWin = totalPot - rake;
                                 
-                                transaction.update(ownerDocRef, { balance: (ownerDoc.data().balance || 0) + rake });
-                                transaction.update(winnerRef, { balance: (winnerDoc.data().balance || 0) + winnerWin });
+                                transaction.update(ownerDocRef, { balance: Number(ownerDoc.data().balance || 0) + rake });
+                                transaction.update(winnerRef, { balance: Number(winnerDoc.data().balance || 0) + winnerWin });
                                 
-                                // Reset Table for new tournament
                                 const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                                 const resetPlayers = {};
                                 uids.forEach(u => { resetPlayers[u] = {...updatedPlayers[u], score: 0, rack: [], hasOpened: false} });
                                 transaction.update(tableRef, { status: 'waiting', board: [], deck: [], currentTurn: null, players: resetPlayers, prizePool: 0 });
                             });
                         } else {
-                            // Next Round
                             const deck = generateRummikubDeck();
                             uids.forEach(uid => {
                                 updatedPlayers[uid].rack = deck.splice(0, 14);
@@ -1381,7 +1487,7 @@
                         console.error(e);
                     }
                 } else {
-                    // Cash Game Win Logic (Existing)
+                    // Cash Game Win Logic
                     showToast("🏆 ניצחת! מחשב תוצאות ועמלות קלאב...", "success");
                     try {
                         const uids = Object.keys(tableState.players);
@@ -1410,9 +1516,9 @@
                             let totalPot = 0; let totalRake = 0; let houseProfit = 0;
                             let agentProfits = {}; let updates = {}; 
 
-                            updates[ownerDoc.id] = ownerDoc.data().balance || 0;
-                            for (let uid of uids) updates[uid] = playerDocs[uid].data().balance || 0;
-                            for (let aid in agentDocs) updates[aid] = agentDocs[aid].data().balance || 0;
+                            updates[ownerDoc.id] = Number(ownerDoc.data().balance || 0);
+                            for (let uid of uids) updates[uid] = Number(playerDocs[uid].data().balance || 0);
+                            for (let aid in agentDocs) updates[aid] = Number(agentDocs[aid].data().balance || 0);
 
                             losers.forEach(loserUid => {
                                 const loserRack = tableState.players[loserUid].rack || [];
@@ -1708,7 +1814,6 @@
                         </div>
                     </div>
 
-                    {}
                     <div data-zone="rack" className="relative z-20 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center pb-6 bg-slate-950 border-t-[3px]" style={{ borderTopColor: `${hex}50`, boxShadow: `0 -20px 50px rgba(0,0,0,0.9)` }}>
                     
                     {tableState?.isTournament && isPlaying && (
@@ -1718,21 +1823,78 @@
                         </div>
                     )}
 
-                    <div className="absolute left-4 top-4 flex flex-col gap-2 z-30 pointer-events-auto">
-                        <div className="relative">
-                            <button onClick={() => setShowEmojis(!showEmojis)} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-gold-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+                    <div className="absolute left-4 top-4 flex flex-col gap-2 z-[9999] pointer-events-auto">
+                        <div className="flex gap-2 relative">
+                            {/* Emoji Button */}
+                            <button onClick={() => {setShowEmojis(!showEmojis); setShowChat(false);}} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-gold-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                                 <i className="fa-regular fa-face-smile text-xl"></i>
                             </button>
+                            
+                            {/* Chat Button */}
+                            <button onClick={() => {setShowChat(!showChat); setShowEmojis(false);}} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-blue-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+                                <i className="fa-regular fa-comment-dots text-xl"></i>
+                            </button>
+
+                            {/* Emojis Popup */}
                             {showEmojis && (
-                                <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex flex-wrap w-[140px] gap-2">
+                                <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex flex-wrap w-[140px] gap-2 z-[9999]">
                                     {['🍻', '👏', '😠', '🤣', '💔', '🍀', '🤦‍♂️', '🔥'].map(em => (
                                         <button key={em} onClick={() => sendEmoji(em)} className="text-2xl hover:scale-125 transition-transform">{em}</button>
                                     ))}
                                 </div>
                             )}
+
+                            {/* Chat Window */}
+                            {showChat && (
+                                <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col w-[260px] sm:w-[320px] h-[300px] overflow-hidden z-[9999]">
+                                    <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center">
+                                        <h3 className="text-white font-bold text-sm">צ'אט השולחן</h3>
+                                        {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                                            <button onClick={toggleGlobalChat} className={`text-[10px] px-2 py-1 rounded font-bold transition-colors ${tableState.chatEnabled !== false ? 'bg-rose-900 text-rose-300 hover:bg-rose-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800'}`}>
+                                                {tableState.chatEnabled !== false ? 'השתק הכל' : 'אפשר צ\'אט'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 text-sm bg-slate-900/50">
+                                        {tableState.chatEnabled === false && (
+                                            <div className="text-center text-xs text-rose-400 font-bold bg-rose-900/20 p-2 rounded">הצ'אט הושתק על ידי הנהלת המועדון.</div>
+                                        )}
+                                        {(tableState.chat || []).map((msg, idx) => (
+                                            <div key={idx} className="flex flex-col">
+                                                <span 
+                                                    className={`text-[10px] font-bold mb-0.5 ${(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) ? 'cursor-pointer hover:text-rose-400' : ''} ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}
+                                                    onClick={() => toggleMutePlayer(msg.uid, msg.username)}
+                                                    title={(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) ? 'לחץ להשתקה/שחרור שחקן' : ''}
+                                                >
+                                                    {msg.username} {(tableState.mutedPlayers || []).includes(msg.uid) ? '🔇' : ''}
+                                                </span>
+                                                <div className={`px-3 py-2 rounded-xl inline-block ${msg.uid === user.uid ? 'bg-blue-600 text-white rounded-br-none self-end' : 'bg-slate-800 text-slate-200 rounded-bl-none self-start'}`}>
+                                                    {msg.text}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div ref={chatEndRef} />
+                                    </div>
+
+                                    <form onSubmit={handleSendChat} className="p-2 bg-slate-950 border-t border-slate-800 flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={chatMsg}
+                                            onChange={(e) => setChatMsg(e.target.value)}
+                                            placeholder="כתוב הודעה..."
+                                            className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500"
+                                            disabled={tableState.chatEnabled === false && user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER}
+                                        />
+                                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white w-10 rounded-xl flex items-center justify-center transition-colors">
+                                            <i className="fa-solid fa-paper-plane text-xs"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
                         </div>
                         
-                        <div className="flex bg-slate-900 rounded-lg border border-slate-700 shadow-lg overflow-hidden flex-col pointer-events-auto">
+                        <div className="flex bg-slate-900 rounded-lg border border-slate-700 shadow-lg overflow-hidden flex-col pointer-events-auto mt-2">
                             <button onClick={handleSortSets} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 border-b border-slate-800 transition-colors text-xs font-bold" title="סדר קבוצות (7-7-7)">
                                 7-7-7
                             </button>
