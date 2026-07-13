@@ -142,6 +142,18 @@
             PLAYER: 'player'    // End user
         };
 
+        const AVATARS = [
+            { id: 'av1', icon: 'fa-user-ninja', color: 'text-emerald-400', bg: 'bg-emerald-900/30' },
+            { id: 'av2', icon: 'fa-user-astronaut', color: 'text-blue-400', bg: 'bg-blue-900/30' },
+            { id: 'av3', icon: 'fa-cat', color: 'text-amber-400', bg: 'bg-amber-900/30' },
+            { id: 'av4', icon: 'fa-dog', color: 'text-rose-400', bg: 'bg-rose-900/30' },
+            { id: 'av5', icon: 'fa-dragon', color: 'text-purple-400', bg: 'bg-purple-900/30' },
+            { id: 'av6', icon: 'fa-robot', color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
+            { id: 'av7', icon: 'fa-ghost', color: 'text-slate-400', bg: 'bg-slate-800' },
+            { id: 'av8', icon: 'fa-user-secret', color: 'text-gray-400', bg: 'bg-gray-800' },
+            { id: 'av9', icon: 'fa-masks-theater', color: 'text-fuchsia-400', bg: 'bg-fuchsia-900/30' }
+        ];
+
         const formatMoney = (amount) => {
             if (amount === undefined || amount === null) return '🪙 0';
             return '🪙 ' + amount.toLocaleString();
@@ -257,7 +269,13 @@
                     const userSnap = await window.fb.getDoc(userRef);
 
                     if (userSnap.exists()) {
-                        setDbUser({ docId: userSnap.id, ...userSnap.data() });
+                        let data = userSnap.data();
+                        // One-time fix for the Owner's initial balance to 10M
+                        if (data.role === ROLES.OWNER && data.balance === 1000000) {
+                            await window.fb.updateDoc(userRef, { balance: 10000000 });
+                            data.balance = 10000000;
+                        }
+                        setDbUser({ docId: userSnap.id, ...data });
                     } else {
                         // Hierarchy Setup on Registration
                         const allUsersSnap = await window.fb.getDocs(window.fb.collection(window.fb.db, "users"));
@@ -270,6 +288,7 @@
                             uid: user.uid,
                             email: user.email,
                             username: user.displayName || user.email.split('@')[0],
+                            avatarId: 'av1', // Default avatar
                             role: isFirstUser ? ROLES.OWNER : (isSecondUser ? ROLES.MANAGER : ROLES.PLAYER),
                             status: isFirstUser || isSecondUser ? 'approved' : 'pending',
                             balance: isFirstUser ? 10000000 : 0, // ONLY OWNER gets initial bank
@@ -307,6 +326,8 @@
 
             if (!fbReady) return <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-emerald-400 font-bold text-2xl"><i className="fa-solid fa-circle-notch fa-spin mr-3"></i> טוען קלאב...</div>;
 
+            const userAvatar = AVATARS.find(a => a.id === dbUser?.avatarId) || AVATARS[0];
+
             return (
                 <div className="h-full flex flex-col relative font-sans text-slate-200">
                     {/* Premium Top Navigation */}
@@ -329,17 +350,22 @@
                                 {/* User Menu */}
                                 <div className="flex items-center gap-3 sm:gap-5">
                                     <div 
-                                        className="flex flex-col items-end cursor-pointer hover:bg-slate-800/50 p-2 rounded-lg transition-colors"
+                                        className="flex items-center gap-3 cursor-pointer hover:bg-slate-800/50 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-700"
                                         onClick={() => setCurrentView('dashboard')}
-                                        title="הצג דשבורד אישי"
+                                        title="הגדרות פרופיל ודשבורד"
                                     >
-                                        <span className="text-sm font-bold flex items-center gap-2">
-                                            {dbUser.username}
-                                            {dbUser.role === ROLES.OWNER && <i className="fa-solid fa-crown text-gold-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.8)]" title="Owner"></i>}
-                                            {dbUser.role === ROLES.MANAGER && <i className="fa-solid fa-shield-halved text-blue-400" title="Manager"></i>}
-                                            {dbUser.role === ROLES.AGENT && <i className="fa-solid fa-user-tie text-emerald-400" title="Agent"></i>}
-                                        </span>
-                                        <span className="chip-text text-lg sm:text-xl">{formatMoney(dbUser.balance)}</span>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-700 shadow-inner ${userAvatar.bg}`}>
+                                            <i className={`fa-solid ${userAvatar.icon} ${userAvatar.color} text-lg`}></i>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-sm font-bold flex items-center gap-2 text-white">
+                                                {dbUser.username}
+                                                {dbUser.role === ROLES.OWNER && <i className="fa-solid fa-crown text-gold-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.8)]" title="Owner"></i>}
+                                                {dbUser.role === ROLES.MANAGER && <i className="fa-solid fa-shield-halved text-blue-400" title="Manager"></i>}
+                                                {dbUser.role === ROLES.AGENT && <i className="fa-solid fa-user-tie text-emerald-400" title="Agent"></i>}
+                                            </span>
+                                            <span className="chip-text text-sm sm:text-base">{formatMoney(dbUser.balance)}</span>
+                                        </div>
                                     </div>
                                     
                                     {/* Admin/Agent Backoffice Button */}
@@ -848,6 +874,21 @@
         }
 
         function PlayerDashboard({ user, transactionsDB }) {
+            const [isEditing, setIsEditing] = useState(false);
+            const [newUsername, setNewUsername] = useState(user.username);
+            const [newAvatar, setNewAvatar] = useState(user.avatarId || 'av1');
+
+            const handleSaveProfile = async () => {
+                if(newUsername.trim().length < 3) return alert("השם חייב להכיל לפחות 3 תווים");
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), {
+                        username: newUsername.trim(),
+                        avatarId: newAvatar
+                    });
+                    setIsEditing(false);
+                } catch(e) { console.error("שגיאה בעדכון פרופיל:", e); }
+            };
+
             // Aggregate user stats from tx DB
             const myDeposits = transactionsDB.filter(tx => tx.uid === user.uid && tx.type === 'deposit').reduce((sum, tx) => sum + tx.amount, 0);
             const myWithdrawals = transactionsDB.filter(tx => tx.uid === user.uid && tx.type === 'withdrawal').reduce((sum, tx) => sum + tx.amount, 0);
@@ -856,17 +897,50 @@
             return (
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex justify-center items-start pt-10">
                     <div className="w-full max-w-3xl space-y-6">
+                        
+                        {/* Profile Editor */}
                         <div className="glass-panel p-8 rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
                             
-                            <div className="flex items-center gap-6 mb-8 border-b border-slate-800 pb-8">
-                                <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-4xl font-black text-slate-400 border-4 border-slate-700 shadow-inner">
-                                    {user.username.substring(0,2).toUpperCase()}
-                                </div>
-                                <div>
-                                    <h2 className="text-4xl font-black text-white">{user.username}</h2>
-                                    <p className="text-blue-400 font-bold tracking-widest uppercase mt-1">Profile Overview</p>
-                                </div>
+                            <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 border-b border-slate-800 pb-8">
+                                
+                                {isEditing ? (
+                                    <div className="w-full">
+                                        <h3 className="text-xl font-bold text-white mb-4">עריכת פרופיל</h3>
+                                        <div className="mb-4">
+                                            <label className="block text-sm text-slate-400 mb-2">כינוי (Username)</label>
+                                            <input type="text" value={newUsername} onChange={e=>setNewUsername(e.target.value)} className="bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded-lg w-full max-w-xs outline-none focus:border-blue-500"/>
+                                        </div>
+                                        <div className="mb-6">
+                                            <label className="block text-sm text-slate-400 mb-2">בחר דמות (Avatar)</label>
+                                            <div className="flex flex-wrap gap-3">
+                                                {AVATARS.map(av => (
+                                                    <div 
+                                                        key={av.id} onClick={() => setNewAvatar(av.id)}
+                                                        className={`w-14 h-14 rounded-full flex items-center justify-center cursor-pointer border-2 transition-all ${newAvatar === av.id ? 'border-blue-500 scale-110 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'border-slate-700 opacity-60 hover:opacity-100'} ${av.bg}`}
+                                                    >
+                                                        <i className={`fa-solid ${av.icon} ${av.color} text-xl`}></i>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button onClick={handleSaveProfile} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-bold">שמור שינויים</button>
+                                            <button onClick={() => {setIsEditing(false); setNewUsername(user.username); setNewAvatar(user.avatarId || 'av1');}} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-6 py-2 rounded-lg font-bold">ביטול</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl border-4 border-slate-700 shadow-inner ${AVATARS.find(a=>a.id===(user.avatarId||'av1'))?.bg}`}>
+                                            <i className={`fa-solid ${AVATARS.find(a=>a.id===(user.avatarId||'av1'))?.icon} ${AVATARS.find(a=>a.id===(user.avatarId||'av1'))?.color}`}></i>
+                                        </div>
+                                        <div className="flex-1 text-center sm:text-right">
+                                            <h2 className="text-4xl font-black text-white">{user.username}</h2>
+                                            <p className="text-slate-500 text-xs mb-2 mt-1 font-mono">ID: {user.uid}</p>
+                                            <button onClick={() => setIsEditing(true)} className="text-sm bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1 rounded border border-slate-700 mt-2"><i className="fa-solid fa-pen mr-1"></i> ערוך פרופיל</button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
