@@ -240,7 +240,14 @@
             { id: 'gin', name: 'ג\'ין רמי (קלפים)', hex: '#3b82f6', maxPlayers: 2 }
         ];
 
-        const ROLES = { OWNER: 'owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
+        // NEW HIERARCHY: SUPER_ADMIN is top level. CLUB_OWNER manages a club.
+        const ROLES = { 
+            SUPER_ADMIN: 'super_admin', 
+            CLUB_OWNER: 'club_owner', 
+            MANAGER: 'manager', 
+            AGENT: 'agent', 
+            PLAYER: 'player' 
+        };
 
         const AVATARS = [
             { id: 'av1', icon: 'fa-user-ninja', color: 'text-emerald-400', bg: 'bg-emerald-900/50' },
@@ -316,27 +323,37 @@
                 
                 if (userSnap.exists()) {
                     let data = userSnap.data();
-                    if (data.role === ROLES.OWNER && (!data.balance || data.balance < 1000000)) {
-                         await window.fb.updateDoc(userRef, { balance: 10000000 });
+                    
+                    // Migration: If user was 'owner', make them 'SUPER_ADMIN'
+                    let updates = {};
+                    if (data.role === 'owner') {
+                        updates.role = ROLES.SUPER_ADMIN;
+                        data.role = ROLES.SUPER_ADMIN;
+                    }
+                    
+                    if (data.role === ROLES.SUPER_ADMIN && (!data.balance || data.balance < 1000000)) {
+                         updates.balance = 10000000;
                          data.balance = 10000000;
                     }
                     if (!data.clubId) {
                         const newClubId = generateClubId();
-                        await window.fb.updateDoc(userRef, { clubId: newClubId });
+                        updates.clubId = newClubId;
                         data.clubId = newClubId;
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        await window.fb.updateDoc(userRef, updates);
                     }
                     setDbUser({ uid: user.uid, ...data });
                 } else {
                     const usersQuery = await window.fb.getDocs(window.fb.collection(window.fb.db, "users"));
                     const isFirstUser = usersQuery.empty;
-                    const isSecondUser = usersQuery.size === 1;
                     
                     let role = ROLES.PLAYER;
                     let status = 'pending';
                     let balance = 0;
 
-                    if (isFirstUser) { role = ROLES.OWNER; status = 'approved'; balance = 10000000; } 
-                    else if (isSecondUser) { role = ROLES.MANAGER; status = 'approved'; }
+                    if (isFirstUser) { role = ROLES.SUPER_ADMIN; status = 'approved'; balance = 10000000; } 
 
                     const newClubId = generateClubId();
                     const newUser = {
@@ -371,7 +388,7 @@
                 });
 
                 let unsubUsers = () => {};
-                if (dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER || dbUser.role === ROLES.AGENT) {
+                if (dbUser.role !== ROLES.PLAYER) {
                     unsubUsers = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snapshot) => {
                         setUsersDB(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
                     });
@@ -397,7 +414,7 @@
                                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                                     </button>
                                     
-                                    {(dbUser.role === ROLES.OWNER || dbUser.role === ROLES.MANAGER || dbUser.role === ROLES.AGENT) && (
+                                    {(dbUser.role !== ROLES.PLAYER) && (
                                         <button 
                                             onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')}
                                             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${currentView === 'backoffice' ? 'bg-slate-200 text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
@@ -417,7 +434,8 @@
                                         <div className="flex flex-col items-end pr-1">
                                             <span className="text-sm font-bold text-white flex items-center gap-2">
                                                 {dbUser.username}
-                                                {dbUser.role === ROLES.OWNER && <i className="fa-solid fa-crown text-gold-400 text-[10px]" title="Owner"></i>}
+                                                {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px]" title="Super Admin"></i>}
+                                                {dbUser.role === ROLES.CLUB_OWNER && <i className="fa-solid fa-crown text-gold-400 text-[10px]" title="Club Owner"></i>}
                                                 {dbUser.role === ROLES.MANAGER && <i className="fa-solid fa-shield text-blue-400 text-[10px]" title="Manager"></i>}
                                                 {dbUser.role === ROLES.AGENT && <i className="fa-solid fa-handshake text-emerald-400 text-[10px]" title="Agent"></i>}
                                             </span>
@@ -436,7 +454,7 @@
                         </nav>
                     )}
 
-                    <main className="flex-1 relative overflow-hidden flex flex-col">
+                    <main className="flex-1 relative overflow-hidden flex flex-col z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
@@ -445,7 +463,7 @@
                         {currentView === 'table' && <TableDirector tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
 
-                    {/* Toast Container */}
+                    {/* Toast Container - z-index extreme high to overcome everything */}
                     <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (
                             <div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : t.type === 'success' ? 'bg-emerald-900 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>
@@ -542,7 +560,7 @@
             const [activeTab, setActiveTab] = useState('cashier'); 
 
             const isAgent = user.role === ROLES.AGENT;
-            const isGlobalAdmin = user.role === ROLES.OWNER || user.role === ROLES.MANAGER;
+            const isGlobalAdmin = user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER;
             
             const visibleUsers = usersDB.filter(u => {
                 if (u.uid === user.uid) return false;
@@ -595,7 +613,7 @@
                 showToast("אחוז עמלת סוכן עודכן", "success");
             };
 
-            const agentsList = usersDB.filter(u => u.role === ROLES.AGENT || u.role === ROLES.MANAGER);
+            const agentsList = usersDB.filter(u => u.role === ROLES.AGENT || u.role === ROLES.MANAGER || u.role === ROLES.CLUB_OWNER);
 
             return (
                 <div className="flex-1 bg-slate-950 p-4 sm:p-8 overflow-y-auto">
@@ -604,7 +622,7 @@
                             <div>
                                 <h2 className="text-3xl font-black text-white mb-2">
                                     <i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> 
-                                    {isAgent ? 'פאנל סוכן (Agent)' : 'ניהול מועדון עליון'}
+                                    {isAgent ? 'פאנל סוכן (Agent)' : 'ניהול מועדון'}
                                 </h2>
                                 <p className="text-slate-400">
                                     {isAgent ? 'הפקדה ומשיכת צ\'יפים מהשחקנים המשויכים אליך בלבד.' : 'ניהול גלובלי, הרשאות והעברות צ\'יפים.'}
@@ -615,16 +633,16 @@
                                 <div className="flex gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
                                     <button onClick={() => setActiveTab('cashier')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'cashier' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>העברות</button>
                                     <button onClick={() => setActiveTab('players')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'players' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>הרשאות שחקנים</button>
-                                    {user.role === ROLES.OWNER && <button onClick={() => setActiveTab('clubs')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'clubs' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-network-wired mr-1"></i> רשת מועדונים</button>}
+                                    {user.role === ROLES.SUPER_ADMIN && <button onClick={() => setActiveTab('clubs')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'clubs' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-network-wired mr-1"></i> רשת מועדונים (SaaS)</button>}
                                 </div>
                             )}
                         </div>
 
-                        {activeTab === 'clubs' && user.role === ROLES.OWNER && (
+                        {activeTab === 'clubs' && user.role === ROLES.SUPER_ADMIN && (
                             <div className="glass-panel p-10 rounded-2xl border border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)] text-center">
                                 <i className="fa-solid fa-earth-americas text-6xl text-purple-500 mb-4 animate-pulse"></i>
-                                <h3 className="text-2xl font-black text-white mb-2">מערכת ריבוי מועדונים (Multi-Tenant)</h3>
-                                <p className="text-slate-400 max-w-lg mx-auto mb-6">מכאן תוכל בעתיד להקים מועדונים נוספים, למנות להם מנהלים עצמאיים, ולגבות מהם דמי מנוי חודשיים כ-Super Admin של כל הפלטפורמה.</p>
+                                <h3 className="text-2xl font-black text-white mb-2">מערכת ריבוי מועדונים (Multi-Tenant SaaS)</h3>
+                                <p className="text-slate-400 max-w-lg mx-auto mb-6">מכאן תוכל בעתיד להקים מועדונים נוספים, למנות להם מנהלים עצמאיים (Club Owners), ולגבות מהם דמי מנוי חודשיים כ-Super Admin של כל הפלטפורמה.</p>
                                 <button className="bg-purple-600/50 text-white px-6 py-3 rounded-xl font-bold border border-purple-500 opacity-50 cursor-not-allowed">בפיתוח...</button>
                             </div>
                         )}
@@ -674,16 +692,17 @@
                                                     <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
                                                     <td className="p-4 font-bold text-white flex items-center gap-2">{u.username}</td>
                                                     <td className="p-4 uppercase text-xs font-bold text-slate-400">
-                                                        {user.role === ROLES.OWNER && u.uid !== user.uid ? (
+                                                        {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && u.uid !== user.uid ? (
                                                             <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-white">
                                                                 <option value={ROLES.PLAYER}>Player</option>
                                                                 <option value={ROLES.AGENT}>Agent</option>
                                                                 <option value={ROLES.MANAGER}>Manager</option>
+                                                                {user.role === ROLES.SUPER_ADMIN && <option value={ROLES.CLUB_OWNER}>Club Owner</option>}
                                                             </select>
                                                         ) : (<span>{u.role}</span>)}
                                                     </td>
                                                     <td className="p-4">
-                                                        {u.role === ROLES.PLAYER && user.role === ROLES.OWNER && (
+                                                        {u.role === ROLES.PLAYER && (user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && (
                                                             <select value={u.agentId || ''} onChange={(e) => changeAgent(u, e.target.value)} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-slate-300 w-full">
                                                                 <option value="">ללא סוכן (הכל לבית)</option>
                                                                 {agentsList.filter(a => a.uid !== u.uid).map(a => (<option key={a.uid} value={a.uid}>{a.username}</option>))}
@@ -691,7 +710,7 @@
                                                         )}
                                                     </td>
                                                     <td className="p-4">
-                                                        {u.role === ROLES.PLAYER && u.agentId && user.role === ROLES.OWNER && (
+                                                        {u.role === ROLES.PLAYER && u.agentId && (user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && (
                                                             <div className="flex items-center gap-1">
                                                                 <input type="number" defaultValue={u.agentRakeShare} onBlur={(e) => changeAgentShare(u, e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center text-white" min="0" max="100" /> <span className="text-slate-500">%</span>
                                                             </div>
@@ -740,7 +759,7 @@
 
         function LobbyView({ user, tables, onJoin, showToast }) {
             const [activeTab, setActiveTab] = useState('rummikub');
-            const isAdmin = user.role === ROLES.OWNER || user.role === ROLES.MANAGER;
+            const isAdmin = user.role !== ROLES.PLAYER;
             const filteredTables = tables.filter(t => t.type === activeTab);
             const typeInfo = GAME_TYPES.find(g => g.id === activeTab);
 
@@ -756,11 +775,24 @@
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
                         type: activeTab, isTournament: isTournament,
                         stakes: isTournament ? 0 : Number(stakes), penaltyLimit: isTournament ? Number(penaltyLimit) : 0, buyIn: Number(buyIn), prizePool: 0, turnTime: Number(turnTime),
-                        status: 'waiting', players: {}, board: [], deck: [], discardPile: [], currentTurn: null, chatEnabled: true, mutedPlayers: [], chat: [],
+                        status: 'waiting', players: {}, board: [], deck: [], discardPile: [], currentTurn: null, chatEnabled: true, mutedPlayers: [], chat: [], waitingList: [],
                         createdAt: new Date().toISOString(), createdBy: user.uid
                     });
                     setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
                 } catch(e) { showToast("שגיאה בפתיחת שולחן", "error"); console.error(e); }
+            };
+
+            const joinWaitingList = async (table) => {
+                const isAlreadyWaiting = (table.waitingList || []).find(w => w.uid === user.uid);
+                if (isAlreadyWaiting) return showToast("אתה כבר ברשימת ההמתנה לשולחן זה", "info");
+                
+                try {
+                    const newList = [...(table.waitingList || []), { uid: user.uid, username: user.username, joinedAt: Date.now() }];
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", table.docId), { waitingList: newList });
+                    showToast("נכנסת לרשימת ההמתנה. המערכת תודיע לך כשייתפנה מקום.", "success");
+                } catch (e) {
+                    showToast("שגיאה בהצטרפות לרשימת ההמתנה", "error");
+                }
             };
 
             return (
@@ -816,31 +848,59 @@
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {filteredTables.map(t => (
-                                <div key={t.docId} onClick={() => onJoin(t)} className={`glass-panel rounded-2xl p-6 border ${t.isTournament ? 'border-gold-500/50 hover:border-gold-400 shadow-[0_0_20px_rgba(251,191,36,0.1)]' : 'border-slate-700 hover:border-slate-400'} cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden group shadow-xl`}>
+                            {filteredTables.map(t => {
+                                const isFull = Object.keys(t.players || {}).length >= typeInfo.maxPlayers;
+                                const isWaiting = (t.waitingList || []).some(w => w.uid === user.uid);
+                                const waitingIndex = (t.waitingList || []).findIndex(w => w.uid === user.uid);
+                                
+                                return (
+                                <div key={t.docId} className={`glass-panel rounded-2xl p-6 border ${t.isTournament ? 'border-gold-500/50 hover:border-gold-400 shadow-[0_0_20px_rgba(251,191,36,0.1)]' : 'border-slate-700 hover:border-slate-400'} transition-all hover:-translate-y-1 relative overflow-hidden group shadow-xl flex flex-col`}>
                                     <div className="absolute top-0 right-0 w-full h-1.5 transition-all" style={{ backgroundColor: t.isTournament ? '#fbbf24' : typeInfo.hex, boxShadow: `0 0 20px ${t.isTournament ? '#fbbf24' : typeInfo.hex}` }}></div>
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                            {t.isTournament ? (
-                                                <><p className="text-gold-400 text-[10px] font-bold tracking-widest uppercase mb-1"><i className="fa-solid fa-trophy mr-1"></i> טורניר (הדחה ב-{t.penaltyLimit}-)</p><h3 className="text-2xl font-black chip-text">Prize: {formatMoney(t.prizePool || 0)}</h3></>
-                                            ) : (
-                                                <><p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mb-1">ערך נקודה (Cash)</p><h3 className="text-3xl font-black chip-text">{t.stakes} <i className="fa-solid fa-coins text-gold-500 text-lg"></i></h3></>
+                                    
+                                    {/* Make the whole card clickable EXCEPT the button if it's waiting list logic */}
+                                    <div className="cursor-pointer flex-1" onClick={() => !isFull && onJoin(t)}>
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                {t.isTournament ? (
+                                                    <><p className="text-gold-400 text-[10px] font-bold tracking-widest uppercase mb-1"><i className="fa-solid fa-trophy mr-1"></i> טורניר (הדחה ב-{t.penaltyLimit}-)</p><h3 className="text-2xl font-black chip-text">Prize: {formatMoney(t.prizePool || 0)}</h3></>
+                                                ) : (
+                                                    <><p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mb-1">ערך נקודה (Cash)</p><h3 className="text-3xl font-black chip-text">{t.stakes} <i className="fa-solid fa-coins text-gold-500 text-lg"></i></h3></>
+                                                )}
+                                            </div>
+                                            <div className="bg-slate-950 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-800 flex items-center gap-2">
+                                                <span className={isFull ? 'text-rose-400' : 'text-emerald-400'}>{Object.keys(t.players || {}).length}/{typeInfo.maxPlayers}</span>
+                                                <i className="fa-solid fa-users text-slate-500 text-xs"></i>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-slate-950/80 p-3 rounded-xl border border-slate-800 mb-4 shadow-inner">
+                                            <span className="text-xs text-slate-400 font-bold">{t.isTournament ? 'דמי הרשמה:' : 'כניסה מינימלית:'}</span><span className="text-lg font-black text-white font-rubik">{formatMoney(t.buyIn)}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-800/50">
+                                        <div className="flex gap-2">
+                                            <span className="text-[10px] text-slate-400 font-bold bg-slate-900 px-2 py-1 rounded border border-slate-800"><i className="fa-regular fa-clock mr-1"></i>{t.turnTime} שניות</span>
+                                            {(t.waitingList?.length > 0) && (
+                                                <span className="text-[10px] text-orange-400 font-bold bg-orange-900/30 px-2 py-1 rounded border border-orange-800/50">
+                                                    <i className="fa-solid fa-list-ul mr-1"></i> {t.waitingList.length} ממתינים
+                                                </span>
                                             )}
                                         </div>
-                                        <div className="bg-slate-950 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-800 flex items-center gap-2">
-                                            <span className={Object.keys(t.players || {}).length === typeInfo.maxPlayers ? 'text-rose-400' : 'text-emerald-400'}>{Object.keys(t.players || {}).length}/{typeInfo.maxPlayers}</span>
-                                            <i className="fa-solid fa-users text-slate-500 text-xs"></i>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between items-center bg-slate-950/80 p-3 rounded-xl border border-slate-800 mb-4 shadow-inner">
-                                        <span className="text-xs text-slate-400 font-bold">{t.isTournament ? 'דמי הרשמה:' : 'כניסה מינימלית:'}</span><span className="text-lg font-black text-white font-rubik">{formatMoney(t.buyIn)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center mt-2">
-                                        <div className="flex gap-2"><span className="text-[10px] text-slate-400 font-bold bg-slate-900 px-2 py-1 rounded border border-slate-800"><i className="fa-regular fa-clock mr-1"></i>{t.turnTime} שניות</span></div>
-                                        <button className="px-6 py-2 rounded-xl font-black text-white shadow-lg transition-transform group-hover:scale-105" style={{ backgroundColor: t.isTournament ? '#d97706' : typeInfo.hex }}>הכנס לשולחן</button>
+                                        
+                                        {!isFull ? (
+                                            <button onClick={() => onJoin(t)} className="px-6 py-2 rounded-xl font-black text-white shadow-lg transition-transform hover:scale-105" style={{ backgroundColor: t.isTournament ? '#d97706' : typeInfo.hex }}>הכנס לשולחן</button>
+                                        ) : isWaiting ? (
+                                            <div className="px-4 py-2 rounded-xl font-bold bg-orange-900/50 text-orange-400 border border-orange-500 text-sm flex items-center gap-2">
+                                                <i className="fa-solid fa-hourglass-half fa-spin"></i> ממתין בתור (מקום {waitingIndex + 1})
+                                            </div>
+                                        ) : (
+                                            <button onClick={() => joinWaitingList(t)} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:text-white transition-colors text-sm flex items-center gap-2">
+                                                <i className="fa-solid fa-arrow-right-to-bracket"></i> הצטרף לתור
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </div>
                 </div>
@@ -1003,6 +1063,8 @@
             const isPlaying = tableState?.status === 'playing';
             const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
             
+            const isFirstInWaitlist = (tableState?.waitingList?.[0]?.uid === user.uid);
+            
             useEffect(() => {
                 if (tableState.players && tableState.players[user.uid]) {
                     if (!dragData) {
@@ -1016,16 +1078,59 @@
             const handleSitDown = async () => {
                 showToast("בודק מקום בשולחן הג'ין...", "info");
                 const currentPlayers = tableState.players || {};
+                
+                // Enforce Waiting List Logic
+                if (tableState.waitingList && tableState.waitingList.length > 0) {
+                    if (tableState.waitingList[0].uid !== user.uid) {
+                        return showToast("זה לא התור שלך ברשימת ההמתנה!", "error");
+                    }
+                }
+
                 if (Object.keys(currentPlayers).length >= 2) return showToast("השולחן מלא.", "error");
-                if (Number(user.balance) < Number(tableState.buyIn)) return showToast("אין לך מספיק צ'יפים.", "error");
+                if (Number(user.balance) < Number(tableState.buyIn)) return showToast("אין לך מספיק צ'יפים להיכנס.", "error");
+                
                 try {
                     const takenSeats = Object.values(currentPlayers).map(p => p.seat);
                     let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
                     const updatedPlayers = { ...currentPlayers };
                     updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: emptySeat, rack: [] };
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                    
+                    let newWaitingList = [...(tableState.waitingList || [])];
+                    if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) {
+                        newWaitingList.shift(); 
+                    }
+
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                        players: updatedPlayers,
+                        waitingList: newWaitingList
+                    });
                     showToast("התיישבת בהצלחה!", "success");
                 } catch(e) { showToast("שגיאה בהתיישבות", "error"); }
+            };
+
+            const leaveTable = async () => {
+                if (!isSeated) {
+                    // Just leaving the view
+                    if (tableState.waitingList?.some(w => w.uid === user.uid)) {
+                        const newList = tableState.waitingList.filter(w => w.uid !== user.uid);
+                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { waitingList: newList });
+                    }
+                    return onLeave();
+                }
+
+                // If leaving while playing, forfeit logic would go here. For now just leave.
+                const updatedPlayers = { ...tableState.players };
+                delete updatedPlayers[user.uid];
+                
+                let updates = { players: updatedPlayers };
+                if (Object.keys(updatedPlayers).length < 2 && tableState.status === 'playing') {
+                    updates.status = 'waiting';
+                    updates.deck = [];
+                    updates.discardPile = [];
+                    updates.currentTurn = null;
+                }
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
+                onLeave();
             };
 
             const handleStartGame = async () => {
@@ -1100,9 +1205,13 @@
 
                     // Execute Transaction
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.OWNER)));
-                        const ownerDocRef = ownerQuery.docs[0].ref;
-                        const ownerDoc = await transaction.get(ownerDocRef);
+                        // In new hierarchy, Owner is SUPER_ADMIN. Let's find SUPER_ADMIN for rake
+                        const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.SUPER_ADMIN)));
+                        let ownerDocRef, ownerDoc;
+                        if (!ownerQuery.empty) {
+                            ownerDocRef = ownerQuery.docs[0].ref;
+                            ownerDoc = await transaction.get(ownerDocRef);
+                        }
 
                         const winnerRef = window.fb.doc(window.fb.db, "users", winnerUid);
                         const loserRef = window.fb.doc(window.fb.db, "users", loserUid);
@@ -1117,7 +1226,7 @@
 
                         // Check Agent for loser
                         const loserData = loserDoc.data();
-                        if (loserData.agentId && loserData.agentId !== ownerDoc.id) {
+                        if (loserData.agentId && ownerDoc && loserData.agentId !== ownerDoc.id) {
                             const agentRef = window.fb.doc(window.fb.db, "users", loserData.agentId);
                             const agentDoc = await transaction.get(agentRef);
                             const agentCut = Math.floor(rake * ((loserData.agentRakeShare || 0) / 100));
@@ -1127,7 +1236,9 @@
                             }
                         }
 
-                        transaction.update(ownerDocRef, { balance: Number(ownerDoc.data().balance) + houseProfit });
+                        if (ownerDocRef) {
+                            transaction.update(ownerDocRef, { balance: Number(ownerDoc.data().balance) + houseProfit });
+                        }
                         transaction.update(winnerRef, { balance: Number(winnerDoc.data().balance) + winnerNet });
                         transaction.update(loserRef, { balance: Number(loserDoc.data().balance) - cashAmount });
                         for(let a in agentUpdates) transaction.update(agentUpdates[a].ref, { balance: agentUpdates[a].newBal });
@@ -1176,7 +1287,7 @@
             return (
                 <div className="flex-1 flex flex-col relative game-felt select-none">
                     <div className="relative z-10 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-lg border-b border-slate-800">
-                        <button onClick={onLeave} className="text-slate-400 hover:text-white bg-slate-900 px-4 py-2 rounded-xl font-bold border border-slate-800"><i className="fa-solid fa-arrow-right"></i> עזוב</button>
+                        <button onClick={leaveTable} className="text-slate-400 hover:text-white bg-slate-900 px-4 py-2 rounded-xl font-bold border border-slate-800"><i className="fa-solid fa-arrow-right"></i> עזוב</button>
                         <h2 className="text-xl font-black text-white uppercase tracking-widest" style={{textShadow: '0 0 10px #3b82f6'}}>ג'ין רמי (Gin)</h2>
                         <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-sm font-bold text-blue-400">
                             {Object.keys(tableState.players||{}).length}/2 <i className="fa-solid fa-user"></i>
@@ -1186,13 +1297,27 @@
                     <div className="flex-1 relative flex flex-col p-4">
                         {!isSeated && (
                             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-                                <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)]">שב בשולחן הג'ין</button>
+                                {Object.keys(tableState.players||{}).length < 2 ? (
+                                    isFirstInWaitlist ? (
+                                        <div className="text-center animate-pulse">
+                                            <h2 className="text-3xl text-emerald-400 font-black mb-4">התפנה מקום! אתה ראשון בתור.</h2>
+                                            <button onClick={handleSitDown} className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(16,185,129,0.6)]">קח את הכיסא עכשיו</button>
+                                        </div>
+                                    ) : (tableState.waitingList || []).some(w => w.uid === user.uid) ? (
+                                        <h2 className="text-2xl text-orange-400 font-bold mb-4">ממתין לשחקן הראשון בתור שיקבל החלטה...</h2>
+                                    ) : (
+                                        <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)]">שב בשולחן הג'ין</button>
+                                    )
+                                ) : (
+                                    <h2 className="text-3xl text-slate-300 font-black">השולחן מלא כרגע.</h2>
+                                )}
                             </div>
                         )}
+                        
                         {isSeated && !isPlaying && (
                             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
                                 <h3 className="text-2xl text-white font-black mb-4">ממתין לתחילת משחק...</h3>
-                                {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                                {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
                                     <button onClick={handleStartGame} className="bg-emerald-600 text-white px-8 py-4 rounded-xl font-black shadow-[0_0_30px_rgba(16,185,129,0.5)]">חלק 10 קלפים והתחל</button>
                                 )}
                             </div>
@@ -1290,6 +1415,7 @@
             const isPlaying = tableState?.status === 'playing';
             const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
             const myPlayerData = tableState?.players?.[user.uid];
+            const isFirstInWaitlist = (tableState?.waitingList?.[0]?.uid === user.uid);
 
             useEffect(() => {
                 if (showChat && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -1459,6 +1585,14 @@
             const handleSitDown = async () => {
                 showToast("בודק מקום בשולחן ומוודא יתרה...", "info");
                 const currentPlayers = tableState.players || {};
+                
+                // Enforce Waiting List Logic
+                if (tableState.waitingList && tableState.waitingList.length > 0) {
+                    if (tableState.waitingList[0].uid !== user.uid) {
+                        return showToast("זה לא התור שלך ברשימת ההמתנה!", "error");
+                    }
+                }
+
                 if (Object.keys(currentPlayers).length >= 4) return showToast("השולחן מלא.", "error");
                 
                 if (tableState.isTournament) {
@@ -1472,12 +1606,18 @@
                             const tData = tableDoc.data();
                             const takenSeats = Object.values(tData.players || {}).map(p => p.seat);
                             let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
+                            
                             const updatedPlayers = { ...tData.players };
                             updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: emptySeat, rack: [], score: 0, hasOpened: false };
+                            
+                            let newWaitingList = [...(tData.waitingList || [])];
+                            if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) newWaitingList.shift();
+
                             const newBalance = Number(userDoc.data().balance) - Number(tableState.buyIn);
                             const newPrizePool = Number(tData.prizePool || 0) + Number(tableState.buyIn);
+                            
                             transaction.update(userRef, { balance: newBalance });
-                            transaction.update(tableRef, { prizePool: newPrizePool, players: updatedPlayers });
+                            transaction.update(tableRef, { prizePool: newPrizePool, players: updatedPlayers, waitingList: newWaitingList });
                         });
                         showToast("נרשמת לטורניר והקופה עודכנה!", "success");
                     } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהרשמה.", "error"); }
@@ -1488,15 +1628,47 @@
                         let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
                         const updatedPlayers = { ...currentPlayers };
                         updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: emptySeat, rack: [], hasOpened: false };
-                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                        
+                        let newWaitingList = [...(tableState.waitingList || [])];
+                        if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) newWaitingList.shift();
+
+                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                            players: updatedPlayers,
+                            waitingList: newWaitingList
+                        });
                         showToast("התיישבת בהצלחה!", "success");
                     } catch(e) { showToast("שגיאה בהתיישבות: " + e.message, "error"); }
                 }
             };
+            
+            const leaveTable = async () => {
+                if (!isSeated) {
+                    // Just leaving the view. If in waitlist, remove self.
+                    if (tableState.waitingList?.some(w => w.uid === user.uid)) {
+                        const newList = tableState.waitingList.filter(w => w.uid !== user.uid);
+                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { waitingList: newList });
+                    }
+                    return onLeave();
+                }
+
+                // If leaving while playing, forfeit logic would go here. For now just leave.
+                const updatedPlayers = { ...tableState.players };
+                delete updatedPlayers[user.uid];
+                
+                let updates = { players: updatedPlayers };
+                if (Object.keys(updatedPlayers).length < 2 && tableState.status === 'playing') {
+                    updates.status = 'waiting';
+                    updates.board = [];
+                    updates.deck = [];
+                    updates.currentTurn = null;
+                }
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
+                onLeave();
+            };
 
             const handleSendChat = async (e) => {
                 e.preventDefault(); if (!chatMsg.trim()) return;
-                if (tableState.chatEnabled === false && user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER) return showToast("הצ'אט מושתק.", "error");
+                if (tableState.chatEnabled === false && user.role === ROLES.PLAYER) return showToast("הצ'אט מושתק.", "error");
                 if ((tableState.mutedPlayers || []).includes(user.uid)) return showToast("הושתקת בשולחן זה.", "error");
                 const newMsg = { uid: user.uid, username: user.username, text: chatMsg.trim(), ts: Date.now() };
                 const newChat = [...(tableState.chat || []), newMsg].slice(-40);
@@ -1511,7 +1683,7 @@
             };
             
             const toggleMutePlayer = async (targetUid, targetName) => {
-                if (user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER) return;
+                if (user.role === ROLES.PLAYER) return;
                 const muted = tableState.mutedPlayers || [];
                 const isMuted = muted.includes(targetUid);
                 const newMuted = isMuted ? muted.filter(id => id !== targetUid) : [...muted, targetUid];
@@ -1554,16 +1726,22 @@
                             uids.forEach(uid => { if (updatedPlayers[uid].score > bestScore) { bestScore = updatedPlayers[uid].score; bestUid = uid; } });
                             
                             await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                                const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.OWNER)));
-                                const ownerDocRef = ownerQuery.docs[0].ref;
-                                const ownerDoc = await transaction.get(ownerDocRef);
+                                const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.SUPER_ADMIN)));
+                                let ownerDocRef, ownerDoc;
+                                if (!ownerQuery.empty) {
+                                    ownerDocRef = ownerQuery.docs[0].ref;
+                                    ownerDoc = await transaction.get(ownerDocRef);
+                                }
+
                                 const winnerRef = window.fb.doc(window.fb.db, "users", bestUid);
                                 const winnerDoc = await transaction.get(winnerRef);
                                 const totalPot = Number(tableState.prizePool);
                                 const rake = Math.floor(totalPot * 0.06);
                                 const winnerWin = totalPot - rake;
                                 
-                                transaction.update(ownerDocRef, { balance: Number(ownerDoc.data().balance || 0) + rake });
+                                if (ownerDocRef) {
+                                    transaction.update(ownerDocRef, { balance: Number(ownerDoc.data().balance || 0) + rake });
+                                }
                                 transaction.update(winnerRef, { balance: Number(winnerDoc.data().balance || 0) + winnerWin });
                                 
                                 const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -1584,9 +1762,12 @@
                         const losers = uids.filter(uid => uid !== user.uid);
                         
                         await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                            const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.OWNER)));
-                            const ownerDocRef = ownerQuery.docs[0].ref;
-                            const ownerDoc = await transaction.get(ownerDocRef);
+                            const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.SUPER_ADMIN)));
+                            let ownerDocRef, ownerDoc;
+                            if(!ownerQuery.empty) {
+                                ownerDocRef = ownerQuery.docs[0].ref;
+                                ownerDoc = await transaction.get(ownerDocRef);
+                            }
 
                             let playerDocs = {};
                             for (let uid of uids) playerDocs[uid] = await transaction.get(window.fb.doc(window.fb.db, "users", uid));
@@ -1594,13 +1775,13 @@
                             let agentDocs = {};
                             for (let uid of losers) {
                                 const pData = playerDocs[uid].data();
-                                if (pData.agentId && !playerDocs[pData.agentId] && pData.agentId !== ownerDoc.id) {
+                                if (pData.agentId && !playerDocs[pData.agentId] && (!ownerDoc || pData.agentId !== ownerDoc.id)) {
                                     if (!agentDocs[pData.agentId]) agentDocs[pData.agentId] = await transaction.get(window.fb.doc(window.fb.db, "users", pData.agentId));
                                 }
                             }
 
                             let totalPot = 0, totalRake = 0, houseProfit = 0, agentProfits = {}, updates = {}; 
-                            updates[ownerDoc.id] = Number(ownerDoc.data().balance || 0);
+                            if(ownerDoc) updates[ownerDoc.id] = Number(ownerDoc.data().balance || 0);
                             for (let uid of uids) updates[uid] = Number(playerDocs[uid].data().balance || 0);
                             for (let aid in agentDocs) updates[aid] = Number(agentDocs[aid].data().balance || 0);
 
@@ -1623,10 +1804,11 @@
                             });
 
                             const winnerWin = totalPot - totalRake;
-                            updates[user.uid] += winnerWin; updates[ownerDoc.id] += houseProfit;
+                            updates[user.uid] += winnerWin; 
+                            if(ownerDoc) updates[ownerDoc.id] += houseProfit;
                             for(let aid in agentProfits) updates[aid] += agentProfits[aid];
 
-                            transaction.update(ownerDocRef, { balance: updates[ownerDoc.id] });
+                            if(ownerDocRef) transaction.update(ownerDocRef, { balance: updates[ownerDoc.id] });
                             for (let uid of uids) transaction.update(window.fb.doc(window.fb.db, "users", uid), { balance: updates[uid] });
                             for (let aid in agentDocs) transaction.update(window.fb.doc(window.fb.db, "users", aid), { balance: updates[aid] });
 
@@ -1721,7 +1903,7 @@
 
                     <div className="relative z-10 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-slate-800">
                         <div className="flex items-center gap-3">
-                            <button onClick={onLeave} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold hover:text-white transition-colors text-sm flex items-center gap-2">
+                            <button onClick={leaveTable} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold hover:text-white transition-colors text-sm flex items-center gap-2">
                                 <i className="fa-solid fa-arrow-right"></i> עזוב
                             </button>
                             {isSeated && (
@@ -1750,7 +1932,7 @@
                             </div>
                         </div>
 
-                        {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                        {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
                             <button onClick={handleWin} className="text-slate-500 hover:text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 transition-colors text-xs font-bold flex items-center gap-2">
                                 <i className="fa-solid fa-lock"></i> <span className="hidden sm:inline">הנהלה</span>
                             </button>
@@ -1764,9 +1946,27 @@
                     >
                         {!isSeated && (
                             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-[1.8rem]">
-                                <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3 transition-transform hover:scale-105">
-                                    <i className="fa-solid fa-chair"></i> {tableState.isTournament ? `הרשם לטורניר (${formatMoney(tableState.buyIn)})` : `שב בשולחן (מינ' ${formatMoney(tableState.buyIn)})`}
-                                </button>
+                                {playersList.length < 4 ? (
+                                    isFirstInWaitlist ? (
+                                        <div className="text-center animate-pulse">
+                                            <h2 className="text-3xl text-emerald-400 font-black mb-4">התפנה מקום! אתה ראשון בתור.</h2>
+                                            <button onClick={handleSitDown} className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(16,185,129,0.6)] flex items-center gap-3 transition-transform hover:scale-105 mx-auto">
+                                                <i className="fa-solid fa-chair"></i> קח את הכיסא עכשיו
+                                            </button>
+                                        </div>
+                                    ) : (tableState.waitingList || []).some(w => w.uid === user.uid) ? (
+                                        <div className="text-center">
+                                            <h2 className="text-2xl text-orange-400 font-bold mb-4">ממתין לשחקן הראשון בתור שיקבל החלטה...</h2>
+                                            <p className="text-slate-300">אתה בתור. המתן בסבלנות.</p>
+                                        </div>
+                                    ) : (
+                                        <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3 transition-transform hover:scale-105">
+                                            <i className="fa-solid fa-chair"></i> {tableState.isTournament ? `הרשם לטורניר (${formatMoney(tableState.buyIn)})` : `שב בשולחן (מינ' ${formatMoney(tableState.buyIn)})`}
+                                        </button>
+                                    )
+                                ) : (
+                                    <h2 className="text-3xl text-slate-300 font-black">השולחן מלא כרגע.</h2>
+                                )}
                                 <p className="mt-4 text-slate-300 font-bold">({playersList.length}/4 שחקנים יושבים)</p>
                             </div>
                         )}
@@ -1775,7 +1975,7 @@
                             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-[1.8rem]">
                                 <h3 className="text-2xl text-white font-black mb-4">ממתין לתחילת משחק...</h3>
                                 <p className="text-slate-300 mb-6 font-bold">{playersList.length} שחקנים מחוברים.</p>
-                                {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                                {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
                                     <button onClick={handleStartGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-transform hover:scale-105">
                                         התחל משחק וחלוק 14 אבנים
                                     </button>
@@ -1867,7 +2067,7 @@
                                     <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col w-[260px] sm:w-[320px] h-[300px] overflow-hidden z-super-top">
                                         <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center">
                                             <h3 className="text-white font-bold text-sm">צ'אט השולחן</h3>
-                                            {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
+                                            {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
                                                 <button onClick={toggleGlobalChat} className={`text-[10px] px-2 py-1 rounded font-bold transition-colors ${tableState.chatEnabled !== false ? 'bg-rose-900 text-rose-300 hover:bg-rose-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800'}`}>
                                                     {tableState.chatEnabled !== false ? 'השתק הכל' : 'אפשר צ\'אט'}
                                                 </button>
@@ -1880,9 +2080,9 @@
                                             {(tableState.chat || []).map((msg, idx) => (
                                                 <div key={idx} className="flex flex-col">
                                                     <span 
-                                                        className={`text-[10px] font-bold mb-0.5 ${(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) ? 'cursor-pointer hover:text-rose-400' : ''} ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}
+                                                        className={`text-[10px] font-bold mb-0.5 ${(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) ? 'cursor-pointer hover:text-rose-400' : ''} ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}
                                                         onClick={() => toggleMutePlayer(msg.uid, msg.username)}
-                                                        title={(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) ? 'לחץ להשתקה/שחרור שחקן' : ''}
+                                                        title={(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) ? 'לחץ להשתקה/שחרור שחקן' : ''}
                                                     >
                                                         {msg.username} {(tableState.mutedPlayers || []).includes(msg.uid) ? '🔇' : ''}
                                                     </span>
@@ -1892,7 +2092,7 @@
                                             <div ref={chatEndRef} />
                                         </div>
                                         <form onSubmit={handleSendChat} className="p-2 bg-slate-950 border-t border-slate-800 flex gap-2">
-                                            <input type="text" value={chatMsg} onChange={(e) => setChatMsg(e.target.value)} placeholder="כתוב הודעה..." className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" disabled={tableState.chatEnabled === false && user.role !== ROLES.OWNER && user.role !== ROLES.MANAGER} />
+                                            <input type="text" value={chatMsg} onChange={(e) => setChatMsg(e.target.value)} placeholder="כתוב הודעה..." className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" disabled={tableState.chatEnabled === false && user.role === ROLES.PLAYER} />
                                             <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white w-10 rounded-xl flex items-center justify-center transition-colors"><i className="fa-solid fa-paper-plane text-xs"></i></button>
                                         </form>
                                     </div>
