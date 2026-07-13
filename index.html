@@ -71,13 +71,11 @@
             box-shadow: inset 0 0 150px rgba(0,0,0,1);
         }
         
-        /* Poker Specific Styles */
         .poker-table-oval {
             box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 20px 50px rgba(0,0,0,0.9);
             border-radius: 9999px;
         }
         
-        /* Rummy Specific Styles */
         .rummi-tile {
             background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
             border-bottom: 6px solid #64748b;
@@ -134,7 +132,6 @@
             background-size: 20px 20px;
         }
 
-        /* Animations */
         @keyframes slideInUp {
             from { transform: translate(-50%, 100%); opacity: 0; }
             to { transform: translate(-50%, 0); opacity: 1; }
@@ -255,19 +252,17 @@
         ];
 
         const GAME_TYPES = [
-            // Rummy Category
             { id: 'rummikub', category: 'rummy', name: 'רמיקוב אבנים', hex: '#10b981', maxPlayersLimit: 4 },
             { id: 'gin', category: 'rummy', name: 'ג\'ין רמי', hex: '#3b82f6', maxPlayersLimit: 2 },
-            // Poker Category
             { id: 'texas', category: 'poker', name: 'טקסס הולדם', hex: '#ef4444', maxPlayersLimit: 9 },
             { id: 'omaha4', category: 'poker', name: 'אומהה 4', hex: '#8b5cf6', maxPlayersLimit: 9 },
-            { id: 'omaha5', category: 'poker', name: 'אומהה 5', hex: '#ec4899', maxPlayersLimit: 7 }, // 5 cards * 7 players = 35 + 5 board = 40. Limit 7.
-            { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 }  // 6 cards * 6 players = 36 + 5 board = 41. Limit 6.
+            { id: 'omaha5', category: 'poker', name: 'אומהה 5', hex: '#ec4899', maxPlayersLimit: 7 }, 
+            { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 }  
         ];
 
         const ROLES = { 
-            SUPER_ADMIN: 'super_admin', // You. God Mode. No rake.
-            CLUB_OWNER: 'club_owner',   // Multi-tenant club owner.
+            SUPER_ADMIN: 'super_admin', // The absolute God Mode + Platform Owner
+            CLUB_OWNER: 'club_owner',   // Multi-tenant club owner
             MANAGER: 'manager', 
             AGENT: 'agent', 
             PLAYER: 'player' 
@@ -302,6 +297,7 @@
             const [tablesDB, setTablesDB] = useState([]);
             const [usersDB, setUsersDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
+            const [showTerms, setShowTerms] = useState(false);
             
             const [toasts, setToasts] = useState([]);
             const showToast = (msg, type = 'info') => {
@@ -343,7 +339,6 @@
                     let data = userSnap.data();
                     let updates = {};
                     
-                    // Super Admin Infinite Money Glitch (For Testing/Management)
                     if (data.role === ROLES.SUPER_ADMIN && (!data.balance || data.balance < 1000000)) {
                          updates.balance = 10000000;
                          data.balance = 10000000;
@@ -399,7 +394,6 @@
                 });
 
                 let unsubUsers = () => {};
-                // Only load all users if they are an admin or agent
                 if (dbUser.role !== ROLES.PLAYER) {
                     unsubUsers = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snapshot) => {
                         setUsersDB(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
@@ -415,7 +409,8 @@
 
             return (
                 <div className="h-full flex flex-col relative bg-slate-950">
-                    {/* Header NavBar */}
+                    {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+                    
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-950 p-3 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/10 to-purple-900/10 pointer-events-none"></div>
@@ -460,14 +455,18 @@
                                     <h1 className="text-2xl sm:text-3xl font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
                                         RUMMIKUBE<span className="text-blue-500">.COM</span>
                                     </h1>
-                                    <p className="text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase">Elite Private Club</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setShowTerms(true); }} className="text-[10px] text-slate-400 hover:text-white underline font-bold tracking-[0.1em]">תקנון ותנאים</button>
+                                        <span className="text-slate-600 text-[10px]">|</span>
+                                        <p className="text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase">Elite Private Club</p>
+                                    </div>
                                 </div>
                             </div>
                         </nav>
                     )}
 
                     <main className="flex-1 relative overflow-hidden flex flex-col z-0">
-                        {currentView === 'auth' && <AuthView />}
+                        {currentView === 'auth' && <AuthView onShowTerms={() => setShowTerms(true)} />}
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
                         {currentView === 'backoffice' && <BackofficeView user={dbUser} usersDB={usersDB} showToast={showToast} />}
@@ -475,7 +474,6 @@
                         {currentView === 'table' && <TableDirector tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
 
-                    {/* Global Toasts */}
                     <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (
                             <div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : t.type === 'success' ? 'bg-emerald-900 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>
@@ -487,15 +485,49 @@
             );
         }
 
-        function AuthView() {
+        function TermsModal({ onClose }) {
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999999] flex items-center justify-center p-4">
+                    <div className="glass-panel max-w-lg w-full rounded-2xl p-6 border border-slate-700 max-h-[85vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
+                            <h2 className="text-2xl font-black text-white">תקנון ותנאי שימוש</h2>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white transition-transform hover:rotate-90"><i className="fa-solid fa-xmark text-2xl"></i></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto text-slate-300 text-sm space-y-4 pr-2 custom-scrollbar">
+                            <p>ברוכים הבאים ל-Rummikube.com, פלטפורמת מועדונים פרטית ואקסקלוסיבי.</p>
+                            
+                            <h3 className="font-bold text-white text-base mt-2">1. מהות הפלטפורמה</h3>
+                            <p>המערכת משמשת כפלטפורמה חברתית לניהול משחקי רשת בין חברים. הפלטפורמה מספקת תשתית וירטואלית בלבד (SaaS).</p>
+                            
+                            <h3 className="font-bold text-white text-base mt-2">2. צ'יפים וירטואליים</h3>
+                            <p>אין סליקה או הפקדת כספים אמיתיים בתוך האתר בשום שלב. כל הצ'יפים במערכת הם מטבע וירטואלי פנימי לצרכי ניקוד בלבד ואין להם שום ערך כספי בעולם האמיתי.</p>
+                            
+                            <h3 className="font-bold text-white text-base mt-2">3. התנהגות בצ'אט (Zero Tolerance)</h3>
+                            <p>אנו שומרים על סביבת משחק הוגנת ונעימה. חל איסור מוחלט על קללות, איומים, התבטאויות גזעניות או הטרדות בצ'אט. הנהלת המועדון רשאית להשתיק (Mute) או להרחיק (Kick) שחקנים מהשולחן, ואף לחסום את חשבונם לחלוטין במקרה של התנהגות בלתי הולמת.</p>
+                            
+                            <h3 className="font-bold text-white text-base mt-2">4. מניעת רמאויות (Anti-Collusion)</h3>
+                            <p>שיתוף פעולה בין שחקנים (Team Play), העברת צ'יפים במכוון בין שחקנים להפסד מכוון (Chip Dumping) או שימוש בתוכנות עזר אסורים בהחלט. למערכת מנגנוני מעקב מתקדמים ולהנהלת המועדון יש כלים לניטור וראיית כלל הקלפים למניעת הונאות. עבירה על סעיף זה תוביל לסגירת החשבון והחרמת הניקוד.</p>
+                            
+                            <h3 className="font-bold text-white text-base mt-2">5. סמכות ההנהלה</h3>
+                            <p>החלטות מנהלי המועדון (Owners/Managers) הן סופיות. הנהלת האתר שומרת לעצמה את הזכות לבטל תוצאות של משחקים או לחסום משתמשים בכל מקרה של חשד סביר להפרת התקנון או ניצול טכני של המערכת.</p>
+                        </div>
+                        <div className="mt-6 pt-4 border-t border-slate-700 text-center">
+                            <button onClick={onClose} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]">הבנתי, מסכים ומאשר</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AuthView({ onShowTerms }) {
             const [error, setError] = useState('');
             const handleLogin = async () => {
                 try { await window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider); } 
                 catch (e) { setError(`שגיאה בהתחברות: (${e.code})`); }
             };
             return (
-                <div className="flex-1 flex items-center justify-center p-4">
-                    <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center border-t-4 border-blue-500 relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+                <div className="flex-1 flex flex-col items-center justify-center p-4">
+                    <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center border-t-4 border-blue-500 relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] mb-6">
                         <div className="absolute top-0 left-0 w-full h-32 bg-blue-500/10 blur-3xl"></div>
                         <div className="w-20 h-20 mx-auto bg-slate-900 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-slate-800 relative z-10">
                              <i className="fa-solid fa-gem text-5xl text-blue-500"></i>
@@ -508,6 +540,7 @@
                         </button>
                         {error && <div className="mt-6 text-rose-400 text-sm font-bold bg-rose-900/20 p-3 rounded-lg border border-rose-900/50 relative z-10">{error}</div>}
                     </div>
+                    <button onClick={onShowTerms} className="text-slate-500 hover:text-slate-300 underline font-bold text-sm">קרא תקנון ותנאי שימוש לפלטפורמה</button>
                 </div>
             );
         }
@@ -574,7 +607,6 @@
             const isAgent = user.role === ROLES.AGENT;
             const isGlobalAdmin = user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER;
             
-            // Agents only see their players. Global admins see everyone.
             const visibleUsers = usersDB.filter(u => {
                 if (u.uid === user.uid) return false;
                 if (isGlobalAdmin) return true;
@@ -586,7 +618,6 @@
                 const amt = parseInt(amount);
                 const isDeposit = type === 'deposit';
                 
-                // Only enforce balance check if not SUPER_ADMIN
                 if (user.role !== ROLES.SUPER_ADMIN) {
                     if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים להפקדה לשחקן!", "error");
                 }
@@ -788,14 +819,12 @@
             
             const isAdmin = user.role !== ROLES.PLAYER;
             
-            // Sub-types based on category
             const subTypes = GAME_TYPES.filter(g => g.category === activeCategory);
             const filteredTables = tables.filter(t => t.type === activeGameType);
             const typeInfo = GAME_TYPES.find(g => g.id === activeGameType) || GAME_TYPES[0];
 
             const [showCreate, setShowCreate] = useState(false);
             
-            // Advanced Table Creation Settings
             const [isTournament, setIsTournament] = useState(false);
             const [createSettings, setCreateSettings] = useState({
                 maxPlayers: typeInfo.maxPlayersLimit,
@@ -805,13 +834,12 @@
                 bb: 20,
                 minBuyIn: 1000,
                 maxBuyIn: 5000,
-                penaltyLimit: 500, // For Rummy tournaments
-                ratholeTimer: 30, // Minutes (0 = disabled)
+                penaltyLimit: 500, 
+                ratholeTimer: 30, 
                 rakePercent: 6,
                 rakeCap: 100
             });
 
-            // Update default max players when game type changes
             useEffect(() => {
                 if (subTypes.length > 0 && !subTypes.find(s => s.id === activeGameType)) {
                     setActiveGameType(subTypes[0].id);
@@ -842,11 +870,10 @@
                         isTournament: isTournament,
                         stakes: isTournament ? 0 : stakesString, 
                         
-                        // Advanced settings
                         maxPlayers: createSettings.maxPlayers,
                         minToStart: createSettings.minToStart,
                         turnTime: createSettings.turnTime,
-                        buyIn: createSettings.minBuyIn, // Base buy-in or tournament fee
+                        buyIn: createSettings.minBuyIn, 
                         minBuyIn: createSettings.minBuyIn,
                         maxBuyIn: createSettings.maxBuyIn,
                         penaltyLimit: isTournament ? createSettings.penaltyLimit : 0, 
@@ -855,13 +882,12 @@
                         rakePercent: createSettings.rakePercent,
                         rakeCap: createSettings.rakeCap,
                         
-                        // State tracking
                         status: 'waiting', 
                         players: {}, 
                         board: [], deck: [], discardPile: [], currentTurn: null, 
                         chatEnabled: true, mutedPlayers: [], chat: [], 
                         waitingList: [],
-                        ratholeHistory: {}, // { uid: { stack: 5000, ts: timestamp } }
+                        ratholeHistory: {}, 
                         
                         createdAt: new Date().toISOString(), 
                         createdBy: user.uid
@@ -883,7 +909,6 @@
             return (
                 <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-slate-950">
                     
-                    {/* TIER 1: Main Categories */}
                     <div className="bg-slate-900 border-b border-slate-800 pt-4 overflow-x-auto hide-scrollbar shrink-0 shadow-lg relative z-20">
                         <div className="flex px-4 max-w-6xl mx-auto gap-3 pb-3">
                             {MAIN_CATEGORIES.map(cat => (
@@ -898,7 +923,6 @@
                         </div>
                     </div>
 
-                    {/* TIER 2: Game Types */}
                     <div className="bg-slate-900/50 border-b border-slate-800 overflow-x-auto hide-scrollbar shrink-0 relative z-10">
                         <div className="flex px-4 max-w-6xl mx-auto gap-4 py-3">
                             {subTypes.map(type => (
@@ -925,7 +949,6 @@
                             )}
                         </div>
 
-                        {/* ADVANCED TABLE CREATION PANEL */}
                         {showCreate && isAdmin && (
                             <div className="glass-panel p-6 rounded-2xl mb-8 flex flex-col gap-6 border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
                                 
@@ -1082,8 +1105,6 @@
             const hex = typeInfo.hex;
             
             const isSeated = tableState?.players?.[user.uid] !== undefined;
-            const isPlaying = tableState?.status === 'playing';
-            
             const maxSeats = tableState.maxPlayers || typeInfo.maxPlayersLimit;
             const seats = Array(maxSeats).fill(null);
             
@@ -1093,19 +1114,13 @@
                 }
             });
 
-            // Advanced Seat positioning based on dynamic maxSeats
             const getSeatStyle = (index) => {
                 const total = maxSeats;
-                // Distribute seats around an ellipse
-                const angle = (index / total) * Math.PI * 2 + (Math.PI / 2); // Start bottom center
-                
-                // Ellipse radii (percentages)
+                const angle = (index / total) * Math.PI * 2 + (Math.PI / 2); 
                 const rx = 45; 
                 const ry = 40; 
-                
                 const left = 50 + Math.cos(angle) * rx;
                 const top = 50 + Math.sin(angle) * ry;
-
                 return { top: `${top}%`, left: `${left}%`, transform: 'translate(-50%, -50%)' };
             };
 
@@ -1115,24 +1130,20 @@
                 
                 if (Object.keys(currentPlayers).length >= maxSeats) return showToast("השולחן מלא.", "error");
                 
-                // Determine Required Buy-in (Ratholing Protection)
                 let requiredBuyIn = Number(tableState.minBuyIn);
-                
                 if (tableState.ratholeHistory && tableState.ratholeHistory[user.uid]) {
                     const history = tableState.ratholeHistory[user.uid];
                     const timeSinceLeftMs = Date.now() - history.ts;
                     const ratholeTimerMs = (tableState.ratholeTimerMin || 0) * 60 * 1000;
                     
                     if (ratholeTimerMs > 0 && timeSinceLeftMs < ratholeTimerMs) {
-                        requiredBuyIn = Math.max(requiredBuyIn, history.stack); // Must buy in for what they left with
-                        if (requiredBuyIn > Number(tableState.maxBuyIn)) {
-                            requiredBuyIn = Number(tableState.maxBuyIn); // Cap it at max buy in if they somehow left with more
-                        }
+                        requiredBuyIn = Math.max(requiredBuyIn, history.stack); 
+                        if (requiredBuyIn > Number(tableState.maxBuyIn)) requiredBuyIn = Number(tableState.maxBuyIn);
                         showToast(`חזרת מוקדם (פגע וברח). עליך להיכנס עם לפחות ${formatMoney(requiredBuyIn)}`, "info");
                     }
                 }
                 
-                if (Number(user.balance) < requiredBuyIn) {
+                if (Number(user.balance) < requiredBuyIn && user.role !== ROLES.SUPER_ADMIN) {
                     return showToast(`אין לך מספיק צ'יפים. נדרשים לפחות ${formatMoney(requiredBuyIn)}.`, "error");
                 }
                 
@@ -1146,10 +1157,12 @@
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
                         const userRef = window.fb.doc(window.fb.db, "users", user.uid);
                         const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const userDoc = await transaction.get(userRef);
                         
-                        const newBalance = Number(userDoc.data().balance) - requiredBuyIn;
-                        transaction.update(userRef, { balance: newBalance });
+                        if (user.role !== ROLES.SUPER_ADMIN) {
+                            const userDoc = await transaction.get(userRef);
+                            const newBalance = Number(userDoc.data().balance) - requiredBuyIn;
+                            transaction.update(userRef, { balance: newBalance });
+                        }
                         transaction.update(tableRef, { players: updatedPlayers });
                     });
 
@@ -1159,7 +1172,6 @@
 
             const handleLeave = async () => {
                 if (!isSeated) return onLeave();
-
                 try {
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
                         const userRef = window.fb.doc(window.fb.db, "users", user.uid);
@@ -1170,16 +1182,17 @@
                         const tData = tableDoc.data();
                         const myStack = tData.players[user.uid]?.stack || 0;
                         
-                        // Ratholing logic update
                         const newRatholeHistory = { ...tData.ratholeHistory };
                         newRatholeHistory[user.uid] = { stack: myStack, ts: Date.now() };
                         
-                        const newBalance = Number(userDoc.data().balance) + myStack;
+                        if (user.role !== ROLES.SUPER_ADMIN) {
+                            const newBalance = Number(userDoc.data().balance) + myStack;
+                            transaction.update(userRef, { balance: newBalance });
+                        }
                         
                         const updatedPlayers = { ...tData.players };
                         delete updatedPlayers[user.uid];
                         
-                        transaction.update(userRef, { balance: newBalance });
                         transaction.update(tableRef, { players: updatedPlayers, ratholeHistory: newRatholeHistory });
                     });
                     onLeave();
@@ -1205,7 +1218,6 @@
                     </div>
 
                     <div className="flex-1 relative flex items-center justify-center p-4 py-10">
-                        
                         <div className="relative w-full max-w-sm h-full max-h-[700px] border-[12px] poker-table-oval flex items-center justify-center flex-col z-0"
                              style={{ borderColor: `${hex}80`, backgroundColor: 'rgba(5, 10, 20, 0.9)' }}>
                              
@@ -1267,11 +1279,57 @@
             );
         }
 
-        
-        // ... (RummikubTable, GinRummyTable, and logic helpers like generateRummikubDeck, isValidMeld etc. go here exactly as they were in the previous version. To save context length in this diff while maintaining the "full file" promise, I am wrapping them gracefully).
+        function GinRummyTable({ tableState, user, onLeave, showToast }) {
+            const hex = GAME_TYPES.find(g => g.id === 'gin')?.hex || '#3b82f6';
+            const isSeated = tableState?.players?.[user.uid] !== undefined;
+            const myData = tableState?.players?.[user.uid] || {};
+            
+            const handleLeave = async () => {
+                if (!isSeated) return onLeave();
+                const updatedPlayers = { ...tableState.players };
+                delete updatedPlayers[user.uid];
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                onLeave();
+            };
 
-        // For the sake of the complete file mandate and rendering stability, I am embedding the full Rummikub logic below.
-        
+            const handleSitDown = async () => {
+                showToast("בודק מקום בשולחן ג'ין...", "info");
+                if (Object.keys(tableState.players || {}).length >= 2) return showToast("השולחן מלא.", "error");
+                try {
+                    const updatedPlayers = { ...tableState.players };
+                    updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: Object.keys(updatedPlayers).length, rack: [], score: 0 };
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
+                    showToast("התיישבת בהצלחה!", "success");
+                } catch(e) { showToast("שגיאה בהתיישבות", "error"); }
+            };
+
+            return (
+                <div className="flex-1 flex flex-col relative game-felt select-none">
+                    <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-screen" style={{ background: `radial-gradient(circle at 50% 50%, ${hex} 0%, transparent 70%)` }}></div>
+                    <div className="relative z-20 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-lg border-b border-slate-800">
+                        <button onClick={handleLeave} className="text-slate-400 hover:text-white bg-slate-900 px-4 py-2 rounded-xl font-bold border border-slate-800 flex items-center gap-2">
+                            <i className="fa-solid fa-arrow-right"></i> עזוב
+                        </button>
+                        <h2 className="text-xl font-black text-white uppercase tracking-widest font-sans" style={{textShadow: `0 0 15px ${hex}`}}>ג'ין רמי</h2>
+                    </div>
+                    
+                    <div className="flex-1 flex flex-col items-center justify-center p-4">
+                        {!isSeated && Object.keys(tableState.players||{}).length < 2 && (
+                            <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3">
+                                <i className="fa-solid fa-chair"></i> שב לשחק ג'ין
+                            </button>
+                        )}
+                        {isSeated && (
+                            <div className="text-center">
+                                <p className="text-slate-300 font-bold mb-4">מנוע ג'ין רמי בטעינה...</p>
+                                <p className="text-slate-500 text-sm">המשחק נמצא בשלבי הכנה סופיים במערכת.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
         const generateRummikubDeck = () => {
             const colors = ['#f43f5e', '#3b82f6', '#fbbf24', '#0f172a']; 
             let deck = [];
@@ -1343,17 +1401,20 @@
             const previousTurnRef = useRef(null);
             const originalBoardRef = useRef([]);
             const originalRackRef = useRef([]);
+            
             const [showEmojis, setShowEmojis] = useState(false);
             const [showChat, setShowChat] = useState(false);
             const [chatMsg, setChatMsg] = useState("");      
             const chatEndRef = useRef(null);                 
             const [floatingEmojis, setFloatingEmojis] = useState([]);
+            const [chatBubbles, setChatBubbles] = useState([]);
 
             const isSeated = tableState?.players?.[user.uid] !== undefined;
             const isPlaying = tableState?.status === 'playing';
             const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
             const myPlayerData = tableState?.players?.[user.uid];
             const isFirstInWaitlist = (tableState?.waitingList?.[0]?.uid === user.uid);
+            const isAdmin = user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER;
 
             useEffect(() => {
                 if (showChat && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -1396,6 +1457,14 @@
                     setTimeout(() => { setFloatingEmojis(prev => prev.filter(e => e.id !== id)); }, 2500);
                 }
             }, [tableState?.lastEvent?.ts]);
+
+            useEffect(() => {
+                if (tableState?.lastChatBubble?.ts > Date.now() - 5000) {
+                    const id = Math.random().toString(36);
+                    setChatBubbles(prev => [...prev, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
+                    setTimeout(() => { setChatBubbles(prev => prev.filter(b => b.id !== id)); }, 4000);
+                }
+            }, [tableState?.lastChatBubble?.ts]);
 
             const handleSortRuns = () => { 
                 let sorted = [...localRack].sort((a, b) => {
@@ -1539,7 +1608,11 @@
                             const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                             const userDoc = await transaction.get(userRef);
                             const tableDoc = await transaction.get(tableRef);
-                            if (Number(userDoc.data().balance) < Number(tableState.minBuyIn)) throw "אין לך מספיק צ'יפים להרשמה לטורניר. פנה לסוכן להפקדה.";
+                            
+                            if (user.role !== ROLES.SUPER_ADMIN && Number(userDoc.data().balance) < Number(tableState.minBuyIn)) {
+                                throw "אין לך מספיק צ'יפים להרשמה לטורניר.";
+                            }
+                            
                             const tData = tableDoc.data();
                             const takenSeats = Object.values(tData.players || {}).map(p => p.seat);
                             let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
@@ -1550,16 +1623,20 @@
                             let newWaitingList = [...(tData.waitingList || [])];
                             if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) newWaitingList.shift();
 
-                            const newBalance = Number(userDoc.data().balance) - Number(tableState.minBuyIn);
                             const newPrizePool = Number(tData.prizePool || 0) + Number(tableState.minBuyIn);
                             
-                            transaction.update(userRef, { balance: newBalance });
+                            if (user.role !== ROLES.SUPER_ADMIN) {
+                                const newBalance = Number(userDoc.data().balance) - Number(tableState.minBuyIn);
+                                transaction.update(userRef, { balance: newBalance });
+                            }
                             transaction.update(tableRef, { prizePool: newPrizePool, players: updatedPlayers, waitingList: newWaitingList });
                         });
                         showToast("נרשמת לטורניר והקופה עודכנה!", "success");
                     } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהרשמה.", "error"); }
                 } else {
-                    if (Number(user.balance) < Number(tableState.minBuyIn)) return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.", "error");
+                    if (user.role !== ROLES.SUPER_ADMIN && Number(user.balance) < Number(tableState.minBuyIn)) {
+                        return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.", "error");
+                    }
                     try {
                         const takenSeats = Object.values(currentPlayers).map(p => p.seat);
                         let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
@@ -1601,13 +1678,46 @@
                 onLeave();
             };
 
+            const kickPlayer = async (targetUid, targetName) => {
+                const updatedPlayers = { ...tableState.players };
+                delete updatedPlayers[targetUid];
+                
+                let updates = { players: updatedPlayers };
+                
+                let newWaitingList = [...(tableState.waitingList || [])];
+                newWaitingList = newWaitingList.filter(w => w.uid !== targetUid);
+                updates.waitingList = newWaitingList;
+
+                if (Object.keys(updatedPlayers).length < (tableState.minToStart || 2) && tableState.status === 'playing') {
+                    updates.status = 'waiting';
+                    updates.board = [];
+                    updates.deck = [];
+                    updates.currentTurn = null;
+                } else if (tableState.currentTurn === targetUid) {
+                    const uids = Object.keys(updatedPlayers);
+                    if(uids.length > 0) updates.currentTurn = uids[0]; 
+                }
+
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
+                    showToast(`${targetName} הועף מהשולחן על ידי ההנהלה!`, "success");
+                } catch(e) { showToast("שגיאה בהוצאת שחקן", "error"); }
+            };
+
             const handleSendChat = async (e) => {
                 e.preventDefault(); if (!chatMsg.trim()) return;
                 if (tableState.chatEnabled === false && user.role === ROLES.PLAYER) return showToast("הצ'אט מושתק.", "error");
                 if ((tableState.mutedPlayers || []).includes(user.uid)) return showToast("הושתקת בשולחן זה.", "error");
                 const newMsg = { uid: user.uid, username: user.username, text: chatMsg.trim(), ts: Date.now() };
                 const newChat = [...(tableState.chat || []), newMsg].slice(-40);
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chat: newChat }); setChatMsg(""); } 
+                try { 
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                        chat: newChat,
+                        lastChatBubble: { uid: user.uid, text: chatMsg.trim(), ts: Date.now() }
+                    }); 
+                    setChatMsg(""); 
+                    setTimeout(() => setShowChat(false), 1000); 
+                } 
                 catch(e) { console.error(e); }
             };
 
@@ -1618,7 +1728,7 @@
             };
             
             const toggleMutePlayer = async (targetUid, targetName) => {
-                if (user.role === ROLES.PLAYER) return;
+                if (!isAdmin) return;
                 const muted = tableState.mutedPlayers || [];
                 const isMuted = muted.includes(targetUid);
                 const newMuted = isMuted ? muted.filter(id => id !== targetUid) : [...muted, targetUid];
@@ -1678,7 +1788,7 @@
                     showToast("כל הכבוד! פתחת את המשחק.", "success");
                 }
 
-                if (localRack.length === 0) return showToast("TODO: WIN LOGIC", "info"); // Minified for context length
+                if (localRack.length === 0) return showToast("מנצח! לוגיקת סליקה תיושם כאן.", "info"); 
                 
                 const uids = Object.keys(tableState.players);
                 const nextTurnUid = uids[(uids.indexOf(user.uid) + 1) % uids.length];
@@ -1747,7 +1857,6 @@
                                 )}
                             </div>
                         </div>
-
                     </div>
 
                     <div 
@@ -1786,9 +1895,9 @@
                             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-[1.8rem]">
                                 <h3 className="text-2xl text-white font-black mb-4">ממתין לתחילת משחק...</h3>
                                 <p className="text-slate-300 mb-6 font-bold">{playersList.length} שחקנים מחוברים.</p>
-                                {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
+                                {isAdmin && (
                                     <button onClick={handleStartGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-transform hover:scale-105">
-                                        התחל משחק וחלוק 14 אבנים
+                                        התחל משחק וחלוק אבנים
                                     </button>
                                 )}
                             </div>
@@ -1800,9 +1909,15 @@
                                     const av = AVATARS.find(a => a.id === pData.avatarId) || AVATARS[0];
                                     const isTheirTurn = tableState.currentTurn === uid;
                                     const userEmojis = floatingEmojis.filter(e => e.uid === uid);
+                                    const userBubbles = chatBubbles.filter(b => b.uid === uid);
                                     
                                     return (
                                         <div key={uid} className={`relative flex flex-col items-center transition-all ${isTheirTurn ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'opacity-50'}`}>
+                                            {userBubbles.map(b => (
+                                                <div key={b.id} className="absolute bottom-[110%] bg-white text-slate-900 px-3 py-1.5 rounded-2xl rounded-br-sm font-bold text-xs shadow-2xl z-[9999] whitespace-nowrap animate-bounce border-2 border-slate-200">
+                                                    {b.text}
+                                                </div>
+                                            ))}
                                             {userEmojis.map(e => (
                                                 <div key={e.id} className="absolute emoji-float text-4xl" style={{top: -20}}>{e.emoji}</div>
                                             ))}
@@ -1857,7 +1972,7 @@
                             </div>
                         )}
 
-                        <div className="absolute left-4 top-4 flex flex-col gap-2 z-overlay-menus pointer-events-auto">
+                        <div className="absolute left-4 top-4 flex flex-col gap-2 z-[9999] pointer-events-auto">
                             <div className="flex gap-2 relative">
                                 <button onClick={() => {setShowEmojis(!showEmojis); setShowChat(false);}} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-gold-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                                     <i className="fa-regular fa-face-smile text-xl"></i>
@@ -1867,7 +1982,7 @@
                                 </button>
 
                                 {showEmojis && (
-                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex flex-wrap w-[140px] gap-2 z-overlay-menus">
+                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex flex-wrap w-[140px] gap-2">
                                         {['🍻', '👏', '😠', '🤣', '💔', '🍀', '🤦‍♂️', '🔥'].map(em => (
                                             <button key={em} onClick={() => sendEmoji(em)} className="text-2xl hover:scale-125 transition-transform">{em}</button>
                                         ))}
@@ -1875,14 +1990,19 @@
                                 )}
 
                                 {showChat && (
-                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col w-[260px] sm:w-[320px] h-[300px] overflow-hidden z-overlay-menus">
+                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col w-[280px] sm:w-[320px] h-[350px] overflow-hidden">
                                         <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center">
                                             <h3 className="text-white font-bold text-sm">צ'אט השולחן</h3>
-                                            {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) && (
-                                                <button onClick={toggleGlobalChat} className={`text-[10px] px-2 py-1 rounded font-bold transition-colors ${tableState.chatEnabled !== false ? 'bg-rose-900 text-rose-300 hover:bg-rose-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800'}`}>
-                                                    {tableState.chatEnabled !== false ? 'השתק הכל' : 'אפשר צ\'אט'}
+                                            <div className="flex items-center gap-2">
+                                                {isAdmin && (
+                                                    <button onClick={toggleGlobalChat} className={`text-[10px] px-2 py-1 rounded font-bold transition-colors ${tableState.chatEnabled !== false ? 'bg-rose-900 text-rose-300 hover:bg-rose-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800'}`}>
+                                                        {tableState.chatEnabled !== false ? 'השתק הכל' : 'אפשר צ\'אט'}
+                                                    </button>
+                                                )}
+                                                <button onClick={() => setShowChat(false)} className="text-slate-400 hover:text-white transition-colors w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-800">
+                                                    <i className="fa-solid fa-xmark"></i>
                                                 </button>
-                                            )}
+                                            </div>
                                         </div>
                                         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 text-sm bg-slate-900/50">
                                             {tableState.chatEnabled === false && (
@@ -1890,12 +2010,19 @@
                                             )}
                                             {(tableState.chat || []).map((msg, idx) => (
                                                 <div key={idx} className="flex flex-col">
-                                                    <span 
-                                                        className={`text-[10px] font-bold mb-0.5 ${(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) ? 'cursor-pointer hover:text-rose-400' : ''} ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}
-                                                        onClick={() => toggleMutePlayer(msg.uid, msg.username)}
-                                                        title={(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER) ? 'לחץ להשתקה/שחרור שחקן' : ''}
-                                                    >
+                                                    <span className={`text-[10px] font-bold mb-0.5 flex items-center ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}>
                                                         {msg.username} {(tableState.mutedPlayers || []).includes(msg.uid) ? '🔇' : ''}
+                                                        {isAdmin && msg.uid !== user.uid && (
+                                                            <span className="mr-2 flex gap-1 items-center bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                                                                <button onClick={(e) => { e.stopPropagation(); toggleMutePlayer(msg.uid, msg.username); }} className="text-slate-400 hover:text-amber-400" title="השתק">
+                                                                    <i className={`fa-solid ${(tableState.mutedPlayers || []).includes(msg.uid) ? 'fa-volume-xmark text-amber-500' : 'fa-volume-high'}`}></i>
+                                                                </button>
+                                                                <span className="text-slate-700">|</span>
+                                                                <button onClick={(e) => { e.stopPropagation(); kickPlayer(msg.uid, msg.username); }} className="text-slate-400 hover:text-rose-500" title="הוצא מהשולחן (Kick)">
+                                                                    <i className="fa-solid fa-user-slash"></i>
+                                                                </button>
+                                                            </span>
+                                                        )}
                                                     </span>
                                                     <div className={`px-3 py-2 rounded-xl inline-block ${msg.uid === user.uid ? 'bg-blue-600 text-white rounded-br-none self-end' : 'bg-slate-800 text-slate-200 rounded-bl-none self-start'}`}>{msg.text}</div>
                                                 </div>
@@ -1910,15 +2037,20 @@
                                 )}
                             </div>
                             
-                            <div className="flex bg-slate-900 rounded-lg border border-slate-700 shadow-lg overflow-hidden flex-col pointer-events-auto mt-2">
+                            <div className="flex bg-slate-900 rounded-lg border border-slate-700 shadow-lg overflow-hidden flex-col mt-2">
                                 <button onClick={handleSortSets} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 border-b border-slate-800 transition-colors text-xs font-bold" title="סדר קבוצות (7-7-7)">7-7-7</button>
                                 <button onClick={handleSortRuns} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors text-xs font-bold" title="סדר רצפים (7-8-9)">7-8-9</button>
                             </div>
                         </div>
 
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 pointer-events-none z-overlay-menus">
+                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 pointer-events-none z-[9999]">
                             {floatingEmojis.filter(e => e.uid === user.uid).map(e => (
                                 <div key={e.id} className="absolute emoji-float text-5xl" style={{left: -20}}>{e.emoji}</div>
+                            ))}
+                            {chatBubbles.filter(b => b.uid === user.uid).map(b => (
+                                <div key={b.id} className="absolute bottom-[100%] mb-12 bg-blue-500 text-white px-4 py-2 rounded-2xl rounded-bl-sm font-bold text-sm shadow-[0_10px_30px_rgba(59,130,246,0.6)] whitespace-nowrap border border-blue-400 animate-bounce" style={{left: -50}}>
+                                    {b.text}
+                                </div>
                             ))}
                         </div>
 
@@ -1926,7 +2058,7 @@
                             <div className="absolute top-[-20px] sm:top-[-24px] flex gap-2 z-30">
                                 {!isMyTurn ? (
                                     <div className="bg-slate-900 text-slate-400 px-6 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-800 flex items-center gap-2 text-sm">
-                                        <i className="fa-solid fa-hourglass-half fa-spin"></i> ממתין לתור השחקן הבא...
+                                        <i className="fa-solid fa-hourglass-half fa-spin"></i> ממתין לתור...
                                     </div>
                                 ) : (
                                     <>
