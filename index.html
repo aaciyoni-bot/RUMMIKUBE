@@ -1,421 +1,898 @@
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rummikube - VIP Club</title>
-    
+    <title>Rummikube.com - Private Club</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b' },
+                        emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' },
+                        amber: { 400: '#fbbf24', 500: '#f59e0b' },
+                        rose: { 400: '#fb7185', 500: '#f43f5e' },
+                        indigo: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800;900&display=swap');
+        
+        body {
+            font-family: 'Heebo', sans-serif;
+            background-color: #020617;
+            color: #e2e8f0;
+            overflow-x: hidden;
+            overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
+            touch-action: pan-x pan-y;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Neon utilities */
+        .neon-glow-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5), inset 0 0 10px rgba(16, 185, 129, 0.2); }
+        .neon-glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 10px rgba(59, 130, 246, 0.2); }
+        .neon-glow-rose { box-shadow: 0 0 15px rgba(244, 63, 94, 0.5), inset 0 0 10px rgba(244, 63, 94, 0.2); }
+        .neon-glow-purple { box-shadow: 0 0 15px rgba(168, 85, 247, 0.5), inset 0 0 10px rgba(168, 85, 247, 0.2); }
+        .neon-text { text-shadow: 0 0 10px currentColor; }
+    </style>
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-    <!-- הפוליפיל החדש והמתקדם למסכי מגע -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/default.css">
-    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-rc.0/scroll-behaviour.min.js"></script>
-    <script>
-        // הפעלת הפוליפיל ברגע שהדף עולה
-        window.addEventListener('DOMContentLoaded', function() {
-            MobileDragDrop.polyfill({
-                holdToDrag: 0, // גרירה מיידית ברגע שנוגעים, בלי דיליי
-                dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
-            });
-            // מניעת באגים של גלילה כשהמשתמש מנסה לגרור אבן
-            window.addEventListener('touchmove', function(e) {
-                if(e.target.draggable) { e.preventDefault(); }
-            }, {passive: false});
-        });
-    </script>
+    <!-- Firebase SDK Setup (ES Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #020617; touch-action: none; }
-        .tile-grab:active { cursor: grabbing !important; }
+        // Your specific Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
+            authDomain: "rummikube-5c138.firebaseapp.com",
+            projectId: "rummikube-5c138",
+            storageBucket: "rummikube-5c138.firebasestorage.app",
+            messagingSenderId: "18995082226",
+            appId: "1:18995082226:web:a5e152d748d684fc02f16b",
+            measurementId: "G-82FD8FRYDY"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Expose Firebase tools to the global window object so React (Babel) can use them
+        window.firebaseApp = app;
+        window.db = db;
+        window.fs = { collection, doc, setDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc };
         
-        /* אפקט הילה למי שהתור שלו */
-        .turn-glow { box-shadow: 0 0 20px rgba(234, 179, 8, 0.6); border-color: #eab308 !important; }
-    </style>
+        // Notify React that Firebase is ready
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- חיבור ל-Firebase ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyDOWDeF5YKZ-LH8c9lM-eb6gFjFDXfIZQs",
-            authDomain: "rummikube-b2188.firebaseapp.com",
-            databaseURL: "https://rummikube-b2188-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "rummikube-b2188",
-            storageBucket: "rummikube-b2188.firebasestorage.app",
-            messagingSenderId: "825997058278",
-            appId: "1:825997058278:web:6a544f6d3fd6b1f80f1b27"
-        };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        // ==========================================
+        // CONSTANTS
+        // ==========================================
+        const GAME_TYPES = [
+            { id: 'rummikub', name: 'רמיקוב אבנים', hex: '#10b981', glowClass: 'neon-glow-emerald', colorClass: 'text-emerald-500' },
+            { id: 'gin', name: 'ג\'ין רמי', hex: '#3b82f6', glowClass: 'neon-glow-blue', colorClass: 'text-blue-500' },
+            { id: 'indian', name: 'רמי הודי (13)', hex: '#a855f7', glowClass: 'neon-glow-purple', colorClass: 'text-purple-500' },
+            { id: 'canasta', name: 'קנסטה', hex: '#f43f5e', glowClass: 'neon-glow-rose', colorClass: 'text-rose-500' }
+        ];
 
-        // --- אייקונים ---
-        const IconWrapper = ({ children, size = 24, className = '', fill = 'none' }) => (
-          <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
-        );
-        const Shield = (props) => <IconWrapper {...props}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></IconWrapper>;
-        const Play = (props) => <IconWrapper {...props}><polygon points="6 3 20 12 6 21 6 3"/></IconWrapper>;
-        const ChevronRight = (props) => <IconWrapper {...props}><polyline points="9 18 15 12 9 6"/></IconWrapper>;
-        const Menu = (props) => <IconWrapper {...props}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></IconWrapper>;
-        const Layers = (props) => <IconWrapper {...props}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconWrapper>;
-        const UserIcon = (props) => <IconWrapper {...props}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconWrapper>;
+        const formatMoney = (amount) => '🪙 ' + (amount || 0).toLocaleString();
 
-        // --- מנוע חפיסת אבנים ---
-        const generateDeck = () => {
-            const colors = ['text-red-600', 'text-blue-700', 'text-slate-900', 'text-amber-500'];
-            let deck = [];
-            let idCounter = 1;
-            for (let i = 0; i < 2; i++) {
-                colors.forEach(color => {
-                    for (let num = 1; num <= 13; num++) { deck.push({ id: `t${idCounter++}`, num, color, isJoker: false }); }
-                });
+        // Utility: Export CSV
+        const downloadCSV = (data, filename) => {
+            if(!data || data.length === 0) return;
+            const headers = Object.keys(data[0]);
+            const csvRows = [headers.join(',')];
+            for (const row of data) {
+                const values = headers.map(header => `"${('' + row[header]).replace(/"/g, '\\"')}"`);
+                csvRows.push(values.join(','));
             }
-            deck.push({ id: `t${idCounter++}`, num: '☻', color: 'text-red-600', isJoker: true });
-            deck.push({ id: `t${idCounter++}`, num: '☻', color: 'text-slate-900', isJoker: true });
-            
-            for (let i = deck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [deck[i], deck[j]] = [deck[j], deck[i]];
-            }
-            return deck;
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', filename);
+            a.click();
         };
 
-        const MOCK_TABLES = [{ id: 'table_1', name: 'שולחן 1 - מתחילים', stakes: '1', maxPlayers: 4 }];
-
+        // ==========================================
+        // MAIN APP COMPONENT
+        // ==========================================
         function App() {
-          // --- זיהוי משתמש (שמירה ב-Local Storage) ---
-          const [myId] = useState(() => localStorage.getItem('rk_uid') || Math.random().toString(36).substr(2, 9));
-          const [myName, setMyName] = useState(() => localStorage.getItem('rk_name') || '');
-          
-          useEffect(() => {
-              localStorage.setItem('rk_uid', myId);
-              localStorage.setItem('rk_name', myName);
-          }, [myId, myName]);
+            const [fbReady, setFbReady] = useState(!!window.db);
+            const [currentUser, setCurrentUser] = useState(null); 
+            const [currentView, setCurrentView] = useState('auth'); // auth, pending, lobby, backoffice, table
+            const [activeTable, setActiveTable] = useState(null);
+            const [toast, setToast] = useState('');
 
-          // --- ניהול מצב ---
-          const [currentView, setCurrentView] = useState('login'); 
-          const [activeTable, setActiveTable] = useState(null);
+            // Global real-time state for Lobby/Backoffice
+            const [usersDB, setUsersDB] = useState([]);
+            const [tablesDB, setTablesDB] = useState([]);
 
-          // State מסונכרן ענן
-          const [boardGroups, setBoardGroups] = useState([]);
-          const [bankTiles, setBankTiles] = useState([]);
-          const [players, setPlayers] = useState({});
-          const [turn, setTurn] = useState(null);
-          const [rackTiles, setRackTiles] = useState([]); // המעמד הפרטי מגובה בענן
-
-          // סנכרון זמן אמת מול Firebase לשולחן הפעיל
-          useEffect(() => {
-            if (!activeTable) return;
-            const tableRefStr = `tables/${activeTable.id}`;
-            
-            const boardRef = db.ref(`${tableRefStr}/board`);
-            const bankRef = db.ref(`${tableRefStr}/bank`);
-            const playersRef = db.ref(`${tableRefStr}/players`);
-            const turnRef = db.ref(`${tableRefStr}/turn`);
-            const myRackRef = db.ref(`${tableRefStr}/racks/${myId}`);
-            
-            boardRef.on('value', snap => setBoardGroups(snap.val() || []));
-            bankRef.on('value', snap => setBankTiles(snap.val() || []));
-            playersRef.on('value', snap => setPlayers(snap.val() || {}));
-            turnRef.on('value', snap => setTurn(snap.val()));
-            myRackRef.on('value', snap => setRackTiles(snap.val() || []));
-
-            return () => {
-                boardRef.off(); bankRef.off(); playersRef.off(); turnRef.off(); myRackRef.off();
+            const showToast = (msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(''), 4000);
             };
-          }, [activeTable, myId]);
 
-          // --- פעולות כניסה ויציאה ---
-          const handleLogin = () => setCurrentView('dashboard');
-          
-          const handleJoinTable = (table) => {
-              if(!myName.trim()) { alert("אנא הזן את שמך כדי להצטרף לשולחן."); return; }
-              // רושמים את השחקן ב-Firebase
-              db.ref(`tables/${table.id}/players/${myId}`).set({ name: myName });
-              setActiveTable(table); 
-              setCurrentView('table'); 
-          };
-          
-          const backToClub = () => { 
-              setActiveTable(null); 
-              setCurrentView('dashboard'); 
-          };
+            // Wait for Firebase to load
+            useEffect(() => {
+                const handleFbReady = () => setFbReady(true);
+                if (!window.db) {
+                    window.addEventListener('firebase-ready', handleFbReady);
+                }
+                return () => window.removeEventListener('firebase-ready', handleFbReady);
+            }, []);
 
-          // --- ניהול תורות ---
-          const endTurn = () => {
-              if (turn !== myId) return;
-              const playerIds = Object.keys(players);
-              if (playerIds.length === 0) return;
-              
-              const currentIndex = playerIds.indexOf(myId);
-              const nextIndex = (currentIndex + 1) % playerIds.length;
-              db.ref(`tables/${activeTable.id}/turn`).set(playerIds[nextIndex]);
-          };
+            // Handle routing based on user state
+            useEffect(() => {
+                if (!currentUser) {
+                    setCurrentView('auth');
+                } else if (currentUser.status === 'pending') {
+                    setCurrentView('pending');
+                } else if (currentView === 'auth' || currentView === 'pending') {
+                    setCurrentView('lobby');
+                }
+            }, [currentUser]);
 
-          const isMyTurn = turn === myId;
+            // Real-time Listeners for Users and Tables
+            useEffect(() => {
+                if (!fbReady || !window.db) return;
+                
+                // 1. Listen to all tables
+                const unsubTables = window.fs.onSnapshot(window.fs.collection(window.db, "tables"), (snapshot) => {
+                    const t = [];
+                    snapshot.forEach(doc => t.push({ docId: doc.id, ...doc.data() }));
+                    setTablesDB(t);
+                });
 
-          // --- פעולות מנהל משחק: חלוקה ---
-          const startNewGame = () => {
-              const playerIds = Object.keys(players);
-              if (playerIds.length < 1) {
-                  alert("אין מספיק שחקנים בשולחן");
-                  return;
-              }
+                // 2. Listen to users (Mostly needed for backoffice, but good to keep updated)
+                const unsubUsers = window.fs.onSnapshot(window.fs.collection(window.db, "users"), (snapshot) => {
+                    const u = [];
+                    snapshot.forEach(doc => u.push({ docId: doc.id, ...doc.data() }));
+                    setUsersDB(u);
 
-              let newDeck = generateDeck();
-              const initialRacks = {};
-              
-              // מחלקים 14 אבנים לכל שחקן שיושב בשולחן
-              playerIds.forEach(pid => {
-                  initialRacks[pid] = newDeck.splice(0, 14);
-              });
-              
-              const tableRefStr = `tables/${activeTable.id}`;
-              db.ref(`${tableRefStr}/board`).set([]);
-              db.ref(`${tableRefStr}/bank`).set(newDeck);
-              db.ref(`${tableRefStr}/racks`).set(initialRacks);
-              db.ref(`${tableRefStr}/turn`).set(playerIds[0]); // השחקן הראשון מתחיל
-              
-              alert(`המשחק התחיל! 14 אבנים חולקו לכל אחד מ-${playerIds.length} השחקנים.`);
-          };
+                    // Update current user live (e.g. if balance changes or gets approved)
+                    if (currentUser) {
+                        const updatedMe = u.find(x => x.username === currentUser.username);
+                        if (updatedMe && updatedMe.status !== currentUser.status) {
+                            setCurrentUser(updatedMe);
+                        }
+                    }
+                });
 
-          // --- פעולת קופה ---
-          const drawTileFromBank = () => {
-              if (!isMyTurn) { alert("חכה בסבלנות, עדיין לא תורך!"); return; }
-              if (bankTiles.length === 0) { alert("הקופה ריקה!"); return; }
-              
-              const drawnTile = bankTiles[0];
-              const remainingBank = bankTiles.slice(1);
-              
-              const tableRefStr = `tables/${activeTable.id}`;
-              db.ref(`${tableRefStr}/bank`).set(remainingBank);
-              db.ref(`${tableRefStr}/racks/${myId}`).set([...rackTiles, drawnTile]);
-              
-              // העברת תור אוטומטית אחרי לקיחה מהקופה
-              endTurn();
-          };
+                return () => {
+                    unsubTables();
+                    unsubUsers();
+                };
+            }, [fbReady, currentUser?.username]);
 
-          // --- מנגנון גרירה בענן ---
-          const handleDragStart = (e, source, tile, groupIndex = null) => {
-            if (!isMyTurn && source === 'rack') {
-                alert("לא תורך! אי אפשר לשחק עכשיו.");
-                e.preventDefault();
-                return;
-            }
-            e.dataTransfer.setData('application/json', JSON.stringify({ source, tile, groupIndex }));
-            e.dataTransfer.effectAllowed = 'move';
-          };
-          
-          const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
 
-          const handleDropOnBoard = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            if (!isMyTurn) return;
+            const handleLogin = async (username) => {
+                if (!fbReady) return showToast("מערכת נטענת, המתן שניה...");
+                if (!username.trim()) return showToast("הכנס שם משתמש");
 
-            const dataString = e.dataTransfer.getData('application/json');
-            if (!dataString) return;
-            const data = JSON.parse(dataString);
-            const tableRefStr = `tables/${activeTable.id}`;
-            let newGroups = [...boardGroups];
-            
-            if (data.source === 'rack') {
-              const newRack = rackTiles.filter(t => t.id !== data.tile.id);
-              db.ref(`${tableRefStr}/racks/${myId}`).set(newRack);
-              newGroups.push([data.tile]);
-            } else if (data.source === 'board') {
-              newGroups[data.groupIndex] = newGroups[data.groupIndex].filter(t => t.id !== data.tile.id);
-              newGroups.push([data.tile]);
-              newGroups = newGroups.filter(g => g && g.length > 0);
-            }
-            db.ref(`${tableRefStr}/board`).set(newGroups);
-          };
+                try {
+                    const q = window.fs.query(window.fs.collection(window.db, "users"), window.fs.where("username", "==", username.trim()));
+                    const querySnapshot = await window.fs.getDocs(q);
+                    
+                    if (!querySnapshot.empty) {
+                        const userData = querySnapshot.docs[0].data();
+                        userData.docId = querySnapshot.docs[0].id;
+                        setCurrentUser(userData);
+                        showToast(`התחברת בהצלחה. שלום ${userData.username}`);
+                    } else {
+                        // OWNER INIT: If no users exist, create Boss automatically for setup
+                        if (username.toLowerCase() === 'boss' && usersDB.length === 0) {
+                            const docRef = await window.fs.addDoc(window.fs.collection(window.db, "users"), {
+                                username: 'Boss', role: 'owner', balance: 1000000, status: 'approved'
+                            });
+                            setCurrentUser({ docId: docRef.id, username: 'Boss', role: 'owner', balance: 1000000, status: 'approved' });
+                            return;
+                        }
+                        showToast("משתמש לא קיים. אנא בקש אישור כניסה מבעל הקלאב.");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    showToast("שגיאת התחברות ל-Firebase. ודא שהרשאות Firestore מוגדרות ל-Test Mode.");
+                }
+            };
 
-          const handleDropOnGroup = (e, targetGroupIndex) => {
-            e.preventDefault(); e.stopPropagation();
-            if (!isMyTurn) return;
+            const handleRequestJoin = async (username) => {
+                if (!fbReady) return showToast("מערכת נטענת...");
+                if (!username.trim()) return showToast("הכנס שם משתמש");
 
-            const dataString = e.dataTransfer.getData('application/json');
-            if (!dataString) return;
-            const data = JSON.parse(dataString);
-            const tableRefStr = `tables/${activeTable.id}`;
-            let newGroups = [...boardGroups];
+                try {
+                    // Check if exists
+                    const q = window.fs.query(window.fs.collection(window.db, "users"), window.fs.where("username", "==", username.trim()));
+                    const querySnapshot = await window.fs.getDocs(q);
+                    if (!querySnapshot.empty) return showToast("שם משתמש כבר קיים. נסה להתחבר.");
 
-            if (data.source === 'rack') {
-              const newRack = rackTiles.filter(t => t.id !== data.tile.id);
-              db.ref(`${tableRefStr}/racks/${myId}`).set(newRack);
-              newGroups[targetGroupIndex] = [...(newGroups[targetGroupIndex] || []), data.tile];
-            } else if (data.source === 'board') {
-              if (data.groupIndex === targetGroupIndex) return;
-              newGroups[data.groupIndex] = newGroups[data.groupIndex].filter(t => t.id !== data.tile.id);
-              newGroups[targetGroupIndex] = [...(newGroups[targetGroupIndex] || []), data.tile];
-              newGroups = newGroups.filter(g => g && g.length > 0);
-            }
-            db.ref(`${tableRefStr}/board`).set(newGroups);
-          };
+                    // Add to Pending
+                    const docRef = await window.fs.addDoc(window.fs.collection(window.db, "users"), {
+                        username: username.trim(),
+                        role: 'pending',
+                        balance: 0,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    });
+                    setCurrentUser({ docId: docRef.id, username: username.trim(), role: 'pending', balance: 0, status: 'pending' });
+                    showToast("הבקשה נשלחה! המתן לאישור המנהל.");
+                } catch (e) {
+                    console.error(e);
+                    showToast("שגיאה בשליחת בקשה ל-Firebase.");
+                }
+            };
 
-          const handleDropOnRack = (e) => {
-            e.preventDefault();
-            const dataString = e.dataTransfer.getData('application/json');
-            if (!dataString) return;
-            const data = JSON.parse(dataString);
-            const tableRefStr = `tables/${activeTable.id}`;
-            
-            if (data.source === 'board' && isMyTurn) {
-              let newGroups = [...boardGroups];
-              newGroups[data.groupIndex] = newGroups[data.groupIndex].filter(t => t.id !== data.tile.id);
-              newGroups = newGroups.filter(g => g && g.length > 0);
-              db.ref(`${tableRefStr}/board`).set(newGroups);
-              db.ref(`${tableRefStr}/racks/${myId}`).set([...rackTiles, data.tile]);
-            }
-          };
-
-          // --- רכיבי תצוגה ---
-          const LoginScreen = () => (
-            <div className="flex flex-col items-center justify-center min-h-screen p-6 relative overflow-hidden">
-              <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-yellow-600/20 rounded-full blur-[100px]" />
-              <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-2xl flex items-center justify-center mb-8 rotate-3">
-                <Shield size={48} className="text-slate-950" />
-              </div>
-              <h1 className="text-4xl font-extrabold mb-2 tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-600">RUMMIKUBE</h1>
-              <button onClick={handleLogin} className="w-full max-w-sm mt-12 bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-bold py-4 rounded-xl shadow-[0_4px_20px_rgba(234,179,8,0.3)] hover:scale-[1.02] transition-transform">התחברות מהירה</button>
-            </div>
-          );
-
-          const DashboardScreen = () => (
-            <div className="flex flex-col min-h-screen">
-              <div className="p-6">
-                 <h2 className="text-xl font-bold mb-4">ברוך הבא!</h2>
-                 <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-8">
-                     <label className="block text-sm text-slate-400 mb-2">איך יקראו לך בשולחן?</label>
-                     <input 
-                        type="text" 
-                        value={myName} 
-                        onChange={(e) => setMyName(e.target.value)}
-                        placeholder="הכנס כינוי..."
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-yellow-500 focus:outline-none"
-                     />
-                 </div>
-
-                <h2 className="text-lg font-bold text-slate-300 mb-4">שולחנות מועדון פתוחים</h2>
-                {MOCK_TABLES.map(table => (
-                  <div key={table.id} className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
-                    <div className="p-4 border-b border-slate-800/50 flex justify-between bg-black/20">
-                      <h3 className="font-bold text-slate-200">{table.name}</h3>
-                    </div>
-                    <div className="p-4 flex justify-between items-center">
-                      <button onClick={() => handleJoinTable(table)} className="w-full bg-yellow-500 text-slate-950 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-400">
-                         <Play size={16} fill="currentColor" /> כנס לשולחן והמתן לשחקנים
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-
-          const GameTableScreen = () => {
-            const opponents = Object.entries(players).filter(([id, _]) => id !== myId);
+            const handleLogout = () => {
+                setCurrentUser(null);
+                setCurrentView('auth');
+            };
 
             return (
-                <div className="flex flex-col h-[100dvh] bg-[#080d14] text-white relative font-sans overflow-hidden">
-                
-                {/* הדר שולחן */}
-                <div className="absolute top-0 w-full z-30 p-4 bg-gradient-to-b from-black/90 to-transparent">
-                    <div className="flex justify-between items-center">
-                        <button onClick={backToClub} className="bg-black/50 p-2 rounded-full border border-white/10"><ChevronRight size={24} className="rotate-180" /></button>
-                        <div className="flex flex-col items-center">
-                            <div className="font-extrabold tracking-widest">{activeTable?.name}</div>
-                            {turn && (
-                                <div className={`text-xs font-bold px-3 py-1 rounded-full mt-2 ${isMyTurn ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-slate-800 text-slate-300'}`}>
-                                    {isMyTurn ? 'התור שלך!' : `תור: ${players[turn]?.name || 'ממתין...'}`}
+                <div className="min-h-screen flex flex-col relative bg-slate-950 font-sans selection:bg-indigo-500/30">
+                    {/* Top Navigation */}
+                    {currentUser && currentUser.status === 'approved' && currentView !== 'table' && (
+                        <nav className="bg-slate-900 border-b border-slate-800 p-4 shadow-lg z-40 sticky top-0">
+                            <div className="max-w-7xl mx-auto flex justify-between items-center">
+                                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentView('lobby')}>
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center neon-box-indigo shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+                                        <i className="fa-solid fa-dice-d20 text-white text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h1 className="text-xl font-black text-white tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">rummikube.com</h1>
+                                        <p className="text-xs text-indigo-400 font-bold tracking-widest">PRIVATE CLUB</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-4">
+                                    <div className="flex flex-col items-start hidden sm:flex">
+                                        <span className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                            {currentUser.role === 'owner' && <i className="fa-solid fa-crown text-amber-400"></i>}
+                                            {currentUser.role === 'manager' && <i className="fa-solid fa-shield-halved text-blue-400"></i>}
+                                            {currentUser.username}
+                                        </span>
+                                        <span className="text-emerald-400 font-black text-sm">{formatMoney(currentUser.balance)}</span>
+                                    </div>
+                                    
+                                    {(currentUser.role === 'owner' || currentUser.role === 'manager') && (
+                                        <button 
+                                            onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')}
+                                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${currentView === 'backoffice' ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.6)]' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                            title="ניהול מועדון"
+                                        >
+                                            <i className="fa-solid fa-chart-line"></i>
+                                        </button>
+                                    )}
+
+                                    <button onClick={handleLogout} className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center">
+                                        <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </nav>
+                    )}
+
+                    {/* Main Content Router */}
+                    <main className="flex-1 flex flex-col relative overflow-hidden">
+                        {currentView === 'auth' && <AuthView onLogin={handleLogin} onRequest={handleRequestJoin} fbReady={fbReady} />}
+                        {currentView === 'pending' && <PendingView onLogout={handleLogout} />}
+                        {currentView === 'lobby' && <LobbyView user={currentUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
+                        {currentView === 'backoffice' && <BackofficeView user={currentUser} usersDB={usersDB} showToast={showToast} />}
+                        {currentView === 'table' && <GameTableView table={activeTable} user={currentUser} onLeave={() => setCurrentView('lobby')} showToast={showToast} />}
+                    </main>
+
+                    {/* Global Toast */}
+                    {toast && (
+                        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-indigo-500 text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)] z-[9999] animate-bounce font-bold whitespace-nowrap">
+                            {toast}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function AuthView({ onLogin, onRequest, fbReady }) {
+            const [name, setName] = useState('');
+            return (
+                <div className="flex-1 flex items-center justify-center p-4">
+                    <div className="glass-panel p-8 rounded-3xl w-full max-w-md border-t-4 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.2)]">
+                        <div className="text-center mb-8">
+                            <i className="fa-solid fa-gem text-6xl text-indigo-500 mb-4 neon-text"></i>
+                            <h2 className="text-3xl font-black text-white">כניסה לקלאב</h2>
+                            <p className="text-slate-400 mt-2 font-semibold">Private Playmoney Games</p>
+                            {!fbReady && <p className="text-amber-500 text-xs mt-2 animate-pulse">מתחבר לשרתי Firebase...</p>}
+                        </div>
+                        <input 
+                            type="text" 
+                            placeholder="הזן שם משתמש (ללא סיסמה בדמו)" 
+                            className="w-full bg-slate-900 border border-slate-700 text-white px-4 py-4 rounded-xl mb-6 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 text-center text-lg font-bold"
+                            value={name} onChange={(e)=>setName(e.target.value)}
+                        />
+                        <div className="flex flex-col gap-3">
+                            <button onClick={() => onLogin(name)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all">
+                                התחברות
+                            </button>
+                            <button onClick={() => onRequest(name)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl border border-slate-600 transition-all">
+                                בקש אישור כניסה לקלאב
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function PendingView({ onLogout }) {
+            return (
+                <div className="flex-1 flex items-center justify-center p-4 text-center">
+                    <div className="glass-panel p-10 rounded-3xl max-w-md shadow-2xl border border-slate-700">
+                        <i className="fa-solid fa-clock-rotate-left text-6xl text-amber-500 mb-6 animate-pulse neon-text"></i>
+                        <h2 className="text-2xl font-black text-white mb-2">ממתין לאישור הנהלה</h2>
+                        <p className="text-slate-400 mb-8 leading-relaxed">הבקשה שלך נמצאת אצל מנהלי הקלאב. רק לאחר שיאשרו אותך תוכל להיכנס לשולחנות ולהשתתף.</p>
+                        <button onClick={onLogout} className="text-indigo-400 font-bold hover:text-indigo-300 border-b border-indigo-400 pb-1">
+                            חזור למסך הראשי
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        function LobbyView({ user, tables, onJoin, showToast }) {
+            const [activeTab, setActiveTab] = useState('rummikub');
+            const isAdmin = user.role === 'owner' || user.role === 'manager';
+            const filteredTables = tables.filter(t => t.type === activeTab);
+            const typeInfo = GAME_TYPES.find(g => g.id === activeTab);
+
+            // Table Creation State
+            const [showCreate, setShowCreate] = useState(false);
+            const [newStakes, setNewStakes] = useState('10/20');
+            const [newBuyin, setNewBuyin] = useState(2000);
+
+            const handleCreateTable = async () => {
+                if (!isAdmin) return;
+                try {
+                    await window.fs.addDoc(window.fs.collection(window.db, "tables"), {
+                        type: activeTab,
+                        stakes: newStakes,
+                        buyIn: parseInt(newBuyin),
+                        players: 0,
+                        maxPlayers: activeTab === 'gin' ? 2 : 4,
+                        createdAt: new Date().toISOString()
+                    });
+                    setShowCreate(false);
+                    showToast("שולחן חדש נפתח בהצלחה ב-Firebase!");
+                } catch(e) {
+                    showToast("שגיאה בפתיחת שולחן.");
+                }
+            };
+
+            const handleDeleteTable = async (e, tableId) => {
+                e.stopPropagation();
+                if(!isAdmin) return;
+                try {
+                    await window.fs.deleteDoc(window.fs.doc(window.db, "tables", tableId));
+                    showToast("שולחן נמחק.");
+                } catch(e) {}
+            };
+
+            return (
+                <div className="flex-1 flex flex-col overflow-y-auto bg-slate-950 pb-20">
+                    {/* Game Categories */}
+                    <div className="bg-slate-900/80 border-b border-slate-800 pt-4 overflow-x-auto scrollbar-hide backdrop-blur-sm sticky top-0 z-10">
+                        <div className="flex px-4 max-w-7xl mx-auto gap-3 pb-4">
+                            {GAME_TYPES.map(type => (
+                                <button
+                                    key={type.id}
+                                    onClick={() => setActiveTab(type.id)}
+                                    className={`whitespace-nowrap px-6 py-3 rounded-xl font-black transition-all ${
+                                        activeTab === type.id 
+                                            ? `bg-slate-800 text-white border border-[${type.hex}] ${type.glowClass}` 
+                                            : 'bg-slate-900/50 text-slate-500 hover:bg-slate-800 border border-transparent'
+                                    }`}
+                                    style={activeTab === type.id ? { borderColor: type.hex, textShadow: `0 0 10px ${type.hex}80` } : {}}
+                                >
+                                    {type.name}
+                                </button>
+                            ))}
+                            <button className="whitespace-nowrap px-6 py-3 rounded-xl font-bold text-amber-500 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 flex items-center gap-2">
+                                <i className="fa-solid fa-trophy"></i> טורנירים
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-4 max-w-7xl mx-auto w-full mt-4">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                                <span className={`w-3 h-3 rounded-full animate-pulse`} style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 10px ${typeInfo.hex}` }}></span>
+                                שולחנות {typeInfo.name}
+                            </h2>
+                            
+                            {/* ONLY ADMINS CAN OPEN TABLES */}
+                            {isAdmin && (
+                                <button 
+                                    onClick={() => setShowCreate(!showCreate)}
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold shadow-[0_0_15px_rgba(79,70,229,0.4)] flex items-center gap-2"
+                                >
+                                    <i className="fa-solid fa-plus"></i> פתח שולחן מנהל
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Create Table Panel (Admin Only) */}
+                        {showCreate && isAdmin && (
+                            <div className="bg-slate-900 border border-indigo-500/50 p-6 rounded-2xl mb-8 flex flex-wrap gap-4 items-end shadow-xl">
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-2 font-bold uppercase">בליינדים / סכום</label>
+                                    <input type="text" value={newStakes} onChange={e=>setNewStakes(e.target.value)} className="bg-slate-950 border border-slate-700 text-white px-4 py-3 rounded-lg w-32" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-2 font-bold uppercase">כניסה מינימלית</label>
+                                    <input type="number" value={newBuyin} onChange={e=>setNewBuyin(e.target.value)} className="bg-slate-950 border border-slate-700 text-white px-4 py-3 rounded-lg w-40" />
+                                </div>
+                                <button onClick={handleCreateTable} className="bg-indigo-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-indigo-400 shadow-lg">צור ושדר לשחקנים</button>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredTables.map(table => (
+                                <div 
+                                    key={table.docId}
+                                    onClick={() => onJoin(table)}
+                                    className="bg-slate-900/80 rounded-2xl p-6 border border-slate-800 hover:border-slate-500 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl relative overflow-hidden group"
+                                >
+                                    <div className="absolute top-0 right-0 w-full h-1" style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 15px ${typeInfo.hex}` }}></div>
+                                    {isAdmin && (
+                                        <button onClick={(e) => handleDeleteTable(e, table.docId)} className="absolute top-3 left-3 text-slate-600 hover:text-rose-500">
+                                            <i className="fa-solid fa-trash"></i>
+                                        </button>
+                                    )}
+                                    
+                                    <div className="flex justify-between items-start mb-6 mt-2">
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white tracking-wide">{table.stakes}</h3>
+                                            <p className="text-slate-400 text-sm mt-1 font-semibold">כניסה: {formatMoney(table.buyIn)}</p>
+                                        </div>
+                                        <div className="bg-slate-950 px-3 py-1.5 rounded-full text-sm font-bold border border-slate-700 flex items-center gap-2">
+                                            <span className={table.players === table.maxPlayers ? 'text-rose-500' : 'text-emerald-400'}>
+                                                {table.players}/{table.maxPlayers}
+                                            </span>
+                                            <i className="fa-solid fa-users text-slate-500"></i>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center mt-4">
+                                        <span className="text-xs text-slate-500 font-bold bg-slate-950 px-2 py-1 rounded border border-slate-800">6% עמלת RAKE</span>
+                                        <button 
+                                            className="px-8 py-2.5 rounded-xl font-black transition-all group-hover:scale-105"
+                                            style={{ backgroundColor: typeInfo.hex, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)', boxShadow: `0 4px 15px ${typeInfo.hex}60` }}
+                                        >
+                                            הכנס
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredTables.length === 0 && (
+                                <div className="col-span-full text-center py-20 text-slate-500 font-bold text-xl border-2 border-dashed border-slate-800 rounded-2xl">
+                                    אין שולחנות פתוחים בקטגוריה זו כרגע.<br/><span className="text-sm font-normal mt-2 block">רק הנהלת הקלאב יכולה לפתוח שולחנות חדשים.</span>
                                 </div>
                             )}
                         </div>
-                        <button className="bg-black/50 p-2 rounded-full border border-white/10"><Menu size={24} /></button>
                     </div>
-                    
-                    <div className="flex justify-center gap-4 mt-4">
-                        {opponents.map(([id, player]) => (
-                            <div key={id} className={`flex flex-col items-center bg-slate-900/80 px-4 py-2 rounded-xl border ${turn === id ? 'turn-glow' : 'border-slate-700'}`}>
-                                <UserIcon size={20} className="text-slate-400 mb-1" />
-                                <span className="text-xs font-bold">{player.name}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="absolute left-4 top-32 z-50">
-                    <button onClick={startNewGame} className="text-[10px] bg-red-900 text-white px-3 py-2 rounded-lg font-bold shadow-lg border border-red-500">
-                        התחל משחק וחלוקה
-                    </button>
-                </div>
-
-                {/* הלוח */}
-                <div className="flex-1 relative flex flex-col items-center justify-center pt-40 pb-44 px-4" onDragOver={handleDragOver} onDrop={handleDropOnBoard}>
-                    <div className="absolute inset-2 md:inset-8 rounded-[80px] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0f6b40] via-[#084226] to-[#041a0f] border-[12px] border-[#1a100b] shadow-[inset_0_0_80px_rgba(0,0,0,1)] flex flex-col p-8 overflow-y-auto no-scrollbar ring-4 ring-[#3b2313]/40">
-                    
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none">
-                        <span className="text-emerald-400 font-black text-4xl tracking-[0.3em] rotate-[-30deg] block">RUMMIKUBE</span>
-                    </div>
-
-                    <div className="relative w-full h-full flex flex-wrap content-start gap-4 md:gap-6 z-10 p-2">
-                        {boardGroups.map((group, groupIdx) => (
-                        <div key={`group-${groupIdx}`} className="flex gap-1 p-3 rounded-xl bg-black/20 border border-white/5 min-w-[70px] min-h-[90px] transition-all hover:bg-black/40" onDragOver={handleDragOver} onDrop={(e) => handleDropOnGroup(e, groupIdx)}>
-                            {group.length === 0 && <span className="text-white/20 text-xs my-auto mx-2">גרור לכאן</span>}
-                            {group.map(tile => (
-                            <div key={`board-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'board', tile, groupIdx)} className="relative w-11 h-16 rounded-[8px] bg-gradient-to-b from-[#ffffff] to-[#e0e0e0] flex items-center justify-center shadow-[1px_3px_8px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-1 transition-transform touch-none select-none">
-                                <span className={`text-2xl font-black ${tile.color}`} style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.8), -1px -1px 0px rgba(0,0,0,0.2)' }}>{tile.num}</span>
-                            </div>
-                            ))}
-                        </div>
-                        ))}
-                    </div>
-                    </div>
-                </div>
-
-                {/* המעמד */}
-                <div className={`absolute bottom-0 w-full h-44 bg-gradient-to-t from-black to-transparent z-40 flex flex-col justify-end pb-2 transition-opacity ${!isMyTurn && turn !== null ? 'opacity-70' : 'opacity-100'}`}>
-                    <div className="flex justify-between items-center mb-4 px-6 z-50">
-                    <button onClick={drawTileFromBank} disabled={!isMyTurn} className={`px-6 py-2.5 rounded-xl font-bold shadow-lg border transition-transform flex items-center gap-2 ${isMyTurn ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 text-white border-emerald-800 active:scale-95' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}>
-                        <Layers size={18} /> קופה ({bankTiles.length})
-                    </button>
-                    <button onClick={endTurn} disabled={!isMyTurn} className={`px-6 py-2.5 rounded-xl font-extrabold shadow-lg border transition-transform ${isMyTurn ? 'bg-gradient-to-b from-yellow-400 to-yellow-600 text-slate-950 border-yellow-700 active:scale-95' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'}`}>
-                        סיום תור
-                    </button>
-                    </div>
-
-                    <div className="relative flex justify-center items-end px-2" onDragOver={handleDragOver} onDrop={handleDropOnRack}>
-                    <div className="absolute bottom-0 w-[98%] h-12 bg-gradient-to-b from-[#5c3a21] to-[#1f1006] rounded-t-xl border-t border-[#8c5a35]/40" />
-                    
-                    <div className="flex gap-1.5 z-10 px-4 overflow-x-auto pb-4 pt-4 no-scrollbar items-end min-h-[5rem] w-full justify-center">
-                        {rackTiles.map((tile, idx) => (
-                        <div key={`rack-${tile.id}`} draggable onDragStart={(e) => handleDragStart(e, 'rack', tile)} className="relative w-[3rem] h-[4.5rem] md:w-14 md:h-20 rounded-[10px] bg-gradient-to-b from-white to-[#e3e3e3] flex flex-col items-center justify-center shadow-[2px_6px_12px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(255,255,255,1)] border border-gray-300 cursor-grab active:cursor-grabbing transform hover:-translate-y-4 hover:scale-110 transition-all duration-200 touch-none select-none" style={{ zIndex: rackTiles.length - idx }}>
-                            <span className={`text-3xl font-black ${tile.color} tracking-tighter`} style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.9), -1px -1px 0px rgba(0,0,0,0.25)' }}>{tile.num}</span>
-                        </div>
-                        ))}
-                    </div>
-                    </div>
-                </div>
                 </div>
             );
-          };
+        }
 
-          return (
-            <div className="max-w-md mx-auto h-[100dvh] w-full shadow-2xl overflow-hidden bg-slate-950 font-sans selection:bg-yellow-500/30 text-white">
-              {currentView === 'login' && <LoginScreen />}
-              {currentView === 'dashboard' && <DashboardScreen />}
-              {currentView === 'table' && <GameTableScreen />}
-            </div>
-          );
+        function BackofficeView({ user, usersDB, showToast }) {
+            const pendingUsers = usersDB.filter(u => u.status === 'pending');
+            const activePlayers = usersDB.filter(u => u.role === 'player' || u.role === 'manager' || u.role === 'owner');
+
+            const handleApprove = async (userId) => {
+                try {
+                    await window.fs.updateDoc(window.fs.doc(window.db, "users", userId), {
+                        status: 'approved', role: 'player'
+                    });
+                    showToast("שחקן אושר ונכנס לקלאב!");
+                } catch(e) { showToast("שגיאה באישור שחקן."); }
+            };
+
+            const handleReject = async (userId) => {
+                try {
+                    await window.fs.deleteDoc(window.fs.doc(window.db, "users", userId));
+                    showToast("בקשה נדחתה ונמחקה.");
+                } catch(e) {}
+            };
+
+            const handleTransfer = async (userId, currentBalance, amount) => {
+                try {
+                    await window.fs.updateDoc(window.fs.doc(window.db, "users", userId), {
+                        balance: currentBalance + parseInt(amount)
+                    });
+                    showToast(`הועברו צ'יפים בהצלחה!`);
+                } catch(e) { showToast("שגיאה בהעברה."); }
+            };
+
+            const exportData = () => {
+                downloadCSV(activePlayers.map(p => ({
+                    Username: p.username,
+                    Role: p.role,
+                    Balance: p.balance,
+                    Status: p.status
+                })), `club_report_${Date.now()}.csv`);
+            };
+
+            if (user.role !== 'owner' && user.role !== 'manager') return <div className="p-10 text-white">אין הרשאה.</div>;
+
+            return (
+                <div className="flex-1 p-6 overflow-y-auto bg-slate-950">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+                            <div>
+                                <h2 className="text-3xl font-black text-white">מערכת ניהול (Backoffice)</h2>
+                                <p className="text-indigo-400 font-bold">ניהול מועדון, צ'יפים ואישורים בזמן אמת</p>
+                            </div>
+                            <button onClick={exportData} className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:bg-emerald-500 transition-all">
+                                <i className="fa-solid fa-file-csv mr-2"></i> ייצוא דוח לאקסל
+                            </button>
+                        </div>
+
+                        {/* Pending Approvals Section */}
+                        {pendingUsers.length > 0 && (
+                            <div className="mb-8 bg-rose-950/20 border border-rose-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-2 h-full bg-rose-500"></div>
+                                <h3 className="text-xl font-bold text-rose-400 mb-6 flex items-center gap-3">
+                                    <i className="fa-solid fa-bell animate-bounce"></i> בקשות הצטרפות ממתינות לאישור ({pendingUsers.length})
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {pendingUsers.map(pu => (
+                                        <div key={pu.docId} className="bg-slate-900 border border-slate-700 p-5 rounded-xl flex justify-between items-center shadow-lg">
+                                            <span className="text-white font-bold text-lg">{pu.username}</span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleApprove(pu.docId)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg">
+                                                    אשר
+                                                </button>
+                                                <button onClick={() => handleReject(pu.docId)} className="bg-slate-800 hover:bg-rose-600 text-white px-4 py-2 rounded-lg border border-slate-700">
+                                                    דחה
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Players Management */}
+                        <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div className="p-6 bg-slate-900 border-b border-slate-700">
+                                <h3 className="text-xl font-bold text-white">ניהול שחקנים מאושרים וקופת צ'יפים</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-right text-slate-300">
+                                    <thead className="bg-slate-950/80 text-slate-500 text-sm uppercase">
+                                        <tr>
+                                            <th className="p-5">שחקן</th>
+                                            <th className="p-5">תפקיד</th>
+                                            <th className="p-5">יתרה נוכחית</th>
+                                            <th className="p-5 text-left">פעולות העברה (הפקדה/משיכה)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {activePlayers.map(p => (
+                                            <tr key={p.docId} className="hover:bg-slate-800/50 transition-colors">
+                                                <td className="p-5 font-bold text-white text-lg flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-slate-300">{p.username.substring(0,2).toUpperCase()}</div>
+                                                    {p.username}
+                                                </td>
+                                                <td className="p-5 font-semibold text-slate-400">{p.role}</td>
+                                                <td className="p-5 font-black text-emerald-400 text-xl">{formatMoney(p.balance)}</td>
+                                                <td className="p-5">
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button onClick={() => handleTransfer(p.docId, p.balance, 1000)} className="bg-slate-800 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold border border-slate-700 transition-colors">+1,000</button>
+                                                        <button onClick={() => handleTransfer(p.docId, p.balance, 5000)} className="bg-slate-800 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold border border-slate-700 transition-colors">+5,000</button>
+                                                        <button onClick={() => handleTransfer(p.docId, p.balance, -1000)} className="bg-rose-900/30 hover:bg-rose-600 text-rose-400 hover:text-white px-4 py-2 rounded-lg font-bold border border-rose-800/50 transition-colors">-1,000</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // ADVANCED GAME TABLE (TOUCH + MOUSE DRAG/DROP)
+        // ==========================================
+        function GameTableView({ table, user, onLeave, showToast }) {
+            const typeInfo = GAME_TYPES.find(g => g.id === table?.type) || GAME_TYPES[0];
+            const hex = typeInfo.hex;
+            const containerRef = useRef(null);
+
+            // Basic State
+            const [deck, setDeck] = useState(104);
+            const [rack, setRack] = useState([
+                { id: 't1', val: 7, colorClass: 'text-rose-500', hex: '#f43f5e' },
+                { id: 't2', val: 7, colorClass: 'text-blue-500', hex: '#3b82f6' },
+                { id: 't3', val: 8, colorClass: 'text-slate-900', hex: '#0f172a' },
+                { id: 't4', val: 9, colorClass: 'text-slate-900', hex: '#0f172a' },
+                { id: 't5', val: 10, colorClass: 'text-slate-900', hex: '#0f172a' },
+                { id: 't6', val: '☻', colorClass: 'text-rose-500', hex: '#f43f5e' }
+            ]);
+            const [board, setBoard] = useState([
+                [
+                    { id: 'b1', val: 3, colorClass: 'text-rose-500', hex: '#f43f5e' }, 
+                    { id: 'b2', val: 3, colorClass: 'text-blue-500', hex: '#3b82f6' }
+                ]
+            ]);
+
+            // Drag State (Unified for Mouse & Touch)
+            const [dragData, setDragData] = useState(null); // { tile, source: 'rack'|'board', groupIdx, tileIdx }
+            const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+            const [hoverZone, setHoverZone] = useState(null); // Determines glowing target
+
+            // Handle Pointer Down (Initiate Drag)
+            const handlePointerDown = (e, tile, source, groupIdx, tileIdx) => {
+                e.stopPropagation();
+                // Crucial for mobile: releases capture so elementFromPoint works globally
+                if (e.target.hasPointerCapture(e.pointerId)) {
+                    e.target.releasePointerCapture(e.pointerId);
+                }
+                setDragData({ tile, source, groupIdx, tileIdx });
+                setDragPos({ x: e.clientX, y: e.clientY });
+            };
+
+            // Global Pointer Move & Up Handlers
+            useEffect(() => {
+                const handlePointerMove = (e) => {
+                    if (dragData) {
+                        setDragPos({ x: e.clientX, y: e.clientY });
+                        
+                        // Hit testing for visual feedback
+                        const el = document.elementFromPoint(e.clientX, e.clientY);
+                        if(el) {
+                            const zone = el.closest('[data-zone]');
+                            if(zone) {
+                                setHoverZone(zone.getAttribute('data-zone'));
+                            } else {
+                                setHoverZone(null);
+                            }
+                        }
+                    }
+                };
+
+                const handlePointerUp = (e) => {
+                    if (!dragData) return;
+
+                    let newRack = [...rack];
+                    let newBoard = board.map(g => [...g]);
+
+                    // Remove tile from its origin
+                    if (dragData.source === 'rack') {
+                        newRack.splice(dragData.tileIdx, 1);
+                    } else {
+                        newBoard[dragData.groupIdx].splice(dragData.tileIdx, 1);
+                        // Clean empty groups
+                        if (newBoard[dragData.groupIdx].length === 0) {
+                            newBoard.splice(dragData.groupIdx, 1);
+                        }
+                    }
+
+                    // Determine drop logic based on detected zone
+                    if (hoverZone && hoverZone.startsWith('group-')) {
+                        // Snapped into existing group
+                        const targetIdx = parseInt(hoverZone.replace('group-', ''));
+                        // Adjust index if we removed a prior group
+                        const realIdx = (dragData.source === 'board' && dragData.groupIdx < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
+                        
+                        if(newBoard[realIdx]) newBoard[realIdx].push(dragData.tile);
+                        else newBoard.push([dragData.tile]);
+
+                    } else if (hoverZone === 'board-empty' || (!hoverZone && dragData.source === 'rack')) {
+                        // Dropped on empty board space
+                        newBoard.push([dragData.tile]);
+                    } else if (hoverZone === 'rack' || (!hoverZone && dragData.source === 'board')) {
+                        // Dropped in rack
+                        newRack.push(dragData.tile);
+                    } else {
+                        // Cancel/Invalid drop - revert to origin
+                        if (dragData.source === 'rack') newRack.splice(dragData.tileIdx, 0, dragData.tile);
+                        else newBoard[dragData.groupIdx].splice(dragData.tileIdx, 0, dragData.tile);
+                    }
+
+                    // Apply State
+                    setRack(newRack);
+                    setBoard(newBoard);
+                    
+                    // Cleanup
+                    setDragData(null);
+                    setHoverZone(null);
+                };
+
+                if (dragData) {
+                    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+                    window.addEventListener('pointerup', handlePointerUp);
+                }
+                return () => {
+                    window.removeEventListener('pointermove', handlePointerMove);
+                    window.removeEventListener('pointerup', handlePointerUp);
+                };
+            }, [dragData, hoverZone, rack, board]);
+
+            const drawTile = () => {
+                if(deck <= 0) return showToast("קופה ריקה!");
+                const rVals = [1,2,3,4,5,6,7,8,9,10,11,12,13];
+                const rCols = ['text-rose-500', 'text-blue-500', 'text-amber-500', 'text-slate-900'];
+                const rHex = ['#f43f5e', '#3b82f6', '#f59e0b', '#0f172a'];
+                const r = Math.floor(Math.random() * 4);
+                const newTile = { id: 'd'+Date.now(), val: rVals[Math.floor(Math.random()*13)], colorClass: rCols[r], hex: rHex[r] };
+                setRack([...rack, newTile]);
+                setDeck(d => d - 1);
+            };
+
+            const sortRack = () => {
+                const sorted = [...rack].sort((a, b) => {
+                    if (a.val === '☻') return 1;
+                    if (b.val === '☻') return -1;
+                    return a.val - b.val;
+                });
+                setRack(sorted);
+            };
+
+            return (
+                <div 
+                    ref={containerRef} 
+                    className="flex-1 flex flex-col bg-black relative select-none" 
+                    style={{ touchAction: 'none' }} // Prevents mobile scroll while dragging
+                >
+                    {/* Background Neon Ambience */}
+                    <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ background: `radial-gradient(circle at 50% 30%, ${hex} 0%, transparent 70%)` }}></div>
+
+                    {/* Table Header */}
+                    <div className="relative z-10 p-4 bg-slate-950/90 border-b flex justify-between items-center backdrop-blur-md shadow-2xl" style={{ borderColor: `${hex}60` }}>
+                        <button onClick={onLeave} className="text-slate-400 hover:text-white px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 transition-colors font-bold flex items-center gap-2">
+                            <i className="fa-solid fa-arrow-right"></i> יציאה
+                        </button>
+                        <div className="text-center">
+                            <h2 className="text-2xl font-black text-white uppercase tracking-widest neon-text" style={{ color: hex }}>
+                                {typeInfo.name}
+                            </h2>
+                            <p className="text-xs font-bold text-slate-300 mt-1">{table?.stakes} | קופה מרכזית: 5,400</p>
+                        </div>
+                        <div className="bg-slate-900 border border-slate-700 px-4 py-2 rounded-lg">
+                            <span className="text-emerald-400 font-black">{formatMoney(user.balance)}</span>
+                        </div>
+                    </div>
+
+                    {/* The Felt (Board Drop Zone) */}
+                    <div 
+                        data-zone="board-empty"
+                        className="flex-1 m-4 md:m-6 rounded-3xl border-[6px] relative flex flex-col p-6 overflow-y-auto"
+                        style={{ 
+                            borderColor: `${hex}50`, 
+                            backgroundColor: '#060910', 
+                            boxShadow: `inset 0 0 100px #000, 0 0 30px ${hex}30` 
+                        }}
+                    >
+                        {board.length === 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                <i className="fa-solid fa-layer-group text-8xl" style={{ color: hex }}></i>
+                            </div>
+                        )}
+                        
+                        <div className="w-full h-full flex flex-wrap gap-8 items-start align-content-start pb-20">
+                            {board.map((group, gIdx) => (
+                                <div 
+                                    key={gIdx} 
+                                    data-zone={`group-${gIdx}`}
+                                    className={`flex p-3 rounded-2xl border-[3px] min-h-[100px] min-w-[70px] transition-all duration-200 ${
+                                        hoverZone === `group-${gIdx}` ? `bg-white/10 scale-105 border-[${hex}] shadow-[0_0_25px_${hex}80]` : 'bg-black/40 border-white/5'
+                                    }`}
+                                    style={hoverZone === `group-${gIdx}` ? { borderColor: hex } : {}}
+                                >
+                                    {group.map((tile, tIdx) => (
+                                        <div
+                                            key={tile.id}
+                                            onPointerDown={(e) => handlePointerDown(e, tile, 'board', gIdx, tIdx)}
+                                            className={`w-12 h-16 sm:w-14 sm:h-20 bg-gradient-to-br from-gray-100 to-gray-300 rounded-lg flex items-center justify-center text-3xl font-black cursor-grab shadow-[2px_5px_10px_rgba(0,0,0,0.9)] border-b-[5px] border-r-[2px] border-gray-400 mx-0.5 select-none hover:-translate-y-1 transition-transform relative ${
+                                                dragData?.tile?.id === tile.id ? 'opacity-20' : ''
+                                            }`}
+                                            style={{ color: tile.hex, textShadow: '0 1px 1px rgba(0,0,0,0.3)' }}
+                                        >
+                                            {tile.val}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Player Rack / Hand */}
+                    <div 
+                        data-zone="rack"
+                        className="relative z-10 p-4 pt-12 flex flex-col items-center pb-8 border-t-2 bg-slate-950"
+                        style={{ borderTopColor: `${hex}80`, boxShadow: `0 -10px 40px ${hex}30` }}
+                    >
+                        {/* Floating Action Buttons */}
+                        <div className="absolute top-[-25px] flex gap-3 z-20">
+                            <button onClick={drawTile} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl border border-slate-600 transition-all flex items-center gap-2">
+                                <i className="fa-solid fa-layer-group text-amber-400"></i> קופה ({deck})
+                            </button>
+                            <button onClick={sortRack} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl border border-slate-600 transition-all flex items-center gap-2">
+                                <i className="fa-solid fa-arrow-down-a-z"></i> סידור
+                            </button>
+                            <button className="text-white px-8 py-3 rounded-full font-black shadow-[0_0_20px_rgba(0,0,0,0.8)] uppercase transition-all hover:scale-105" style={{ backgroundColor: hex }}>
+                                סיום תור
+                            </button>
+                        </div>
+
+                        {/* Physical Rack Texture */}
+                        <div className={`w-[98%] max-w-5xl min-h-[130px] bg-gradient-to-b from-slate-800 to-slate-900 rounded-t-3xl border-x-[12px] border-b-[12px] shadow-[0_20px_50px_#000] flex flex-wrap justify-center items-end px-4 py-4 gap-1 transition-all relative ${
+                            hoverZone === 'rack' ? `border-[${hex}] shadow-[0_0_40px_${hex}50]` : 'border-slate-800'
+                        }`} style={hoverZone === 'rack' ? {borderColor: hex} : {}}>
+                            
+                            <div className="absolute inset-0 border-t-8 border-slate-950/50 rounded-t-2xl pointer-events-none"></div>
+
+                            {rack.map((tile, tIdx) => (
+                                <div
+                                    key={tile.id}
+                                    onPointerDown={(e) => handlePointerDown(e, tile, 'rack', null, tIdx)}
+                                    className={`w-14 h-20 sm:w-16 sm:h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center text-4xl sm:text-5xl font-black cursor-grab shadow-[2px_8px_15px_rgba(0,0,0,0.9)] border-b-[6px] border-r-[3px] border-gray-400 mx-0.5 select-none z-10 transition-transform ${
+                                        dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-4 opacity-100'
+                                    }`}
+                                    style={{ color: tile.hex, textShadow: '0 2px 3px rgba(0,0,0,0.2)' }}
+                                >
+                                    {tile.val}
+                                </div>
+                            ))}
+                            {rack.length === 0 && <div className="text-slate-600 font-black text-2xl h-full flex items-center w-full justify-center pb-4 opacity-50">התושבת ריקה</div>}
+                        </div>
+                    </div>
+
+                    {/* Dragged Floating Tile (Follows Pointer) */}
+                    {dragData && (
+                        <div 
+                            className="fixed pointer-events-none z-[9999] w-16 h-24 bg-gradient-to-br from-gray-50 to-gray-200 rounded-lg flex items-center justify-center text-5xl font-black shadow-[0_30px_40px_rgba(0,0,0,0.9)] border-b-[8px] border-r-[3px] border-gray-400 scale-110"
+                            style={{ 
+                                left: dragPos.x, top: dragPos.y,
+                                transform: 'translate(-50%, -50%) rotate(4deg)',
+                                color: dragData.tile.hex,
+                                textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            {dragData.tile.val}
+                        </div>
+                    )}
+                </div>
+            );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
