@@ -88,8 +88,8 @@
         
         .dragging-ghost {
             opacity: 0.95;
-            transform: scale(1.15) rotate(3deg);
-            box-shadow: 10px 20px 30px rgba(0,0,0,0.9);
+            transform: scale(1.15) rotate(5deg);
+            box-shadow: 15px 25px 40px rgba(0,0,0,0.9);
             pointer-events: none;
             z-index: 9999;
         }
@@ -105,11 +105,23 @@
             transform: scale(1.05);
             box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
         }
+
+        /* Toast Animation */
+        @keyframes slideInUp {
+            from { transform: translate(-50%, 100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .toast-animate {
+            animation: slideInUp 0.3s ease-out forwards;
+        }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tone.js for Audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -145,6 +157,50 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
+
+        const AudioManager = {
+            ready: false,
+            init: async () => {
+                if(AudioManager.ready) return;
+                await Tone.start();
+                AudioManager.ready = true;
+            },
+            playClack: () => {
+                if(!AudioManager.ready) return;
+                const synth = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 4, oscillator: { type: "square" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination();
+                synth.triggerAttackRelease("C3", "32n");
+                synth.volume.value = -10;
+            },
+            playTurnStart: () => {
+                if(!AudioManager.ready) return;
+                const synth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.1 } }).toDestination();
+                synth.triggerAttackRelease("E5", "8n");
+                synth.volume.value = -15;
+            },
+            playTick: () => {
+                if(!AudioManager.ready) return;
+                const synth = new Tone.MetalSynth({ frequency: 200, envelope: { attack: 0.001, decay: 0.05, release: 0.01 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination();
+                synth.triggerAttackRelease("32n");
+                synth.volume.value = -25;
+            },
+            playError: () => {
+                if(!AudioManager.ready) return;
+                const synth = new Tone.Synth({ oscillator: { type: "sawtooth" } }).toDestination();
+                synth.triggerAttackRelease("C3", "8n");
+                setTimeout(() => synth.triggerAttackRelease("G2", "4n"), 150);
+                synth.volume.value = -15;
+            },
+            playWin: () => {
+                if(!AudioManager.ready) return;
+                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                const now = Tone.now();
+                synth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
+                synth.triggerAttackRelease(["C4", "F4", "A4"], "8n", now + 0.2);
+                synth.triggerAttackRelease(["D4", "G4", "B4"], "8n", now + 0.4);
+                synth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n", now + 0.6);
+                synth.volume.value = -10;
+            }
+        };
 
         const GAME_TYPES = [
             { id: 'rummikub', name: 'רמיקוב אבנים', hex: '#10b981', borderClass: 'border-emerald-500', shadowClass: 'shadow-[0_0_15px_rgba(16,185,129,0.3)]' },
@@ -186,14 +242,22 @@
             const [tablesDB, setTablesDB] = useState([]);
             const [usersDB, setUsersDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
-            const [toast, setToast] = useState('');
-
-            const showToast = (msg) => {
-                setToast(msg);
-                setTimeout(() => setToast(''), 4000);
+            
+            // Advanced Toast System
+            const [toasts, setToasts] = useState([]);
+            const showToast = (msg, type = 'info') => {
+                const id = Date.now();
+                setToasts(prev => [...prev, { id, msg, type }]);
+                setTimeout(() => {
+                    setToasts(prev => prev.filter(t => t.id !== id));
+                }, 4000);
             };
 
             useEffect(() => {
+                // Initialize audio on first user interaction (browser policy)
+                const initAudio = () => { AudioManager.init(); window.removeEventListener('pointerdown', initAudio); };
+                window.addEventListener('pointerdown', initAudio);
+                
                 if (window.fb) setFbReady(true);
                 else {
                     const handleReady = () => setFbReady(true);
@@ -223,10 +287,13 @@
                 
                 if (userSnap.exists()) {
                     let data = userSnap.data();
-                    if (data.role === ROLES.OWNER && data.balance < 10000000) {
+                    
+                    // One-time upgrade to 10M for existing owner
+                    if (data.role === ROLES.OWNER && data.balance === 1000000) {
                          await window.fb.updateDoc(userRef, { balance: 10000000 });
                          data.balance = 10000000;
                     }
+
                     if (!data.clubId) {
                         const newClubId = generateClubId();
                         await window.fb.updateDoc(userRef, { clubId: newClubId });
@@ -362,11 +429,14 @@
                         {currentView === 'table' && <GameTableView tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
 
-                    {toast && (
-                        <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-slate-600 text-white px-6 py-3 rounded-2xl shadow-2xl z-[9999] font-bold whitespace-nowrap animate-bounce">
-                            {toast}
-                        </div>
-                    )}
+                    {/* Toast Container */}
+                    <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+                        {toasts.map(t => (
+                            <div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : t.type === 'success' ? 'bg-emerald-900 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>
+                                {t.msg}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
@@ -420,9 +490,9 @@
                     await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), {
                         username, avatarId
                     });
-                    showToast("פרופיל עודכן בהצלחה");
+                    showToast("פרופיל עודכן בהצלחה", "success");
                     onSave();
-                } catch(e) { showToast("שגיאה בעדכון הפרופיל"); }
+                } catch(e) { showToast("שגיאה בעדכון הפרופיל", "error"); }
             };
 
             return (
@@ -481,13 +551,13 @@
 
             // Zero-Sum Transaction for Chip Transfers
             const handleTransfer = async (type) => {
-                if (!selectedUser || !amount || isNaN(amount) || amount <= 0) return showToast("הזן סכום תקין");
+                if (!selectedUser || !amount || isNaN(amount) || amount <= 0) return showToast("הזן סכום תקין", "error");
                 const amt = parseInt(amount);
                 const isDeposit = type === 'deposit';
 
-                if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים בקופה המרכזית!");
-                if (!isDeposit && selectedUser.balance < amt) return showToast("לשחקן אין מספיק צ'יפים למשיכה!");
-                if (selectedUser.uid === user.uid) return showToast("אי אפשר להעביר צ'יפים לעצמך.");
+                if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים בקופה המרכזית!", "error");
+                if (!isDeposit && selectedUser.balance < amt) return showToast("לשחקן אין מספיק צ'יפים למשיכה!", "error");
+                if (selectedUser.uid === user.uid) return showToast("אי אפשר להעביר צ'יפים לעצמך.", "error");
 
                 try {
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
@@ -504,11 +574,11 @@
                         transaction.update(playerRef, { balance: newPlayerBalance });
                     });
                     
-                    showToast(`הפעולה בוצעה. ${formatMoney(amt)} הועברו.`);
+                    showToast(`הפעולה בוצעה. ${formatMoney(amt)} הועברו.`, "success");
                     setAmount('');
                     setSelectedUser(null);
                 } catch (e) {
-                    showToast("שגיאה בהעברה. נסה שוב.");
+                    showToast("שגיאה בהעברה. נסה שוב.", "error");
                     console.error(e);
                 }
             };
@@ -526,14 +596,14 @@
 
             const changeAgent = async (targetUser, agentId) => {
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentId: agentId || null });
-                showToast("סוכן עודכן בהצלחה");
+                showToast("סוכן עודכן בהצלחה", "success");
             };
             
             const changeAgentShare = async (targetUser, shareStr) => {
                 let share = parseInt(shareStr);
                 if(isNaN(share) || share < 0 || share > 100) return;
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentRakeShare: share });
-                showToast("אחוז עמלת סוכן עודכן");
+                showToast("אחוז עמלת סוכן עודכן", "success");
             };
 
             const agentsList = usersDB.filter(u => u.role === ROLES.AGENT || u.role === ROLES.MANAGER);
@@ -693,8 +763,8 @@
                         createdBy: user.uid
                     });
                     setShowCreate(false);
-                    showToast("שולחן נפתח בהצלחה!");
-                } catch(e) { showToast("שגיאה בפתיחת שולחן"); console.error(e); }
+                    showToast("שולחן נפתח בהצלחה!", "success");
+                } catch(e) { showToast("שגיאה בפתיחת שולחן", "error"); console.error(e); }
             };
 
             return (
@@ -939,6 +1009,8 @@
                     originalRackRef.current = JSON.parse(JSON.stringify(tableState.players[user.uid].rack || []));
                     setTimeLeft(tableState.turnTime || 60);
                     previousTurnRef.current = tableState.currentTurn;
+                    AudioManager.playTurnStart();
+                    showToast("זה התור שלך לשחק!", "success");
                 }
             }, [isMyTurn, tableState]);
 
@@ -947,6 +1019,7 @@
                 if (!isMyTurn || timeLeft <= 0) return;
                 const timer = setInterval(() => {
                     setTimeLeft(prev => {
+                        if (prev === 11) AudioManager.playTick(); // Tick on 10s left
                         if (prev <= 1) {
                             clearInterval(timer);
                             handleEndTurn(true); // Time's up penalty!
@@ -1004,13 +1077,16 @@
                         if(newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile);
                         else newBoard.push([dragData.tile]);
                         boardChanged = true;
+                        AudioManager.playClack();
                     } 
                     else if (hoverTarget === 'board-main') {
                         newBoard.push([dragData.tile]); // New group
                         boardChanged = true;
+                        AudioManager.playClack();
                     } 
                     else if (hoverTarget === 'rack') {
                         newRack.push(dragData.tile);
+                        AudioManager.playClack();
                     } 
                     else {
                         // Cancel - return to original position
@@ -1049,8 +1125,8 @@
             }, [dragData, hoverTarget, localRack, tableState, isMyTurn]);
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
-                if (!isPlaying) return showToast("המשחק טרם החל.");
-                if (!isMyTurn) return showToast("זה לא התור שלך!");
+                if (!isPlaying) return showToast("המשחק טרם החל.", "error");
+                if (!isMyTurn) return showToast("זה לא התור שלך!", "error");
                 
                 e.stopPropagation();
                 const clientX = e.clientX || (e.touches && e.touches[0].clientX);
@@ -1061,11 +1137,11 @@
 
             const handleSitDown = async () => {
                 if (user.balance < tableState.buyIn && user.role !== ROLES.OWNER) {
-                    return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.");
+                    return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.", "error");
                 }
                 
                 const currentPlayers = tableState.players || {};
-                if (Object.keys(currentPlayers).length >= 4) return showToast("השולחן מלא.");
+                if (Object.keys(currentPlayers).length >= 4) return showToast("השולחן מלא.", "error");
 
                 const takenSeats = Object.values(currentPlayers).map(p => p.seat);
                 let emptySeat = 0;
@@ -1085,7 +1161,7 @@
 
             const handleStartGame = async () => {
                 const uids = Object.keys(tableState.players || {});
-                if (uids.length < 2) return showToast("צריך לפחות 2 שחקנים כדי להתחיל משחק.");
+                if (uids.length < 2) return showToast("צריך לפחות 2 שחקנים כדי להתחיל משחק.", "error");
 
                 const deck = generateRummikubDeck();
                 const updatedPlayers = { ...tableState.players };
@@ -1102,11 +1178,12 @@
                     currentTurn: uids[0], 
                     board: []
                 });
-                showToast("המשחק התחיל! שיהיה בהצלחה.");
+                showToast("המשחק התחיל! שיהיה בהצלחה.", "success");
             };
 
             const handleWin = async () => {
-                showToast("🏆 ניצחת! מחשב תוצאות ועמלות קלאב...");
+                AudioManager.playWin();
+                showToast("🏆 ניצחת! מחשב תוצאות ועמלות קלאב...", "success");
                 try {
                     // 1. Setup Data
                     const uids = Object.keys(tableState.players);
@@ -1196,12 +1273,13 @@
                     });
                 } catch (e) {
                     console.error("Endgame Error:", e);
-                    showToast("שגיאה בסליקת המשחק.");
+                    showToast("שגיאה בסליקת המשחק.", "error");
                 }
             };
 
             const applyPenalty = async (reason) => {
-                showToast(`קנס: ${reason}`);
+                AudioManager.playError();
+                showToast(`קנס: ${reason}`, "error");
                 
                 let newRack = [...originalRackRef.current];
                 let newDeck = [...(tableState.deck || [])];
@@ -1265,7 +1343,7 @@
                     }
 
                     updates[`players.${user.uid}.hasOpened`] = true;
-                    showToast("כל הכבוד! פתחת את המשחק (ירידה ראשונה עברה בהצלחה).");
+                    showToast("כל הכבוד! פתחת את המשחק (ירידה ראשונה עברה בהצלחה).", "success");
                 }
 
                 // 4. WIN CONDITION CHECK
@@ -1292,11 +1370,12 @@
                 const localRackStr = JSON.stringify(localRack);
                 
                 if (origRackStr !== localRackStr) {
-                    return showToast("אי אפשר למשוך מהקופה אחרי שביצעת שינויים. שחזר ידנית או סיים תור לקבלת קנס.");
+                    AudioManager.playError();
+                    return showToast("אי אפשר למשוך מהקופה אחרי שביצעת שינויים. שחזר ידנית או סיים תור לקבלת קנס.", "error");
                 }
 
                 const currentDeck = [...(tableState.deck || [])];
-                if (currentDeck.length === 0) return showToast("הקופה ריקה!");
+                if (currentDeck.length === 0) return showToast("הקופה ריקה!", "error");
                 
                 const drawnTile = currentDeck.shift(); 
                 const newRack = [...localRack, drawnTile];
@@ -1311,6 +1390,7 @@
                     deck: currentDeck,
                     [`players.${user.uid}.rack`]: newRack
                 });
+                AudioManager.playClack();
             };
 
             if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white font-sans text-xl">טוען שולחן...</div>;
