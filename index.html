@@ -79,7 +79,7 @@
             align-items: center;
             justify-content: center;
             user-select: none;
-            transition: box-shadow 0.1s ease-out;
+            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
             cursor: grab;
             text-shadow: 0px 1px 1px rgba(0,0,0,0.2);
         }
@@ -97,6 +97,13 @@
         .bg-dots {
             background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
             background-size: 20px 20px;
+        }
+
+        .drop-target {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.5) !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
         }
     </style>
 
@@ -517,16 +524,30 @@
                 showToast(`תפקיד של ${targetUser.username} עודכן ל-${newRole}`);
             };
 
+            const changeAgent = async (targetUser, agentId) => {
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentId: agentId || null });
+                showToast("סוכן עודכן בהצלחה");
+            };
+            
+            const changeAgentShare = async (targetUser, shareStr) => {
+                let share = parseInt(shareStr);
+                if(isNaN(share) || share < 0 || share > 100) return;
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentRakeShare: share });
+                showToast("אחוז עמלת סוכן עודכן");
+            };
+
+            const agentsList = usersDB.filter(u => u.role === ROLES.AGENT || u.role === ROLES.MANAGER);
+
             return (
                 <div className="flex-1 bg-slate-950 p-4 sm:p-8 overflow-y-auto">
-                    <div className="max-w-6xl mx-auto">
+                    <div className="max-w-7xl mx-auto">
                         <div className="mb-8 border-b border-slate-800 pb-6">
                             <h2 className="text-3xl font-black text-white mb-2"><i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> ניהול מועדון עליון</h2>
-                            <p className="text-slate-400">העברות כספים, ניהול תפקידים ואישורי שחקנים. חיפוש עפ"י ID מועדון.</p>
+                            <p className="text-slate-400">העברות כספים, ניהול סוכנים, ואישורי שחקנים.</p>
                         </div>
 
                         <div className="glass-panel p-6 rounded-2xl mb-8 border border-slate-700 shadow-2xl">
-                            <h3 className="text-lg font-bold text-white mb-4">קופת הבית (Zero-Sum Transfers)</h3>
+                            <h3 className="text-lg font-bold text-white mb-4">קופת הבית (העברת צ'יפים אטומית)</h3>
                             <div className="flex flex-col md:flex-row gap-4 items-end">
                                 <div className="flex-1 w-full">
                                     <label className="block text-xs font-bold text-slate-400 mb-2">בחר שחקן להעברה</label>
@@ -563,7 +584,7 @@
 
                         <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
                             <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-                                <h3 className="text-lg font-bold text-white">רשימת משתמשים והרשאות</h3>
+                                <h3 className="text-lg font-bold text-white">רשימת משתמשים, סוכנים והרשאות</h3>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-right text-sm">
@@ -572,8 +593,9 @@
                                             <th className="p-4">ID מועדון</th>
                                             <th className="p-4">כינוי שחקן</th>
                                             <th className="p-4">תפקיד</th>
+                                            <th className="p-4">סוכן אחראי</th>
+                                            <th className="p-4">% עמלת סוכן</th>
                                             <th className="p-4">יתרה נוכחית</th>
-                                            <th className="p-4">סטטוס</th>
                                             <th className="p-4">פעולות הנהלה</th>
                                         </tr>
                                     </thead>
@@ -599,12 +621,33 @@
                                                         <span>{u.role}</span>
                                                     )}
                                                 </td>
-                                                <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
                                                 <td className="p-4">
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${u.status === 'approved' ? 'bg-emerald-900 text-emerald-400' : 'bg-rose-900 text-rose-400'}`}>
-                                                        {u.status}
-                                                    </span>
+                                                    {u.role === ROLES.PLAYER && user.role === ROLES.OWNER && (
+                                                        <select 
+                                                            value={u.agentId || ''} 
+                                                            onChange={(e) => changeAgent(u, e.target.value)}
+                                                            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-slate-300 w-full"
+                                                        >
+                                                            <option value="">ללא סוכן (הכל לבית)</option>
+                                                            {agentsList.filter(a => a.uid !== u.uid).map(a => (
+                                                                <option key={a.uid} value={a.uid}>{a.username}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
                                                 </td>
+                                                <td className="p-4">
+                                                    {u.role === ROLES.PLAYER && u.agentId && user.role === ROLES.OWNER && (
+                                                        <div className="flex items-center gap-1">
+                                                            <input 
+                                                                type="number" defaultValue={u.agentRakeShare} 
+                                                                onBlur={(e) => changeAgentShare(u, e.target.value)}
+                                                                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center text-white" 
+                                                                min="0" max="100"
+                                                            /> <span className="text-slate-500">%</span>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
                                                 <td className="p-4">
                                                     {u.uid !== user.uid && (
                                                         <button onClick={() => toggleApproval(u)} className="text-xs bg-slate-800 border border-slate-600 px-4 py-2 rounded-lg hover:bg-slate-700 text-white transition-colors font-bold shadow-lg">
@@ -746,20 +789,22 @@
         }
 
         const generateRummikubDeck = () => {
-            const colors = ['#f43f5e', '#3b82f6', '#fbbf24', '#0f172a']; 
+            const colors = ['#f43f5e', '#3b82f6', '#fbbf24', '#0f172a']; // Red, Blue, Yellow/Orange, Black
             let deck = [];
             let idCounter = 1;
             
-            for (let s = 0; s < 2; s++) {
+            for (let s = 0; s < 2; s++) { // 2 sets of each
                 colors.forEach(hex => {
                     for (let i = 1; i <= 13; i++) {
                         deck.push({ id: `t_${idCounter++}`, val: i, hex });
                     }
                 });
             }
+            // 2 Jokers
             deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
             deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
             
+            // Shuffle
             return deck.sort(() => Math.random() - 0.5);
         };
 
@@ -770,8 +815,9 @@
             const jokers = meld.filter(t => t.val === '☻' || t.isJoker);
             const regulars = meld.filter(t => t.val !== '☻' && !t.isJoker);
 
-            if (regulars.length === 0) return true;
+            if (regulars.length === 0) return true; // All jokers (rare but technically valid)
 
+            // Check if SET (same value, different colors)
             const isSet = () => {
                 if (meld.length > 4) return false;
                 const val = regulars[0].val;
@@ -784,6 +830,7 @@
                 return true;
             };
 
+            // Check if RUN (same color, sequential values)
             const isRun = () => {
                 const hex = regulars[0].hex;
                 const values = [];
@@ -793,18 +840,19 @@
                 }
                 values.sort((a, b) => a - b);
                 
+                // No duplicates in a run
                 if (new Set(values).size !== values.length) return false;
 
                 const span = values[values.length - 1] - values[0] + 1;
                 const internalGaps = span - values.length;
                 
-                if (internalGaps > jokers.length) return false; 
+                if (internalGaps > jokers.length) return false; // Not enough jokers to fill gaps
 
                 const remainingJokers = jokers.length - internalGaps;
                 const leftSpace = values[0] - 1;
                 const rightSpace = 13 - values[values.length - 1];
                 
-                if (remainingJokers > leftSpace + rightSpace) return false;
+                if (remainingJokers > leftSpace + rightSpace) return false; // Jokers would push run out of 1-13 bounds
 
                 return true;
             };
@@ -821,10 +869,12 @@
                 return parseInt(regulars[0].val) * group.length;
             }
             
+            // For runs, calculate actual sum including jokers
             const vals = regulars.map(t => parseInt(t.val)).sort((a,b)=>a-b);
             let sum = 0;
             let jokersLeft = group.length - regulars.length;
             
+            // Internal gaps
             for (let i = 0; i < vals.length; i++) {
                 if (i > 0) {
                     const gap = vals[i] - vals[i-1] - 1;
@@ -836,6 +886,7 @@
                 sum += vals[i];
             }
             
+            // Add remaining jokers to edges
             let top = vals[vals.length - 1] + 1;
             let bottom = vals[0] - 1;
             while (jokersLeft > 0) {
@@ -866,6 +917,7 @@
                         const data = { id: doc.id, ...doc.data() };
                         setTableState(data);
                         
+                        // Sync rack only if we aren't dragging something
                         if (data.players && data.players[user.uid] && data.players[user.uid].rack && !dragData) {
                             setLocalRack(data.players[user.uid].rack);
                         }
@@ -879,8 +931,10 @@
             const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
             const myPlayerData = isSeated ? tableState.players[user.uid] : null;
 
+            // Timer and Turn Setup
             useEffect(() => {
                 if (isMyTurn && tableState.currentTurn !== previousTurnRef.current) {
+                    // New Turn Started for ME. Snapshot the table and my rack!
                     originalBoardRef.current = JSON.parse(JSON.stringify(tableState.board || []));
                     originalRackRef.current = JSON.parse(JSON.stringify(tableState.players[user.uid].rack || []));
                     setTimeLeft(tableState.turnTime || 60);
@@ -888,13 +942,14 @@
                 }
             }, [isMyTurn, tableState]);
 
+            // Timer Countdown
             useEffect(() => {
                 if (!isMyTurn || timeLeft <= 0) return;
                 const timer = setInterval(() => {
                     setTimeLeft(prev => {
                         if (prev <= 1) {
                             clearInterval(timer);
-                            handleEndTurn(true); 
+                            handleEndTurn(true); // Time's up penalty!
                             return 0;
                         }
                         return prev - 1;
@@ -903,10 +958,11 @@
                 return () => clearInterval(timer);
             }, [isMyTurn, timeLeft]);
 
+            // Smart Drag & Drop Engine (Pointer Events)
             useEffect(() => {
                 const handlePointerMove = (e) => {
                     if (!dragData || !isMyTurn) return;
-                    e.preventDefault(); 
+                    e.preventDefault(); // Stop scrolling
                     
                     const clientX = e.clientX || (e.touches && e.touches[0].clientX);
                     const clientY = e.clientY || (e.touches && e.touches[0].clientY);
@@ -914,6 +970,7 @@
 
                     if (!tableRef.current) return;
 
+                    // Find drop zone using geometry
                     const elements = document.elementsFromPoint(clientX, clientY);
                     let foundZone = null;
                     for (let el of elements) {
@@ -930,6 +987,7 @@
                     let newBoard = (tableState.board || []).map(g => [...g]); 
                     let boardChanged = false;
 
+                    // Remove from source
                     if (dragData.source === 'rack') {
                         newRack.splice(dragData.tileIndex, 1);
                     } else if (dragData.source === 'board') {
@@ -938,6 +996,7 @@
                         boardChanged = true;
                     }
 
+                    // Add to target
                     if (hoverTarget && hoverTarget.startsWith('board-group-')) {
                         const targetIdx = parseInt(hoverTarget.replace('board-group-', ''));
                         const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < (tableState.board||[]).length) ? targetIdx - 1 : targetIdx;
@@ -947,22 +1006,25 @@
                         boardChanged = true;
                     } 
                     else if (hoverTarget === 'board-main') {
-                        newBoard.push([dragData.tile]);
+                        newBoard.push([dragData.tile]); // New group
                         boardChanged = true;
                     } 
                     else if (hoverTarget === 'rack') {
                         newRack.push(dragData.tile);
                     } 
                     else {
+                        // Cancel - return to original position
                         if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 0, dragData.tile);
                         else {
                             newBoard[dragData.groupIndex].splice(dragData.tileIndex, 0, dragData.tile);
-                            boardChanged = true; 
+                            boardChanged = true; // Still need to sync as it might have shifted
                         }
                     }
 
+                    // Update local state immediately
                     setLocalRack(newRack);
                     
+                    // Sync board to Firebase for everyone to see
                     if (boardChanged) {
                         try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard }); } 
                         catch(err) { console.error("Sync error", err); }
@@ -1043,12 +1105,108 @@
                 showToast("המשחק התחיל! שיהיה בהצלחה.");
             };
 
+            const handleWin = async () => {
+                showToast("🏆 ניצחת! מחשב תוצאות ועמלות קלאב...");
+                try {
+                    // 1. Setup Data
+                    const uids = Object.keys(tableState.players);
+                    const losers = uids.filter(uid => uid !== user.uid);
+                    
+                    // 2. Atomic Transaction for Economy (Zero-Sum + Rake)
+                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
+                        // Find Owner
+                        const ownerQuery = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where('role', '==', ROLES.OWNER)));
+                        const ownerDocRef = ownerQuery.docs[0].ref;
+                        const ownerDoc = await transaction.get(ownerDocRef);
+
+                        // Read all players
+                        let playerDocs = {};
+                        for (let uid of uids) {
+                            playerDocs[uid] = await transaction.get(window.fb.doc(window.fb.db, "users", uid));
+                        }
+
+                        // Read Agents (if applicable)
+                        let agentDocs = {};
+                        for (let uid of losers) {
+                            const pData = playerDocs[uid].data();
+                            if (pData.agentId && !playerDocs[pData.agentId] && pData.agentId !== ownerDoc.id) {
+                                if (!agentDocs[pData.agentId]) {
+                                    agentDocs[pData.agentId] = await transaction.get(window.fb.doc(window.fb.db, "users", pData.agentId));
+                                }
+                            }
+                        }
+
+                        let totalPot = 0;
+                        let totalRake = 0;
+                        let houseProfit = 0;
+                        let agentProfits = {}; 
+                        let updates = {}; 
+
+                        // Initialize balances
+                        updates[ownerDoc.id] = ownerDoc.data().balance || 0;
+                        for (let uid of uids) updates[uid] = playerDocs[uid].data().balance || 0;
+                        for (let aid in agentDocs) updates[aid] = agentDocs[aid].data().balance || 0;
+
+                        // Calculate Penalties
+                        losers.forEach(loserUid => {
+                            const loserRack = tableState.players[loserUid].rack || [];
+                            let deadwoodPoints = 0;
+                            loserRack.forEach(t => {
+                                if (t.isJoker || t.val === '☻') deadwoodPoints += 30; // Penalty for joker
+                                else deadwoodPoints += parseInt(t.val);
+                            });
+                            
+                            const lossAmount = Math.floor(deadwoodPoints * (tableState.stakes || 10));
+                            totalPot += lossAmount;
+                            updates[loserUid] -= lossAmount; // Deduct from loser
+
+                            // Rake is 6%
+                            const loserRake = Math.floor(lossAmount * 0.06);
+                            totalRake += loserRake;
+
+                            // Agent Share
+                            const pData = playerDocs[loserUid].data();
+                            if (pData.agentId) {
+                                const agentCut = Math.floor(loserRake * ((pData.agentRakeShare || 0) / 100));
+                                if (!agentProfits[pData.agentId]) agentProfits[pData.agentId] = 0;
+                                agentProfits[pData.agentId] += agentCut;
+                                houseProfit += (loserRake - agentCut);
+                            } else {
+                                houseProfit += loserRake;
+                            }
+                        });
+
+                        const winnerWin = totalPot - totalRake;
+                        updates[user.uid] += winnerWin;
+                        updates[ownerDoc.id] += houseProfit;
+                        for(let aid in agentProfits) updates[aid] += agentProfits[aid];
+
+                        // Apply Writes
+                        transaction.update(ownerDocRef, { balance: updates[ownerDoc.id] });
+                        for (let uid of uids) transaction.update(window.fb.doc(window.fb.db, "users", uid), { balance: updates[uid] });
+                        for (let aid in agentDocs) transaction.update(window.fb.doc(window.fb.db, "users", aid), { balance: updates[aid] });
+
+                        // Reset Table
+                        const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const resetPlayers = {};
+                        for(let uid of uids) {
+                            resetPlayers[uid] = { ...tableState.players[uid], rack: [], hasOpened: false };
+                        }
+                        transaction.update(tableRef, { status: 'waiting', board: [], deck: [], currentTurn: null, players: resetPlayers });
+                    });
+                } catch (e) {
+                    console.error("Endgame Error:", e);
+                    showToast("שגיאה בסליקת המשחק.");
+                }
+            };
+
             const applyPenalty = async (reason) => {
                 showToast(`קנס: ${reason}`);
                 
                 let newRack = [...originalRackRef.current];
                 let newDeck = [...(tableState.deck || [])];
                 
+                // Draw 3 penalty cards
                 for(let i=0; i<3; i++){
                     if(newDeck.length > 0) newRack.push(newDeck.shift());
                 }
@@ -1060,7 +1218,7 @@
                 const nextTurnUid = uids[(currentIndex + 1) % uids.length];
 
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                    board: originalBoardRef.current,
+                    board: originalBoardRef.current, // Revert board
                     deck: newDeck,
                     currentTurn: nextTurnUid,
                     [`players.${user.uid}.rack`]: newRack
@@ -1074,12 +1232,14 @@
                     return applyPenalty("נגמר הזמן! הלוח שוחזר וקיבלת עונש 3 אבנים.");
                 }
 
+                // 1. Validation Engine: Check entire board
                 const currentBoard = tableState.board || [];
                 if (currentBoard.length > 0) {
                     const allValid = currentBoard.every(isValidMeld);
                     if (!allValid) return applyPenalty("השולחן אינו חוקי. סדרות שגויות!");
                 }
 
+                // 2. Check if player just drew/passed
                 const origRack = originalRackRef.current || [];
                 if (localRack.length === origRack.length) {
                     return handleDrawTile(); // Auto draw if didn't play
@@ -1087,6 +1247,7 @@
 
                 let updates = {};
 
+                // 3. Opening Validation (First Drop >= 30)
                 if (!myPlayerData.hasOpened) {
                     const origBoardStr = JSON.stringify(originalBoardRef.current || []);
                     const currentBoardPrefix = JSON.stringify(currentBoard.slice(0, (originalBoardRef.current || []).length));
@@ -1107,6 +1268,13 @@
                     showToast("כל הכבוד! פתחת את המשחק (ירידה ראשונה עברה בהצלחה).");
                 }
 
+                // 4. WIN CONDITION CHECK
+                if (localRack.length === 0) {
+                    await handleWin();
+                    return; // Stop turn passing, game is over!
+                }
+
+                // Pass Turn
                 const uids = Object.keys(tableState.players);
                 const currentIndex = uids.indexOf(user.uid);
                 const nextTurnUid = uids[(currentIndex + 1) % uids.length];
@@ -1177,7 +1345,7 @@
                         </div>
 
                         {(user.role === ROLES.OWNER || user.role === ROLES.MANAGER) && (
-                            <button onClick={() => showToast('סגירת שולחן מנהלים תחובר בשלב הבא')} className="text-slate-500 hover:text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 transition-colors text-xs font-bold flex items-center gap-2">
+                            <button onClick={handleWin} className="text-slate-500 hover:text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 transition-colors text-xs font-bold flex items-center gap-2">
                                 <i className="fa-solid fa-lock"></i> <span className="hidden sm:inline">הנהלה</span>
                             </button>
                         )}
