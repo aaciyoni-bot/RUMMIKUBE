@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Elite Poker - Sandbox</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&family=Rubik:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
+                        gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
+                    },
+                    fontFamily: { sans: ['Heebo', 'sans-serif'], rubik: ['Rubik', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #020617; 
+            color: #e2e8f0;
+            overflow: hidden; 
+            user-select: none; 
+            -webkit-user-select: none;
+            font-family: 'Heebo', sans-serif;
+        }
+        
+        .poker-table-ellipse {
+            background: radial-gradient(ellipse at center, #0f5132 0%, #064e3b 100%);
+            border: 15px solid #1f2937;
+            box-shadow: inset 0 0 80px rgba(0,0,0,0.9), 0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(16, 185, 129, 0.2);
+            border-radius: 200px;
+            position: relative;
+        }
+
+        .card-face {
+            background: linear-gradient(135deg, #ffffff 0%, #f4f1e1 100%);
+            box-shadow: 2px 6px 12px rgba(0,0,0,0.5);
+            border: 1px solid #d1ccb8;
+        }
+
+        .card-back {
+            background-color: #1e293b; /* slate-800 */
+            border: 3px solid #cbd5e1; /* slate-300 */
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.1) 3px, rgba(255,255,255,0.1) 6px);
+        }
+    </style>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
+    <div id="root" class="h-screen w-screen flex flex-col overflow-hidden"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- POKER ENGINE CONSTANTS ---
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+
+        const getCardColor = (suit) => (suit === '♥' || suit === '♦' ? 'text-rose-600' : 'text-slate-900');
+
+        function generateDeck() {
+            let deck = [];
+            for (let suit of SUITS) {
+                for (let val of VALUES) {
+                    deck.push({ id: `${val}${suit}`, val, suit, color: getCardColor(suit) });
+                }
+            }
+            // Fisher-Yates Shuffle
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            return deck;
+        }
+
+        //        function PokerApp() {
+            const [gameState, setGameState] = useState({
+                phase: 'waiting', // waiting, preflop, flop, turn, river, showdown
+                pot: 0,
+                board: [],
+                deck: [],
+                activeTurnUid: null,
+            });
+
+            const [isGodMode, setIsGodMode] = useState(false);
+
+            // Mock Players for Sandbox Testing
+            const [players, setPlayers] = useState([
+                { uid: 'p1', name: 'Player 1', stack: 10000, bet: 0, status: 'active', cards: [], isDealer: false },
+                { uid: 'p2', name: 'RummyShark', stack: 10000, bet: 0, status: 'active', cards: [], isDealer: true },
+                { uid: 'p3', name: 'TileMaster', stack: 10000, bet: 0, status: 'active', cards: [], isDealer: false },
+                { uid: 'p4', name: 'Hero (You)', stack: 10000, bet: 0, status: 'active', cards: [], isDealer: false },
+            ]);
+
+            //            const startHand = () => {
+                let newDeck = generateDeck();
+                let updatedPlayers = [...players];
+                
+                // Deal 2 hole cards to each player (Texas Hold'em standard)
+                updatedPlayers.forEach(p => {
+                    if (p.status === 'active') {
+                        p.cards = [newDeck.pop(), newDeck.pop()];
+                    }
+                });
+
+                setGameState({
+                    phase: 'preflop',
+                    pot: 150, // Mock Small/Big blind
+                    board: [],
+                    deck: newDeck,
+                    activeTurnUid: updatedPlayers[0].uid
+                });
+                
+                setPlayers(updatedPlayers);
+            };
+
+            //            const renderCard = (card, isHidden = false) => {
+                if (!card || isHidden) {
+                    return (
+                        <div className="w-10 h-14 sm:w-12 sm:h-16 rounded-md card-back shadow-md flex items-center justify-center relative overflow-hidden transform transition-transform hover:-translate-y-2 cursor-pointer z-10"></div>
+                    );
+                }
+                return (
+                    <div className={`w-10 h-14 sm:w-12 sm:h-16 rounded-md card-face flex flex-col items-center justify-center text-xl sm:text-2xl font-black transform transition-transform hover:-translate-y-2 z-10 cursor-pointer ${card.color}`}>
+                        <span className="leading-none">{card.val}</span>
+                        <span className="text-sm leading-none">{card.suit}</span>
+                    </div>
+                );
+            };
+
+            //            return (
+                <div className="h-full w-full flex flex-col relative font-sans">
+                    
+                    {/* Top Bar / Admin Tools */}
+                    <div className="p-4 flex justify-between items-center z-20 bg-slate-900/80 border-b border-white/10 backdrop-blur-sm shrink-0">
+                        <div className="text-white font-black text-xl tracking-widest uppercase flex items-center gap-2">
+                            <i className="fa-solid fa-diamond text-rose-500"></i> Elite Poker <span className="text-xs text-blue-400">SANDBOX</span>
+                        </div>
+                        
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setIsGodMode(!isGodMode)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all border ${isGodMode ? 'bg-purple-600 border-purple-400 shadow-[0_0_15px_purple] text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white'}`}
+                            >
+                                <i className="fa-solid fa-eye mr-1"></i> God Mode
+                            </button>
+                            <button 
+                                onClick={startHand}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-1.5 rounded-lg font-bold shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all"
+                            >
+                                Deal Hand (Pre-Flop)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Poker Table Area */}
+                    <div className="flex-1 flex items-center justify-center p-4 sm:p-10 relative overflow-hidden">
+                        <div className="w-full max-w-5xl h-[350px] sm:h-[450px] poker-table-ellipse flex items-center justify-center">
+                            
+                            {/* Table Logo */}
+                            <div className="absolute opacity-10 text-white font-black text-5xl tracking-[0.5em] uppercase pointer-events-none">
+                                Elite Club
+                            </div>
+
+                            {/* Pot Area */}
+                            <div className="absolute top-[32%] bg-black/60 px-6 py-2 rounded-full border border-white/10 text-gold-400 font-black flex items-center gap-2 shadow-inner z-10">
+                                <i className="fa-solid fa-coins"></i> Pot: 🪙{gameState.pot}
+                            </div>
+
+                            {/* Community Cards (Board) */}
+                            <div className="absolute top-[50%] transform -translate-y-1/2 flex gap-2 z-10">
+                                {gameState.board.length > 0 ? (
+                                    gameState.board.map((card, i) => <div key={i}>{renderCard(card)}</div>)
+                                ) : (
+                                     [...Array(5)].map((_, i) => (
+                                         <div key={i} className="w-10 h-14 sm:w-12 sm:h-16 border-2 border-white/20 rounded-md border-dashed flex items-center justify-center opacity-30"></div>
+                                     ))
+                                )}
+                            </div>
+
+                            {/* Players Rendering */}
+                            {players.map((p, index) => {
+                                // Calculate positions around the ellipse
+                                const positions = [
+                                    { top: '-50px', left: '50%', transform: 'translateX(-50%)' }, // Top
+                                    { top: '50%', right: '-40px', transform: 'translateY(-50%)' }, // Right
+                                    { bottom: '-50px', left: '50%', transform: 'translateX(-50%)' }, // Bottom (Hero)
+                                    { top: '50%', left: '-40px', transform: 'translateY(-50%)' }, // Left
+                                ];
+                                const pos = positions[index];
+                                const isHero = p.name === 'Hero (You)';
+                                
+                                // Logic to reveal cards: Hero always sees. Others see ONLY if GodMode is ON.
+                                const hideCards = !isHero && !isGodMode;
+
+                                return (
+                                    <div key={p.uid} className="absolute flex flex-col items-center z-20" style={pos}>
+                                        
+                                        {/* Player Cards */}
+                                        <div className="flex gap-1 mb-2">
+                                            {p.cards.length > 0 ? (
+                                                p.cards.map((c, i) => (
+                                                    <div key={i} className={i===1 ? 'ml-[-20px] transform rotate-6 z-20' : '-rotate-6 z-10'}>
+                                                        {renderCard(c, hideCards)}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="h-14"></div> // placeholder height
+                                            )}
+                                        </div>
+
+                                        {/* Avatar Box */}
+                                        <div className={`bg-slate-900 border-2 rounded-xl p-2 min-w-[120px] text-center shadow-2xl relative ${gameState.activeTurnUid === p.uid ? 'border-amber-400 shadow-[0_0_20px_#f59e0b]' : 'border-slate-700'}`}>
+                                            <div className="text-white text-xs font-bold whitespace-nowrap">{p.name}</div>
+                                            <div className="text-emerald-400 text-sm font-black mt-0.5">🪙{p.stack}</div>
+                                            
+                                            {/* Dealer Button Placement */}
+                                            {p.isDealer && (
+                                                <div className="absolute -left-4 -top-4 w-7 h-7 bg-white text-black font-black text-xs rounded-full flex items-center justify-center shadow-[0_2px_5px_rgba(0,0,0,0.8)] border border-slate-300 z-30">D</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Action Buttons for Player (Hero) */}
+                    <div className="p-6 bg-slate-900/80 border-t border-white/10 shrink-0 flex justify-center gap-4 z-20">
+                        <button className="bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white px-8 py-4 rounded-xl font-black shadow-lg border border-slate-600 w-32 transition-colors uppercase tracking-wider text-sm">Fold</button>
+                        <button className="bg-blue-600 text-white hover:bg-blue-500 px-8 py-4 rounded-xl font-black shadow-[0_0_15px_rgba(37,99,235,0.4)] border border-blue-400 w-32 transition-colors uppercase tracking-wider text-sm">Check / Call</button>
+                        <button className="bg-rose-600 text-white hover:bg-rose-500 px-8 py-4 rounded-xl font-black shadow-[0_0_15px_rgba(225,29,72,0.4)] border border-rose-400 w-32 transition-colors uppercase tracking-wider text-sm">Raise</button>
+                    </div>
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<PokerApp />);
+    </script>
+</body>
+</html>
