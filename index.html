@@ -92,6 +92,27 @@
         .loading-dot:nth-child(2) { animation-delay: 0.15s; }
         .loading-dot:nth-child(3) { animation-delay: 0.3s; }
 
+        .board-tile {
+            width: calc(2.25rem * var(--board-scale, 1));
+            height: calc(3rem * var(--board-scale, 1));
+            font-size: calc(1.25rem * var(--board-scale, 1));
+            margin-left: calc(2px * var(--board-scale, 1));
+            margin-right: calc(2px * var(--board-scale, 1));
+            transition: width 0.3s ease, height 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
+        }
+        @media (min-width: 640px) {
+            .board-tile {
+                width: calc(2.75rem * var(--board-scale, 1));
+                height: calc(4rem * var(--board-scale, 1));
+                font-size: calc(1.5rem * var(--board-scale, 1));
+            }
+        }
+        .board-group {
+            padding: calc(0.375rem * var(--board-scale, 1));
+            border-radius: calc(0.5rem * var(--board-scale, 1));
+            transition: padding 0.3s ease, border-radius 0.3s ease;
+        }
+
         /* The Custom Grid for the Player Rack */
         .rack-grid {
             display: grid;
@@ -734,11 +755,28 @@
             const [hoverTarget, setHoverTarget] = useState(null); 
             const [timeLeft, setTimeLeft] = useState(60);
             const [showVictory, setShowVictory] = useState(false);
+            
             const longPressTimer = useRef(null);
+            const dragDataRef = useRef(null);
             const synthRef = useRef(null);
             const tableRef = useRef(null);
 
-            // המוח החדש של האווטארים - עכשיו הם מצטרפים אליך לשולחן!
+            const boardScale = useMemo(() => {
+                if (!board || board.length === 0) return 1.0;
+                const totalTiles = board.reduce((sum, g) => sum + g.length, 0);
+                const numGroups = board.length;
+                
+                // Base factor is 1.3 to give a buffer before shrinking begins
+                const scale = 1.3 - (numGroups * 0.04 + totalTiles * 0.015);
+                
+                // Bounds: Max 1.0 (Normal size), Min 0.45 (45% of original size to remain legible)
+                return Math.max(0.45, Math.min(1.0, scale));
+            }, [board]);
+
+            // Ref for Drag to prevent Race Conditions
+            useEffect(() => { dragDataRef.current = dragData; }, [dragData]);
+
+            // Bot Brain - Joining Table
             useEffect(() => {
                 if (user.role !== ROLES.SUPER_ADMIN || tableState?.phase !== 'waiting') return;
                 
@@ -765,7 +803,6 @@
                     const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: true } };
                     const updates = { players: newPlayers };
                     
-                    // מתחילים את המשחק אם השולחן התמלא
                     if (Object.keys(newPlayers).length === t.maxPlayers) {
                         const d = generateDeck();
                         const uids = Object.keys(newPlayers);
@@ -781,11 +818,12 @@
                     }
                     
                     await window.fb.updateDoc(tblRef, updates);
-                }, 3000); // בודק כל 3 שניות כדי להאיץ את הטסטים
+                }, 3000); 
                 
                 return () => clearInterval(interval);
             }, [tableState?.phase, user.role, tableDocId]);
 
+            // Real-time table sync (No race conditions!)
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
@@ -802,7 +840,9 @@
 
             useEffect(() => {
                 if(!tableState) return;
-                if (!dragData) {
+                
+                // Only update visual board if user is NOT currently dragging an item!
+                if (!dragDataRef.current) {
                     setBoard(tableState.board || []);
                     const dbCards = tableState.players?.[user.uid]?.cards || [];
                     const fullRack = [...dbCards];
@@ -819,8 +859,9 @@
                     }
                 }
                 setShowVictory(tableState.phase === 'showdown');
-            }, [tableState, dragData, user.uid]);
+            }, [tableState, user.uid]); // Removed dragData to prevent snapping
 
+            // Timer & Bot Autoplay Loop
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
@@ -834,7 +875,7 @@
                                 if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume();
                                 if (!synthRef.current && window.Tone) {
                                     synthRef.current = new window.Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
-                                    synthRef.current.volume.value = -10;
+                                    synthRef.current.volume.value = -15;
                                 }
                                 synthRef.current?.triggerAttackRelease("E6", "0.05");
                             } catch(e) {}
@@ -848,7 +889,6 @@
                 return () => clearInterval(interval);
             }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
 
-            // Bot Brain (Auto Play)
             useEffect(() => {
                 if (tableState?.phase === 'playing' && user.role === ROLES.SUPER_ADMIN) {
                     const currentUid = tableState.currentTurn;
@@ -881,7 +921,7 @@
                                     turnStartedAt: Date.now() 
                                 });
                             } catch(e) {}
-                        }, 4000); // 4 seconds think time
+                        }, 4000);
                         return () => clearTimeout(botTimer);
                     }
                 }
@@ -914,25 +954,29 @@
 
             useEffect(() => {
                 const handlePointerMove = (e) => { 
-                    if (dragData) { 
+                    if (dragDataRef.current) { 
                         setDragPos({ x: e.clientX, y: e.clientY }); 
                         
-                        // Ignore tiny micro-jitters so long press works on touchscreens
+                        // Buffer for Long Press - Ignores tiny finger jitters
                         if (longPressTimer.current) {
-                            const dist = Math.hypot(e.clientX - dragData.startX, e.clientY - dragData.startY);
-                            if (dist > 15) { 
+                            const dist = Math.hypot(e.clientX - dragDataRef.current.startX, e.clientY - dragDataRef.current.startY);
+                            if (dist > 8) { // 8 pixels wiggle room
                                 clearTimeout(longPressTimer.current);
                                 longPressTimer.current = null;
                             }
                         } 
 
-                        // X-Ray detection through the ghost tile
+                        // X-Ray detection through the ghost tile (Perfect hit testing)
                         const ghost = document.getElementById('drag-ghost');
                         const ghostGroup = document.getElementById('drag-ghost-group');
-                        if(ghost) ghost.style.pointerEvents = 'none';
-                        if(ghostGroup) ghostGroup.style.pointerEvents = 'none';
+                        if(ghost) ghost.style.visibility = 'hidden';
+                        if(ghostGroup) ghostGroup.style.visibility = 'hidden';
 
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
+                        
+                        if(ghost) ghost.style.visibility = 'visible';
+                        if(ghostGroup) ghostGroup.style.visibility = 'visible';
+
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
                             if (dropZone) setHoverTarget(dropZone.getAttribute('data-drop'));
@@ -943,9 +987,18 @@
                 
                 const handlePointerUp = async (e) => {
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                    if (!dragData) return;
+                    const currentDrag = dragDataRef.current;
+                    if (!currentDrag) return;
                     
+                    // Ultimate Hit Test
+                    const ghost = document.getElementById('drag-ghost');
+                    const ghostGroup = document.getElementById('drag-ghost-group');
+                    if (ghost) ghost.style.visibility = 'hidden';
+                    if (ghostGroup) ghostGroup.style.visibility = 'hidden';
                     const elemUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    if (ghost) ghost.style.visibility = 'visible';
+                    if (ghostGroup) ghostGroup.style.visibility = 'visible';
+
                     const dropZone = elemUnder ? elemUnder.closest('[data-drop]') : null;
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
@@ -954,7 +1007,7 @@
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            if (!actualTarget || !actualTarget.startsWith('board-group-')) {
+                            if (!actualTarget || (!actualTarget.startsWith('board-group-') && !actualTarget.startsWith('rack'))) {
                                 actualTarget = 'board-new';
                             }
                         }
@@ -962,62 +1015,64 @@
 
                     const isMyTurn = tableState?.currentTurn === user.uid;
 
-                    // Prevent illegal board moves outside turn
-                    if (!isMyTurn && (actualTarget === 'board-new' || actualTarget?.startsWith('board-group-'))) {
-                        showToast("המתן לתורך כדי להוריד אבנים לשולחן", "error");
-                        actualTarget = null; // Forces return to rack
+                    // Turn protection: Can arrange rack, but cannot touch board outside of turn
+                    if (!isMyTurn) {
+                        if (actualTarget === 'board-new' || actualTarget?.startsWith('board-group-') || currentDrag.source === 'board') {
+                            showToast("המתן לתורך כדי להוריד או לשנות אבנים בשולחן", "error");
+                            actualTarget = null; // Forces return to source
+                        }
                     }
                     
                     let newRack = [...rack]; 
                     let newBoard = board.map(g => [...g]);
                     
-                    if (dragData.type === 'single') {
-                        if (dragData.source === 'rack') newRack[dragData.tileIndex] = null;
-                        else if (dragData.source === 'board') {
-                            const grp = newBoard[dragData.groupIndex];
-                            const tIdx = dragData.tileIndex;
+                    if (currentDrag.type === 'single') {
+                        if (currentDrag.source === 'rack') newRack[currentDrag.tileIndex] = null;
+                        else if (currentDrag.source === 'board') {
+                            const grp = newBoard[currentDrag.groupIndex];
+                            const tIdx = currentDrag.tileIndex;
                             if (tIdx > 0 && tIdx < grp.length - 1 && grp.length >= 4) {
                                 const left = grp.slice(0, tIdx); const right = grp.slice(tIdx + 1);
-                                newBoard.splice(dragData.groupIndex, 1, left, right);
+                                newBoard.splice(currentDrag.groupIndex, 1, left, right);
                             } else {
                                 grp.splice(tIdx, 1);
-                                if (grp.length === 0) newBoard.splice(dragData.groupIndex, 1);
+                                if (grp.length === 0) newBoard.splice(currentDrag.groupIndex, 1);
                             }
                         }
 
                         if (actualTarget && actualTarget.startsWith('board-group-')) {
                             const targetIdx = parseInt(actualTarget.split('-')[2]);
-                            const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
-                            if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
+                            const actualIdx = (currentDrag.source === 'board' && currentDrag.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
+                            if (newBoard[actualIdx]) newBoard[actualIdx].push(currentDrag.tile); else newBoard.push([currentDrag.tile]);
                         } 
-                        else if (actualTarget === 'board-new') newBoard.push([dragData.tile]);
+                        else if (actualTarget === 'board-new') newBoard.push([currentDrag.tile]);
                         else if (actualTarget && actualTarget.startsWith('rack-slot-')) {
                             let slotIdx = parseInt(actualTarget.split('-')[2]);
-                            if (newRack[slotIdx] !== null && dragData.source === 'rack') {
-                                newRack[dragData.tileIndex] = newRack[slotIdx]; // Swap
+                            if (newRack[slotIdx] !== null && currentDrag.source === 'rack') {
+                                newRack[currentDrag.tileIndex] = newRack[slotIdx]; // Swap
                             } else if (newRack[slotIdx] !== null) {
                                 const nextEmpty = newRack.findIndex(t=>t===null);
                                 if(nextEmpty !== -1) slotIdx = nextEmpty;
                             }
-                            newRack[slotIdx] = dragData.tile;
+                            newRack[slotIdx] = currentDrag.tile;
                         }
-                        else if (dragData.source === 'rack') newRack[dragData.tileIndex] = dragData.tile;
+                        else if (currentDrag.source === 'rack') newRack[currentDrag.tileIndex] = currentDrag.tile;
                         // Returns from board to first empty rack slot
-                        else if (dragData.source === 'board') {
+                        else if (currentDrag.source === 'board') {
                             const nextEmpty = newRack.findIndex(t=>t===null);
-                            if (nextEmpty !== -1) newRack[nextEmpty] = dragData.tile;
+                            if (nextEmpty !== -1) newRack[nextEmpty] = currentDrag.tile;
                         }
                     } 
-                    else if (dragData.type === 'group') {
-                        const groupTiles = dragData.tiles;
-                        if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 1);
+                    else if (currentDrag.type === 'group') {
+                        const groupTiles = currentDrag.tiles;
+                        if (currentDrag.source === 'board') newBoard.splice(currentDrag.groupIndex, 1);
                         
                         if (actualTarget && actualTarget.startsWith('board-group-')) {
                             const targetIdx = parseInt(actualTarget.split('-')[2]);
-                            const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
+                            const actualIdx = (currentDrag.source === 'board' && currentDrag.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(...groupTiles); else newBoard.push([...groupTiles]);
                         } else if (actualTarget === 'board-new') newBoard.push([...groupTiles]);
-                        else if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 0, groupTiles); 
+                        else if (currentDrag.source === 'board') newBoard.splice(currentDrag.groupIndex, 0, groupTiles); 
                     }
                     
                     setRack(newRack); 
@@ -1025,8 +1080,8 @@
                     setDragData(null); 
                     setHoverTarget(null);
                     
-                    // Live Sync! Update Firebase immediately
-                    if (tableState?.id) {
+                    // Live Sync! Update Firebase immediately if it's my turn
+                    if (tableState?.id && (isMyTurn || currentDrag.source === 'rack')) {
                         try {
                             await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
                                 board: newBoard,
@@ -1050,7 +1105,8 @@
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId); 
                 try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
 
-                setDragData({ type: 'single', tile, source, groupIndex, tileIndex, startX: e.clientX, startY: e.clientY }); 
+                const dragObj = { type: 'single', tile, source, groupIndex, tileIndex, startX: e.clientX, startY: e.clientY };
+                setDragData(dragObj); 
                 setDragPos({ x: e.clientX, y: e.clientY });
                 
                 // Long press logic applies ONLY to board tiles
@@ -1058,7 +1114,7 @@
                     longPressTimer.current = setTimeout(() => {
                         if (navigator.vibrate) navigator.vibrate(50);
                         setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex, startX: e.clientX, startY: e.clientY });
-                    }, 400); 
+                    }, 500); // 0.5s for long press
                 }
             };
 
@@ -1172,7 +1228,6 @@
                     } else return showToast("לא ירדת, חובה למשוך קופה.", "error");
                 }
 
-                // Victory Condition
                 if (activeRackCount === 0) {
                     const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
                     const adminSnaps = await window.fb.getDocs(adminQ);
@@ -1207,9 +1262,7 @@
                         t.update(tblRef, updates);
                         
                         for (const [uid, pData] of Object.entries(tableState.players)) {
-                            // Don't update bot stats to save DB writes
                             if (pData.isBot) continue;
-
                             const uRef = window.fb.doc(window.fb.db, "users", uid);
                             const uSnap = await t.get(uRef);
                             if (uSnap.exists()) {
@@ -1223,7 +1276,6 @@
                             }
                         }
 
-                        // Pay the Club Owner
                         if (superAdminRef) {
                             const adminSnap = await t.get(superAdminRef);
                             t.update(superAdminRef, {
@@ -1346,7 +1398,7 @@
             const isMyTurn = tableState.currentTurn === user.uid;
 
             return (
-                <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
+                <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d' }}>
                     
                     {/* Header */}
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
@@ -1365,13 +1417,13 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 relative flex flex-col p-2 sm:p-4 pb-0">
+                    <div className="flex-1 relative flex flex-col p-2 sm:p-4 pb-0 overflow-hidden">
                         
                         {/* The Felt (Board) Drop Zone with Geometry Bounding */}
                         <div 
                             id="felt-board"
                             data-drop="board-new" 
-                            className={`flex-1 relative rounded-t-3xl border-4 flex flex-col items-center overflow-hidden transition-colors ${hoverTarget === 'board-new' ? 'border-emerald-500/70 bg-slate-900/60 shadow-[inset_0_0_50px_rgba(16,185,129,0.2)]' : 'border-emerald-500/30 bg-slate-900/40 shadow-inner'}`}
+                            className={`flex-1 relative rounded-t-3xl border-4 flex flex-col items-center transition-colors overflow-y-auto ${hoverTarget === 'board-new' ? 'border-emerald-500/70 bg-slate-900/60 shadow-[inset_0_0_50px_rgba(16,185,129,0.2)]' : 'border-emerald-500/30 bg-slate-900/40 shadow-inner'}`}
                         >
                             
                             {/* Sports Arena Clock */}
@@ -1501,14 +1553,15 @@
                                  </div>
                             )}
                             
+                            {}
                             {isPlaying && (
-                                <div className="mt-32 w-full flex flex-wrap gap-4 items-start p-2 pb-32 overflow-y-auto h-full scrollbar-hide">
+                                <div className="mt-32 w-full flex flex-wrap justify-center gap-4 items-start p-2 pb-64 overflow-y-auto h-full relative" style={{ minHeight: '120%', '--board-scale': boardScale }}>
                                     {board.map((group, gIdx) => (
-                                        <div key={gIdx} data-drop={`board-group-${gIdx}`} className={`flex bg-slate-900/30 p-1.5 rounded-lg border transition-colors ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500/50 bg-emerald-500/10 scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800'}`}>
+                                        <div key={gIdx} data-drop={`board-group-${gIdx}`} className={`flex bg-slate-900/30 border transition-colors board-group ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500/50 bg-emerald-500/10 scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800'}`}>
                                             {group.map((t, tIdx) => (
                                                 <div key={t.id} 
                                                      onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} 
-                                                     className={`rummy-tile w-9 h-12 sm:w-11 sm:h-16 flex items-center justify-center text-xl sm:text-2xl mx-[1px] ${dragData?.type === 'group' && dragData.groupIndex === gIdx ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
+                                                     className={`rummy-tile board-tile flex items-center justify-center ${dragData?.type === 'group' && dragData.groupIndex === gIdx ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
                                                      style={{ color: t.color }}>{t.val}</div>
                                             ))}
                                         </div>
@@ -1548,13 +1601,13 @@
                         </div>
                     </div>
                     
-                    {/* Ghost Elements (X-Ray transparent) */}
+                    {/* Ghost Elements (X-Ray transparent during hit testing) */}
                     {dragData && dragData.type === 'single' && (
                         <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
                     )}
                     {dragData && dragData.type === 'group' && (
-                        <div id="drag-ghost-group" className="fixed z-[9999] flex bg-slate-900/60 p-1.5 rounded-xl border border-emerald-500/50 shadow-2xl scale-110 backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
-                            {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-9 h-12 flex items-center justify-center text-xl mx-[1px]" style={{ color: t.color }}>{t.val}</div>))}
+                        <div id="drag-ghost-group" className="fixed z-[9999] flex bg-slate-900/60 p-2 rounded-xl border border-emerald-500/50 shadow-2xl scale-110 backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
+                            {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl mx-0.5" style={{ color: t.color }}>{t.val}</div>))}
                         </div>
                     )}
                 </div>
