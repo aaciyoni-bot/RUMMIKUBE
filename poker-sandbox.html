@@ -86,6 +86,12 @@
         
         .animated-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
         @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
+
+        @keyframes wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .loading-dot { display: inline-block; animation: wave 1.2s infinite ease-in-out; }
+        .loading-dot:nth-child(1) { animation-delay: 0s; }
+        .loading-dot:nth-child(2) { animation-delay: 0.15s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.3s; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -365,7 +371,7 @@
                 e.stopPropagation(); 
                 const playersCount = Object.keys(t.players || {}).length;
                 if (playersCount > 0 || t.phase === 'playing') {
-                    if (!window.confirm(`⚠️ אזהרה חמורה!\nיש כרגע ${playersCount} שחקנים שיושבים בשולחן הזה (או שהמשחק באוויר).\nאם תמחק את השולחן, הכסף שלהם עלול לא לחזור לארנק!\nהאם אתה בטוח שברצונך למחוק?`)) return;
+                    if (!window.confirm(`⚠️ חכה רגע!\nיש כרגע ${playersCount} שחקנים שיושבים בשולחן הזה (או שהמשחק באוויר).\nאם תמחק את השולחן, הכסף שלהם עלול לא לחזור לארנק!\nהאם אתה בטוח שברצונך למחוק?`)) return;
                 } else {
                     if (!window.confirm("למחוק שולחן זה?")) return;
                 }
@@ -586,7 +592,6 @@
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* העברת כספים */}
                             <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 h-fit">
                                 <h3 className="font-bold text-white mb-5 text-sm flex items-center gap-2"><i className="fa-solid fa-money-bill-transfer text-emerald-500"></i> העברת צ'יפים לשחקן</h3>
                                 <div className="space-y-4">
@@ -611,7 +616,6 @@
                             </div>
 
                             <div className="flex flex-col gap-6">
-                                {/* ממתינים */}
                                 <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col max-h-[250px]">
                                     <h3 className="font-bold text-white mb-4 text-sm flex items-center gap-2"><i className="fa-solid fa-user-check text-amber-500"></i> בקשות הצטרפות</h3>
                                     <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -628,8 +632,7 @@
                                     </div>
                                 </div>
 
-                                {/* ניהול תפקידים */}
-                                {user.role === ROLES.SUPER_ADMIN && (
+                                {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
                                     <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col max-h-[250px]">
                                         <h3 className="font-bold text-white mb-4 text-sm flex items-center gap-2"><i className="fa-solid fa-users-gear text-blue-500"></i> ניהול תפקידים וסוכנים</h3>
                                         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -759,14 +762,12 @@
                 return board.every(g => validateGroup(g)); 
             }, [board]);
 
-            // === SMART DRAG & DROP WITH TOUCH SUPPORT ===
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { 
                         setDragPos({ x: e.clientX, y: e.clientY }); 
                         if(longPressTimer.current) clearTimeout(longPressTimer.current); 
                         
-                        // Element detection that works on mobile touch!
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
@@ -825,7 +826,7 @@
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
                 if (tableState.currentTurn !== user.uid) return showToast("המתן לתורך", "error");
-                if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId); // Fix touch dragging
+                if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId); 
                 
                 try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
 
@@ -838,7 +839,6 @@
                 }
             };
 
-            // === FIX: PERFECT SORTING (Updates DB so it doesn't snap back) ===
             const handleSort777 = async () => {
                 if (!tableState || !tableState.players[user.uid]) return;
                 const sorted = [...rack].sort((a,b) => {
@@ -868,7 +868,6 @@
                     [`players.${user.uid}.cards`]: sorted
                 });
             };
-
 
             const generateDeck = () => {
                 const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0f172a'];
@@ -995,18 +994,68 @@
 
             const handleLeave = async () => {
                 if (!tableState?.players?.[user.uid]) { onLeave(); return; }
-                if (tableState.phase === 'playing') { showToast("אי אפשר לקום באמצע יד חיה", "error"); return; }
+                const isPlaying = tableState.phase === 'playing';
+
+                if (isPlaying) {
+                    if (!window.confirm("⚠️ אזהרה חמורה!\nפרישה באמצע משחק (כניעה) תגרום לאובדן מלא של כל הצ'יפים שלך בשולחן.\nהאם אתה בטוח שברצונך להיכנע ולצאת?")) {
+                        return;
+                    }
+                }
+
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const uRef = window.fb.doc(window.fb.db, "users", user.uid);
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const myStack = (await t.get(tblRef)).data().players[user.uid]?.stack || 0;
-                        let newP = { ...(await t.get(tblRef)).data().players }; delete newP[user.uid];
-                        t.update(uRef, { balance: (await t.get(uRef)).data().balance + myStack });
-                        t.update(tblRef, { players: newP });
+                        
+                        const tblSnap = await t.get(tblRef);
+                        const uSnap = await t.get(uRef);
+                        
+                        const tblData = tblSnap.data();
+                        const myStack = tblData.players[user.uid]?.stack || 0;
+                        
+                        let newP = { ...tblData.players }; 
+                        delete newP[user.uid];
+                        
+                        const updates = { players: newP };
+
+                        if (!isPlaying) {
+                            // Refund buy-in if game hasn't started yet
+                            t.update(uRef, { balance: uSnap.data().balance + myStack });
+                        } else {
+                            // Surrender Logic Mid-Game
+                            const remainingUids = Object.keys(newP);
+                            
+                            // Pass turn if it was my turn
+                            if (tblData.currentTurn === user.uid && remainingUids.length > 1) {
+                                const origUids = Object.keys(tblData.players);
+                                let myIdx = origUids.indexOf(user.uid);
+                                let nextTurn = origUids[(myIdx + 1) % origUids.length];
+                                while (!newP[nextTurn]) {
+                                    myIdx++;
+                                    nextTurn = origUids[(myIdx + 1) % origUids.length];
+                                }
+                                updates.currentTurn = nextTurn;
+                                updates.turnStartedAt = Date.now();
+                            }
+
+                            // If only 1 player remains after surrender, they win immediately
+                            if (remainingUids.length === 1) {
+                                const winnerUid = remainingUids[0];
+                                updates.phase = 'showdown';
+                                updates.winner = winnerUid;
+                                newP[winnerUid].stack += myStack; // They take the surrendered money
+                                updates.lastResults = { winnerProfit: myStack, rake: 0, totalPot: myStack };
+                            }
+                        }
+                        
+                        t.update(tblRef, updates);
                     });
+                    
+                    showToast(isPlaying ? "נכנעת ויצאת מהמשחק." : "קמת מהשולחן.", "info");
                     onLeave();
-                } catch(e) {}
+                } catch(e) {
+                    showToast("שגיאה ביציאה מהשולחן", "error");
+                }
             };
 
             if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
@@ -1018,10 +1067,10 @@
             return (
                 <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
                     
-                    {/* Header */}
+                    {/* Minimalist Header */}
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
                         <div className="flex gap-2">
-                            <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? 'קום מהשולחן' : 'חזור ללובי'}</button>
+                            <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? 'כניעה / עזוב שולחן' : 'קום מהשולחן') : 'חזור ללובי'}</button>
                             {user.role === ROLES.SUPER_ADMIN && (
                                 <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1.5 rounded text-sm font-bold border transition-colors ${isGodMode ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_purple] animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
                             )}
@@ -1038,21 +1087,24 @@
                     {/* Board Area */}
                     <div className="flex-1 relative flex flex-col" data-drop="board-new">
                         
-                        {/* Center Anchor */}
+                        {/* Center Anchor & Loading Message */}
                         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0">
-                            <div className="flex flex-col items-center justify-center mb-8 opacity-30">
-                                <div className="flex -space-x-3 mb-2">
-                                    <div className="w-8 h-12 rounded border-2 border-white/20 bg-white/5 transform -rotate-12"></div>
-                                    <div className="w-8 h-12 rounded border-2 border-white/30 bg-white/10 shadow-lg z-10"></div>
-                                    <div className="w-8 h-12 rounded border-2 border-white/20 bg-white/5 transform rotate-12"></div>
+                            {tableState.phase === 'playing' ? (
+                                <div className="flex flex-col items-center justify-center mb-8 opacity-30">
+                                    <div className="flex -space-x-3 mb-2">
+                                        <div className="w-8 h-12 rounded-md border-2 border-slate-400/30 bg-white/5 transform -rotate-12 backdrop-blur-sm"></div>
+                                        <div className="w-8 h-12 rounded-md border-2 border-emerald-400/40 bg-emerald-900/20 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 backdrop-blur-sm"></div>
+                                        <div className="w-8 h-12 rounded-md border-2 border-slate-400/30 bg-white/5 transform rotate-12 backdrop-blur-sm"></div>
+                                    </div>
+                                    <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase">קופה</span>
                                 </div>
-                                <span className="text-white font-bold text-[10px] tracking-[0.3em] uppercase">קופה</span>
-                            </div>
-                            
-                            {tableState.phase === 'waiting' && (
-                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center animate-fade-in">
-                                    <h2 className="text-lg sm:text-xl font-bold text-emerald-400 flex items-center justify-center">
-                                        ממתינים לשחקנים<span className="animated-dots w-4 sm:w-6 text-left"></span>
+                            ) : (
+                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center">
+                                    <h2 className="text-lg sm:text-xl font-bold text-emerald-400 flex items-center justify-center gap-1">
+                                        ממתינים לשחקנים 
+                                        <span className="flex items-end h-full gap-0.5 ml-1">
+                                            <span className="loading-dot">.</span><span className="loading-dot">.</span><span className="loading-dot">.</span>
+                                        </span>
                                     </h2>
                                     <p className="text-slate-400 text-xs sm:text-sm mt-2 font-medium">
                                         {Object.keys(tableState.players||{}).length} מתוך {tableState.maxPlayers} התיישבו
@@ -1061,7 +1113,7 @@
                             )}
                         </div>
 
-                        {/* Opponents & Seats Avatars */}
+                        {}
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-start gap-4 sm:gap-12 z-10">
                             {[...Array(Number(tableState.maxPlayers) || 4)].map((_, i) => {
                                 const seatedPlayers = Object.entries(tableState.players || {});
@@ -1084,11 +1136,12 @@
                                     <div key={i} className={`flex flex-col items-center transition-all relative ${isTurn ? 'scale-110' : ''}`}>
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 mb-1 flex items-center justify-center relative shadow-lg ${isMe ? 'bg-emerald-900 border-emerald-400 shadow-[0_0_15px_#10b981]' : isTurn ? 'bg-slate-800 border-emerald-500 ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : 'bg-slate-800 border-slate-500'}`}>
                                             <i className={`fa-solid fa-user text-sm sm:text-lg ${isTurn ? 'text-white' : 'text-slate-300'}`}></i>
-                                            {isMe && <div className="absolute -bottom-2 bg-emerald-500 text-slate-950 text-[9px] font-black px-1.5 rounded-sm shadow-md">אתה</div>}
+                                            {isMe && <div className="absolute -bottom-2 bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-md">אתה</div>}
                                         </div>
                                         <span className={`text-[10px] sm:text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'} mt-1`}>
                                             {pData[1].username}
                                         </span>
+                                        
                                         {tableState.phase === 'playing' && (
                                             <div className="relative flex flex-col items-center">
                                                 <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold bg-slate-900 px-2 rounded-full mt-0.5 border border-slate-700">
@@ -1096,15 +1149,16 @@
                                                 </span>
                                             </div>
                                         )}
-                                        {/* GOD MODE REVEAL POPUP - NOW FIXED AND HIGH Z-INDEX */}
+
                                         {isGodMode && !isMe && pData[1].cards && (
                                             <div className="absolute top-full mt-4 w-[160px] flex flex-wrap justify-center gap-[2px] bg-purple-950/95 p-2 rounded-xl border-2 border-purple-400 shadow-[0_0_40px_purple] z-[9999]">
-                                                <div className="w-full text-center text-[9px] text-purple-200 font-black mb-1 uppercase tracking-widest border-b border-purple-500/50 pb-1">God Mode</div>
+                                                <div className="w-full text-center text-[9px] text-purple-200 font-black mb-1 uppercase tracking-widest border-b border-purple-500/50 pb-1">God Mode (לעיניך בלבד)</div>
                                                 {pData[1].cards.map((c, idx) => (
                                                     <div key={idx} className="w-5 h-7 bg-white rounded flex flex-col items-center justify-center text-[12px] font-bold shadow-md" style={{ color: c.color }}>
                                                         <span>{c.val}</span>
                                                     </div>
                                                 ))}
+                                                {pData[1].cards.length === 0 && <span className="text-[10px] text-purple-400">אין אבנים</span>}
                                             </div>
                                         )}
                                     </div>
@@ -1171,7 +1225,6 @@
                                            <span className={`font-bold text-xs z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
                                        </div>
                                    )}
-                                   {/* FIX: NEW SORTING BUTTONS */}
                                    <div className="flex gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 shadow-md">
                                        <button onClick={handleSort777} className="bg-slate-800 text-slate-400 px-2 h-8 rounded font-medium text-[10px] hover:text-white transition-colors" title="סדר לפי מספרים (777)">סדר 🔢</button>
                                        <button onClick={handleSort789} className="bg-slate-800 text-slate-400 px-2 h-8 rounded font-medium text-[10px] hover:text-white transition-colors flex items-center gap-1" title="סדר לפי צד (789)"><span className="text-blue-500">■</span><span className="text-red-500">■</span></button>
@@ -1192,7 +1245,7 @@
                         </div>
                     </div>
                     
-                    {/* Drag Ghost (Now with pointer-events-none to fix Touch) */}
+                    {}
                     {dragData && dragData.type === 'single' && (
                         <div id="drag-ghost" className="fixed pointer-events-none z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color }}>{dragData.tile.val}</div>
                     )}
