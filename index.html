@@ -83,6 +83,10 @@
         }
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
+        
+        /* Animated dots for waiting screen */
+        .animated-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+        @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -114,15 +118,14 @@
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
-        // Bulletproof formatMoney to handle legacy string data without crashing
         const formatMoney = (amount) => {
             if (amount === undefined || amount === null) return '0';
             const num = Number(amount);
-            if (isNaN(num)) return String(amount); // Protects against legacy data like '10/20'
+            if (isNaN(num)) return String(amount); // Protects against legacy text data
             if (num === 0) return '0';
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
             if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-            if (num % 1 !== 0) return num.toFixed(2);
+            if (num % 1 !== 0) return num.toFixed(2); // Show pennies/cents
             return num.toLocaleString();
         };
 
@@ -136,12 +139,11 @@
         function App() {
             const [fbReady, setFbReady] = useState(false);
             const [dbUser, setDbUser] = useState(null);
-            const [currentView, setCurrentView] = useState('auth'); // auth, pending, lobby, backoffice, profile, table
+            const [currentView, setCurrentView] = useState('auth'); 
             const [tablesDB, setTablesDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
             const [toasts, setToasts] = useState([]);
             
-            // Reference to track real currentView for stale closures
             const viewRef = useRef(currentView);
             useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
@@ -151,7 +153,6 @@
                 setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 4000);
             };
 
-            // Smart Routing
             const changeView = (view, tableObj = null) => {
                 setCurrentView(view);
                 setActiveTable(tableObj);
@@ -217,8 +218,6 @@
                     if(d.exists()) {
                         const data = d.data(); 
                         setDbUser({ uid: d.id, ...data });
-                        
-                        // ONLY route from login screens, don't interrupt active sessions
                         if(data.status === 'pending') changeView('pending');
                         else if (viewRef.current === 'auth' || viewRef.current === 'pending') {
                             changeView('lobby');
@@ -362,11 +361,15 @@
                 setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
             };
 
-            const handleDelete = async (e, id) => {
+            const handleDelete = async (e, t) => {
                 e.stopPropagation(); 
-                if (window.confirm("למחוק שולחן זה מהמועדון? (למנהלים בלבד)")) {
-                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", id));
+                const playersCount = Object.keys(t.players || {}).length;
+                if (playersCount > 0 || t.phase === 'playing') {
+                    if (!window.confirm(`⚠️ אזהרה: יש שחקנים בשולחן או שהמשחק פעיל!\nהאם אתה בטוח שאתה רוצה למחוק ולזרוק אותם?`)) return;
+                } else {
+                    if (!window.confirm("למחוק שולחן זה?")) return;
                 }
+                await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", t.docId));
             };
 
             return (
@@ -375,7 +378,7 @@
                         <div className="flex justify-between items-center mb-8">
                             <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
                                 <span className="w-4 h-4 rounded-full bg-emerald-500 shadow-[0_0_15px_#10b981] animate-pulse"></span>
-                                שולחנות רמיקוב
+                                שולחנות קאש
                             </h2>
                             {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(user.role) && (
                                 <button onClick={()=>setShowCreate(!showCreate)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-transform hover:scale-105 flex items-center text-sm">
@@ -423,16 +426,15 @@
                                 <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all group border border-white/10 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
                                     
-                                    {/* Delete Button for Admins */}
                                     {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
-                                        <button onClick={(e) => handleDelete(e, t.docId)} className="absolute top-3 left-3 w-8 h-8 rounded bg-slate-800/80 text-slate-500 hover:text-rose-400 transition-colors flex items-center justify-center z-10" title="מחק שולחן">
+                                        <button onClick={(e) => handleDelete(e, t)} className="absolute top-3 left-3 w-8 h-8 rounded bg-slate-800/80 text-slate-500 hover:text-rose-400 transition-colors flex items-center justify-center z-10" title="מחק שולחן">
                                             <i className="fa-solid fa-trash text-xs"></i>
                                         </button>
                                     )}
 
-                                    {/* Seat Indicator */}
+                                    {/* SEAT INDICATOR */}
                                     {t.players && t.players[user.uid] && (
-                                        <div className="absolute top-3 right-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold">
+                                        <div className="absolute top-3 right-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold z-10">
                                             🟢 אתה יושב כאן
                                         </div>
                                     )}
@@ -447,7 +449,7 @@
                                         </div>
                                     </div>
                                     
-                                    {/* Avatar list showing who is seated */}
+                                    {/* Showing Avatars */}
                                     <div className="flex -space-x-2 mb-6 h-8 items-center">
                                         {Object.values(t.players || {}).length > 0 ? (
                                             Object.values(t.players || {}).map((p, i) => (
@@ -533,7 +535,6 @@
                 } catch (e) { showToast(typeof e === 'string' ? e : "שגיאה בביצוע ההעברה.", "error"); }
             };
 
-            // Excel Export with Date Filtering
             const exportToExcel = () => {
                 let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
                 csvContent += "שם שחקן,תפקיד,יתרת צ'יפים,סטטוס,רווח כולל,משחקים ששוחקו\n";
@@ -720,6 +721,7 @@
                 setShowVictory(tableState.phase === 'showdown');
             }, [tableState, dragData, user.uid]);
 
+            // Timer & Sound Loop
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
@@ -774,6 +776,7 @@
                 return board.every(g => validateGroup(g)); 
             }, [board]);
 
+            // Drag and Drop implementation
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { setDragPos({ x: e.clientX, y: e.clientY }); if(longPressTimer.current) clearTimeout(longPressTimer.current); } 
@@ -840,7 +843,6 @@
                 if (tableState.currentTurn !== user.uid) return showToast("המתן לתורך", "error");
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
                 
-                // Safe ToneJS initialization
                 try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
 
                 setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
@@ -861,14 +863,12 @@
             };
 
             const handleSit = async () => {
-                // Check if already seated somewhere else to prevent double-sitting
                 const activeTablesSnap = await window.fb.getDocs(window.fb.collection(window.fb.db, "tables"));
                 let alreadySeated = false;
                 activeTablesSnap.forEach(doc => {
                     const tData = doc.data();
                     if (tData.players && tData.players[user.uid]) alreadySeated = true;
                 });
-                
                 if (alreadySeated) return showToast("אתה כבר יושב בשולחן אחר. קום ממנו קודם.", "error");
 
                 try { 
@@ -926,7 +926,7 @@
                     } else return showToast("לא ירדת, חובה למשוך קופה.", "error");
                 }
 
-                if (rack.length === 0) { // WIN & SETTLEMENT
+                if (rack.length === 0) { // WIN
                     const losers = Object.entries(tableState.players).filter(([uid]) => uid !== user.uid);
                     let totalPot = 0; const updates = {};
                     const stakesNum = Number(tableState.stakes) || 0.1;
@@ -936,11 +936,10 @@
                          let penalty = Math.min(dw * stakesNum, pData.stack); 
                          updates[`players.${uid}.stack`] = pData.stack - penalty;
                          totalPot += penalty;
-                         // Update Loser Stats
                          updates[`stats.${uid}`] = { incrementGames: 1, profit: -penalty };
                     });
                     
-                    const rake = totalPot * 0.06; // 6% Rake
+                    const rake = totalPot * 0.06;
                     const winnerProfit = totalPot - rake;
                     
                     updates[`players.${user.uid}.stack`] = tableState.players[user.uid].stack + winnerProfit;
@@ -949,16 +948,11 @@
                     updates.board = board; 
                     updates.winner = user.uid; 
                     updates.lastResults = { winnerProfit, rake, totalPot };
-                    
-                    // Update Winner Stats
                     updates[`stats.${user.uid}`] = { incrementGames: 1, incrementWins: 1, profit: winnerProfit };
 
-                    // Execute updates in Firebase safely
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                         t.update(tblRef, updates);
-                        
-                        // Update individual user stats
                         for (const [uid, pData] of Object.entries(tableState.players)) {
                             const uRef = window.fb.doc(window.fb.db, "users", uid);
                             const uSnap = await t.get(uRef);
@@ -1004,7 +998,6 @@
             const isSeated = tableState?.players?.[user.uid] !== undefined;
             const isPlaying = tableState.phase === 'playing';
             const isMyTurn = tableState.currentTurn === user.uid;
-            const opponents = Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid);
 
             return (
                 <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
@@ -1021,19 +1014,70 @@
                         </div>
                     </div>
 
+                    {/* Felt Area (Board & Empty States) */}
                     <div className="flex-1 relative flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
-                        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-4 sm:gap-8 z-10 opacity-70">
-                            {opponents.map(([uid, p]) => (
-                                <div key={uid} className="flex flex-col items-center">
-                                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'ring-2 ring-emerald-500 scale-110 opacity-100':'ring-1 ring-slate-600'}`}>
-                                        <i className="fa-solid fa-user text-slate-400 text-sm"></i>
-                                    </div>
-                                    <span className="text-[10px] font-medium text-slate-300 mt-1">{p.username}</span>
-                                    <span className="text-[9px] text-slate-500">{p.cards?.length||0} אבנים</span>
+                        
+                        {/* Visual Anchors for Empty Table / Waiting Phase */}
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0">
+                            <div className="w-28 h-28 sm:w-32 sm:h-32 bg-black/20 rounded-3xl border-4 border-white/5 flex flex-col items-center justify-center shadow-inner mb-6 relative">
+                                <i className="fa-solid fa-sack-xmark text-4xl sm:text-5xl text-amber-700/40"></i>
+                                <span className="text-white/20 font-bold text-[10px] sm:text-xs mt-2 uppercase tracking-widest text-center">קופת<br/>אבנים</span>
+                                <div className="absolute -top-3 -right-3 w-8 h-8 sm:w-10 sm:h-10 bg-slate-900 rounded-full border-2 border-slate-700 flex items-center justify-center shadow-lg">
+                                    <i className="fa-regular fa-clock text-slate-500 text-sm sm:text-base"></i>
                                 </div>
-                            ))}
+                            </div>
+                            
+                            {tableState.phase === 'waiting' && (
+                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center animate-fade-in">
+                                    <h2 className="text-lg sm:text-xl font-bold text-emerald-400 flex items-center justify-center">
+                                        ממתינים לשחקנים<span className="animated-dots w-4 sm:w-6 text-left"></span>
+                                    </h2>
+                                    <p className="text-slate-400 text-xs sm:text-sm mt-2 font-medium">
+                                        {Object.keys(tableState.players||{}).length} מתוך {tableState.maxPlayers} התיישבו
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Opponents & Seats Avatars */}
+                        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-start gap-4 sm:gap-12 z-10">
+                            {[...Array(Number(tableState.maxPlayers) || 4)].map((_, i) => {
+                                const seatedPlayers = Object.entries(tableState.players || {});
+                                const pData = seatedPlayers[i]; 
+                                const isMe = pData && pData[0] === user.uid;
+                                const isTurn = pData && tableState.currentTurn === pData[0];
+                                
+                                if (!pData) {
+                                    return (
+                                        <div key={i} className="flex flex-col items-center opacity-40">
+                                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/30 rounded-full border-2 border-slate-700/50 border-dashed flex items-center justify-center mb-1">
+                                                <i className="fa-solid fa-chair text-slate-600 text-sm"></i>
+                                            </div>
+                                            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">כיסא פנוי</span>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div key={i} className={`flex flex-col items-center transition-all ${isTurn ? 'scale-110' : ''}`}>
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 mb-1 flex items-center justify-center relative shadow-lg ${isMe ? 'bg-emerald-900 border-emerald-400 shadow-[0_0_15px_#10b981]' : isTurn ? 'bg-slate-800 border-emerald-500 ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : 'bg-slate-800 border-slate-500'}`}>
+                                            <i className={`fa-solid fa-user text-sm sm:text-lg ${isTurn ? 'text-white' : 'text-slate-300'}`}></i>
+                                            {isMe && <div className="absolute -bottom-2 bg-emerald-500 text-slate-950 text-[9px] font-black px-1.5 rounded-sm shadow-md">אתה</div>}
+                                        </div>
+                                        <span className={`text-[10px] sm:text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'} mt-1`}>
+                                            {pData[1].username}
+                                        </span>
+                                        {tableState.phase === 'playing' && (
+                                            <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold bg-slate-900 px-2 rounded-full mt-0.5 border border-slate-700">
+                                                {pData[1].cards?.length || 0} אבנים
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                         
+                        {/* Sit Down Overlay */}
                         {!isSeated && tableState.phase === 'waiting' && (
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
                                 <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-xl transition-transform hover:scale-105">
@@ -1042,6 +1086,7 @@
                             </div>
                         )}
 
+                        {/* Victory Modal */}
                         {showVictory && (
                              <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in">
                                  <div className="bg-slate-900 border border-emerald-500/50 p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm">
@@ -1055,8 +1100,9 @@
                              </div>
                         )}
                         
+                        {/* The Board Groups */}
                         {isPlaying && (
-                            <div className="mt-16 flex flex-wrap gap-4 items-start p-2 pb-24 overflow-y-auto h-full scrollbar-hide">
+                            <div className="mt-20 flex flex-wrap gap-4 items-start p-2 pb-24 overflow-y-auto h-full scrollbar-hide">
                                 {board.map((group, gIdx) => (
                                     <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-slate-900/30 p-1.5 rounded-lg border transition-colors ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500/50 bg-emerald-500/10' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800'}`}>
                                         {group.map((t, tIdx) => (
@@ -1068,18 +1114,20 @@
                                         ))}
                                     </div>
                                 ))}
-                                {board.length === 0 && <div className="w-full text-center mt-20 text-slate-700 text-lg font-medium pointer-events-none">הלוח ריק. ממתינים למהלך ראשון.</div>}
                             </div>
                         )}
                     </div>
 
+                    {/* Action Bar & Rack */}
                     <div className="relative z-10 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
+                        
+                        {/* Controls (Top of rack) */}
                         {isSeated && isPlaying && (
                             <div className="absolute left-2 right-2 top-[-45px] flex justify-between items-end z-30 pointer-events-none">
                                 <div className="flex gap-2 pointer-events-auto">
                                     {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-2.5 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
                                     {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
-                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2.5 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-rotate-left"></i></button>}
+                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2.5 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i></button>}
                                 </div>
                                 
                                 <div className="flex gap-2 pointer-events-auto items-center">
@@ -1097,8 +1145,10 @@
                             </div>
                         )}
 
+                        {/* Wait overlay */}
                         {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center backdrop-blur-[1px]"><span className="text-white/80 font-medium text-sm">המתן לתורך...</span></div>}
 
+                        {/* Physical Rack */}
                         <div className="bg-slate-950 px-2 sm:px-4 pt-8 pb-4">
                             <div className="flex flex-wrap justify-center items-end gap-0.5 min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood">
                                 {rack.map((tile, index) => (
@@ -1108,6 +1158,7 @@
                         </div>
                     </div>
                     
+                    {/* Drag Ghost */}
                     {dragData && dragData.type === 'single' && (
                         <div className="fixed pointer-events-none z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color }}>{dragData.tile.val}</div>
                     )}
