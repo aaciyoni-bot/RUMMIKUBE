@@ -67,7 +67,6 @@
             font-weight: 900;
         }
 
-        /* Poker Table Oval - Vertical / Mobile Optimized */
         .poker-table-vertical {
             border-radius: 200px;
             box-shadow: 
@@ -105,7 +104,6 @@
             pointer-events: none;
         }
 
-        /* Dealer & DC Buttons */
         .dealer-button {
             background: white; color: black; border: 2px solid #ddd;
             width: 20px; height: 20px; border-radius: 50%;
@@ -123,7 +121,6 @@
             position: absolute; top: -5px; left: -5px; z-index: 30;
         }
 
-        /* Card Styling */
         .poker-card {
             background: #ffffff; border-radius: 4px; 
             box-shadow: 2px 4px 10px rgba(0,0,0,0.6);
@@ -172,6 +169,10 @@
         @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0.7); } 70% { box-shadow: 0 0 0 10px rgba(var(--ring-color), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0); } }
         
         .z-overlay-menus { z-index: 99999 !important; }
+        
+        /* Board Invalid Animation */
+        @keyframes flashRed { 0%, 100% { border-color: rgba(255,0,0,0.2); } 50% { border-color: rgba(255,0,0,0.8); box-shadow: 0 0 20px rgba(255,0,0,0.5); } }
+        .board-invalid-group { animation: flashRed 1s infinite; border: 2px solid red !important; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -217,7 +218,9 @@
                 if(AudioManager.ready) return;
                 await Tone.start(); AudioManager.ready = true;
             },
-            playClick: () => { if(AudioManager.ready) { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("C5", "32n"); } }
+            playClick: () => { if(AudioManager.ready) { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("C5", "32n"); } },
+            playError: () => { if(AudioManager.ready) { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("G3", "16n"); } },
+            playSuccess: () => { if(AudioManager.ready) { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("E5", "8n"); } }
         };
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
@@ -449,7 +452,7 @@
                             <p>שחקן העוזב שולחן קאש עם רווח מחוייב לחזור עם אותו סכום במידה והוא שב לאותו השולחן בפרק הזמן שהוגדר ע"י מנהל השולחן.</p>
                         </div>
                         <div className="mt-6 pt-4 text-center">
-                            <button onClick={onClose} className="bg-blue-600 text-white px-10 py-3 rounded-xl font-bold">הבנתי ומאשר</button>
+                            <button onClick={onClose} className="bg-blue-600 text-white px-10 py-3 rounded-xl font-bold shadow-lg">הבנתי ומאשר</button>
                         </div>
                     </div>
                 </div>
@@ -516,7 +519,7 @@
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleSave} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl">שמור שינויים</button>
+                        <button onClick={handleSave} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg">שמור שינויים</button>
                     </div>
                 </div>
             );
@@ -551,7 +554,7 @@
                         {user.role === ROLES.SUPER_ADMIN && (
                             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
                                 <h3 className="text-lg font-bold text-slate-400 mb-4">רשת מועדונים (Super Admin Multi-Tenant)</h3>
-                                <p className="text-sm text-slate-500">כאן יוצגו נתוני ההכנסות ממועדונים זרים (SaaS Tenants) המשלמים דמי שכירות או אחוזים מהפלטפורמה. סטטוס: בהקמה.</p>
+                                <p className="text-sm text-slate-500">תשתית לריבוי מועדונים - ייושם בשלב הבא.</p>
                             </div>
                         )}
                     </div>
@@ -662,7 +665,7 @@
                                         {createSettings.maxPlayers === 6 && <label className="flex items-center gap-2 text-purple-400 font-bold"><input type="checkbox" checked={createSettings.dealersChoice} onChange={e=>handleSetting('dealersChoice', e.target.checked)} className="w-4 h-4" /> Dealer's Choice 🔄</label>}
                                     </div>
                                 )}
-                                <button onClick={handleCreateTable} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-black mt-2">פתח שולחן</button>
+                                <button onClick={handleCreateTable} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-black mt-2 shadow-lg">פתח שולחן</button>
                             </div>
                         )}
 
@@ -689,7 +692,7 @@
                                         <p className="text-xs text-slate-400">מינימום: <span className="font-bold text-white">{formatMoney(t.minBuyIn)}</span></p>
                                         {!isFull ? (<button onClick={() => { showToast("בודק מקום בשולחן...", "info"); onJoin(t); }} className="px-6 py-2 rounded-xl font-black text-white shadow-lg transition-transform hover:scale-105" style={{ backgroundColor: typeInfo.hex }}>שב בשולחן</button>)
                                         : isWaiting ? (<div className="px-4 py-2 rounded-xl font-bold bg-orange-900/50 text-orange-400 border border-orange-500 text-sm">בתור להמתנה</div>)
-                                        : (<button onClick={() => joinWaitingList(t)} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-600 text-sm hover:bg-slate-700">הצטרף לתור</button>)}
+                                        : (<button onClick={() => joinWaitingList(t)} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-600 text-sm hover:bg-slate-700 shadow-lg">הצטרף לתור</button>)}
                                     </div>
                                 </div>
                             )})}
@@ -706,6 +709,7 @@
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), (doc) => { if (doc.exists()) setTableState({ id: doc.id, ...doc.data() }); });
                 return () => unsub();
             }, [tableDocId]);
+            
             if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white">טוען שולחן...</div>;
 
             const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
@@ -725,13 +729,13 @@
                 
                 return (
                     <div className="absolute left-4 top-20 z-overlay-menus">
-                        <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 rounded-full bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] flex items-center justify-center mb-2"><i className="fa-solid fa-comment-dots"></i></button>
+                        <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 rounded-full bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] flex items-center justify-center mb-2 hover:scale-105 transition-transform"><i className="fa-solid fa-comment-dots"></i></button>
                         {isOpen && (
                             <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-[280px] h-[300px] flex flex-col overflow-hidden">
                                 <div className="bg-slate-950 p-2 flex justify-between items-center">
                                     <span className="text-white text-sm font-bold">צ'אט שולחן</span>
                                     <div className="flex gap-2">
-                                        {user.role !== ROLES.PLAYER && <button className="text-[10px] bg-rose-600 text-white px-2 py-1 rounded" title="השתק את כולם">השתק הכל</button>}
+                                        {user.role !== ROLES.PLAYER && <button className="text-[10px] bg-rose-600 text-white px-2 py-1 rounded shadow-lg" title="השתק את כולם">השתק הכל</button>}
                                         <button onClick={()=>setIsOpen(false)} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
                                     </div>
                                 </div>
@@ -751,7 +755,7 @@
                                         </div>
                                     ))}
                                 </div>
-                                <form onSubmit={handleSend} className="p-2 border-t border-slate-800 flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="הקלד הודעה..." className="flex-1 bg-slate-950 border border-slate-700 text-white rounded px-2 outline-none text-sm" /><button type="submit" className="bg-blue-600 text-white px-3 rounded"><i className="fa-solid fa-paper-plane"></i></button></form>
+                                <form onSubmit={handleSend} className="p-2 border-t border-slate-800 flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="הקלד הודעה..." className="flex-1 bg-slate-950 border border-slate-700 text-white rounded px-2 outline-none text-sm" /><button type="submit" className="bg-blue-600 text-white px-3 rounded shadow-lg"><i className="fa-solid fa-paper-plane"></i></button></form>
                             </div>
                         )}
                     </div>
@@ -974,6 +978,42 @@
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null); 
 
+            const calculateDeadwood = (currentRack) => {
+                return currentRack.reduce((sum, t) => {
+                    if (t.val === '☻') return sum + 30;
+                    if (t.val === 'A') return sum + 1;
+                    if (typeof t.val === 'number') return sum + (isGin && t.val > 10 ? 10 : t.val);
+                    return sum;
+                }, 0);
+            };
+            const deadwoodScore = calculateDeadwood(rack);
+
+            const validateGroup = (group) => {
+                if (!group || group.length < 3) return false;
+                const jCount = group.filter(t => t.val === '☻').length;
+                const regulars = group.filter(t => t.val !== '☻');
+                if(regulars.length === 0) return true; // all jokers is valid
+
+                // Check Set (Same number, distinct colors)
+                const isSet = regulars.every(t => t.val === regulars[0].val) && new Set(regulars.map(t => t.color)).size === regulars.length;
+                if (isSet && group.length <= 4) return true;
+
+                // Check Run (Same color, consecutive)
+                const isRunColor = regulars.every(t => t.color === regulars[0].color);
+                if (isRunColor) {
+                    const sorted = [...regulars].sort((a,b)=>a.val - b.val);
+                    let neededJokers = 0;
+                    for(let i=0; i<sorted.length-1; i++) { neededJokers += (sorted[i+1].val - sorted[i].val - 1); }
+                    if (neededJokers <= jCount && group.length <= 13) return true;
+                }
+                return false;
+            };
+
+            const isBoardValid = useMemo(() => {
+                if (board.length === 0) return true;
+                return board.every(g => validateGroup(g));
+            }, [board]);
+
             useEffect(() => {
                 if (tableState?.lastChatBubble?.ts > Date.now() - 5000) {
                     const id = Math.random().toString(36); setBubbles(p => [...p, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
@@ -1035,15 +1075,20 @@
                 setRack([...rack, tile]); showToast("משכת בהצלחה");
             };
             
-            const handleKnock = () => showToast("הכרזת KNOCK! ממתין לחשיפת היריב...", "success");
-            const handleGin = () => showToast("GIN!!! ניצחון מושלם!", "success");
+            const handleKnock = () => { if(deadwoodScore <= 10) showToast(`הכרזת KNOCK עם ${deadwoodScore} חובה!`, "success"); else showToast("חייב 10 נקודות או פחות כדי לדפוק!", "error"); };
+            const handleGin = () => { if(deadwoodScore === 0) showToast("GIN!!! ניצחון מושלם!", "success"); else showToast("אין לך ג'ין!", "error"); };
+            const handleEndTurn = () => { if(!isBoardValid) { showToast("הלוח לא חוקי! אי אפשר לסיים תור.", "error"); return; } showToast("התור עבר", "success"); };
 
             return (
                 <div className="flex-1 flex flex-col relative bg-slate-950 select-none h-full overflow-hidden" style={{ touchAction: 'none' }}>
                     <Chat />
                     <div className="relative z-10 flex justify-between items-center p-3 sm:p-4 bg-slate-900/90 border-b border-slate-800 shrink-0">
-                        <button onClick={onLeave} className="text-slate-400 hover:text-white bg-slate-800 px-3 sm:px-4 py-2 rounded-lg font-bold text-sm"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
-                        <h2 className="text-xl sm:text-2xl font-black text-white tracking-widest uppercase" style={{ textShadow: `0 0 15px ${hex}` }}>{typeInfo.name}</h2>
+                        <button onClick={onLeave} className="text-slate-400 hover:text-white bg-slate-800 px-3 sm:px-4 py-2 rounded-lg font-bold text-sm shadow-lg"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
+                        <div className="flex flex-col items-center">
+                            <h2 className="text-xl sm:text-2xl font-black text-white tracking-widest uppercase" style={{ textShadow: `0 0 15px ${hex}` }}>{typeInfo.name}</h2>
+                            {!isBoardValid && <span className="text-rose-500 font-bold text-xs bg-rose-900/50 px-2 rounded mt-1 animate-pulse border border-rose-500">לוח לא חוקי ⚠️</span>}
+                            {isBoardValid && board.length > 0 && <span className="text-emerald-500 font-bold text-xs bg-emerald-900/50 px-2 rounded mt-1 border border-emerald-500">לוח תקין ✓</span>}
+                        </div>
                         <div className="bg-slate-950 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold border flex flex-col items-center" style={{ borderColor: hex }}>
                             <span className="text-[10px] text-slate-400">קופה מיועדת</span>
                             <span className="text-sm sm:text-base">{formatMoney(tableState.pot || 450)}</span>
@@ -1084,13 +1129,15 @@
                         {!isGin && (
                             <div className="mt-20 flex flex-wrap gap-4 sm:gap-6 items-start">
                                 {board.length === 0 && <div className="w-full text-center text-white/20 font-black text-xl sm:text-2xl mt-10 pointer-events-none">גרור אבנים לכאן כדי ליצור סדרות</div>}
-                                {board.map((group, gIdx) => (
-                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/40 p-2 sm:p-3 rounded-2xl border-2 min-h-[80px] ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500 shadow-[0_0_20px_#10b981]' : 'border-white/10'}`}>
+                                {board.map((group, gIdx) => {
+                                    const isValid = validateGroup(group);
+                                    return (
+                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/40 p-2 sm:p-3 rounded-2xl border-2 min-h-[80px] ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500 shadow-[0_0_20px_#10b981]' : !isValid ? 'board-invalid-group' : 'border-white/10'}`}>
                                         {group.map((t, tIdx) => (
-                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} className={`w-10 h-14 sm:w-12 sm:h-16 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-3xl font-black mx-0.5 border-b-4 border-r-2 border-gray-400 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.hex }}>{t.val}</div>
+                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} className={`w-10 h-14 sm:w-12 sm:h-16 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-3xl font-black mx-0.5 border-b-4 border-r-2 border-gray-400 cursor-grab active:cursor-grabbing shadow-lg ${dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.hex }}>{t.val}</div>
                                         ))}
                                     </div>
-                                ))}
+                                )})}
                             </div>
                         )}
                     </div>
@@ -1100,17 +1147,23 @@
                         <div className="absolute left-2 sm:left-12 top-[-20px] flex gap-2">
                             {isGin ? (
                                 <>
-                                    <button onClick={handleKnock} className="bg-amber-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm hover:scale-105 transition-transform">Knock (דפוק)</button>
-                                    <button onClick={handleGin} className="bg-rose-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm hover:scale-105 transition-transform">GIN!</button>
+                                    <button onClick={handleKnock} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${deadwoodScore<=10?'bg-amber-600 hover:scale-105':'bg-slate-600 opacity-50 cursor-not-allowed'}`}>Knock</button>
+                                    <button onClick={handleGin} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${deadwoodScore===0?'bg-rose-600 hover:scale-105':'bg-slate-600 opacity-50 cursor-not-allowed'}`}>GIN!</button>
                                 </>
                             ) : (
                                 <>
-                                    <button className="text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm hover:scale-105 transition-transform" style={{ backgroundColor: hex }}>סיום תור</button>
+                                    <button onClick={handleEndTurn} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${isBoardValid?'hover:scale-105':'opacity-50 cursor-not-allowed'}`} style={{ backgroundColor: isBoardValid ? hex : '#475569' }}>סיום תור</button>
                                     <button onClick={()=>drawTile(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold shadow-xl text-xs sm:text-sm transition-colors border border-slate-500">קופה ({deck})</button>
                                 </>
                             )}
                         </div>
                         
+                        {/* Penalty Score Badge */}
+                        <div className="absolute right-4 top-[-15px] bg-slate-800 border border-slate-600 px-3 py-1 rounded-full shadow-lg flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 font-bold">עץ מת (חובה)</span>
+                            <span className={`font-black ${deadwoodScore===0?'text-emerald-400':deadwoodScore>30?'text-rose-400':'text-amber-400'}`}>{deadwoodScore}</span>
+                        </div>
+
                         <div className="flex flex-wrap justify-center items-end gap-0.5 sm:gap-1 min-h-[100px] sm:min-h-[120px] bg-slate-800 px-2 sm:px-6 py-2 sm:py-4 rounded-t-2xl sm:rounded-t-3xl border-x-[8px] sm:border-x-[16px] border-b-[8px] sm:border-b-[12px] border-slate-900 w-[98%] max-w-5xl">
                             {rack.map((t, idx) => (
                                 <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'rack', null, idx)} className={`w-10 h-14 sm:w-14 sm:h-20 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-4xl font-black mx-0.5 shadow-xl border-b-[6px] border-r-[2px] border-gray-400 cursor-grab active:cursor-grabbing hover:-translate-y-2 transition-transform ${dragData?.tile?.id === t.id ? 'opacity-30 scale-95' : ''}`} style={{ color: t.hex }}>{t.val}</div>
