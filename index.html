@@ -723,7 +723,10 @@
                                     newBoard[actualGIdx].push(dragData.tile); 
                                 }
                             } else {
-                                if (newBoard[actualGIdx]) newBoard[actualGIdx].push(dragData.tile);
+                                // INSERT LOGIC: Drop exactly at the specific index (before the hovered tile)
+                                if (newBoard[actualGIdx]) {
+                                    newBoard[actualGIdx].splice(targetTileIdx, 0, dragData.tile);
+                                }
                             }
                         } 
                         else if (hoverTarget && hoverTarget.startsWith('board-group-')) {
