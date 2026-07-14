@@ -7,7 +7,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -31,7 +31,8 @@
 
     <style>
         body, html {
-            background-color: #020617; color: #f8fafc; margin: 0; padding: 0;
+            background-color: #020617; 
+            color: #f8fafc; margin: 0; padding: 0;
             height: 100vh; width: 100vw; overflow: hidden; overscroll-behavior: none;
         }
 
@@ -44,7 +45,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); 
         }
 
-        .scrollable-content { overflow-y: auto; -webkit-overflow-scrolling: touch; height: 100%; padding-bottom: 120px; }
+        .scrollable-content { overflow-y: auto; -webkit-overflow-scrolling: touch; height: 100%; padding-bottom: 150px; }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
@@ -110,7 +111,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
-        // --- CONSTANTS & UTILS ---
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
         const formatMoney = (amount) => {
@@ -134,6 +134,11 @@
             const [tablesDB, setTablesDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
             const [toasts, setToasts] = useState([]);
+            
+            // Reference to track real currentView for stale closures
+            const viewRef = useRef(currentView);
+
+            useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
             const showToast = (msg, type = 'info') => {
                 const id = Date.now(); 
@@ -141,7 +146,7 @@
                 setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 4000);
             };
 
-            // Smart Routing (Handles Browser Back Button)
+            // Smart Routing
             const changeView = (view, tableObj = null) => {
                 setCurrentView(view);
                 setActiveTable(tableObj);
@@ -190,7 +195,7 @@
                         role, 
                         status: q.empty ? 'approved' : 'pending', 
                         balance: q.empty ? 10000000 : 0,
-                        stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 } // Player Dashboard Stats
+                        stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
                     };
                     await window.fb.setDoc(ref, newUser); 
                     setDbUser({ uid: user.uid, ...newUser });
@@ -202,12 +207,17 @@
                 const unsubT = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (s) => {
                     setTablesDB(s.docs.map(d => ({ docId: d.id, ...d.data() })));
                 });
+                
                 const unsubU = window.fb.onSnapshot(window.fb.doc(window.fb.db, "users", dbUser.uid), (d) => {
                     if(d.exists()) {
                         const data = d.data(); 
                         setDbUser({ uid: d.id, ...data });
+                        
+                        // ONLY route from login screens, don't interrupt active sessions
                         if(data.status === 'pending') changeView('pending');
-                        else if (currentView === 'auth' || currentView === 'pending') changeView('lobby');
+                        else if (viewRef.current === 'auth' || viewRef.current === 'pending') {
+                            changeView('lobby');
+                        }
                     }
                 });
                 return () => { unsubT(); unsubU(); };
@@ -257,8 +267,8 @@
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => changeView('table', t)} showToast={showToast} />}
                         {currentView === 'profile' && <ProfileView user={dbUser} />}
-                        {currentView === 'backoffice' && <BackofficeView user={dbUser} showToast={showToast} />}
-                        {currentView === 'table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => changeView('lobby')} showToast={showToast} />}
+                        {currentView === 'backoffice' && <BackofficeView user={dbUser} showToast={showToast} tables={tablesDB} />}
+                        {currentView === 'table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => changeView('lobby')} showToast={showToast} tablesDB={tablesDB} />}
                     </main>
                     
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
@@ -393,7 +403,15 @@
                             {tables.map(t => (
                                 <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all group border-t border-white/10 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-blue-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                                    <div className="flex justify-between items-start mb-6">
+                                    
+                                    {/* Seat Indicator */}
+                                    {t.players && t.players[user.uid] && (
+                                        <div className="absolute top-3 left-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold">
+                                            🟢 אתה יושב כאן
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <h3 className="text-2xl font-black text-white tracking-wide">Stakes {t.stakes}</h3>
                                             <p className="text-slate-400 text-sm font-bold mt-1">כניסה: <Coin amount={t.minBuyIn} /></p>
@@ -402,6 +420,16 @@
                                             <i className="fa-solid fa-users"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
                                         </div>
                                     </div>
+                                    
+                                    {/* Avatar list */}
+                                    <div className="flex -space-x-2 mb-4 h-8">
+                                        {Object.values(t.players || {}).map((p, i) => (
+                                            <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title={p.username}>
+                                                {p.username.substring(0,2).toUpperCase()}
+                                            </div>
+                                        ))}
+                                    </div>
+
                                     <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
                                         <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Rake: 6%</span>
                                         <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm group-hover:bg-blue-600 transition-colors shadow-md">
@@ -417,11 +445,12 @@
             );
         }
 
-        function BackofficeView({ user, showToast }) {
+        function BackofficeView({ user, showToast, tables }) {
             const [usersList, setUsersList] = useState([]);
             const [selectedUser, setSelectedUser] = useState('');
             const [transferAmount, setTransferAmount] = useState('');
-            const [cycle, setCycle] = useState('all');
+            const [startDate, setStartDate] = useState('');
+            const [endDate, setEndDate] = useState('');
 
             useEffect(() => {
                 const unsub = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snap) => {
@@ -475,17 +504,19 @@
                 } catch (e) { showToast(typeof e === 'string' ? e : "שגיאה בביצוע ההעברה.", "error"); }
             };
 
-            // Excel (CSV) Export Function with UTF-8 support for Hebrew
+            // Excel Export with Date Filtering
             const exportToExcel = () => {
                 let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
                 csvContent += "שם שחקן,תפקיד,יתרת צ'יפים,סטטוס,רווח כולל,משחקים ששוחקו\n";
+                
+                // Currently filters user snapshot, scalable for transactions later
                 usersList.forEach(u => {
                     const stats = u.stats || {};
                     csvContent += `"${u.username}","${u.role}",${u.balance},"${u.status === 'approved' ? 'פעיל' : 'ממתין'}",${stats.totalProfit||0},${stats.gamesPlayed||0}\n`;
                 });
                 const link = document.createElement("a");
                 link.setAttribute("href", encodeURI(csvContent));
-                link.setAttribute("download", `club_report_${cycle}_${new Date().toISOString().split('T')[0]}.csv`);
+                link.setAttribute("download", `club_report_${startDate || 'all'}_to_${endDate || 'all'}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -493,24 +524,23 @@
             };
 
             const pendingUsers = usersList.filter(u => u.status === 'pending');
-            // Only allow transfer to users that are not the current user.
             const approvedPlayers = usersList.filter(u => u.status === 'approved' && u.id !== user.uid);
 
             return (
                 <div className="scrollable-content p-4 sm:p-8">
                     <div className="max-w-6xl mx-auto animate-fade-in">
                         
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-white/10 pb-6">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4 border-b border-white/10 pb-6">
                             <div>
                                 <h2 className="text-3xl font-black text-white mb-2">ניהול מועדון</h2>
                                 <p className="text-sm font-bold text-slate-400">ניהול הרשאות, יתרות, סוכנים ודוחות.</p>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-lg">
-                                <select value={cycle} onChange={(e)=>setCycle(e.target.value)} className="bg-slate-800 text-sm font-bold text-white rounded-xl px-4 py-2 outline-none border border-slate-700">
-                                    <option value="all">מחזור: כל הזמנים</option>
-                                    <option value="month">מחזור: החודש הנוכחי</option>
-                                    <option value="week">מחזור: השבוע האחרון</option>
-                                </select>
+                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto bg-slate-900 p-3 rounded-2xl border border-slate-800 shadow-lg">
+                                <div className="flex gap-2">
+                                    <input type="date" value={startDate} onChange={(e)=>setStartDate(e.target.value)} className="bg-slate-800 text-xs font-bold text-white rounded-lg px-2 py-2 outline-none border border-slate-700" title="מתאריך" />
+                                    <span className="text-slate-500 self-center">-</span>
+                                    <input type="date" value={endDate} onChange={(e)=>setEndDate(e.target.value)} className="bg-slate-800 text-xs font-bold text-white rounded-lg px-2 py-2 outline-none border border-slate-700" title="עד תאריך" />
+                                </div>
                                 <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2">
                                     <i className="fa-solid fa-file-excel"></i> ייצוא אקסל
                                 </button>
@@ -525,7 +555,7 @@
                             </div>
                             <div className="glass-panel rounded-3xl p-6 relative overflow-hidden">
                                 <div className="absolute -left-4 -top-4 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl"></div>
-                                <h3 className="text-slate-400 text-sm font-bold mb-2 uppercase tracking-widest">צ'יפים אצל סוכנים/שחקנים</h3>
+                                <h3 className="text-slate-400 text-sm font-bold mb-2 uppercase tracking-widest">צ'יפים אצל שחקנים</h3>
                                 <p className="text-3xl font-black text-blue-400"><Coin amount={approvedPlayers.reduce((sum, p) => sum + (p.balance || 0), 0)}/></p>
                             </div>
                             <div className="glass-panel rounded-3xl p-6 relative overflow-hidden">
@@ -564,9 +594,8 @@
                                 </div>
                             </div>
 
-                            {/* User Management & Approvals */}
+                            {/* User Management */}
                             <div className="flex flex-col gap-6">
-                                {/* Approvals */}
                                 <div className="glass-panel rounded-3xl p-6 min-h-[200px] flex flex-col">
                                     <h3 className="font-black text-xl text-white mb-4 flex items-center gap-3">
                                         <i className="fa-solid fa-user-clock text-amber-400"></i> בקשות הצטרפות 
@@ -583,15 +612,14 @@
                                     </div>
                                 </div>
 
-                                {/* Role Management (Owner/Admin Only) */}
                                 {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
                                     <div className="glass-panel rounded-3xl p-6 flex-1 flex flex-col">
                                         <h3 className="font-black text-xl text-white mb-4 flex items-center gap-3">
-                                            <i className="fa-solid fa-sitemap text-purple-400"></i> ניהול תפקידים
+                                            <i className="fa-solid fa-sitemap text-purple-400"></i> ניהול הרשאות
                                         </h3>
                                         <div className="overflow-y-auto space-y-3 pr-2 max-h-[300px]">
                                             {approvedPlayers.map(p => (
-                                                <div key={p.id} className="bg-slate-900 p-3 rounded-xl border border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-md">
+                                                <div key={p.id} className="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center shadow-md">
                                                     <div>
                                                         <span className="font-bold text-white block">{p.username}</span>
                                                         <span className="text-xs text-slate-400">יתרה: <Coin amount={p.balance}/></span>
@@ -601,9 +629,9 @@
                                                         onChange={(e)=>handleChangeRole(p.id, e.target.value)}
                                                         className="bg-slate-800 text-xs font-bold text-white rounded-lg p-2 outline-none border border-slate-600"
                                                     >
-                                                        <option value={ROLES.PLAYER}>Player (שחקן)</option>
-                                                        <option value={ROLES.AGENT}>Agent (סוכן)</option>
-                                                        <option value={ROLES.MANAGER}>Manager (מנהל)</option>
+                                                        <option value={ROLES.PLAYER}>שחקן</option>
+                                                        <option value={ROLES.AGENT}>סוכן</option>
+                                                        <option value={ROLES.MANAGER}>מנהל</option>
                                                     </select>
                                                 </div>
                                             ))}
@@ -617,7 +645,7 @@
             );
         }
 
-        function RummyTable({ tableDocId, user, onLeave, showToast }) {
+        function RummyTable({ tableDocId, user, onLeave, showToast, tablesDB }) {
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
             
@@ -633,7 +661,6 @@
             const [showVictory, setShowVictory] = useState(false);
             const longPressTimer = useRef(null);
 
-            // Fetch table
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
@@ -643,7 +670,6 @@
                 return () => unsub();
             }, [tableDocId]);
 
-            // Sync State
             useEffect(() => {
                 if(!tableState) return;
                 if (!dragData) {
@@ -661,7 +687,6 @@
                 setShowVictory(tableState.phase === 'showdown');
             }, [tableState, dragData, user.uid]);
 
-            // Timer
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
@@ -677,7 +702,6 @@
                 return () => clearInterval(interval);
             }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
 
-            // Game Logic: Validation
             const validateGroup = (group) => {
                 if (!group || group.length < 3) return false;
                 const jCount = group.filter(t => t.val === '☻').length;
@@ -707,16 +731,13 @@
             
             const deadwoodScore = rack.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
 
-            // Drag and Drop Logic
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { setDragPos({ x: e.clientX, y: e.clientY }); if(longPressTimer.current) clearTimeout(longPressTimer.current); } 
                 };
-                
                 const handlePointerUp = (e) => {
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                     if (!dragData) return;
-                    
                     let newRack = [...rack]; let newBoard = board.map(g => [...g]);
                     
                     if (dragData.type === 'single') {
@@ -795,8 +816,13 @@
                 return d.sort(()=>Math.random()-0.5);
             };
 
-            // Actions: Economy & Transactions
             const handleSit = async () => {
+                // Safety logic: Check if user is already seated at another table
+                const isAlreadySeated = tablesDB.some(tbl => tbl.id !== tableState.id && tbl.players && tbl.players[user.uid]);
+                if(isAlreadySeated) {
+                    return showToast("אתה כבר יושב בשולחן אחר! קום ממנו קודם כדי להצטרף לכאן.", "error");
+                }
+
                 try { 
                     const buyInAmount = Number(tableState.minBuyIn);
                     await window.fb.runTransaction(window.fb.db, async (t) => {
@@ -811,7 +837,6 @@
                     
                     showToast("התיישבת בהצלחה והכנסת צ'יפים לשולחן!", "success"); 
                     
-                    // Auto Start
                     const currentPlayersCount = Object.keys(tableState.players || {}).length + 1; 
                     if (currentPlayersCount === Number(tableState.maxPlayers)) {
                         setTimeout(() => {
@@ -882,9 +907,8 @@
                     } else return showToast("חובה למשוך קופה או להוריד אבנים.", "error");
                 }
 
-                if (rack.length === 0) { // WIN CONDITION
+                if (rack.length === 0) {
                     showToast("ניצחון! 🏆 מחשב צ'יפים...", "success");
-                    
                     try {
                         await window.fb.runTransaction(window.fb.db, async (t) => {
                             const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -895,14 +919,12 @@
                             let totalPot = 0; 
                             const updates = {};
                             
-                            // Calculate penalties and Rake
                             for (const [uid, pData] of losers) {
                                  let dw = pData.cards.reduce((s, tile) => s + (tile.val === '☻' ? 30 : tile.val), 0);
                                  let penalty = Math.min(dw * tData.stakes, pData.stack); 
                                  updates[`players.${uid}.stack`] = pData.stack - penalty;
                                  totalPot += penalty;
 
-                                 // Update Loser Stats
                                  const lRef = window.fb.doc(window.fb.db, "users", uid);
                                  const lSnap = await t.get(lRef);
                                  const lStats = lSnap.data().stats || {gamesPlayed:0, gamesWon:0, totalProfit:0};
@@ -921,13 +943,11 @@
                             
                             t.update(tblRef, updates);
 
-                            // Update Winner Stats
                             const wRef = window.fb.doc(window.fb.db, "users", user.uid);
                             const wSnap = await t.get(wRef);
                             const wStats = wSnap.data().stats || {gamesPlayed:0, gamesWon:0, totalProfit:0};
                             t.update(wRef, { stats: { gamesPlayed: wStats.gamesPlayed + 1, gamesWon: wStats.gamesWon + 1, totalProfit: wStats.totalProfit + winnerProfit }});
                             
-                            // Auto Restart Engine
                             setTimeout(async () => {
                                 const newTblSnap = await window.fb.getDoc(tblRef);
                                 const currentTData = newTblSnap.data();
