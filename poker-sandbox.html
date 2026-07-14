@@ -580,6 +580,62 @@
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableId), { gameState: newGameState, players: newPlayers });
             };
 
+            // התקדמות השלבים - פלופ, טרן, ריבר (מופעל זמנית מה-God Mode לצורכי סנדבוקס)
+            const advanceGamePhase = async () => {
+                let gs = { ...tableDoc.gameState };
+                let players = { ...tableDoc.players };
+
+                // 1. איסוף הימורים לקופה
+                Object.values(players).forEach(p => {
+                    gs.pot += p.bet || 0;
+                    p.bet = 0;
+                    p.actionText = '';
+                });
+                gs.highestBet = 0;
+                gs.minRaise = tableDoc.settings.blinds * 2;
+
+                // 2. פתיחת קלפים למרכז
+                if (gs.phase === 'preflop') {
+                    gs.deck.pop(); // שריפת קלף (Burn)
+                    gs.board.push(gs.deck.pop(), gs.deck.pop(), gs.deck.pop()); // Flop (3 קלפים)
+                    gs.phase = gs.currentGameType === 'Pineapple' ? 'discard' : 'flop';
+                    if (gs.phase === 'discard') showToast("Pineapple: זרוק קלף אחד!", "info");
+                } 
+                else if (gs.phase === 'discard') {
+                    // מוודאים שכולם זרקו קלף לפני שממשיכים
+                    const anyoneNeedsToDiscard = Object.values(players).some(p => p.status === 'active' && p.cards.length === 3);
+                    if (anyoneNeedsToDiscard) return showToast("ממתין שחקנים יזרקו קלף", "error");
+                    gs.phase = 'turn';
+                    gs.deck.pop(); gs.board.push(gs.deck.pop()); // Turn
+                }
+                else if (gs.phase === 'flop') {
+                    gs.phase = 'turn';
+                    gs.deck.pop(); gs.board.push(gs.deck.pop()); // Turn
+                } 
+                else if (gs.phase === 'turn') {
+                    gs.phase = 'river';
+                    gs.deck.pop(); gs.board.push(gs.deck.pop()); // River
+                } 
+                else if (gs.phase === 'river') {
+                    gs.phase = 'showdown';
+                }
+
+                // העברת תור בחזרה לראשון אחרי הדילר
+                const activePlayers = Object.values(players).filter(p => p.status === 'active').sort((a,b) => a.seatIndex - b.seatIndex);
+                if (activePlayers.length > 0) gs.activeTurnUid = activePlayers[0].uid; // בסנדבוקס זה פשוט חוזר לראשון במערך
+
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableId), { gameState: gs, players });
+            };
+
+            // זריקת קלף בפיינאפל
+            const handleDiscard = async (cardIndex) => {
+                let players = { ...tableDoc.players };
+                players[user.uid].cards.splice(cardIndex, 1); // הסרת הקלף הנבחר
+                players[user.uid].actionText = 'Discarded';
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableId), { players });
+                showToast("קלף נזרק", "success");
+            };
+
             if (!tableDoc) return <div className="h-full w-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
 
             const isSeated = tableDoc.players && tableDoc.players[user.uid];
@@ -621,6 +677,9 @@
                                 <>
                                     <button onClick={addBot} className="bg-blue-600/50 hover:bg-blue-500 text-white px-2 py-1.5 rounded-lg text-[10px] font-bold border border-blue-400">+ Bot</button>
                                     <button onClick={startHand} className="bg-emerald-600/80 hover:bg-emerald-500 text-white px-2 py-1.5 rounded-lg text-[10px] font-bold border border-emerald-400">Deal</button>
+                                    {gs.phase !== 'waiting' && gs.phase !== 'showdown' && (
+                                        <button onClick={advanceGamePhase} className="bg-rose-600/80 hover:bg-rose-500 text-white px-2 py-1.5 rounded-lg text-[10px] font-bold border border-rose-400">Next Phase</button>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -641,6 +700,18 @@
                                 {gs.pot > 0 && <div className="bg-black/80 px-4 py-1.5 rounded-full border border-emerald-500/30 text-emerald-400 font-black text-sm absolute -bottom-6 shadow-lg">Pot: {formatMoney(gs.pot)}</div>}
                             </div>
 
+                            {/* Community Cards (Board) */}
+                            {gs.phase !== 'waiting' && gs.phase !== 'dc_selection' && (
+                                <div className="absolute top-[55%] transform -translate-y-1/2 flex gap-1 sm:gap-2 z-10">
+                                    {gs.board && gs.board.map((card, i) => (
+                                        <div key={i} className="animate-pop-in">{renderCard(card)}</div>
+                                    ))}
+                                    {gs.board && [...Array(5 - gs.board.length)].map((_, i) => (
+                                        <div key={`empty-${i}`} className="w-8 h-12 sm:w-10 sm:h-14 border border-white/10 rounded-md border-dashed opacity-20"></div>
+                                    ))}
+                                </div>
+                            )}
+
                             {playersList.map((p, index) => (
                                 <React.Fragment key={p.uid}>
                                     <div className={`absolute z-20 transition-opacity ${p.bet > 0 ? 'opacity-100' : 'opacity-0'}`} style={getPosStyle('bet', index, playersList.length)}>
@@ -650,11 +721,17 @@
                                         {p.actionText && <div className="action-badge animate-pop-in">{p.actionText}</div>}
                                         
                                         <div className="absolute flex gap-1 -mt-8 z-10" style={{ pointerEvents: 'none' }}>
-                                            {p.cards && p.cards.map((c, i) => (
-                                                <div key={i} className={`${p.cards.length > 2 ? '-ml-5' : ''} ${i===1 && p.cards.length===2 ? 'ml-[-15px] transform rotate-6' : '-rotate-6'}`}>
-                                                    {renderCard(c, p.uid !== user.uid && !isGodMode && gs.phase !== 'showdown')}
-                                                </div>
-                                            ))}
+                                            {p.cards && p.cards.map((c, i) => {
+                                                const isMe = p.uid === user.uid;
+                                                const canDiscard = isMe && gs.phase === 'discard' && p.cards.length === 3;
+                                                return (
+                                                    <div key={i} 
+                                                         onClick={() => canDiscard ? handleDiscard(i) : null}
+                                                         className={`${p.cards.length > 2 ? '-ml-5' : ''} ${i===1 && p.cards.length===2 ? 'ml-[-15px] transform rotate-6' : '-rotate-6'} ${canDiscard ? 'pointer-events-auto cursor-pointer hover:-translate-y-3 hover:shadow-[0_0_15px_red] transition-all' : ''}`}>
+                                                        {renderCard(c, !isMe && !isGodMode && gs.phase !== 'showdown')}
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
 
                                         <div className={`player-avatar-container ${gs.activeTurnUid === p.uid ? 'active-player-glow' : ''}`} style={{ backgroundImage: `url(${p.avatarUrl})` }}></div>
@@ -707,7 +784,7 @@
                         )}
                         
                         {/* Action Bar (Only shows when it's your turn and game is running) */}
-                        {isMyTurn && gs.phase !== 'dc_selection' && gs.phase !== 'waiting' && (
+                        {isMyTurn && gs.phase !== 'dc_selection' && gs.phase !== 'waiting' && gs.phase !== 'discard' && (
                             <div className="absolute bottom-0 left-0 right-0 p-4 bg-slate-900/95 border-t border-slate-700 z-50 flex justify-center gap-3 animate-fade-in shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
                                 <button onClick={() => handleAction('fold')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-3 rounded-xl font-black text-xs uppercase border border-slate-600">Fold</button>
                                 <button onClick={() => handleAction(canCheck ? 'check' : 'call')} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-black text-sm shadow-[0_0_15px_rgba(37,99,235,0.4)] uppercase">
