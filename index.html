@@ -90,7 +90,6 @@
         .loading-dot:nth-child(2) { animation-delay: 0.15s; }
         .loading-dot:nth-child(3) { animation-delay: 0.3s; }
 
-        /* New invisible drop slots for the rack */
         .rack-drop-slot { flex: 0 1 10px; height: 100%; min-width: 5px; }
     </style>
 
@@ -128,11 +127,8 @@
             const num = Number(amount);
             if (isNaN(num)) return String(amount);
             if (num === 0) return '0';
-            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-            // Show pennies (agurot) if exists
-            if (num % 1 !== 0) return num.toFixed(2); 
-            return num.toLocaleString();
+            // Show exact numbers with formatting, no more 'M' hiding deductions!
+            return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
         };
 
         const Coin = ({ amount, className="" }) => (
@@ -208,6 +204,7 @@
                         role, 
                         status: q.empty ? 'approved' : 'pending', 
                         balance: q.empty ? 10000000 : 0,
+                        clubProfits: 0, // NEW: Rake tracking
                         stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
                     };
                     await window.fb.setDoc(ref, newUser); 
@@ -319,7 +316,7 @@
 
             return (
                 <div className="scrollable-content p-4 sm:p-8">
-                    <div className="max-w-3xl mx-auto glass-panel p-6 rounded-3xl animate-fade-in">
+                    <div className="max-w-4xl mx-auto glass-panel p-6 rounded-3xl animate-fade-in">
                         <div className="text-center mb-8">
                             <div className="w-24 h-24 bg-slate-800 rounded-full mx-auto border-4 border-emerald-500 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.4)] mb-4">
                                 <i className="fa-solid fa-user text-4xl text-slate-400"></i>
@@ -328,7 +325,7 @@
                             <p className="text-slate-400 font-bold uppercase tracking-widest text-sm mt-1">{user.role}</p>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                        <div className={`grid grid-cols-2 ${[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-4 mb-6`}>
                             <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-700 text-center">
                                 <p className="text-slate-400 text-xs font-bold mb-1">יתרה נוכחית</p>
                                 <Coin amount={user.balance} className="text-xl text-emerald-400" />
@@ -347,6 +344,13 @@
                                     {stats.totalProfit > 0 ? '+' : ''}{formatMoney(stats.totalProfit)}
                                 </p>
                             </div>
+                            
+                            {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
+                                <div className="bg-slate-900/80 p-4 rounded-2xl border border-amber-500/50 text-center shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                                    <p className="text-amber-400 text-xs font-bold mb-1">רווחי מועדון (Rake)</p>
+                                    <Coin amount={user.clubProfits || 0} className="text-xl text-amber-500" />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -971,6 +975,13 @@
                 }
 
                 if (rack.length === 0) {
+                    // Win Logic!
+                    // Fetch SUPER ADMIN for Rake before transaction
+                    const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
+                    const adminSnaps = await window.fb.getDocs(adminQ);
+                    let superAdminRef = null;
+                    if (!adminSnaps.empty) superAdminRef = adminSnaps.docs[0].ref;
+
                     const losers = Object.entries(tableState.players).filter(([uid]) => uid !== user.uid);
                     let totalPot = 0; const updates = {};
                     const stakesNum = Number(tableState.stakes) || 0.1;
@@ -997,6 +1008,8 @@
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                         t.update(tblRef, updates);
+                        
+                        // Update players stats
                         for (const [uid, pData] of Object.entries(tableState.players)) {
                             const uRef = window.fb.doc(window.fb.db, "users", uid);
                             const uSnap = await t.get(uRef);
@@ -1009,6 +1022,15 @@
                                     'stats.totalProfit': currentStats.totalProfit + statUpdates.profit
                                 });
                             }
+                        }
+
+                        // PAY THE CLUB OWNER (Rake deposit!)
+                        if (superAdminRef) {
+                            const adminSnap = await t.get(superAdminRef);
+                            t.update(superAdminRef, {
+                                balance: adminSnap.data().balance + rake,
+                                clubProfits: (adminSnap.data().clubProfits || 0) + rake
+                            });
                         }
                     });
 
@@ -1032,6 +1054,12 @@
                 }
 
                 try {
+                    // Pre-fetch Super Admin for potential Rake
+                    const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
+                    const adminSnaps = await window.fb.getDocs(adminQ);
+                    let superAdminRef = null;
+                    if (!adminSnaps.empty) superAdminRef = adminSnaps.docs[0].ref;
+
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const uRef = window.fb.doc(window.fb.db, "users", user.uid);
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -1049,14 +1077,14 @@
                         const updates = { players: newP };
 
                         if (!isPlaying) {
-                            // Refund buy-in if game hasn't started yet
+                            // Refund buy-in if game hasn't started yet (Standing up)
                             t.update(uRef, { balance: uData.balance + myStack });
                         } else {
                             // Surrender Logic Mid-Game
                             const remainingUids = Object.keys(newP);
                             const currentStats = uData.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
                             
-                            // CRITICAL FIX: Update surrendering player's stats to show loss
+                            // Penalize surrendering player!
                             t.update(uRef, {
                                 'stats.gamesPlayed': currentStats.gamesPlayed + 1,
                                 'stats.totalProfit': currentStats.totalProfit - myStack
@@ -1075,13 +1103,26 @@
                                 updates.turnStartedAt = Date.now();
                             }
 
-                            // If only 1 player remains after surrender, they win immediately
+                            // If only 1 player remains after surrender, they win immediately!
                             if (remainingUids.length === 1) {
                                 const winnerUid = remainingUids[0];
                                 updates.phase = 'showdown';
                                 updates.winner = winnerUid;
-                                newP[winnerUid].stack += myStack; 
-                                updates.lastResults = { winnerProfit: myStack, rake: 0, totalPot: myStack };
+                                
+                                const rake = myStack * 0.06;
+                                const winnerProfit = myStack - rake;
+                                
+                                newP[winnerUid].stack += winnerProfit; 
+                                updates.lastResults = { winnerProfit: winnerProfit, rake: rake, totalPot: myStack };
+
+                                // PAY THE CLUB OWNER (Rake deposit on technical knockout!)
+                                if (superAdminRef) {
+                                    const adminSnap = await t.get(superAdminRef);
+                                    t.update(superAdminRef, {
+                                        balance: adminSnap.data().balance + rake,
+                                        clubProfits: (adminSnap.data().clubProfits || 0) + rake
+                                    });
+                                }
                             }
                         }
                         
@@ -1104,7 +1145,6 @@
             return (
                 <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
                     
-                    {/* Header */}
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
                         <div className="flex gap-2">
                             <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? 'כניעה / עזוב שולחן' : 'קום מהשולחן') : 'חזור ללובי'}</button>
@@ -1121,10 +1161,8 @@
                         </div>
                     </div>
 
-                    {/* Board Area */}
                     <div className="flex-1 relative flex flex-col" data-drop="board-new">
                         
-                        {/* Center Anchor & Loading Message */}
                         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0 w-full px-4">
                             {tableState.phase === 'playing' ? (
                                 <div className="flex flex-col items-center justify-center mb-8 opacity-40">
@@ -1150,7 +1188,6 @@
                             )}
                         </div>
 
-                        {/* Opponents Avatars */}
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-start gap-4 sm:gap-12 z-10">
                             {[...Array(Number(tableState.maxPlayers) || 4)].map((_, i) => {
                                 const seatedPlayers = Object.entries(tableState.players || {});
@@ -1191,7 +1228,6 @@
                             })}
                         </div>
                         
-                        {/* God Mode Global Overlay (Unclipped) */}
                         {isGodMode && tableState.phase === 'playing' && (
                             <div className="absolute inset-x-0 top-24 pointer-events-none z-[50] flex flex-wrap justify-center gap-4 px-4">
                                 {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => (
@@ -1210,7 +1246,6 @@
                             </div>
                         )}
                         
-                        {/* Sit Down Overlay */}
                         {!isSeated && tableState.phase === 'waiting' && (
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
                                 <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-xl transition-transform hover:scale-105">
@@ -1219,7 +1254,6 @@
                             </div>
                         )}
 
-                        {/* Victory Modal */}
                         {showVictory && (
                              <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in">
                                  <div className="bg-slate-900 border border-emerald-500/50 p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm">
@@ -1233,7 +1267,6 @@
                              </div>
                         )}
                         
-                        {/* The Board Groups */}
                         {isPlaying && (
                             <div className="mt-20 flex flex-wrap gap-4 items-start p-2 pb-24 overflow-y-auto h-full scrollbar-hide">
                                 {board.map((group, gIdx) => (
@@ -1251,8 +1284,6 @@
                     </div>
 
                     <div className="relative z-10 shrink-0 bg-slate-950">
-                        
-                        {/* Controls Bar - Made prominent and beautiful */}
                         {isSeated && isPlaying && (
                             <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-y border-slate-800 shadow-md">
                                 <div className="flex gap-2">
@@ -1262,7 +1293,6 @@
                                 </div>
                                 
                                 <div className="flex gap-4 items-center">
-                                   {/* Sort Buttons UI Fix */}
                                    <div className="flex gap-1.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800 shadow-inner">
                                        <button onClick={handleSort777} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm" title="סדר לפי מספרים">סדר 777 🔢</button>
                                        <button onClick={handleSort789} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm flex items-center gap-1" title="סדר לפי סדרות"><span className="text-blue-500">■</span><span className="text-red-500">■</span> סדר 789</button>
@@ -1280,18 +1310,14 @@
 
                         {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center backdrop-blur-[1px]"><span className="text-white/80 font-medium text-sm">המתן לתורך...</span></div>}
 
-                        {/* Physical Rack with drop zones for manual sorting */}
                         <div className="px-2 sm:px-4 py-4" data-drop="rack">
                             <div className="flex flex-wrap justify-center items-end gap-[1px] min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood relative">
                                 {rack.map((tile, index) => (
                                     <React.Fragment key={tile.id}>
-                                        {/* Invisible drop slot before tile */}
                                         <div data-drop={`rack-slot-${index}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-500/30' : ''}`}></div>
-                                        
                                         <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>{tile.val}</div>
                                     </React.Fragment>
                                 ))}
-                                {/* Invisible drop slot at the end */}
                                 <div data-drop={`rack-slot-${rack.length}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${rack.length}` ? 'bg-emerald-500/30' : ''}`}></div>
                             </div>
                         </div>
