@@ -16,14 +16,15 @@
             theme: {
                 extend: {
                     colors: {
-                        slate: { 950: '#050505', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
                         gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
-                        texas: '#ef4444',
-                        omaha4: '#8b5cf6',
-                        omaha5: '#ec4899',
-                        omaha6: '#f97316',
-                        rummikub: '#10b981',
-                        gin: '#3b82f6'
+                        texas: '#ef4444',     /* Red */
+                        omaha4: '#8b5cf6',    /* Purple */
+                        omaha5: '#ec4899',    /* Pink */
+                        omaha6: '#f97316',    /* Orange */
+                        pineapple: '#facc15', /* Yellow */
+                        rummikub: '#10b981',  /* Emerald */
+                        gin: '#3b82f6'        /* Blue */
                     },
                     fontFamily: { 
                         sans: ['Heebo', 'sans-serif'], 
@@ -36,7 +37,7 @@
 
     <style>
         body {
-            background-color: #050505;
+            background-color: #020617;
             color: #e2e8f0;
             overflow: hidden;
             touch-action: none;
@@ -52,7 +53,7 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
 
         .glass-panel {
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(15, 23, 42, 0.8);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -66,16 +67,71 @@
             font-weight: 900;
         }
 
-        .game-felt {
-            background: radial-gradient(circle at center, #0a1120 0%, #03050a 100%);
-            box-shadow: inset 0 0 150px rgba(0,0,0,1);
+        /* Poker Table Oval - Vertical */
+        .poker-table-vertical {
+            border-radius: 200px;
+            box-shadow: 
+                inset 0 0 40px rgba(0,0,0,0.9), 
+                0 20px 50px rgba(0,0,0,0.9),
+                inset 0 0 0 16px rgba(10, 15, 25, 1); /* Outer Rail */
+            background-color: #0b1524;
+            background-image: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 70%);
+            position: relative;
+        }
+        .poker-neon-glow {
+            position: absolute;
+            inset: 16px;
+            border-radius: 190px;
+            border: 2px solid rgba(255,255,255,0.1);
+            pointer-events: none;
         }
         
-        .poker-table-oval {
-            box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 20px 50px rgba(0,0,0,0.9);
-            border-radius: 9999px;
+        .spotlight {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 60%;
+            background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 60%);
+            pointer-events: none;
         }
-        
+
+        /* Dealer & DC Buttons */
+        .dealer-button {
+            background: white; color: black; border: 2px solid #ddd;
+            width: 20px; height: 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 10px; font-family: 'Rubik', sans-serif;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            position: absolute; bottom: -5px; right: -5px; z-index: 30;
+        }
+        .dc-button {
+            background: #8b5cf6; color: white; border: 2px solid #c4b5fd;
+            width: 24px; height: 24px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 9px; font-family: 'Rubik', sans-serif;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+            position: absolute; top: -5px; left: -5px; z-index: 30;
+        }
+
+        /* Poker Card Styling */
+        .poker-card {
+            background: #ffffff; border-radius: 4px; 
+            box-shadow: 2px 4px 10px rgba(0,0,0,0.6);
+            border: 1px solid #cbd5e1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Rubik', sans-serif; font-weight: 900;
+            position: relative; overflow: hidden;
+        }
+        .poker-card.back {
+            background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #0f172a 5px, #0f172a 10px);
+            border: 2px solid #cbd5e1;
+        }
+        .poker-card.god-mode-future {
+            opacity: 0.5;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+            border: 2px solid #ef4444;
+        }
+
         .rummi-tile {
             background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
             border-bottom: 6px solid #64748b;
@@ -86,73 +142,37 @@
             box-shadow: 2px 6px 12px rgba(0,0,0,0.9);
             font-family: 'Rubik', sans-serif;
             font-weight: 900;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
-            cursor: grab;
-            text-shadow: 0px 1px 1px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+            user-select: none; transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+            cursor: grab; text-shadow: 0px 1px 1px rgba(0,0,0,0.2);
         }
         .rummi-tile:active { cursor: grabbing; }
 
         .playing-card {
-            background: #ffffff;
-            border-radius: 6px;
-            box-shadow: 2px 4px 10px rgba(0,0,0,0.8);
-            border: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 4px;
-            font-family: 'Rubik', sans-serif;
-            font-weight: 900;
-            user-select: none;
-            cursor: grab;
-            position: relative;
+            background: #ffffff; border-radius: 6px; box-shadow: 2px 4px 10px rgba(0,0,0,0.8);
+            border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 4px; font-family: 'Rubik', sans-serif; font-weight: 900;
+            user-select: none; cursor: grab; position: relative;
         }
         .playing-card:active { cursor: grabbing; }
         .card-corner { font-size: 14px; line-height: 1; text-align: left; }
         .card-center { font-size: 28px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .card-back {
-            background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #0f172a 5px, #0f172a 10px);
-            border: 2px solid #ffffff;
-        }
-        
-        .dragging-ghost {
-            opacity: 0.95;
-            transform: scale(1.15) rotate(5deg);
-            box-shadow: 15px 25px 40px rgba(0,0,0,0.9);
-            pointer-events: none;
-            z-index: 99999;
-        }
 
         .bg-dots {
             background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
             background-size: 20px 20px;
         }
 
-        @keyframes slideInUp {
-            from { transform: translate(-50%, 100%); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
-        }
-        .toast-animate {
-            animation: slideInUp 0.3s ease-out forwards;
-        }
+        @keyframes slideInUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .toast-animate { animation: slideInUp 0.3s ease-out forwards; }
         
-        @keyframes floatUp {
-            0% { opacity: 0; transform: translateY(0) scale(0.5); }
-            20% { opacity: 1; transform: translateY(-20px) scale(1.2); }
-            80% { opacity: 1; transform: translateY(-60px) scale(1); }
-            100% { opacity: 0; transform: translateY(-80px) scale(0.8); }
-        }
-        .emoji-float {
-            animation: floatUp 2.5s ease-out forwards;
-            pointer-events: none;
-            z-index: 99999;
-        }
+        @keyframes bounceIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .speech-bubble { animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         
-        .z-overlay-menus { z-index: 9999 !important; }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0.7); } 70% { box-shadow: 0 0 0 10px rgba(var(--ring-color), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0); } }
+        
+        /* Fix for Z-Index issues */
+        .z-overlay-menus { z-index: 99999 !important; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -180,11 +200,9 @@
         const googleProvider = new GoogleAuthProvider();
 
         window.fb = { 
-            auth, db, googleProvider, 
-            signInWithPopup, onAuthStateChanged, signOut,
+            auth, db, googleProvider, signInWithPopup, onAuthStateChanged, signOut,
             collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, orderBy, updateDoc, addDoc, deleteDoc, runTransaction
         };
-        
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -198,57 +216,19 @@
             ready: false,
             init: async () => {
                 if(AudioManager.ready) return;
-                await Tone.start();
-                AudioManager.ready = true;
+                await Tone.start(); AudioManager.ready = true;
             },
-            playClack: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 4, oscillator: { type: "square" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination();
-                synth.triggerAttackRelease("C3", "32n");
-                synth.volume.value = -10;
-            },
-            playTurnStart: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.1 } }).toDestination();
-                synth.triggerAttackRelease("E5", "8n");
-                synth.volume.value = -15;
-            },
-            playTick: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.MetalSynth({ frequency: 200, envelope: { attack: 0.001, decay: 0.05, release: 0.01 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination();
-                synth.triggerAttackRelease("32n");
-                synth.volume.value = -25;
-            },
-            playError: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.Synth({ oscillator: { type: "sawtooth" } }).toDestination();
-                synth.triggerAttackRelease("C3", "8n");
-                setTimeout(() => synth.triggerAttackRelease("G2", "4n"), 150);
-                synth.volume.value = -15;
-            },
-            playWin: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
-                const now = Tone.now();
-                synth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
-                synth.triggerAttackRelease(["C4", "F4", "A4"], "8n", now + 0.2);
-                synth.triggerAttackRelease(["D4", "G4", "B4"], "8n", now + 0.4);
-                synth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n", now + 0.6);
-                synth.volume.value = -10;
-            },
-            playPop: () => {
-                if(!AudioManager.ready) return;
-                const synth = new Tone.MembraneSynth({ pitchDecay: 0.2, octaves: 1.2, oscillator: { type: "sine" } }).toDestination();
-                synth.triggerAttackRelease("G4", "32n");
-                synth.volume.value = -10;
-            }
+            playClick: () => { if(AudioManager.ready) { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("C5", "32n"); } }
         };
 
+        const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
+
+        // Game Categories & Types
         const MAIN_CATEGORIES = [
-            { id: 'rummy', name: 'משחקי רמי', icon: 'fa-layer-group', color: 'text-emerald-400' },
-            { id: 'poker', name: 'פוקר הולדם', icon: 'fa-diamond', color: 'text-rose-400' },
-            { id: 'backgammon', name: 'שש-בש (בקרוב)', icon: 'fa-chess-board', color: 'text-amber-400', disabled: true },
-            { id: 'durak', name: 'דורקה (בקרוב)', icon: 'fa-crown', color: 'text-blue-400', disabled: true }
+            { id: 'rummy', name: 'רמי', icon: 'fa-layer-group', color: 'text-emerald-400' },
+            { id: 'poker', name: 'פוקר', icon: 'fa-diamond', color: 'text-rose-400' },
+            { id: 'backgammon', name: 'שש-בש', icon: 'fa-chess-board', color: 'text-amber-400', disabled: true },
+            { id: 'durak', name: 'דורקה', icon: 'fa-crown', color: 'text-blue-400', disabled: true }
         ];
 
         const GAME_TYPES = [
@@ -257,16 +237,9 @@
             { id: 'texas', category: 'poker', name: 'טקסס הולדם', hex: '#ef4444', maxPlayersLimit: 9 },
             { id: 'omaha4', category: 'poker', name: 'אומהה 4', hex: '#8b5cf6', maxPlayersLimit: 9 },
             { id: 'omaha5', category: 'poker', name: 'אומהה 5', hex: '#ec4899', maxPlayersLimit: 7 }, 
-            { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 }  
+            { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 },
+            { id: 'pineapple', category: 'poker', name: 'Crazy Pineapple', hex: '#facc15', maxPlayersLimit: 8 }
         ];
-
-        const ROLES = { 
-            SUPER_ADMIN: 'super_admin', // The absolute God Mode + Platform Owner
-            CLUB_OWNER: 'club_owner',   // Multi-tenant club owner
-            MANAGER: 'manager', 
-            AGENT: 'agent', 
-            PLAYER: 'player' 
-        };
 
         const AVATARS = [
             { id: 'av1', icon: 'fa-user-ninja', color: 'text-emerald-400', bg: 'bg-emerald-900/50' },
@@ -279,13 +252,14 @@
 
         const formatMoney = (amount) => {
             if (amount === undefined || amount === null) return '🪙 0';
+            if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'M';
+            if (amount >= 1000) return (amount / 1000).toFixed(1) + 'K';
             return amount.toLocaleString();
         };
 
         const generateClubId = () => {
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let result = '';
-            for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); }
+            let result = ''; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); }
             return result;
         };
 
@@ -301,8 +275,7 @@
             
             const [toasts, setToasts] = useState([]);
             const showToast = (msg, type = 'info') => {
-                const id = Date.now();
-                setToasts(prev => [...prev, { id, msg, type }]);
+                const id = Date.now(); setToasts(prev => [...prev, { id, msg, type }]);
                 setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 4000);
             };
 
@@ -322,11 +295,8 @@
                 if (!fbReady) return;
                 const unsubscribe = window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
                     if (user) {
-                        setAuthUser(user);
-                        await fetchOrInitializeUser(user);
-                    } else {
-                        setAuthUser(null); setDbUser(null); setCurrentView('auth');
-                    }
+                        setAuthUser(user); await fetchOrInitializeUser(user);
+                    } else { setAuthUser(null); setDbUser(null); setCurrentView('auth'); }
                 });
                 return () => unsubscribe();
             }, [fbReady]);
@@ -336,129 +306,108 @@
                 const userSnap = await window.fb.getDoc(userRef);
                 
                 if (userSnap.exists()) {
-                    let data = userSnap.data();
-                    let updates = {};
-                    
+                    let data = userSnap.data(); let updates = {};
+                    // Auto-refill for Super Admin
                     if (data.role === ROLES.SUPER_ADMIN && (!data.balance || data.balance < 1000000)) {
-                         updates.balance = 10000000;
-                         data.balance = 10000000;
+                         updates.balance = 10000000; data.balance = 10000000;
                     }
-                    if (!data.clubId) {
-                        const newClubId = generateClubId();
-                        updates.clubId = newClubId;
-                        data.clubId = newClubId;
-                    }
-
+                    if (!data.clubId) { const newClubId = generateClubId(); updates.clubId = newClubId; data.clubId = newClubId; }
                     if (Object.keys(updates).length > 0) await window.fb.updateDoc(userRef, updates);
                     setDbUser({ uid: user.uid, ...data });
                 } else {
                     const usersQuery = await window.fb.getDocs(window.fb.collection(window.fb.db, "users"));
                     const isFirstUser = usersQuery.empty;
                     
-                    let role = ROLES.PLAYER;
-                    let status = 'pending';
-                    let balance = 0;
-
+                    let role = ROLES.PLAYER; let status = 'pending'; let balance = 0;
                     if (isFirstUser) { role = ROLES.SUPER_ADMIN; status = 'approved'; balance = 10000000; } 
 
                     const newClubId = generateClubId();
                     const newUser = {
-                        username: user.displayName || 'שחקן_' + newClubId,
-                        clubId: newClubId,
+                        username: user.displayName || 'שחקן_' + newClubId, clubId: newClubId,
                         email: user.email, role: role, status: status, balance: balance,
                         avatarId: 'av' + (Math.floor(Math.random()*6)+1),
-                        agentId: null, agentRakeShare: 0,
-                        createdAt: new Date().toISOString()
+                        agentId: null, agentRakeShare: 0, createdAt: new Date().toISOString()
                     };
-                    
-                    await window.fb.setDoc(userRef, newUser);
-                    setDbUser({ uid: user.uid, ...newUser });
+                    await window.fb.setDoc(userRef, newUser); setDbUser({ uid: user.uid, ...newUser });
                 }
             };
 
             useEffect(() => {
                 if (!fbReady || !dbUser) return;
-                
                 const unsubTables = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (snapshot) => {
                     setTablesDB(snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() })));
                 });
-
                 const unsubMe = window.fb.onSnapshot(window.fb.doc(window.fb.db, "users", dbUser.uid), (doc) => {
                     if (doc.exists()) {
-                        const data = doc.data();
-                        setDbUser({ uid: doc.id, ...data });
-                        
+                        const data = doc.data(); setDbUser({ uid: doc.id, ...data });
                         if (data.status === 'pending') setCurrentView('pending');
                         else if (currentView === 'auth' || currentView === 'pending') setCurrentView('lobby');
                     }
                 });
-
                 let unsubUsers = () => {};
                 if (dbUser.role !== ROLES.PLAYER) {
                     unsubUsers = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snapshot) => {
                         setUsersDB(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
                     });
                 }
-
                 return () => { unsubTables(); unsubMe(); unsubUsers(); };
             }, [fbReady, dbUser?.uid, dbUser?.role, currentView]);
 
-            if (!fbReady) return <div className="h-screen w-screen flex items-center justify-center text-emerald-400 font-bold"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
-
+            if (!fbReady) return <div className="h-screen w-screen flex items-center justify-center text-emerald-400"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
             const userAvatar = AVATARS.find(a => a.id === dbUser?.avatarId) || AVATARS[0];
 
             return (
                 <div className="h-full flex flex-col relative bg-slate-950">
                     {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
                     
+                    {}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
-                        <nav className="bg-slate-950 p-3 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
+                        <nav className="bg-slate-950 p-2 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/10 to-purple-900/10 pointer-events-none"></div>
-                            <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10">
+                            <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10 flex-wrap gap-2">
                                 
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 text-rose-500 hover:bg-rose-500/20 transition-all flex items-center justify-center" title="התנתק">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-800 text-rose-500 hover:bg-rose-500/20 transition-all flex items-center justify-center" title="התנתק">
                                         <i className="fa-solid fa-arrow-right-from-bracket"></i>
                                     </button>
                                     
                                     {(dbUser.role !== ROLES.PLAYER) && (
                                         <button 
                                             onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')}
-                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${currentView === 'backoffice' ? 'bg-slate-200 text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
-                                            title="ניהול מועדון/סוכנות"
+                                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all ${currentView === 'backoffice' ? 'bg-slate-200 text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
+                                            title="ניהול"
                                         >
                                             <i className="fa-solid fa-users-gear"></i>
                                         </button>
                                     )}
 
                                     <div 
-                                        className="flex items-center gap-3 cursor-pointer bg-slate-900 hover:bg-slate-800 py-1.5 px-3 rounded-2xl border border-slate-700 transition-all shadow-lg group"
+                                        className="flex items-center gap-2 cursor-pointer bg-slate-900 hover:bg-slate-800 py-1 px-2 sm:py-1.5 sm:px-3 rounded-2xl border border-slate-700 transition-all group"
                                         onClick={() => setCurrentView('profile')}
                                     >
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center border border-slate-600 transition-transform group-hover:scale-110 ${userAvatar.bg}`}>
-                                            <i className={`fa-solid ${userAvatar.icon} ${userAvatar.color} text-lg`}></i>
+                                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border border-slate-600 ${userAvatar.bg}`}>
+                                            <i className={`fa-solid ${userAvatar.icon} ${userAvatar.color} text-sm sm:text-lg`}></i>
                                         </div>
                                         <div className="flex flex-col items-end pr-1">
-                                            <span className="text-sm font-bold text-white flex items-center gap-2">
-                                                {dbUser.username}
+                                            <span className="text-xs sm:text-sm font-bold text-white flex items-center gap-1">
+                                                <span className="max-w-[80px] sm:max-w-none truncate">{dbUser.username}</span>
                                                 {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px]" title="Super Admin"></i>}
                                                 {dbUser.role === ROLES.CLUB_OWNER && <i className="fa-solid fa-crown text-gold-400 text-[10px]" title="Club Owner"></i>}
-                                                {dbUser.role === ROLES.MANAGER && <i className="fa-solid fa-shield text-blue-400 text-[10px]" title="Manager"></i>}
-                                                {dbUser.role === ROLES.AGENT && <i className="fa-solid fa-handshake text-emerald-400 text-[10px]" title="Agent"></i>}
+                                                {dbUser.role === ROLES.AGENT && <i className="fa-solid fa-user-tie text-blue-400 text-[10px]" title="Agent"></i>}
                                             </span>
-                                            <span className="chip-text text-md leading-none tracking-wide"><i className="fa-solid fa-coins text-gold-500 mr-1 text-xs"></i>{formatMoney(dbUser.balance)}</span>
+                                            <span className="chip-text text-xs sm:text-md leading-none tracking-wide"><i className="fa-solid fa-coins text-gold-500 mr-1 text-[10px]"></i>{formatMoney(dbUser.balance)}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="flex flex-col items-end cursor-pointer" onClick={() => setCurrentView('lobby')}>
-                                    <h1 className="text-2xl sm:text-3xl font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+                                    <h1 className="text-xl sm:text-3xl font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
                                         RUMMIKUBE<span className="text-blue-500">.COM</span>
                                     </h1>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setShowTerms(true); }} className="text-[10px] text-slate-400 hover:text-white underline font-bold tracking-[0.1em]">תקנון ותנאים</button>
+                                        <button onClick={(e) => { e.stopPropagation(); setShowTerms(true); }} className="text-[10px] text-slate-400 hover:text-white underline font-bold tracking-[0.1em]">תקנון</button>
                                         <span className="text-slate-600 text-[10px]">|</span>
-                                        <p className="text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase">Elite Private Club</p>
+                                        <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em] sm:tracking-[0.4em] uppercase">Elite Private Club</p>
                                     </div>
                                 </div>
                             </div>
@@ -474,6 +423,7 @@
                         {currentView === 'table' && <TableDirector tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
 
+                    {/* Global Toasts */}
                     <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (
                             <div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : t.type === 'success' ? 'bg-emerald-900 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>
@@ -490,29 +440,20 @@
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999999] flex items-center justify-center p-4">
                     <div className="glass-panel max-w-lg w-full rounded-2xl p-6 border border-slate-700 max-h-[85vh] flex flex-col">
                         <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
-                            <h2 className="text-2xl font-black text-white">תקנון ותנאי שימוש</h2>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white transition-transform hover:rotate-90"><i className="fa-solid fa-xmark text-2xl"></i></button>
+                            <h2 className="text-2xl font-black text-white">תקנון האתר</h2>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-2xl"></i></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto text-slate-300 text-sm space-y-4 pr-2 custom-scrollbar">
-                            <p>ברוכים הבאים ל-Rummikube.com, פלטפורמת מועדונים פרטית ואקסקלוסיבי.</p>
-                            
-                            <h3 className="font-bold text-white text-base mt-2">1. מהות הפלטפורמה</h3>
-                            <p>המערכת משמשת כפלטפורמה חברתית לניהול משחקי רשת בין חברים. הפלטפורמה מספקת תשתית וירטואלית בלבד (SaaS).</p>
-                            
-                            <h3 className="font-bold text-white text-base mt-2">2. צ'יפים וירטואליים</h3>
-                            <p>אין סליקה או הפקדת כספים אמיתיים בתוך האתר בשום שלב. כל הצ'יפים במערכת הם מטבע וירטואלי פנימי לצרכי ניקוד בלבד ואין להם שום ערך כספי בעולם האמיתי.</p>
-                            
-                            <h3 className="font-bold text-white text-base mt-2">3. התנהגות בצ'אט (Zero Tolerance)</h3>
-                            <p>אנו שומרים על סביבת משחק הוגנת ונעימה. חל איסור מוחלט על קללות, איומים, התבטאויות גזעניות או הטרדות בצ'אט. הנהלת המועדון רשאית להשתיק (Mute) או להרחיק (Kick) שחקנים מהשולחן, ואף לחסום את חשבונם לחלוטין במקרה של התנהגות בלתי הולמת.</p>
-                            
-                            <h3 className="font-bold text-white text-base mt-2">4. מניעת רמאויות (Anti-Collusion)</h3>
-                            <p>שיתוף פעולה בין שחקנים (Team Play), העברת צ'יפים במכוון בין שחקנים להפסד מכוון (Chip Dumping) או שימוש בתוכנות עזר אסורים בהחלט. למערכת מנגנוני מעקב מתקדמים ולהנהלת המועדון יש כלים לניטור וראיית כלל הקלפים למניעת הונאות. עבירה על סעיף זה תוביל לסגירת החשבון והחרמת הניקוד.</p>
-                            
-                            <h3 className="font-bold text-white text-base mt-2">5. סמכות ההנהלה</h3>
-                            <p>החלטות מנהלי המועדון (Owners/Managers) הן סופיות. הנהלת האתר שומרת לעצמה את הזכות לבטל תוצאות של משחקים או לחסום משתמשים בכל מקרה של חשד סביר להפרת התקנון או ניצול טכני של המערכת.</p>
+                        <div className="flex-1 overflow-y-auto text-slate-300 text-sm space-y-4 pr-2">
+                            <p>מערכת זו הינה פלטפורמה חברתית לניהול משחקי רשת בין חברים (SaaS).</p>
+                            <h3 className="font-bold text-white mt-2">התנהגות וצ'אט</h3>
+                            <p>אפס סובלנות לקללות או איומים. מנהלים רשאים להשתיק (Mute) או להרחיק (Kick) מיידית שחקן. המערכת שומרת היסטוריית צ'אט לבקרת הנהלה.</p>
+                            <h3 className="font-bold text-white mt-2">מניעת רמאויות (Anti-Collusion)</h3>
+                            <p>שיתוף פעולה (Team Play) אסור בהחלט. להנהלה יכולות ניטור מלאות (God Mode) לצפייה בכל הקלפים וההיסטוריה.</p>
+                            <h3 className="font-bold text-white mt-2">הגנת פגע וברח (Ratholing)</h3>
+                            <p>שחקן העוזב שולחן קאש עם רווח מחוייב לחזור עם אותו סכום במידה והוא שב לאותו השולחן בפרק הזמן שהוגדר ע"י מנהל השולחן.</p>
                         </div>
-                        <div className="mt-6 pt-4 border-t border-slate-700 text-center">
-                            <button onClick={onClose} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]">הבנתי, מסכים ומאשר</button>
+                        <div className="mt-6 pt-4 text-center">
+                            <button onClick={onClose} className="bg-blue-600 text-white px-10 py-3 rounded-xl font-bold">הבנתי ומאשר</button>
                         </div>
                     </div>
                 </div>
@@ -521,26 +462,18 @@
 
         function AuthView({ onShowTerms }) {
             const [error, setError] = useState('');
-            const handleLogin = async () => {
-                try { await window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider); } 
-                catch (e) { setError(`שגיאה בהתחברות: (${e.code})`); }
-            };
+            const handleLogin = async () => { try { await window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider); } catch (e) { setError(`שגיאה (${e.code})`); } };
             return (
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
-                    <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center border-t-4 border-blue-500 relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] mb-6">
-                        <div className="absolute top-0 left-0 w-full h-32 bg-blue-500/10 blur-3xl"></div>
-                        <div className="w-20 h-20 mx-auto bg-slate-900 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-slate-800 relative z-10">
-                             <i className="fa-solid fa-gem text-5xl text-blue-500"></i>
-                        </div>
-                        <h2 className="text-3xl font-black text-white tracking-widest mb-1 relative z-10">RUMMIKUBE.COM</h2>
-                        <p className="text-slate-400 text-xs font-bold tracking-[0.2em] mb-10 relative z-10">ELITE PRIVATE CLUB</p>
-                        
-                        <button onClick={handleLogin} className="w-full bg-white text-slate-900 font-black py-4 rounded-xl shadow-lg hover:bg-slate-200 transition-transform hover:scale-105 flex items-center justify-center gap-3 relative z-10 text-lg">
-                            <i className="fa-brands fa-google text-rose-500"></i> התחבר עם חשבון Google
+                    <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center border-t-4 border-blue-500 shadow-2xl mb-6">
+                        <h2 className="text-3xl font-black text-white tracking-widest mb-1">RUMMIKUBE</h2>
+                        <p className="text-slate-400 text-xs font-bold tracking-[0.2em] mb-10">ELITE PRIVATE CLUB</p>
+                        <button onClick={handleLogin} className="w-full bg-white text-slate-900 font-black py-4 rounded-xl shadow-lg hover:bg-slate-200 transition-transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                            <i className="fa-brands fa-google text-rose-500"></i> התחבר עם Google
                         </button>
-                        {error && <div className="mt-6 text-rose-400 text-sm font-bold bg-rose-900/20 p-3 rounded-lg border border-rose-900/50 relative z-10">{error}</div>}
+                        {error && <div className="mt-6 text-rose-400 text-sm font-bold">{error}</div>}
                     </div>
-                    <button onClick={onShowTerms} className="text-slate-500 hover:text-slate-300 underline font-bold text-sm">קרא תקנון ותנאי שימוש לפלטפורמה</button>
+                    <button onClick={onShowTerms} className="text-slate-500 underline font-bold text-sm">תקנון ותנאי שימוש</button>
                 </div>
             );
         }
@@ -550,9 +483,9 @@
                 <div className="flex-1 flex items-center justify-center p-4 text-center">
                     <div className="glass-panel p-10 rounded-3xl max-w-sm">
                         <i className="fa-solid fa-clock-rotate-left text-6xl text-gold-500 mb-6 animate-pulse"></i>
-                        <h2 className="text-2xl font-black text-white mb-3">ממתין לאישור הנהלה</h2>
-                        <p className="text-slate-400 text-sm leading-relaxed mb-8">הבקשה שלך נמצאת אצל מנהלי הקלאב/סוכנים. רק לאחר אישור והפקדת צ'יפים תוכל להיכנס.</p>
-                        <button onClick={() => window.fb.signOut(window.fb.auth)} className="text-slate-400 font-bold hover:text-white underline">התנתק וחזור למסך הראשי</button>
+                        <h2 className="text-2xl font-black text-white mb-3">ממתין לאישור</h2>
+                        <p className="text-slate-400 text-sm mb-8">הבקשה שלך אצל ההנהלה. אנא המתן.</p>
+                        <button onClick={() => window.fb.signOut(window.fb.auth)} className="text-slate-400 underline">התנתק</button>
                     </div>
                 </div>
             );
@@ -562,250 +495,67 @@
             const [username, setUsername] = useState(user.username);
             const [avatarId, setAvatarId] = useState(user.avatarId);
             const handleSave = async () => {
-                try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username, avatarId });
-                    showToast("פרופיל עודכן בהצלחה", "success"); onSave();
-                } catch(e) { showToast("שגיאה בעדכון הפרופיל", "error"); }
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username, avatarId }); showToast("פרופיל עודכן", "success"); onSave(); } 
+                catch(e) { showToast("שגיאה", "error"); }
             };
             return (
-                <div className="flex-1 p-4 flex justify-center items-start overflow-y-auto pt-10 pb-20">
-                    <div className="glass-panel p-8 rounded-3xl w-full max-w-lg border border-slate-700 shadow-2xl">
+                <div className="flex-1 p-4 flex justify-center items-start overflow-y-auto pt-10">
+                    <div className="glass-panel p-8 rounded-3xl w-full max-w-lg border border-slate-700">
                         <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                            <h2 className="text-2xl font-black text-white">הגדרות פרופיל אישי</h2>
+                            <h2 className="text-2xl font-black text-white">פרופיל אישי</h2>
                             <button onClick={onSave} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-2xl"></i></button>
                         </div>
-                        <div className="mb-8 text-center bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                            <p className="text-slate-400 text-xs mb-2 uppercase tracking-widest font-bold">מזהה מועדון (ID שחקן)</p>
-                            <code className="text-gold-400 text-2xl font-black tracking-widest">{user.clubId}</code>
-                            <p className="text-[10px] text-slate-500 mt-2">העבר מזהה זה לסוכן או להנהלה כדי שיפקידו לך צ'יפים.</p>
+                        <div className="mb-6 text-center bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                            <p className="text-slate-400 text-xs mb-1 uppercase font-bold">ID שחקן להפקדה</p>
+                            <code className="text-gold-400 text-2xl font-black">{user.clubId}</code>
                         </div>
-                        <div className="mb-8">
-                            <label className="block text-sm font-bold text-slate-300 mb-3">בחר כינוי (Username)</label>
-                            <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500 font-bold text-lg text-center" maxLength={12} />
+                        <div className="mb-6">
+                            <label className="block text-sm font-bold text-slate-300 mb-3">כינוי (Username)</label>
+                            <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-slate-950 text-white px-4 py-3 rounded-xl border border-slate-700 text-center" maxLength={12} />
                         </div>
-                        <div className="mb-8">
-                            <label className="block text-sm font-bold text-slate-300 mb-3">בחר אווטאר</label>
-                            <div className="grid grid-cols-3 gap-4">
-                                {AVATARS.map(av => (
-                                    <div key={av.id} onClick={() => setAvatarId(av.id)} className={`cursor-pointer rounded-2xl flex flex-col items-center justify-center p-4 border-2 transition-all ${avatarId === av.id ? 'border-blue-500 bg-slate-800 scale-105 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'border-slate-800 bg-slate-900 hover:border-slate-600'}`}>
-                                        <div className={`w-14 h-14 rounded-full flex items-center justify-center ${av.bg} mb-2`}><i className={`fa-solid ${av.icon} ${av.color} text-2xl`}></i></div>
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="mb-8 grid grid-cols-3 gap-4">
+                            {AVATARS.map(av => (
+                                <div key={av.id} onClick={() => setAvatarId(av.id)} className={`cursor-pointer rounded-2xl flex items-center justify-center p-4 border-2 ${avatarId === av.id ? 'border-blue-500 bg-slate-800' : 'border-slate-800 bg-slate-900'}`}>
+                                    <i className={`fa-solid ${av.icon} ${av.color} text-2xl`}></i>
+                                </div>
+                            ))}
                         </div>
-                        <button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-transform hover:scale-105 text-lg">שמור שינויים</button>
+                        <button onClick={handleSave} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl">שמור שינויים</button>
                     </div>
                 </div>
             );
         }
 
         function BackofficeView({ user, usersDB, showToast }) {
-            const [selectedUser, setSelectedUser] = useState(null);
-            const [amount, setAmount] = useState('');
-            const [activeTab, setActiveTab] = useState('cashier'); 
-
-            const isAgent = user.role === ROLES.AGENT;
-            const isGlobalAdmin = user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER;
-            
-            const visibleUsers = usersDB.filter(u => {
-                if (u.uid === user.uid) return false;
-                if (isGlobalAdmin) return true;
-                return u.agentId === user.uid;
-            });
-
-            const handleTransfer = async (type) => {
-                if (!selectedUser || !amount || isNaN(amount) || amount <= 0) return showToast("הזן סכום תקין", "error");
-                const amt = parseInt(amount);
-                const isDeposit = type === 'deposit';
-                
-                if (user.role !== ROLES.SUPER_ADMIN) {
-                    if (isDeposit && user.balance < amt) return showToast("אין לך מספיק צ'יפים להפקדה לשחקן!", "error");
-                }
-                
-                if (!isDeposit && selectedUser.balance < amt) return showToast("לשחקן אין מספיק צ'יפים למשיכה!", "error");
-                
-                try {
-                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const senderRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const receiverRef = window.fb.doc(window.fb.db, "users", selectedUser.uid);
-                        const senderDoc = await transaction.get(senderRef);
-                        const receiverDoc = await transaction.get(receiverRef);
-                        
-                        let newSenderBalance = senderDoc.data().balance;
-                        if (user.role !== ROLES.SUPER_ADMIN) {
-                            newSenderBalance = isDeposit ? senderDoc.data().balance - amt : senderDoc.data().balance + amt;
-                        }
-                        
-                        const newReceiverBalance = isDeposit ? receiverDoc.data().balance + amt : receiverDoc.data().balance - amt;
-                        
-                        transaction.update(senderRef, { balance: newSenderBalance });
-                        transaction.update(receiverRef, { balance: newReceiverBalance });
-                    });
-                    showToast(`הפעולה בוצעה. ${formatMoney(amt)} הועברו.`, "success");
-                    setAmount(''); setSelectedUser(null);
-                } catch (e) { showToast("שגיאה בהעברה. נסה שוב.", "error"); }
-            };
-
-            const toggleApproval = async (targetUser) => {
-                const newStatus = targetUser.status === 'pending' ? 'approved' : 'pending';
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { status: newStatus });
-                showToast(`סטטוס של ${targetUser.username} עודכן ל-${newStatus}`);
-            };
-
-            const changeRole = async (targetUser, newRole) => {
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { role: newRole });
-                showToast(`תפקיד של ${targetUser.username} עודכן ל-${newRole}`);
-            };
-
-            const changeAgent = async (targetUser, agentId) => {
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentId: agentId || null });
-                showToast("סוכן משויך עודכן בהצלחה", "success");
-            };
-            
-            const changeAgentShare = async (targetUser, shareStr) => {
-                let share = parseInt(shareStr);
-                if(isNaN(share) || share < 0 || share > 100) return;
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", targetUser.uid), { agentRakeShare: share });
-                showToast("אחוז עמלת סוכן עודכן", "success");
-            };
-
-            const agentsList = usersDB.filter(u => u.role === ROLES.AGENT || u.role === ROLES.MANAGER || u.role === ROLES.CLUB_OWNER);
+            const isAgentOnly = user.role === ROLES.AGENT;
+            const relevantUsers = isAgentOnly ? usersDB.filter(u => u.agentId === user.uid || u.uid === user.uid) : usersDB;
 
             return (
-                <div className="flex-1 bg-slate-950 p-4 sm:p-8 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="mb-8 border-b border-slate-800 pb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div>
-                                <h2 className="text-3xl font-black text-white mb-2">
-                                    <i className="fa-solid fa-users-gear text-blue-500 mr-2"></i> 
-                                    {isAgent ? 'פאנל סוכן (Agent)' : 'ניהול מועדון'}
-                                </h2>
-                                <p className="text-slate-400">
-                                    {isAgent ? 'הפקדה ומשיכת צ\'יפים מהשחקנים המשויכים אליך בלבד.' : 'ניהול גלובלי, הרשאות והעברות צ\'יפים.'}
-                                </p>
-                            </div>
-                            
-                            {isGlobalAdmin && (
-                                <div className="flex gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800 flex-wrap">
-                                    <button onClick={() => setActiveTab('cashier')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'cashier' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>העברות</button>
-                                    <button onClick={() => setActiveTab('players')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'players' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>הרשאות שחקנים</button>
-                                    {user.role === ROLES.SUPER_ADMIN && <button onClick={() => setActiveTab('clubs')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'clubs' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-network-wired mr-1"></i> רשת מועדונים (SaaS)</button>}
-                                </div>
-                            )}
+                <div className="flex-1 bg-slate-950 p-4 text-white overflow-y-auto">
+                    <div className="max-w-6xl mx-auto">
+                        <h2 className="text-2xl font-black mb-6">{isAgentOnly ? 'ניהול סוכן' : 'ניהול מועדון (Backoffice)'}</h2>
+                        
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
+                            <h3 className="text-lg font-bold text-slate-400 mb-4">שחקנים משויכים</h3>
+                            <table className="w-full text-right text-sm">
+                                <thead><tr className="text-slate-500 border-b border-slate-800"><th className="pb-2">שחקן</th><th className="pb-2">ID</th><th className="pb-2">יתרה</th><th className="pb-2">סטטוס</th></tr></thead>
+                                <tbody>
+                                    {relevantUsers.map(u => (
+                                        <tr key={u.uid} className="border-b border-slate-800/50">
+                                            <td className="py-3 font-bold">{u.username}</td>
+                                            <td className="py-3 text-slate-500 text-xs">{u.clubId}</td>
+                                            <td className="py-3 text-gold-400 font-bold">{formatMoney(u.balance)}</td>
+                                            <td className="py-3">{u.status === 'approved' ? <span className="text-emerald-500">פעיל</span> : <span className="text-rose-500">ממתין</span>}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-
-                        {activeTab === 'clubs' && user.role === ROLES.SUPER_ADMIN && (
-                            <div className="glass-panel p-10 rounded-2xl border border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)] text-center">
-                                <i className="fa-solid fa-earth-americas text-6xl text-purple-500 mb-4 animate-pulse"></i>
-                                <h3 className="text-2xl font-black text-white mb-2">מערכת ריבוי מועדונים (Multi-Tenant SaaS)</h3>
-                                <p className="text-slate-400 max-w-lg mx-auto mb-6">מכאן תוכל בעתיד להקים מועדונים נוספים, למנות להם מנהלים עצמאיים (Club Owners), ולגבות מהם דמי מנוי חודשיים כ-Super Admin של כל הפלטפורמה.</p>
-                                <button className="bg-purple-600/50 text-white px-6 py-3 rounded-xl font-bold border border-purple-500 opacity-50 cursor-not-allowed">בפיתוח...</button>
-                            </div>
-                        )}
-
-                        {(activeTab === 'cashier' || isAgent) && (
-                            <div className="glass-panel p-6 rounded-2xl mb-8 border border-slate-700 shadow-2xl">
-                                <h3 className="text-lg font-bold text-white mb-4">קופה (Cashier)</h3>
-                                <div className="flex flex-col md:flex-row gap-4 items-end">
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-xs font-bold text-slate-400 mb-2">בחר שחקן להעברה</label>
-                                        <select className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500" onChange={(e) => setSelectedUser(visibleUsers.find(u => u.uid === e.target.value))} value={selectedUser?.uid || ''}>
-                                            <option value="">-- בחר שחקן --</option>
-                                            {visibleUsers.map(u => (<option key={u.uid} value={u.uid}>[{u.clubId}] {u.username} (יתרה: {u.balance})</option>))}
-                                        </select>
-                                    </div>
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-xs font-bold text-slate-400 mb-2">סכום צ'יפים</label>
-                                        <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="w-full bg-slate-900 text-white px-4 py-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500 text-xl font-black font-rubik" placeholder="0" />
-                                    </div>
-                                    <div className="flex gap-2 w-full md:w-auto">
-                                        <button onClick={() => handleTransfer('deposit')} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]">הפקד לשחקן</button>
-                                        <button onClick={() => handleTransfer('withdraw')} className="flex-1 md:flex-none bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)]">משוך מהשחקן</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'players' && isGlobalAdmin && (
-                            <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden">
-                                <div className="p-4 border-b border-slate-800 bg-slate-900/50"><h3 className="text-lg font-bold text-white">רשימת משתמשים, סוכנים והרשאות</h3></div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-right text-sm">
-                                        <thead className="bg-slate-950/80 text-slate-400">
-                                            <tr>
-                                                <th className="p-4">ID מועדון</th>
-                                                <th className="p-4">כינוי שחקן</th>
-                                                <th className="p-4">תפקיד</th>
-                                                <th className="p-4">סוכן אחראי</th>
-                                                <th className="p-4">% עמלת סוכן</th>
-                                                <th className="p-4">יתרה נוכחית</th>
-                                                <th className="p-4">סטטוס</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {usersDB.map(u => (
-                                                <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
-                                                    <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td>
-                                                    <td className="p-4 font-bold text-white flex items-center gap-2">{u.username}</td>
-                                                    <td className="p-4 uppercase text-xs font-bold text-slate-400">
-                                                        {(user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && u.uid !== user.uid ? (
-                                                            <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-white">
-                                                                <option value={ROLES.PLAYER}>Player</option>
-                                                                <option value={ROLES.AGENT}>Agent</option>
-                                                                <option value={ROLES.MANAGER}>Manager</option>
-                                                                {user.role === ROLES.SUPER_ADMIN && <option value={ROLES.CLUB_OWNER}>Club Owner</option>}
-                                                            </select>
-                                                        ) : (<span>{u.role}</span>)}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        {u.role === ROLES.PLAYER && (user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && (
-                                                            <select value={u.agentId || ''} onChange={(e) => changeAgent(u, e.target.value)} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 outline-none text-slate-300 w-full">
-                                                                <option value="">ללא סוכן (הכל לבית)</option>
-                                                                {agentsList.filter(a => a.uid !== u.uid).map(a => (<option key={a.uid} value={a.uid}>{a.username}</option>))}
-                                                            </select>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        {u.role === ROLES.PLAYER && u.agentId && (user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER) && (
-                                                            <div className="flex items-center gap-1">
-                                                                <input type="number" defaultValue={u.agentRakeShare} onBlur={(e) => changeAgentShare(u, e.target.value)} className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-center text-white" min="0" max="100" /> <span className="text-slate-500">%</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
-                                                    <td className="p-4">
-                                                        {u.uid !== user.uid && (
-                                                            <button onClick={() => toggleApproval(u)} className={`text-xs border px-4 py-2 rounded-lg transition-colors font-bold shadow-lg ${u.status === 'pending' ? 'bg-emerald-900 border-emerald-600 text-emerald-300 hover:bg-emerald-800' : 'bg-slate-800 border-slate-600 text-white hover:bg-slate-700'}`}>
-                                                                {u.status === 'pending' ? 'אשר שחקן' : 'השעה פעילות'}
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {isAgent && !isGlobalAdmin && (
-                            <div className="glass-panel rounded-2xl border border-slate-700 overflow-hidden mt-8">
-                                <div className="p-4 border-b border-slate-800 bg-slate-900/50"><h3 className="text-lg font-bold text-white">השחקנים המשויכים אליי</h3></div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-right text-sm">
-                                        <thead className="bg-slate-950/80 text-slate-400"><tr><th className="p-4">ID מועדון</th><th className="p-4">כינוי שחקן</th><th className="p-4">יתרה נוכחית</th><th className="p-4">סטטוס</th></tr></thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {visibleUsers.length === 0 && <tr><td colSpan="4" className="text-center p-6 text-slate-500">אין שחקנים משויכים.</td></tr>}
-                                            {visibleUsers.map(u => (
-                                                <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
-                                                    <td className="p-4 text-blue-400 font-bold tracking-widest">{u.clubId}</td><td className="p-4 font-bold text-white">{u.username}</td>
-                                                    <td className="p-4 text-gold-400 font-black font-rubik">{formatMoney(u.balance)}</td>
-                                                    <td className="p-4"><span className={`text-xs px-2 py-1 rounded ${u.status === 'approved' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{u.status === 'approved' ? 'פעיל' : 'מושעה/ממתין'}</span></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        
+                        {!isAgentOnly && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                                <h3 className="text-lg font-bold text-slate-400 mb-4">ניהול מועדונים (Super Admin)</h3>
+                                <p className="text-sm text-slate-500">בקרוב: מסך Multi-Tenant לניהול עמלות שכירויות ממועדונים זרים.</p>
                             </div>
                         )}
                     </div>
@@ -814,122 +564,69 @@
         }
 
         function LobbyView({ user, tables, onJoin, showToast }) {
-            const [activeCategory, setActiveCategory] = useState('rummy');
-            const [activeGameType, setActiveGameType] = useState('rummikub');
+            const [activeCategory, setActiveCategory] = useState('poker');
+            const [activeGameType, setActiveGameType] = useState('texas');
+            const [showCreate, setShowCreate] = useState(false);
             
             const isAdmin = user.role !== ROLES.PLAYER;
-            
             const subTypes = GAME_TYPES.filter(g => g.category === activeCategory);
             const filteredTables = tables.filter(t => t.type === activeGameType);
             const typeInfo = GAME_TYPES.find(g => g.id === activeGameType) || GAME_TYPES[0];
 
-            const [showCreate, setShowCreate] = useState(false);
-            
-            const [isTournament, setIsTournament] = useState(false);
             const [createSettings, setCreateSettings] = useState({
-                maxPlayers: typeInfo.maxPlayersLimit,
-                minToStart: 2,
-                turnTime: 30,
-                sb: 10,
-                bb: 20,
-                minBuyIn: 1000,
-                maxBuyIn: 5000,
-                penaltyLimit: 500, 
-                ratholeTimer: 30, 
-                rakePercent: 6,
-                rakeCap: 100
+                maxPlayers: typeInfo.maxPlayersLimit, minToStart: 2, turnTime: 30, sb: 10, bb: 20, minBuyIn: 1000, maxBuyIn: 5000,
+                ratholeTimer: 30, bombPots: false, dealersChoice: false, isTournament: false, targetScore: -500
             });
 
-            useEffect(() => {
-                if (subTypes.length > 0 && !subTypes.find(s => s.id === activeGameType)) {
-                    setActiveGameType(subTypes[0].id);
-                }
-            }, [activeCategory]);
-            
-            useEffect(() => {
-                const newTypeInfo = GAME_TYPES.find(g => g.id === activeGameType);
-                if (newTypeInfo) {
-                    setCreateSettings(prev => ({
-                        ...prev,
-                        maxPlayers: newTypeInfo.maxPlayersLimit,
-                        minToStart: Math.min(prev.minToStart, newTypeInfo.maxPlayersLimit)
-                    }));
-                }
-            }, [activeGameType]);
+            useEffect(() => { if (subTypes.length > 0 && !subTypes.find(s => s.id === activeGameType)) setActiveGameType(subTypes[0].id); }, [activeCategory]);
+            useEffect(() => { const t = GAME_TYPES.find(g => g.id === activeGameType); if (t) setCreateSettings(p => ({ ...p, maxPlayers: t.maxPlayersLimit, minToStart: Math.min(p.minToStart, t.maxPlayersLimit) })); }, [activeGameType]);
 
-            const handleSettingChange = (field, value) => {
-                setCreateSettings(prev => ({ ...prev, [field]: Number(value) }));
-            };
+            const handleSetting = (f, v) => setCreateSettings(p => ({ ...p, [f]: f==='bombPots'||f==='dealersChoice'||f==='isTournament' ? v : Number(v) }));
 
             const handleCreateTable = async () => {
                 try {
-                    let stakesString = activeCategory === 'poker' ? `${createSettings.sb}/${createSettings.bb}` : `${createSettings.sb}`;
-                    
-                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                        type: activeGameType, 
-                        isTournament: isTournament,
-                        stakes: isTournament ? 0 : stakesString, 
-                        
-                        maxPlayers: createSettings.maxPlayers,
-                        minToStart: createSettings.minToStart,
-                        turnTime: createSettings.turnTime,
-                        buyIn: createSettings.minBuyIn, 
-                        minBuyIn: createSettings.minBuyIn,
-                        maxBuyIn: createSettings.maxBuyIn,
-                        penaltyLimit: isTournament ? createSettings.penaltyLimit : 0, 
-                        prizePool: 0, 
-                        ratholeTimerMin: createSettings.ratholeTimer,
-                        rakePercent: createSettings.rakePercent,
-                        rakeCap: createSettings.rakeCap,
-                        
-                        status: 'waiting', 
-                        players: {}, 
-                        board: [], deck: [], discardPile: [], currentTurn: null, 
-                        chatEnabled: true, mutedPlayers: [], chat: [], 
-                        waitingList: [],
-                        ratholeHistory: {}, 
-                        
-                        createdAt: new Date().toISOString(), 
-                        createdBy: user.uid
-                    });
+                    const newTableData = {
+                        type: activeGameType, isTournament: createSettings.isTournament, targetScore: createSettings.targetScore,
+                        stakes: activeCategory === 'poker' ? `${createSettings.sb}/${createSettings.bb}` : `${createSettings.sb}`, 
+                        maxPlayers: createSettings.maxPlayers, minToStart: createSettings.minToStart, turnTime: createSettings.turnTime,
+                        buyIn: createSettings.minBuyIn, minBuyIn: createSettings.minBuyIn, maxBuyIn: createSettings.maxBuyIn,
+                        ratholeTimerMin: createSettings.ratholeTimer, bombPots: createSettings.bombPots, dealersChoice: createSettings.dealersChoice,
+                        status: 'waiting', players: {}, board: [], deck: [], chat: [], waitingList: [], ratholeHistory: {},
+                        createdAt: new Date().toISOString(), createdBy: user.uid, phase: 'waiting', pot: 0
+                    };
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), newTableData);
                     setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
-                } catch(e) { showToast("שגיאה בפתיחת שולחן", "error"); console.error(e); }
+                } catch(e) { showToast("שגיאה בפתיחת שולחן", "error"); }
             };
 
             const joinWaitingList = async (table) => {
-                const isAlreadyWaiting = (table.waitingList || []).find(w => w.uid === user.uid);
-                if (isAlreadyWaiting) return showToast("אתה כבר ברשימת ההמתנה לשולחן זה", "info");
+                if ((table.waitingList || []).find(w => w.uid === user.uid)) return showToast("אתה כבר בתור", "info");
                 try {
-                    const newList = [...(table.waitingList || []), { uid: user.uid, username: user.username, joinedAt: Date.now() }];
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", table.docId), { waitingList: newList });
-                    showToast("נכנסת לרשימת ההמתנה. המערכת תודיע לך כשייתפנה מקום.", "success");
-                } catch (e) { showToast("שגיאה בהצטרפות לרשימת ההמתנה", "error"); }
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", table.docId), { waitingList: [...(table.waitingList || []), { uid: user.uid, username: user.username, joinedAt: Date.now() }] });
+                    showToast("נכנסת לרשימת ההמתנה.", "success");
+                } catch (e) { showToast("שגיאה בהצטרפות לתור", "error"); }
             };
 
             return (
                 <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-slate-950">
-                    
-                    <div className="bg-slate-900 border-b border-slate-800 pt-4 overflow-x-auto hide-scrollbar shrink-0 shadow-lg relative z-20">
-                        <div className="flex px-4 max-w-6xl mx-auto gap-3 pb-3">
+                    {/* Category Tabs */}
+                    <div className="bg-slate-900 border-b border-slate-800 overflow-x-auto shrink-0 shadow-lg relative z-20">
+                        <div className="flex px-4 max-w-6xl mx-auto gap-1">
                             {MAIN_CATEGORIES.map(cat => (
-                                <button key={cat.id} 
-                                    onClick={() => !cat.disabled && setActiveCategory(cat.id)}
-                                    className={`whitespace-nowrap px-6 py-4 rounded-t-2xl font-black transition-all flex items-center gap-3 border-b-4 ${activeCategory === cat.id ? `bg-slate-800 text-white border-blue-500 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]` : 'bg-slate-950/50 text-slate-500 border-transparent hover:bg-slate-800'} ${cat.disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                >
-                                    <i className={`fa-solid ${cat.icon} ${activeCategory === cat.id ? cat.color : ''} text-lg`}></i>
-                                    {cat.name}
+                                <button key={cat.id} onClick={() => !cat.disabled && setActiveCategory(cat.id)}
+                                    className={`whitespace-nowrap px-6 py-4 font-black transition-all flex items-center gap-2 border-b-4 ${activeCategory === cat.id ? `bg-slate-800 text-white border-blue-500` : 'text-slate-500 border-transparent'} ${cat.disabled ? 'opacity-30' : ''}`}>
+                                    <i className={`fa-solid ${cat.icon} ${activeCategory === cat.id ? cat.color : ''}`}></i> {cat.name}
                                 </button>
                             ))}
                         </div>
                     </div>
-
-                    <div className="bg-slate-900/50 border-b border-slate-800 overflow-x-auto hide-scrollbar shrink-0 relative z-10">
-                        <div className="flex px-4 max-w-6xl mx-auto gap-4 py-3">
+                    {/* Game Type Sub-Tabs */}
+                    <div className="bg-slate-900/50 border-b border-slate-800 overflow-x-auto shrink-0 z-10">
+                        <div className="flex px-4 max-w-6xl mx-auto gap-3 py-3">
                             {subTypes.map(type => (
                                 <button key={type.id} onClick={() => setActiveGameType(type.id)}
-                                    className={`whitespace-nowrap px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 border-2 ${activeGameType === type.id ? `bg-slate-800 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)]` : 'bg-slate-950 text-slate-500 border-transparent hover:bg-slate-800'}`}
-                                    style={activeGameType === type.id ? { borderColor: type.hex, color: type.hex } : {}}
-                                >
+                                    className={`whitespace-nowrap px-5 py-2 rounded-xl font-bold border-2 ${activeGameType === type.id ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-950 text-slate-500 border-transparent'}`}
+                                    style={activeGameType === type.id ? { borderColor: type.hex, color: type.hex } : {}}>
                                     {type.name}
                                 </button>
                             ))}
@@ -938,136 +635,69 @@
 
                     <div className="p-4 max-w-6xl mx-auto w-full mt-4">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">
-                                <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 15px ${typeInfo.hex}` }}></div>
-                                שולחנות {typeInfo.name} פעילים
-                            </h2>
-                            {isAdmin && (
-                                <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all flex items-center gap-2 text-sm">
-                                    <i className={`fa-solid ${showCreate ? 'fa-xmark' : 'fa-plus'}`}></i> {showCreate ? 'ביטול פתיחה' : 'פתיחת שולחן מתקדם'}
-                                </button>
-                            )}
+                            <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">שולחנות פעילים</h2>
+                            {isAdmin && <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow-lg text-sm">פתיחת שולחן</button>}
                         </div>
 
+                        {/* Create Table Form */}
                         {showCreate && isAdmin && (
-                            <div className="glass-panel p-6 rounded-2xl mb-8 flex flex-col gap-6 border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
+                            <div className="glass-panel p-6 rounded-2xl mb-8 flex flex-col gap-4 border-blue-500/50">
+                                <h3 className="text-lg font-bold text-white border-b border-slate-700 pb-2">הגדרות שולחן: {typeInfo.name}</h3>
                                 
-                                <div className="flex items-center justify-between border-b border-slate-700 pb-4">
-                                    <h3 className="text-lg font-bold text-white">הגדרות שולחן: {typeInfo.name}</h3>
-                                    <label className="flex items-center gap-2 cursor-pointer text-white font-bold bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-800">
-                                        <input type="checkbox" checked={isTournament} onChange={e => setIsTournament(e.target.checked)} className="w-5 h-5 accent-gold-500" />
-                                        <i className="fa-solid fa-trophy text-gold-500"></i> מצב טורניר
-                                    </label>
-                                </div>
+                                {activeCategory === 'rummy' && (
+                                    <div className="mb-4 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                                        <label className="flex items-center gap-2 text-white font-bold"><input type="checkbox" checked={createSettings.isTournament} onChange={e=>handleSetting('isTournament', e.target.checked)} className="w-4 h-4 accent-amber-500" /> 🏆 מצב טורניר (פסילה)</label>
+                                        {createSettings.isTournament && <div className="mt-2"><label className="block text-xs font-bold text-slate-400 mb-1">רף פסילה (מינוס)</label><input type="number" value={createSettings.targetScore} onChange={e=>handleSetting('targetScore', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>}
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 mb-1">מקסימום שחקנים (עד {typeInfo.maxPlayersLimit})</label>
-                                        <select value={createSettings.maxPlayers} onChange={e=>handleSettingChange('maxPlayers', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500">
-                                            {[...Array(typeInfo.maxPlayersLimit-1)].map((_, i) => <option key={i} value={i+2}>{i+2} שחקנים</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 mb-1">מינימום שחקנים להתחלה</label>
-                                        <select value={createSettings.minToStart} onChange={e=>handleSettingChange('minToStart', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500">
-                                            {[...Array(createSettings.maxPlayers-1)].map((_, i) => <option key={i} value={i+2}>{i+2} שחקנים</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 mb-1">זמן תור (שניות)</label>
-                                        <select value={createSettings.turnTime} onChange={e=>handleSettingChange('turnTime', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500">
-                                            <option value="15">15</option><option value="30">30</option><option value="45">45</option><option value="60">60</option><option value="90">90</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 mb-1" title="מונע משחקן שברח עם רווח להיכנס חזרה עם המינימום">הגנת 'פגע וברח' (דקות)</label>
-                                        <select value={createSettings.ratholeTimer} onChange={e=>handleSettingChange('ratholeTimer', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-rose-900 outline-none focus:border-rose-500">
-                                            <option value="0">ללא הגנה</option><option value="15">15 דקות</option><option value="30">30 דקות</option><option value="60">60 דקות</option>
-                                        </select>
-                                    </div>
+                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">מקסימום שחקנים (עד {typeInfo.maxPlayersLimit})</label><select value={createSettings.maxPlayers} onChange={e=>handleSetting('maxPlayers', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-slate-700">{[...Array(typeInfo.maxPlayersLimit-1)].map((_, i) => <option key={i} value={i+2}>{i+2}</option>)}</select></div>
+                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">מינימום להתחלה</label><select value={createSettings.minToStart} onChange={e=>handleSetting('minToStart', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-slate-700">{[...Array(createSettings.maxPlayers-1)].map((_, i) => <option key={i} value={i+2}>{i+2}</option>)}</select></div>
+                                    <div><label className="block text-xs font-bold text-rose-400 mb-1">הגנת פגע וברח (דקות)</label><select value={createSettings.ratholeTimer} onChange={e=>handleSetting('ratholeTimer', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-rose-900"><option value="0">ללא</option><option value="30">30 דק'</option><option value="60">60 דק'</option></select></div>
                                 </div>
-
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                                    {!isTournament ? (
-                                        <>
-                                            {activeCategory === 'poker' ? (
-                                                <>
-                                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Small Blind</label><input type="number" value={createSettings.sb} onChange={e=>handleSettingChange('sb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
-                                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Big Blind</label><input type="number" value={createSettings.bb} onChange={e=>handleSettingChange('bb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
-                                                </>
-                                            ) : (
-                                                <div className="col-span-2"><label className="block text-xs font-bold text-slate-400 mb-1">ערך נקודה</label><input type="number" value={createSettings.sb} onChange={e=>handleSettingChange('sb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
-                                            )}
-                                            <div><label className="block text-xs font-bold text-slate-400 mb-1">מינימום כניסה (Min)</label><input type="number" value={createSettings.minBuyIn} onChange={e=>handleSettingChange('minBuyIn', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
-                                            <div><label className="block text-xs font-bold text-slate-400 mb-1">מקסימום כניסה (Max)</label><input type="number" value={createSettings.maxBuyIn} onChange={e=>handleSettingChange('maxBuyIn', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div><label className="block text-xs font-bold text-gold-400 mb-1">דמי הרשמה (Buy-in)</label><input type="number" value={createSettings.minBuyIn} onChange={e=>handleSettingChange('minBuyIn', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-gold-500/50" /></div>
-                                            {activeCategory === 'rummy' && (
-                                                <div><label className="block text-xs font-bold text-rose-400 mb-1">רף פסילה (מינוס)</label><input type="number" value={createSettings.penaltyLimit} onChange={e=>handleSettingChange('penaltyLimit', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-rose-500/50" /></div>
-                                            )}
-                                        </>
-                                    )}
+                                    {activeCategory === 'poker' ? (
+                                        <><div><label className="block text-xs font-bold text-slate-400 mb-1">SB</label><input type="number" value={createSettings.sb} onChange={e=>handleSetting('sb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">BB</label><input type="number" value={createSettings.bb} onChange={e=>handleSetting('bb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div></>
+                                    ) : (<div className="col-span-2"><label className="block text-xs font-bold text-slate-400 mb-1">{createSettings.isTournament ? 'דמי כניסה לטורניר' : 'ערך נקודה'}</label><input type="number" value={createSettings.sb} onChange={e=>handleSetting('sb', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>)}
+                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Min Buy-in</label><input type="number" value={createSettings.minBuyIn} onChange={e=>handleSetting('minBuyIn', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
+                                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Max Buy-in</label><input type="number" value={createSettings.maxBuyIn} onChange={e=>handleSetting('maxBuyIn', e.target.value)} className="w-full bg-slate-950 text-white px-3 py-2 rounded-lg border border-slate-700" /></div>
                                 </div>
-
-                                <div className="flex justify-end gap-4 mt-2">
-                                    <button onClick={handleCreateTable} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-3 rounded-xl font-black shadow-[0_0_15px_rgba(59,130,246,0.4)] transition-all text-lg">פתח שולחן</button>
-                                </div>
+                                {activeCategory === 'poker' && (
+                                    <div className="flex gap-4 p-2">
+                                        <label className="flex items-center gap-2 text-white font-bold"><input type="checkbox" checked={createSettings.bombPots} onChange={e=>handleSetting('bombPots', e.target.checked)} className="w-4 h-4" /> Bomb Pots 💣</label>
+                                        {createSettings.maxPlayers === 6 && <label className="flex items-center gap-2 text-purple-400 font-bold"><input type="checkbox" checked={createSettings.dealersChoice} onChange={e=>handleSetting('dealersChoice', e.target.checked)} className="w-4 h-4" /> Dealer's Choice 🔄</label>}
+                                    </div>
+                                )}
+                                <button onClick={handleCreateTable} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-black mt-2">פתח שולחן</button>
                             </div>
                         )}
 
+                        {/* Table List */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {filteredTables.length === 0 && <div className="col-span-full text-center text-slate-500 p-10 font-bold">אין שולחנות פעילים בקטגוריה זו.</div>}
-                            
+                            {filteredTables.length === 0 && <div className="col-span-full text-center text-slate-500 font-bold p-10">אין שולחנות פעילים כרגע.</div>}
                             {filteredTables.map(t => {
                                 const isFull = Object.keys(t.players || {}).length >= (t.maxPlayers || typeInfo.maxPlayersLimit);
                                 const isWaiting = (t.waitingList || []).some(w => w.uid === user.uid);
-                                const waitingIndex = (t.waitingList || []).findIndex(w => w.uid === user.uid);
-                                
                                 return (
-                                <div key={t.docId} className={`glass-panel rounded-2xl p-6 border ${t.isTournament ? 'border-gold-500/50 hover:border-gold-400 shadow-[0_0_20px_rgba(251,191,36,0.1)]' : 'border-slate-700 hover:border-slate-400'} transition-all hover:-translate-y-1 relative overflow-hidden group shadow-xl flex flex-col`}>
-                                    <div className="absolute top-0 right-0 w-full h-1.5 transition-all" style={{ backgroundColor: t.isTournament ? '#fbbf24' : typeInfo.hex, boxShadow: `0 0 20px ${t.isTournament ? '#fbbf24' : typeInfo.hex}` }}></div>
-                                    
-                                    <div className="cursor-pointer flex-1" onClick={() => !isFull && onJoin(t)}>
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div>
-                                                {t.isTournament ? (
-                                                    <><p className="text-gold-400 text-[10px] font-bold tracking-widest uppercase mb-1"><i className="fa-solid fa-trophy mr-1"></i> טורניר</p><h3 className="text-2xl font-black chip-text">Prize: {formatMoney(t.prizePool || 0)}</h3></>
-                                                ) : (
-                                                    <><p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mb-1">{activeCategory === 'poker' ? 'בליינדים' : 'ערך נקודה'}</p><h3 className="text-3xl font-black chip-text">{t.stakes} <i className="fa-solid fa-coins text-gold-500 text-lg"></i></h3></>
-                                                )}
-                                            </div>
-                                            <div className="bg-slate-950 px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-800 flex items-center gap-2">
-                                                <span className={isFull ? 'text-rose-400' : 'text-emerald-400'}>{Object.keys(t.players || {}).length}/{t.maxPlayers || typeInfo.maxPlayersLimit}</span>
-                                                <i className="fa-solid fa-users text-slate-500 text-xs"></i>
-                                            </div>
+                                <div key={t.docId} className="glass-panel rounded-2xl p-6 border border-slate-700 relative group flex flex-col">
+                                    <div className="absolute top-0 right-0 w-full h-1.5" style={{ backgroundColor: typeInfo.hex, boxShadow: `0 0 20px ${typeInfo.hex}` }}></div>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mb-1">
+                                                {t.isTournament ? '🏆 טורניר' : activeCategory === 'poker' ? 'בליינדים' : 'ערך נקודה'}
+                                            </p>
+                                            <h3 className="text-2xl font-black chip-text">{t.stakes}</h3>
                                         </div>
-                                        <div className="flex justify-between items-center bg-slate-950/80 p-3 rounded-xl border border-slate-800 mb-4 shadow-inner">
-                                            <span className="text-xs text-slate-400 font-bold">{t.isTournament ? 'דמי הרשמה:' : 'כניסה:'}</span>
-                                            <span className="text-lg font-black text-white font-rubik">
-                                                {t.isTournament ? formatMoney(t.buyIn) : `${formatMoney(t.minBuyIn)} - ${formatMoney(t.maxBuyIn)}`}
-                                            </span>
+                                        <div className="bg-slate-950 px-3 py-1 rounded-lg text-sm font-bold border border-slate-800 flex items-center gap-2">
+                                            <span className={isFull ? 'text-rose-400' : 'text-emerald-400'}>{Object.keys(t.players || {}).length}/{t.maxPlayers}</span> <i className="fa-solid fa-users text-slate-500 text-xs"></i>
                                         </div>
                                     </div>
-                                    
-                                    <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-800/50">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] text-slate-400 font-bold bg-slate-900 px-2 py-1 rounded border border-slate-800"><i className="fa-regular fa-clock mr-1"></i>{t.turnTime} שניות</span>
-                                            {(t.ratholeTimerMin > 0) && <span className="text-[9px] text-rose-400"><i className="fa-solid fa-shield-halved"></i> הגנת Rathole {t.ratholeTimerMin} דק'</span>}
-                                        </div>
-                                        
-                                        {!isFull ? (
-                                            <button onClick={() => onJoin(t)} className="px-6 py-2 rounded-xl font-black text-white shadow-lg transition-transform hover:scale-105" style={{ backgroundColor: t.isTournament ? '#d97706' : typeInfo.hex }}>הכנס לשולחן</button>
-                                        ) : isWaiting ? (
-                                            <div className="px-4 py-2 rounded-xl font-bold bg-orange-900/50 text-orange-400 border border-orange-500 text-sm flex items-center gap-2">
-                                                <i className="fa-solid fa-hourglass-half fa-spin"></i> בתור ({waitingIndex + 1})
-                                            </div>
-                                        ) : (
-                                            <button onClick={() => joinWaitingList(t)} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:text-white transition-colors text-sm flex items-center gap-2">
-                                                <i className="fa-solid fa-arrow-right-to-bracket"></i> הצטרף לתור
-                                            </button>
-                                        )}
+                                    <div className="flex justify-between items-center mt-auto pt-4 border-t border-slate-800">
+                                        <p className="text-xs text-slate-400">מינימום: <span className="font-bold text-white">{formatMoney(t.minBuyIn)}</span></p>
+                                        {!isFull ? (<button onClick={() => { showToast("בודק מקום בשולחן...", "info"); onJoin(t); }} className="px-6 py-2 rounded-xl font-black text-white shadow-lg transition-transform hover:scale-105" style={{ backgroundColor: typeInfo.hex }}>שב בשולחן</button>)
+                                        : isWaiting ? (<div className="px-4 py-2 rounded-xl font-bold bg-orange-900/50 text-orange-400 border border-orange-500 text-sm">בתור להמתנה</div>)
+                                        : (<button onClick={() => joinWaitingList(t)} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-600 text-sm hover:bg-slate-700">הצטרף לתור</button>)}
                                     </div>
                                 </div>
                             )})}
@@ -1081,1019 +711,314 @@
             const [tableState, setTableState] = useState(null);
             useEffect(() => {
                 if (!tableDocId) return;
-                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), (doc) => {
-                    if (doc.exists()) setTableState({ id: doc.id, ...doc.data() });
-                });
+                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), (doc) => { if (doc.exists()) setTableState({ id: doc.id, ...doc.data() }); });
                 return () => unsub();
             }, [tableDocId]);
-            if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white text-xl">טוען שולחן...</div>;
+            if (!tableState) return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white">טוען שולחן...</div>;
 
             const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
-
-            if (category === 'rummy') {
-                if (tableState.type === 'rummikub') return <RummikubTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
-                if (tableState.type === 'gin') return <GinRummyTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
-            } else if (category === 'poker') {
-                return <PokerTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
-            }
             
-            return <div className="flex-1 bg-slate-950 text-white p-10 text-center">משחק זה טרם נתמך במלואו.</div>;
+            // Smart Chat Overlay with Speech Bubbles integration
+            const ChatOverlay = ({ onBubble }) => {
+                const [isOpen, setIsOpen] = useState(false); const [msg, setMsg] = useState("");
+                const handleSend = async (e) => {
+                    e.preventDefault(); if (!msg.trim()) return;
+                    const newChat = [...(tableState.chat || []), { uid: user.uid, username: user.username, text: msg.trim(), ts: Date.now() }].slice(-20);
+                    const bubbleData = { uid: user.uid, text: msg.trim(), ts: Date.now() };
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chat: newChat, lastChatBubble: bubbleData });
+                    setMsg(""); 
+                    if (onBubble) onBubble(bubbleData);
+                    setTimeout(() => setIsOpen(false), 1000); 
+                };
+                const handleKick = async (uid) => { if(user.role==='player') return; showToast("מערכת הקיק תופעל בקרוב.", "info"); };
+                
+                return (
+                    <div className="absolute left-4 top-20 z-overlay-menus">
+                        <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 rounded-full bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] flex items-center justify-center mb-2"><i className="fa-solid fa-comment-dots"></i></button>
+                        {isOpen && (
+                            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-[280px] h-[300px] flex flex-col overflow-hidden">
+                                <div className="bg-slate-950 p-2 flex justify-between items-center">
+                                    <span className="text-white text-sm font-bold">צ'אט שולחן</span>
+                                    <div className="flex gap-2">
+                                        {user.role !== ROLES.PLAYER && <button className="text-[10px] bg-rose-600 text-white px-2 py-1 rounded" title="השתק את כולם">השתק הכל</button>}
+                                        <button onClick={()=>setIsOpen(false)} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-2 space-y-2 flex flex-col text-sm bg-slate-900/50">
+                                    {(tableState.chat||[]).map((c,i) => (
+                                        <div key={i} className="flex flex-col">
+                                            <div className="flex justify-between items-center">
+                                                <span className={`text-[10px] font-bold ${c.uid===user.uid?'text-blue-400':'text-slate-400'}`}>{c.username}</span>
+                                                {user.role !== ROLES.PLAYER && c.uid !== user.uid && (
+                                                    <div className="flex gap-1">
+                                                        <button className="text-[10px] text-amber-500" title="השתק"><i className="fa-solid fa-volume-xmark"></i></button>
+                                                        <button onClick={()=>handleKick(c.uid)} className="text-[10px] text-rose-500" title="הוצא שחקן"><i className="fa-solid fa-user-slash"></i></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className={`px-2 py-1 rounded-xl inline-block ${c.uid===user.uid?'bg-blue-600 text-white self-end':'bg-slate-800 text-slate-200 self-start'}`}>{c.text}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <form onSubmit={handleSend} className="p-2 border-t border-slate-800 flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="הקלד הודעה..." className="flex-1 bg-slate-950 border border-slate-700 text-white rounded px-2 outline-none text-sm" /><button type="submit" className="bg-blue-600 text-white px-3 rounded"><i className="fa-solid fa-paper-plane"></i></button></form>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const checkRathole = (tState, u) => {
+                let required = Number(tState.minBuyIn);
+                if (tState.ratholeHistory && tState.ratholeHistory[u.uid]) {
+                    const h = tState.ratholeHistory[u.uid]; const timeSince = Date.now() - h.ts; const limitMs = (tState.ratholeTimerMin || 0) * 60000;
+                    if (limitMs > 0 && timeSince < limitMs) required = Math.max(required, h.stack);
+                }
+                return Math.min(required, Number(tState.maxBuyIn));
+            };
+
+            if (category === 'poker') return <PokerTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} Chat={ChatOverlay} checkRathole={checkRathole} />;
+            if (category === 'rummy') return <RummyTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} Chat={ChatOverlay} checkRathole={checkRathole} />;
+            return <div className="flex-1 bg-slate-950 flex items-center justify-center text-white">המשחק לא נתמך עדיין.</div>;
         }
 
-        function PokerTable({ tableState, user, onLeave, showToast }) {
+        function PokerTable({ tableState, user, onLeave, showToast, Chat, checkRathole }) {
             const typeInfo = GAME_TYPES.find(g => g.id === tableState.type) || GAME_TYPES[0];
             const hex = typeInfo.hex;
-            
-            const isSeated = tableState?.players?.[user.uid] !== undefined;
             const maxSeats = tableState.maxPlayers || typeInfo.maxPlayersLimit;
             const seats = Array(maxSeats).fill(null);
-            
-            Object.entries(tableState.players || {}).forEach(([uid, pData]) => {
-                if (pData.seat !== undefined && pData.seat < maxSeats) {
-                    seats[pData.seat] = { uid, ...pData };
+            const isSeated = tableState?.players?.[user.uid] !== undefined;
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const [bubbles, setBubbles] = useState([]);
+
+            Object.entries(tableState.players || {}).forEach(([uid, pData]) => { if (pData.seat < maxSeats) seats[pData.seat] = { uid, ...pData }; });
+
+            useEffect(() => {
+                if (tableState?.lastChatBubble?.ts > Date.now() - 5000) {
+                    const id = Math.random().toString(36); setBubbles(p => [...p, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
+                    setTimeout(() => setBubbles(p => p.filter(b => b.id !== id)), 4000);
                 }
-            });
+            }, [tableState?.lastChatBubble?.ts]);
 
             const getSeatStyle = (index) => {
-                const total = maxSeats;
-                const angle = (index / total) * Math.PI * 2 + (Math.PI / 2); 
-                const rx = 45; 
-                const ry = 40; 
-                const left = 50 + Math.cos(angle) * rx;
-                const top = 50 + Math.sin(angle) * ry;
+                const angle = (index / maxSeats) * Math.PI * 2 + (Math.PI / 2); 
+                const rx = 40; const ry = 45; 
+                const left = 50 + Math.cos(angle) * rx; const top = 50 + Math.sin(angle) * ry;
                 return { top: `${top}%`, left: `${left}%`, transform: 'translate(-50%, -50%)' };
             };
 
-            const handleSitDown = async (seatIndex) => {
-                showToast("בודק מקום בשולחן הפוקר...", "info");
-                const currentPlayers = tableState.players || {};
-                
-                if (Object.keys(currentPlayers).length >= maxSeats) return showToast("השולחן מלא.", "error");
-                
-                let requiredBuyIn = Number(tableState.minBuyIn);
-                if (tableState.ratholeHistory && tableState.ratholeHistory[user.uid]) {
-                    const history = tableState.ratholeHistory[user.uid];
-                    const timeSinceLeftMs = Date.now() - history.ts;
-                    const ratholeTimerMs = (tableState.ratholeTimerMin || 0) * 60 * 1000;
-                    
-                    if (ratholeTimerMs > 0 && timeSinceLeftMs < ratholeTimerMs) {
-                        requiredBuyIn = Math.max(requiredBuyIn, history.stack); 
-                        if (requiredBuyIn > Number(tableState.maxBuyIn)) requiredBuyIn = Number(tableState.maxBuyIn);
-                        showToast(`חזרת מוקדם (פגע וברח). עליך להיכנס עם לפחות ${formatMoney(requiredBuyIn)}`, "info");
-                    }
-                }
-                
-                if (Number(user.balance) < requiredBuyIn && user.role !== ROLES.SUPER_ADMIN) {
-                    return showToast(`אין לך מספיק צ'יפים. נדרשים לפחות ${formatMoney(requiredBuyIn)}.`, "error");
-                }
+            const handleSit = async (seatIndex) => {
+                showToast("בודק מקום והיסטוריה...", "info");
+                if (Object.keys(tableState.players || {}).length >= maxSeats) return showToast("השולחן מלא", "error");
+                const required = checkRathole(tableState, user);
+                if (Number(user.balance) < required) return showToast(`חסר כסף. נדרש ${formatMoney(required)}`, "error");
                 
                 try {
-                    const updatedPlayers = { ...currentPlayers };
-                    updatedPlayers[user.uid] = { 
-                        username: user.username, avatarId: user.avatarId, 
-                        seat: seatIndex, stack: requiredBuyIn, cards: [], status: 'sitting'
-                    };
-                    
-                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const userRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        
-                        if (user.role !== ROLES.SUPER_ADMIN) {
-                            const userDoc = await transaction.get(userRef);
-                            const newBalance = Number(userDoc.data().balance) - requiredBuyIn;
-                            transaction.update(userRef, { balance: newBalance });
-                        }
-                        transaction.update(tableRef, { players: updatedPlayers });
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const uRef = window.fb.doc(window.fb.db, "users", user.uid); const tRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const uDoc = await t.get(uRef);
+                        t.update(uRef, { balance: Number(uDoc.data().balance) - required }); 
+                        t.update(tRef, { [`players.${user.uid}`]: { username: user.username, avatarId: user.avatarId, seat: seatIndex, stack: required, status: 'sitting', cards: [] } });
                     });
-
-                    showToast("התיישבת בהצלחה!", "success");
-                } catch(e) { showToast("שגיאה בהתיישבות", "error"); console.error(e); }
+                    showToast("ישבת בהצלחה!", "success");
+                } catch(e) { showToast("שגיאה בהתיישבות", "error"); }
             };
 
             const handleLeave = async () => {
                 if (!isSeated) return onLeave();
                 try {
-                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const userRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const userDoc = await transaction.get(userRef);
-                        const tableDoc = await transaction.get(tableRef);
-                        
-                        const tData = tableDoc.data();
-                        const myStack = tData.players[user.uid]?.stack || 0;
-                        
-                        const newRatholeHistory = { ...tData.ratholeHistory };
-                        newRatholeHistory[user.uid] = { stack: myStack, ts: Date.now() };
-                        
-                        if (user.role !== ROLES.SUPER_ADMIN) {
-                            const newBalance = Number(userDoc.data().balance) + myStack;
-                            transaction.update(userRef, { balance: newBalance });
-                        }
-                        
-                        const updatedPlayers = { ...tData.players };
-                        delete updatedPlayers[user.uid];
-                        
-                        transaction.update(tableRef, { players: updatedPlayers, ratholeHistory: newRatholeHistory });
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const uRef = window.fb.doc(window.fb.db, "users", user.uid); const tRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const uDoc = await t.get(uRef); const tDoc = await t.get(tRef);
+                        const myStack = tDoc.data().players[user.uid]?.stack || 0;
+                        t.update(uRef, { balance: Number(uDoc.data().balance) + myStack });
+                        const newPlayers = { ...tDoc.data().players }; delete newPlayers[user.uid];
+                        t.update(tRef, { players: newPlayers, [`ratholeHistory.${user.uid}`]: { stack: myStack, ts: Date.now() } });
                     });
                     onLeave();
-                } catch(e) { showToast("שגיאה בעזיבת שולחן.", "error"); }
+                } catch(e) { showToast("שגיאה בעזיבה", "error"); }
             };
 
+            // Poker Logic Generators
+            const generateDeck = () => {
+                const suits = ['♠', '♥', '♦', '♣']; const colors = { '♠': 'text-slate-900', '♣': 'text-slate-900', '♥': 'text-rose-500', '♦': 'text-rose-500' };
+                const ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+                let d = []; suits.forEach(s => ranks.forEach(r => d.push({ id: r+s, r, s, c: colors[s] })));
+                for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+                return d;
+            };
+
+            const startHand = async () => {
+                if (!isSuperAdmin) return;
+                const d = generateDeck(); const newPlayers = { ...tableState.players };
+                const cardsPerPlayer = tableState.type === 'texas' ? 2 : tableState.type === 'pineapple' ? 3 : parseInt(tableState.type.replace('omaha', '')) || 4;
+                
+                Object.keys(newPlayers).forEach(uid => { newPlayers[uid].cards = d.splice(0, cardsPerPlayer); });
+                const boardCards = d.splice(0, 5); // Pre-generate the 5 board cards for God Mode
+                
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
+                    phase: 'pre-flop', deck: d, board: boardCards, players: newPlayers, pot: 0, currentTurn: Object.keys(newPlayers)[0]
+                });
+                showToast("יד חדשה חולקה", "success");
+            };
+
+            // Render Card Helper
+            const renderCard = (card, hidden, isFuture) => {
+                if (hidden) return <div className="w-6 h-8 sm:w-8 sm:h-11 poker-card back mx-0.5"></div>;
+                return (
+                    <div className={`w-6 h-8 sm:w-8 sm:h-11 poker-card mx-0.5 ${isFuture ? 'god-mode-future' : ''} ${card.c}`}>
+                        <div className="text-[10px] sm:text-[12px] absolute top-0 left-0.5">{card.r}</div>
+                        <div className="text-[14px] sm:text-[18px]">{card.s}</div>
+                    </div>
+                );
+            };
+
+            // Mock state for visual testing
+            const activeSeatIndex = 0; const dealerSeatIndex = 1; const dcSeatIndex = 5;
+
             return (
-                <div className="flex-1 flex flex-col relative game-felt select-none" style={{ touchAction: 'none' }}>
-                    <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-screen" style={{ background: `radial-gradient(circle at 50% 50%, ${hex} 0%, transparent 70%)` }}></div>
+                <div className="flex-1 flex flex-col relative select-none" style={{ backgroundColor: '#020617' }}>
+                    <Chat />
+                    {isSuperAdmin && (
+                        <div className="absolute top-16 right-4 z-[9999] flex flex-col gap-2">
+                            <div className="bg-rose-900/80 text-rose-300 border border-rose-500 px-3 py-1 rounded font-bold text-xs flex items-center gap-2 animate-pulse shadow-[0_0_15px_rgba(225,29,72,0.5)]"><i className="fa-solid fa-eye"></i> GOD MODE ACTIVE</div>
+                            {tableState.phase === 'waiting' && <button onClick={startHand} className="bg-emerald-600 text-white px-3 py-2 rounded text-xs font-bold shadow-lg">חלוק יד חדשה</button>}
+                        </div>
+                    )}
                     
-                    <div className="relative z-20 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-lg border-b border-slate-800">
-                        <button onClick={handleLeave} className="text-slate-400 hover:text-white bg-slate-900 px-4 py-2 rounded-xl font-bold border border-slate-800 flex items-center gap-2">
-                            <i className="fa-solid fa-arrow-right"></i> עזוב
-                        </button>
+                    {/* Header Panel */}
+                    <div className="relative z-20 px-4 py-3 bg-slate-950/90 backdrop-blur-md flex justify-between items-center shadow-[0_5px_20px_rgba(0,0,0,0.8)] border-b border-slate-800">
+                        <button onClick={handleLeave} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold text-sm hover:text-white transition-all"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
                         <div className="text-center">
-                            <h2 className="text-xl font-black text-white uppercase tracking-widest font-sans" style={{textShadow: `0 0 15px ${hex}`}}>
-                                {typeInfo.name}
-                            </h2>
-                            <p className="text-[10px] text-slate-400 font-bold bg-slate-900 px-2 rounded-full border border-slate-800 mt-0.5 inline-block">
-                                בליינדים: <span style={{color: hex}}>{tableState.stakes}</span>
-                            </p>
+                            <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-widest font-sans" style={{textShadow: `0 0 15px ${hex}`}}>{typeInfo.name}</h2>
+                            <p className="text-[10px] sm:text-xs text-slate-400 font-bold bg-slate-900 px-3 py-0.5 rounded-full border border-slate-800 mt-1 inline-block">בליינדים: <span style={{color: hex}}>{tableState.stakes}</span></p>
+                            {tableState.bombPots && <span className="ml-2 text-[10px] text-rose-400 font-bold">💣 Bomb Pots</span>}
                         </div>
                     </div>
 
-                    <div className="flex-1 relative flex items-center justify-center p-4 py-10">
-                        <div className="relative w-full max-w-sm h-full max-h-[700px] border-[12px] poker-table-oval flex items-center justify-center flex-col z-0"
-                             style={{ borderColor: `${hex}80`, backgroundColor: 'rgba(5, 10, 20, 0.9)' }}>
-                             
-                            <div className="absolute inset-4 rounded-[9999px] border-2 border-white/5 pointer-events-none"></div>
-
-                            <div className="relative z-10 flex flex-col items-center">
-                                <div className="mb-4 bg-black/60 px-4 py-1.5 rounded-full border border-white/10 flex items-center gap-2 shadow-inner">
-                                    <i className="fa-solid fa-coins text-gold-500 text-sm"></i>
-                                    <span className="text-white font-black font-rubik text-lg">Pot: {formatMoney(tableState.pot || 0)}</span>
+                    {/* The Felt and Game Area */}
+                    <div className="flex-1 relative flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+                        <div className="poker-table-vertical w-full max-w-[95%] sm:max-w-md aspect-[1/1.6] sm:aspect-[1/1.3] z-0 flex flex-col items-center justify-center">
+                            <div className="poker-neon-glow" style={{ borderColor: `${hex}80`, boxShadow: `0 0 40px ${hex}` }}></div>
+                            <div className="spotlight"></div>
+                            
+                            {/* Board & Pot */}
+                            <div className="relative z-10 flex flex-col items-center justify-center h-full w-full pointer-events-none mt-10">
+                                <div className="mb-4 bg-black/80 px-5 py-2 rounded-full border border-white/10 flex items-center gap-2 shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
+                                    <i className="fa-solid fa-coins text-gold-500 text-sm"></i><span className="text-white font-black font-rubik text-lg sm:text-xl">Pot: {formatMoney(tableState.pot || 0)}</span>
                                 </div>
-                                
-                                <div className="flex gap-1.5 sm:gap-2 justify-center">
-                                    {[0,1,2,3,4].map(i => (
-                                        <div key={i} className="w-10 h-14 sm:w-12 sm:h-16 border-2 border-dashed border-white/20 rounded bg-white/5 flex items-center justify-center">
-                                        </div>
-                                    ))}
+                                <div className="flex gap-1.5 justify-center bg-black/40 p-2.5 rounded-2xl border border-white/5 backdrop-blur-sm shadow-[0_0_30px_rgba(255,255,255,0.05)] min-h-[60px]">
+                                    {/* Render Community Cards (God Mode logic inside) */}
+                                    {[0,1,2,3,4].map(i => {
+                                        const card = tableState.board?.[i];
+                                        const isRevealed = (tableState.phase === 'flop' && i < 3) || (tableState.phase === 'turn' && i < 4) || (tableState.phase === 'river' || tableState.phase === 'showdown');
+                                        
+                                        if (card && isRevealed) return <div key={i}>{renderCard(card, false, false)}</div>;
+                                        if (card && isSuperAdmin) return <div key={i}>{renderCard(card, false, true)}</div>; // Future card, God Mode
+                                        return <div key={i} className="w-8 h-11 sm:w-10 sm:h-14 border-2 border-dashed border-white/20 rounded bg-white/5 mx-0.5"></div>; // Placeholder
+                                    })}
                                 </div>
                             </div>
                         </div>
 
+                        {/* Players */}
                         {seats.map((seat, index) => {
                             const style = getSeatStyle(index);
+                            const isActive = tableState.currentTurn === seat?.uid; 
+                            const isDealer = index === dealerSeatIndex;
+                            const isDC = index === dcSeatIndex && tableState.dealersChoice;
+                            const userBubbles = bubbles.filter(b => b.uid === seat?.uid);
+                            const showCards = seat?.cards?.length > 0;
+
                             return (
                                 <div key={index} className="absolute z-20" style={style}>
                                     {seat ? (
-                                        <div className="flex flex-col items-center group relative">
-                                            <div className={`w-14 h-14 rounded-full border-4 flex items-center justify-center shadow-2xl relative ${seat.uid === user.uid ? 'bg-slate-800 border-white ring-4 ring-blue-500' : 'bg-slate-900 border-slate-600'}`}>
-                                                <i className={`fa-solid ${AVATARS.find(a=>a.id===seat.avatarId)?.icon || 'fa-user'} ${AVATARS.find(a=>a.id===seat.avatarId)?.color || 'text-slate-400'} text-xl`}></i>
+                                        <div className="flex flex-col items-center relative">
+                                            {userBubbles.map(b => (
+                                                <div key={b.id} className="absolute bottom-full mb-2 bg-white text-slate-900 px-3 py-1.5 rounded-2xl rounded-br-sm font-bold text-xs shadow-2xl z-50 whitespace-nowrap speech-bubble border-2 border-slate-200">{b.text}</div>
+                                            ))}
+                                            
+                                            {/* Hole Cards Display */}
+                                            {showCards && (
+                                                <div className="absolute bottom-full mb-1 flex -space-x-3 left-1/2 transform -translate-x-1/2 pointer-events-none">
+                                                    {seat.cards.map((c, i) => (
+                                                        <div key={i} className="transform hover:-translate-y-2 transition-transform shadow-xl">
+                                                            {renderCard(c, (seat.uid !== user.uid && !isSuperAdmin), false)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 flex items-center justify-center shadow-2xl relative bg-slate-900 ${isActive ? `border-white ring-4 ring-offset-2 ring-offset-[#020617]` : 'border-slate-600'}`} style={isActive ? { animation: 'pulse-ring 2s infinite', '--ring-color': '255,255,255' } : {}}>
+                                                <i className={`fa-solid ${AVATARS.find(a=>a.id===seat.avatarId)?.icon||'fa-user'} text-slate-300 text-lg sm:text-xl`}></i>
+                                                {isDealer && <div className="dealer-button">D</div>}
+                                                {isDC && <div className="dc-button" title="Dealer's Choice">DC</div>}
                                             </div>
-                                            <div className="mt-2 bg-slate-950/90 border border-slate-800 rounded-lg px-2 py-1 text-center min-w-[80px]">
-                                                <div className="text-[10px] text-slate-300 font-bold truncate max-w-[70px]">{seat.username}</div>
-                                                <div className="text-xs text-gold-400 font-black font-rubik">{formatMoney(seat.stack)}</div>
+                                            <div className="mt-1.5 bg-slate-950/90 border border-slate-800 rounded-lg px-2 py-1 text-center min-w-[75px] shadow-lg">
+                                                <div className="text-[10px] text-slate-300 font-bold truncate max-w-[65px]">{seat.username}</div>
+                                                <div className="text-[11px] text-gold-400 font-black font-rubik tracking-wider">{formatMoney(seat.stack)}</div>
                                             </div>
                                         </div>
                                     ) : (
-                                        <button 
-                                            onClick={() => handleSitDown(index)}
-                                            className="w-12 h-12 rounded-full border-2 border-dashed border-white/30 bg-black/40 hover:bg-white/10 hover:border-white text-white/50 hover:text-white transition-all flex flex-col items-center justify-center shadow-lg"
-                                        >
-                                            <i className="fa-solid fa-plus mb-0.5 text-sm"></i>
-                                            <span className="text-[9px] font-bold">שב</span>
+                                        <button onClick={() => handleSit(index)} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-dashed border-white/30 bg-black/60 hover:bg-white/10 hover:border-white text-white/50 hover:text-white transition-all flex flex-col items-center justify-center backdrop-blur-sm shadow-inner">
+                                            <i className="fa-solid fa-plus text-sm"></i>
                                         </button>
                                     )}
                                 </div>
                             );
                         })}
                     </div>
-
-                    {isSeated && (
-                        <div className="relative z-30 bg-slate-900 border-t border-slate-800 p-3 flex justify-between gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] pb-8 sm:pb-3">
-                            <div className="flex-1 flex gap-2 justify-center max-w-md mx-auto">
-                                <button className="flex-1 bg-slate-800 border border-slate-600 text-white rounded-xl py-3 font-black shadow-lg opacity-50 cursor-not-allowed text-sm">FOLD</button>
-                                <button className="flex-1 bg-slate-800 border border-slate-600 text-white rounded-xl py-3 font-black shadow-lg opacity-50 cursor-not-allowed text-sm">CHECK</button>
-                                <button className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3 font-black shadow-[0_0_15px_rgba(59,130,246,0.5)] opacity-50 cursor-not-allowed text-sm">RAISE</button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
 
-        function GinRummyTable({ tableState, user, onLeave, showToast }) {
-            const hex = GAME_TYPES.find(g => g.id === 'gin')?.hex || '#3b82f6';
-            const isSeated = tableState?.players?.[user.uid] !== undefined;
-            const myData = tableState?.players?.[user.uid] || {};
+        function RummyTable({ tableState, user, onLeave, showToast, Chat, checkRathole }) {
+            const typeInfo = GAME_TYPES.find(g => g.id === tableState.type) || GAME_TYPES[0];
+            const hex = typeInfo.hex;
+            const [bubbles, setBubbles] = useState([]);
             
-            const handleLeave = async () => {
-                if (!isSeated) return onLeave();
-                const updatedPlayers = { ...tableState.players };
-                delete updatedPlayers[user.uid];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
-                onLeave();
-            };
-
-            const handleSitDown = async () => {
-                showToast("בודק מקום בשולחן ג'ין...", "info");
-                if (Object.keys(tableState.players || {}).length >= 2) return showToast("השולחן מלא.", "error");
-                try {
-                    const updatedPlayers = { ...tableState.players };
-                    updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: Object.keys(updatedPlayers).length, rack: [], score: 0 };
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { players: updatedPlayers });
-                    showToast("התיישבת בהצלחה!", "success");
-                } catch(e) { showToast("שגיאה בהתיישבות", "error"); }
-            };
-
-            return (
-                <div className="flex-1 flex flex-col relative game-felt select-none">
-                    <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-screen" style={{ background: `radial-gradient(circle at 50% 50%, ${hex} 0%, transparent 70%)` }}></div>
-                    <div className="relative z-20 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-lg border-b border-slate-800">
-                        <button onClick={handleLeave} className="text-slate-400 hover:text-white bg-slate-900 px-4 py-2 rounded-xl font-bold border border-slate-800 flex items-center gap-2">
-                            <i className="fa-solid fa-arrow-right"></i> עזוב
-                        </button>
-                        <h2 className="text-xl font-black text-white uppercase tracking-widest font-sans" style={{textShadow: `0 0 15px ${hex}`}}>ג'ין רמי</h2>
-                    </div>
-                    
-                    <div className="flex-1 flex flex-col items-center justify-center p-4">
-                        {!isSeated && Object.keys(tableState.players||{}).length < 2 && (
-                            <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3">
-                                <i className="fa-solid fa-chair"></i> שב לשחק ג'ין
-                            </button>
-                        )}
-                        {isSeated && (
-                            <div className="text-center">
-                                <p className="text-slate-300 font-bold mb-4">מנוע ג'ין רמי בטעינה...</p>
-                                <p className="text-slate-500 text-sm">המשחק נמצא בשלבי הכנה סופיים במערכת.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        const generateRummikubDeck = () => {
-            const colors = ['#f43f5e', '#3b82f6', '#fbbf24', '#0f172a']; 
-            let deck = [];
-            let idCounter = 1;
-            for (let s = 0; s < 2; s++) { 
-                colors.forEach(hex => { for (let i = 1; i <= 13; i++) { deck.push({ id: `t_${idCounter++}`, val: i, hex }); } });
-            }
-            deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
-            deck.push({ id: `t_${idCounter++}`, val: '☻', hex: '#ffffff', isJoker: true });
-            return deck.sort(() => Math.random() - 0.5);
-        };
-
-        const isValidMeld = (meld) => {
-            if (meld.length < 3 || meld.length > 13) return false;
-            const jokers = meld.filter(t => t.val === '☻' || t.isJoker);
-            const regulars = meld.filter(t => t.val !== '☻' && !t.isJoker);
-            if (regulars.length === 0) return true; 
-            const isSet = () => {
-                if (meld.length > 4) return false;
-                const val = regulars[0].val;
-                const colors = new Set();
-                for (let t of regulars) { if (t.val !== val || colors.has(t.hex)) return false; colors.add(t.hex); }
-                return true;
-            };
-            const isRun = () => {
-                const hex = regulars[0].hex;
-                const values = [];
-                for (let t of regulars) { if (t.hex !== hex) return false; values.push(parseInt(t.val)); }
-                values.sort((a, b) => a - b);
-                if (new Set(values).size !== values.length) return false;
-                const span = values[values.length - 1] - values[0] + 1;
-                const internalGaps = span - values.length;
-                if (internalGaps > jokers.length) return false; 
-                const remainingJokers = jokers.length - internalGaps;
-                const leftSpace = values[0] - 1;
-                const rightSpace = 13 - values[values.length - 1];
-                if (remainingJokers > leftSpace + rightSpace) return false; 
-                return true;
-            };
-            return isSet() || isRun();
-        };
-
-        const getGroupValue = (group) => {
-            const regulars = group.filter(t => t.val !== '☻' && !t.isJoker);
-            if (regulars.length === 0) return 0;
-            const isSet = regulars.every(t => t.val === regulars[0].val);
-            if (isSet) return parseInt(regulars[0].val) * group.length;
-            const vals = regulars.map(t => parseInt(t.val)).sort((a,b)=>a-b);
-            let sum = 0, jokersLeft = group.length - regulars.length;
-            for (let i = 0; i < vals.length; i++) {
-                if (i > 0) { const gap = vals[i] - vals[i-1] - 1; for (let j = 1; j <= gap; j++) { sum += (vals[i-1] + j); jokersLeft--; } }
-                sum += vals[i];
-            }
-            let top = vals[vals.length - 1] + 1, bottom = vals[0] - 1;
-            while (jokersLeft > 0) {
-                if (top <= 13) { sum += top; top++; } else { sum += bottom; bottom--; }
-                jokersLeft--;
-            }
-            return sum;
-        };
-
-        function RummikubTable({ tableState, user, onLeave, showToast }) {
-            const [localRack, setLocalRack] = useState([]); 
-            const [dragData, setDragData] = useState(null);
-            const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-            const [hoverTarget, setHoverTarget] = useState(null);
-            const tableRef = useRef(null);
-            const [timeLeft, setTimeLeft] = useState(0);
-            const previousTurnRef = useRef(null);
-            const originalBoardRef = useRef([]);
-            const originalRackRef = useRef([]);
-            
-            const [showEmojis, setShowEmojis] = useState(false);
-            const [showChat, setShowChat] = useState(false);
-            const [chatMsg, setChatMsg] = useState("");      
-            const chatEndRef = useRef(null);                 
-            const [floatingEmojis, setFloatingEmojis] = useState([]);
-            const [chatBubbles, setChatBubbles] = useState([]);
-
-            const isSeated = tableState?.players?.[user.uid] !== undefined;
-            const isPlaying = tableState?.status === 'playing';
-            const isMyTurn = isPlaying && tableState?.currentTurn === user.uid;
-            const myPlayerData = tableState?.players?.[user.uid];
-            const isFirstInWaitlist = (tableState?.waitingList?.[0]?.uid === user.uid);
-            const isAdmin = user.role === ROLES.SUPER_ADMIN || user.role === ROLES.CLUB_OWNER || user.role === ROLES.MANAGER;
-
-            useEffect(() => {
-                if (showChat && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-            }, [tableState?.chat, showChat]);
-
-            useEffect(() => {
-                if (tableState.players && tableState.players[user.uid]) {
-                    if (!dragData) setLocalRack(tableState.players[user.uid].rack || []);
-                }
-            }, [tableState.players, user.uid, dragData]);
-
-            useEffect(() => {
-                if (isMyTurn && tableState.currentTurn !== previousTurnRef.current) {
-                    originalBoardRef.current = JSON.parse(JSON.stringify(tableState.board || []));
-                    originalRackRef.current = JSON.parse(JSON.stringify(tableState.players[user.uid].rack || []));
-                    setTimeLeft(tableState.turnTime || 60);
-                    previousTurnRef.current = tableState.currentTurn;
-                    AudioManager.playTurnStart();
-                    showToast("זה התור שלך לשחק!", "success");
-                }
-            }, [isMyTurn, tableState]);
-
-            useEffect(() => {
-                if (!isMyTurn || timeLeft <= 0) return;
-                const timer = setInterval(() => {
-                    setTimeLeft(prev => {
-                        if (prev === 11) AudioManager.playTick(); 
-                        if (prev <= 1) { clearInterval(timer); handleEndTurn(true); return 0; }
-                        return prev - 1;
-                    });
-                }, 1000);
-                return () => clearInterval(timer);
-            }, [isMyTurn, timeLeft]);
-
-            useEffect(() => {
-                if (tableState?.lastEvent?.type === 'emoji' && tableState.lastEvent.ts > Date.now() - 5000) {
-                    const id = Math.random().toString(36);
-                    setFloatingEmojis(prev => [...prev, { id, uid: tableState.lastEvent.uid, emoji: tableState.lastEvent.emoji }]);
-                    AudioManager.playPop();
-                    setTimeout(() => { setFloatingEmojis(prev => prev.filter(e => e.id !== id)); }, 2500);
-                }
-            }, [tableState?.lastEvent?.ts]);
+            const [deck, setDeck] = useState(104); 
+            const [rack, setRack] = useState([ { id: 't1', val: 7, color: 'text-rose-500', hex: '#f43f5e' }, { id: 't2', val: 8, color: 'text-blue-500', hex: '#3b82f6' } ]);
+            const [board, setBoard] = useState([ [ { id: 'b1', val: 3, color: 'text-rose-500', hex: '#f43f5e' } ] ]);
 
             useEffect(() => {
                 if (tableState?.lastChatBubble?.ts > Date.now() - 5000) {
-                    const id = Math.random().toString(36);
-                    setChatBubbles(prev => [...prev, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
-                    setTimeout(() => { setChatBubbles(prev => prev.filter(b => b.id !== id)); }, 4000);
+                    const id = Math.random().toString(36); setBubbles(p => [...p, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
+                    setTimeout(() => setBubbles(p => p.filter(b => b.id !== id)), 4000);
                 }
             }, [tableState?.lastChatBubble?.ts]);
 
-            const handleSortRuns = () => { 
-                let sorted = [...localRack].sort((a, b) => {
-                    if(a.isJoker) return 1; if(b.isJoker) return -1;
-                    if(a.hex !== b.hex) return a.hex.localeCompare(b.hex);
-                    return parseInt(a.val) - parseInt(b.val);
-                });
-                setLocalRack(sorted); AudioManager.playClack();
-            };
-
-            const handleSortSets = () => { 
-                let sorted = [...localRack].sort((a, b) => {
-                    if(a.isJoker) return 1; if(b.isJoker) return -1;
-                    if(parseInt(a.val) !== parseInt(b.val)) return parseInt(a.val) - parseInt(b.val);
-                    return a.hex.localeCompare(b.hex);
-                });
-                setLocalRack(sorted); AudioManager.playClack();
-            };
-
-            const sendEmoji = async (emoji) => {
-                setShowEmojis(false);
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { lastEvent: { type: 'emoji', uid: user.uid, emoji, ts: Date.now() } }); } 
-                catch(e) { console.error(e); }
-            };
-
-            useEffect(() => {
-                const handlePointerMove = (e) => {
-                    if (!dragData || !isMyTurn) return;
-                    e.preventDefault(); 
-                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                    setDragPos({ x: clientX, y: clientY });
-                    if (!tableRef.current) return;
-                    const elements = document.elementsFromPoint(clientX, clientY);
-                    let foundZone = null;
-                    for (let el of elements) {
-                        const zone = el.getAttribute('data-zone');
-                        if (zone) { if (zone.startsWith('joker-')) { foundZone = zone; break; } if (!foundZone) foundZone = zone; }
-                    }
-                    setHoverTarget(foundZone);
-                };
-
-                const handlePointerUp = async (e) => {
-                    if (!dragData || !tableState || !isMyTurn) return;
-                    let newRack = [...localRack];
-                    let newBoard = (tableState.board || []).map(g => [...g]); 
-                    let boardChanged = false;
-
-                    if (hoverTarget && hoverTarget.startsWith('joker-')) {
-                        const parts = hoverTarget.split('-');
-                        const targetGIdx = parseInt(parts[1]), targetTIdx = parseInt(parts[2]);
-                        const jokerTile = newBoard[targetGIdx][targetTIdx], draggedTile = dragData.tile;
-                        
-                        if (dragData.source === 'rack') {
-                            newRack.splice(dragData.tileIndex, 1, jokerTile);
-                            newBoard[targetGIdx].splice(targetTIdx, 1, draggedTile);
-                            AudioManager.playPop();
-                            showToast("ג'וקר שוחרר לתושבת! חובה להשתמש בו.", "success");
-                        } else if (dragData.source === 'board') {
-                            newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1, jokerTile);
-                            newBoard[targetGIdx].splice(targetTIdx, 1, draggedTile);
-                            AudioManager.playPop();
-                        }
-                        boardChanged = true;
-                    }
-                    else {
-                        if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
-                        else if (dragData.source === 'board') {
-                            newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1);
-                            if (newBoard[dragData.groupIndex].length === 0) newBoard.splice(dragData.groupIndex, 1);
-                            boardChanged = true;
-                        }
-
-                        if (hoverTarget && hoverTarget.startsWith('board-group-')) {
-                            const targetIdx = parseInt(hoverTarget.replace('board-group-', ''));
-                            const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < (tableState.board||[]).length) ? targetIdx - 1 : targetIdx;
-                            if(newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile);
-                            else newBoard.push([dragData.tile]);
-                            boardChanged = true; AudioManager.playClack();
-                        } 
-                        else if (hoverTarget === 'board-main') {
-                            newBoard.push([dragData.tile]); boardChanged = true; AudioManager.playClack();
-                        } 
-                        else if (hoverTarget === 'rack') {
-                            newRack.push(dragData.tile); AudioManager.playClack();
-                        } 
-                        else {
-                            if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 0, dragData.tile);
-                            else { newBoard[dragData.groupIndex].splice(dragData.tileIndex, 0, dragData.tile); boardChanged = true; }
-                        }
-                    }
-
-                    setLocalRack(newRack);
-                    if (boardChanged) {
-                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard }); } 
-                        catch(err) { console.error(err); }
-                    }
-                    setDragData(null); setHoverTarget(null);
-                };
-
-                if (dragData) {
-                    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-                    window.addEventListener('pointerup', handlePointerUp);
-                    window.addEventListener('touchmove', handlePointerMove, { passive: false });
-                    window.addEventListener('touchend', handlePointerUp);
-                }
-                return () => {
-                    window.removeEventListener('pointermove', handlePointerMove);
-                    window.removeEventListener('pointerup', handlePointerUp);
-                    window.removeEventListener('touchmove', handlePointerMove);
-                    window.removeEventListener('touchend', handlePointerUp);
-                };
-            }, [dragData, hoverTarget, localRack, tableState, isMyTurn]);
-
-            const startDrag = (e, tile, source, groupIndex, tileIndex) => {
-                if (!isPlaying) return showToast("המשחק טרם החל.", "error");
-                if (!isMyTurn) return showToast("זה לא התור שלך!", "error");
-                e.stopPropagation();
-                const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                setDragData({ tile, source, groupIndex, tileIndex });
-                setDragPos({ x: clientX, y: clientY });
-            };
-
-            const handleSitDown = async () => {
-                showToast("בודק מקום בשולחן ומוודא יתרה...", "info");
-                const currentPlayers = tableState.players || {};
-                
-                if (tableState.waitingList && tableState.waitingList.length > 0) {
-                    if (tableState.waitingList[0].uid !== user.uid) {
-                        return showToast("זה לא התור שלך ברשימת ההמתנה!", "error");
-                    }
-                }
-
-                if (Object.keys(currentPlayers).length >= (tableState.maxPlayers || 4)) return showToast("השולחן מלא.", "error");
-                
-                if (tableState.isTournament) {
-                    try {
-                        await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                            const userRef = window.fb.doc(window.fb.db, "users", user.uid);
-                            const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                            const userDoc = await transaction.get(userRef);
-                            const tableDoc = await transaction.get(tableRef);
-                            
-                            if (user.role !== ROLES.SUPER_ADMIN && Number(userDoc.data().balance) < Number(tableState.minBuyIn)) {
-                                throw "אין לך מספיק צ'יפים להרשמה לטורניר.";
-                            }
-                            
-                            const tData = tableDoc.data();
-                            const takenSeats = Object.values(tData.players || {}).map(p => p.seat);
-                            let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
-                            
-                            const updatedPlayers = { ...tData.players };
-                            updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: emptySeat, rack: [], score: 0, hasOpened: false };
-                            
-                            let newWaitingList = [...(tData.waitingList || [])];
-                            if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) newWaitingList.shift();
-
-                            const newPrizePool = Number(tData.prizePool || 0) + Number(tableState.minBuyIn);
-                            
-                            if (user.role !== ROLES.SUPER_ADMIN) {
-                                const newBalance = Number(userDoc.data().balance) - Number(tableState.minBuyIn);
-                                transaction.update(userRef, { balance: newBalance });
-                            }
-                            transaction.update(tableRef, { prizePool: newPrizePool, players: updatedPlayers, waitingList: newWaitingList });
-                        });
-                        showToast("נרשמת לטורניר והקופה עודכנה!", "success");
-                    } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהרשמה.", "error"); }
-                } else {
-                    if (user.role !== ROLES.SUPER_ADMIN && Number(user.balance) < Number(tableState.minBuyIn)) {
-                        return showToast("אין לך מספיק צ'יפים להיכנס לשולחן זה.", "error");
-                    }
-                    try {
-                        const takenSeats = Object.values(currentPlayers).map(p => p.seat);
-                        let emptySeat = 0; while (takenSeats.includes(emptySeat)) emptySeat++;
-                        const updatedPlayers = { ...currentPlayers };
-                        updatedPlayers[user.uid] = { username: user.username, avatarId: user.avatarId, seat: emptySeat, rack: [], hasOpened: false };
-                        
-                        let newWaitingList = [...(tableState.waitingList || [])];
-                        if (newWaitingList.length > 0 && newWaitingList[0].uid === user.uid) newWaitingList.shift();
-
-                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
-                            players: updatedPlayers,
-                            waitingList: newWaitingList
-                        });
-                        showToast("התיישבת בהצלחה!", "success");
-                    } catch(e) { showToast("שגיאה בהתיישבות: " + e.message, "error"); }
-                }
-            };
-            
-            const leaveTable = async () => {
-                if (!isSeated) {
-                    if (tableState.waitingList?.some(w => w.uid === user.uid)) {
-                        const newList = tableState.waitingList.filter(w => w.uid !== user.uid);
-                        await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { waitingList: newList });
-                    }
-                    return onLeave();
-                }
-
-                const updatedPlayers = { ...tableState.players };
-                delete updatedPlayers[user.uid];
-                
-                let updates = { players: updatedPlayers };
-                if (Object.keys(updatedPlayers).length < 2 && tableState.status === 'playing') {
-                    updates.status = 'waiting';
-                    updates.board = [];
-                    updates.deck = [];
-                    updates.currentTurn = null;
-                }
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
-                onLeave();
-            };
-
-            const kickPlayer = async (targetUid, targetName) => {
-                const updatedPlayers = { ...tableState.players };
-                delete updatedPlayers[targetUid];
-                
-                let updates = { players: updatedPlayers };
-                
-                let newWaitingList = [...(tableState.waitingList || [])];
-                newWaitingList = newWaitingList.filter(w => w.uid !== targetUid);
-                updates.waitingList = newWaitingList;
-
-                if (Object.keys(updatedPlayers).length < (tableState.minToStart || 2) && tableState.status === 'playing') {
-                    updates.status = 'waiting';
-                    updates.board = [];
-                    updates.deck = [];
-                    updates.currentTurn = null;
-                } else if (tableState.currentTurn === targetUid) {
-                    const uids = Object.keys(updatedPlayers);
-                    if(uids.length > 0) updates.currentTurn = uids[0]; 
-                }
-
-                try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
-                    showToast(`${targetName} הועף מהשולחן על ידי ההנהלה!`, "success");
-                } catch(e) { showToast("שגיאה בהוצאת שחקן", "error"); }
-            };
-
-            const handleSendChat = async (e) => {
-                e.preventDefault(); if (!chatMsg.trim()) return;
-                if (tableState.chatEnabled === false && user.role === ROLES.PLAYER) return showToast("הצ'אט מושתק.", "error");
-                if ((tableState.mutedPlayers || []).includes(user.uid)) return showToast("הושתקת בשולחן זה.", "error");
-                const newMsg = { uid: user.uid, username: user.username, text: chatMsg.trim(), ts: Date.now() };
-                const newChat = [...(tableState.chat || []), newMsg].slice(-40);
-                try { 
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
-                        chat: newChat,
-                        lastChatBubble: { uid: user.uid, text: chatMsg.trim(), ts: Date.now() }
-                    }); 
-                    setChatMsg(""); 
-                    setTimeout(() => setShowChat(false), 1000); 
-                } 
-                catch(e) { console.error(e); }
-            };
-
-            const toggleGlobalChat = async () => {
-                const newState = tableState.chatEnabled === false ? true : false;
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chatEnabled: newState });
-                showToast(newState ? "צ'אט נפתח לכולם" : "צ'אט הושתק לכולם", "info");
-            };
-            
-            const toggleMutePlayer = async (targetUid, targetName) => {
-                if (!isAdmin) return;
-                const muted = tableState.mutedPlayers || [];
-                const isMuted = muted.includes(targetUid);
-                const newMuted = isMuted ? muted.filter(id => id !== targetUid) : [...muted, targetUid];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { mutedPlayers: newMuted });
-                showToast(isMuted ? `הוסרה השתקה מ-${targetName}` : `${targetName} הושתק`, "info");
-            };
-
-            const handleStartGame = async () => {
-                const uids = Object.keys(tableState.players || {});
-                if (uids.length < (tableState.minToStart || 2)) return showToast("אין מספיק שחקנים להתחלה.", "error");
-                const deck = generateRummikubDeck();
-                const updatedPlayers = { ...tableState.players };
-                uids.forEach(uid => { updatedPlayers[uid].rack = deck.splice(0, 14); updatedPlayers[uid].hasOpened = false; });
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { status: 'playing', deck: deck, players: updatedPlayers, currentTurn: uids[0], board: [] });
-                showToast("המשחק התחיל! שיהיה בהצלחה.", "success");
-            };
-
-            const applyPenalty = async (reason) => {
-                AudioManager.playError();
-                showToast(`קנס: ${reason}`, "error");
-                let newRack = [...originalRackRef.current];
-                let newDeck = [...(tableState.deck || [])];
-                for(let i=0; i<3; i++) { if(newDeck.length > 0) newRack.push(newDeck.shift()); }
-                setLocalRack(newRack);
-                const uids = Object.keys(tableState.players);
-                const nextTurnUid = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                    board: originalBoardRef.current, deck: newDeck, currentTurn: nextTurnUid, [`players.${user.uid}.rack`]: newRack
-                });
-            };
-
-            const handleEndTurn = async (isTimeOut = false) => {
-                if (!isMyTurn) return;
-                if (isTimeOut) return applyPenalty("נגמר הזמן! הלוח שוחזר וקיבלת עונש 3 אבנים.");
-
-                const currentBoard = tableState.board || [];
-                if (currentBoard.length > 0) {
-                    const allValid = currentBoard.every(isValidMeld);
-                    if (!allValid) return applyPenalty("השולחן אינו חוקי. סדרות שגויות!");
-                }
-                const origJokers = (originalRackRef.current || []).filter(t => t.val === '☻' || t.isJoker).length;
-                const currentJokers = localRack.filter(t => t.val === '☻' || t.isJoker).length;
-                if (currentJokers > origJokers) return applyPenalty("שחררת ג'וקר ולא השתמשת בו! חובה לשלבו על השולחן.");
-                const origRack = originalRackRef.current || [];
-                if (localRack.length === origRack.length) return handleDrawTile(); 
-
-                let updates = {};
-                if (!myPlayerData.hasOpened) {
-                    const origBoardStr = JSON.stringify(originalBoardRef.current || []);
-                    const currentBoardPrefix = JSON.stringify(currentBoard.slice(0, (originalBoardRef.current || []).length));
-                    if (origBoardStr !== currentBoardPrefix) return applyPenalty("לפני ירידה ראשונה, אסור לשנות אבנים קיימות!");
-                    const newGroups = currentBoard.slice((originalBoardRef.current || []).length);
-                    let totalPoints = 0;
-                    newGroups.forEach(g => totalPoints += getGroupValue(g));
-                    if (totalPoints < 30) return applyPenalty(`ירידה ראשונה חייבת להיות 30 נקודות (הורדת ${totalPoints}).`);
-                    updates[`players.${user.uid}.hasOpened`] = true;
-                    showToast("כל הכבוד! פתחת את המשחק.", "success");
-                }
-
-                if (localRack.length === 0) return showToast("מנצח! לוגיקת סליקה תיושם כאן.", "info"); 
-                
-                const uids = Object.keys(tableState.players);
-                const nextTurnUid = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                updates.currentTurn = nextTurnUid;
-                updates[`players.${user.uid}.rack`] = localRack;
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), updates);
-            };
-
-            const handleDrawTile = async () => {
-                if (!isMyTurn) return;
-                const origRackStr = JSON.stringify(originalRackRef.current || []);
-                if (origRackStr !== JSON.stringify(localRack)) {
-                    AudioManager.playError();
-                    return showToast("אי אפשר למשוך אחרי שביצעת שינויים. שחזר ידנית או סיים תור לקבלת קנס.", "error");
-                }
-                const currentDeck = [...(tableState.deck || [])];
-                if (currentDeck.length === 0) return showToast("הקופה ריקה!", "error");
-                const drawnTile = currentDeck.shift(); 
-                const newRack = [...localRack, drawnTile];
-                setLocalRack(newRack);
-                
-                const uids = Object.keys(tableState.players);
-                const nextTurnUid = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
-                    currentTurn: nextTurnUid, deck: currentDeck, [`players.${user.uid}.rack`]: newRack
-                });
-                AudioManager.playClack();
-            };
-
-            const typeInfo = GAME_TYPES.find(g => g.id === tableState.type) || GAME_TYPES[0];
-            const hex = tableState.isTournament ? '#fbbf24' : typeInfo.hex;
-            const sharedBoard = tableState.board || [];
-            const playersList = Object.entries(tableState.players || {});
-
             return (
-                <div className="flex-1 flex flex-col relative select-none game-felt overflow-hidden" ref={tableRef} style={{ touchAction: 'none' }}>
-                    <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-screen" style={{ background: `radial-gradient(circle at 50% 30%, ${hex} 0%, transparent 60%)` }}></div>
-
-                    <div className="relative z-10 px-4 py-3 bg-slate-950/80 backdrop-blur-md flex justify-between items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-slate-800">
-                        <div className="flex items-center gap-3">
-                            <button onClick={leaveTable} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold hover:text-white transition-colors text-sm flex items-center gap-2">
-                                <i className="fa-solid fa-arrow-right"></i> עזוב
-                            </button>
-                            {isSeated && (
-                                <div className="bg-slate-900 border px-4 py-1.5 rounded-xl font-black chip-text shadow-inner hidden sm:block font-rubik" style={{ borderColor: `${hex}50` }}>
-                                    {formatMoney(user.balance)}
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="text-center absolute left-1/2 transform -translate-x-1/2">
-                            <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-widest font-sans" style={{ textShadow: `0 0 20px ${hex}` }}>
-                                {tableState.isTournament ? 'טורניר' : typeInfo.name}
-                            </h2>
-                            <div className="flex items-center justify-center gap-2 mt-0.5 font-sans">
-                                {tableState.isTournament ? (
-                                    <>
-                                        <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">קופה: <span style={{color: hex}} className="font-rubik">{formatMoney(tableState.prizePool)}</span></span>
-                                        <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">הדחה ב: <span className="font-rubik text-rose-400">{tableState.penaltyLimit}-</span></span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">נקודה: <span style={{color: hex}} className="font-rubik">{tableState.stakes}</span></span>
-                                        <span className="text-[10px] font-bold bg-slate-900 px-2 rounded border border-slate-800 text-slate-300">כניסה: <span className="font-rubik">{formatMoney(tableState.buyIn)}</span></span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                <div className="flex-1 flex flex-col relative bg-slate-950 select-none touch-none">
+                    <Chat />
+                    <div className="relative z-10 flex justify-between items-center p-4 bg-slate-900/90 border-b border-slate-800">
+                        <button onClick={onLeave} className="text-slate-400 hover:text-white bg-slate-800 px-4 py-2 rounded-lg font-bold"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
+                        <h2 className="text-2xl font-black text-white tracking-widest" style={{ textShadow: `0 0 15px ${hex}` }}>{typeInfo.name}</h2>
+                        <div className="bg-slate-950 px-4 py-2 rounded-lg font-bold border" style={{ borderColor: hex }}>קופה: {formatMoney(450)}</div>
                     </div>
 
-                    <div 
-                        data-zone="board-main" 
-                        className={`flex-1 mx-2 sm:mx-6 mt-4 mb-2 rounded-[2rem] border-[4px] relative p-4 sm:p-6 overflow-y-auto transition-all z-0 ${hoverTarget === 'board-main' ? 'bg-white/5 scale-[1.01]' : ''}`} 
-                        style={{ borderColor: `${hex}30`, backgroundColor: 'rgba(5, 8, 15, 0.7)', boxShadow: `inset 0 0 100px rgba(0,0,0,1)` }}
-                    >
-                        {!isSeated && (
-                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-[1.8rem]">
-                                {playersList.length < (tableState.maxPlayers || 4) ? (
-                                    isFirstInWaitlist ? (
-                                        <div className="text-center animate-pulse">
-                                            <h2 className="text-3xl text-emerald-400 font-black mb-4">התפנה מקום! אתה ראשון בתור.</h2>
-                                            <button onClick={handleSitDown} className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(16,185,129,0.6)] flex items-center gap-3 transition-transform hover:scale-105 mx-auto">
-                                                <i className="fa-solid fa-chair"></i> קח את הכיסא עכשיו
-                                            </button>
-                                        </div>
-                                    ) : (tableState.waitingList || []).some(w => w.uid === user.uid) ? (
-                                        <div className="text-center">
-                                            <h2 className="text-2xl text-orange-400 font-bold mb-4">ממתין לשחקן הראשון בתור שיקבל החלטה...</h2>
-                                            <p className="text-slate-300">אתה בתור. המתן בסבלנות.</p>
-                                        </div>
-                                    ) : (
-                                        <button onClick={handleSitDown} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(59,130,246,0.6)] flex items-center gap-3 transition-transform hover:scale-105">
-                                            <i className="fa-solid fa-chair"></i> {tableState.isTournament ? `הרשם לטורניר (${formatMoney(tableState.minBuyIn)})` : `שב בשולחן (מינ' ${formatMoney(tableState.minBuyIn)})`}
-                                        </button>
-                                    )
-                                ) : (
-                                    <h2 className="text-3xl text-slate-300 font-black">השולחן מלא כרגע.</h2>
-                                )}
-                                <p className="mt-4 text-slate-300 font-bold">({playersList.length}/{tableState.maxPlayers || 4} שחקנים יושבים)</p>
-                            </div>
-                        )}
-
-                        {isSeated && !isPlaying && (
-                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-[1.8rem]">
-                                <h3 className="text-2xl text-white font-black mb-4">ממתין לתחילת משחק...</h3>
-                                <p className="text-slate-300 mb-6 font-bold">{playersList.length} שחקנים מחוברים.</p>
-                                {isAdmin && (
-                                    <button onClick={handleStartGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-transform hover:scale-105">
-                                        התחל משחק וחלוק אבנים
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                        {isPlaying && (
-                            <div className="absolute top-4 left-4 right-4 flex justify-center gap-8 pointer-events-none opacity-80 z-0">
-                                {playersList.filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
-                                    const av = AVATARS.find(a => a.id === pData.avatarId) || AVATARS[0];
-                                    const isTheirTurn = tableState.currentTurn === uid;
-                                    const userEmojis = floatingEmojis.filter(e => e.uid === uid);
-                                    const userBubbles = chatBubbles.filter(b => b.uid === uid);
-                                    
-                                    return (
-                                        <div key={uid} className={`relative flex flex-col items-center transition-all ${isTheirTurn ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'opacity-50'}`}>
-                                            {userBubbles.map(b => (
-                                                <div key={b.id} className="absolute bottom-[110%] bg-white text-slate-900 px-3 py-1.5 rounded-2xl rounded-br-sm font-bold text-xs shadow-2xl z-[9999] whitespace-nowrap animate-bounce border-2 border-slate-200">
-                                                    {b.text}
-                                                </div>
-                                            ))}
-                                            {userEmojis.map(e => (
-                                                <div key={e.id} className="absolute emoji-float text-4xl" style={{top: -20}}>{e.emoji}</div>
-                                            ))}
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 mb-1 ${isTheirTurn ? 'border-white bg-slate-800' : 'border-slate-600 bg-slate-900'}`}>
-                                                <i className={`fa-solid ${av.icon} ${av.color}`}></i>
-                                            </div>
-                                            <span className={`text-[10px] font-bold ${isTheirTurn ? 'text-white' : 'text-slate-400'}`}>{pData.username}</span>
-                                            <span className="text-[10px] text-emerald-400 font-rubik bg-slate-900 px-2 rounded-full mt-0.5">{pData.rack?.length || 0} אבנים</span>
-                                            {tableState.isTournament && (
-                                                <span className={`text-[11px] font-black mt-1 px-2 rounded ${pData.score < 0 ? 'bg-rose-900 text-rose-400' : 'bg-slate-800 text-slate-300'}`}>
-                                                    {pData.score || 0} נק'
-                                                </span>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-
-                        <div className="flex flex-wrap gap-4 sm:gap-6 items-start pb-24 mt-20 relative z-10 pointer-events-auto">
-                            {sharedBoard.map((group, gIdx) => (
-                                <div 
-                                    key={gIdx} data-zone={`board-group-${gIdx}`}
-                                    className={`flex p-2 sm:p-3 rounded-2xl border-[3px] min-h-[85px] min-w-[70px] transition-all duration-200 pointer-events-auto ${hoverTarget === `board-group-${gIdx}` ? `bg-white/10 scale-110 shadow-[0_0_40px_${hex}80]` : 'bg-black/50 border-white/5'}`}
-                                    style={hoverTarget === `board-group-${gIdx}` ? { borderColor: hex } : {}}
-                                >
-                                    {group.map((tile, tIdx) => {
-                                        const isJoker = tile.val === '☻' || tile.isJoker;
-                                        const jokerZone = `joker-${gIdx}-${tIdx}`;
-                                        const isHoveringJoker = isJoker && hoverTarget === jokerZone;
-                                        
-                                        return (
-                                        <div key={tile.id} 
-                                            data-zone={isJoker ? jokerZone : null}
-                                            onPointerDown={(e) => startDrag(e, tile, 'board', gIdx, tIdx)}
-                                            onTouchStart={(e) => startDrag(e, tile, 'board', gIdx, tIdx)}
-                                            className={`rummi-tile w-12 h-16 sm:w-14 sm:h-20 text-3xl sm:text-4xl mx-0.5 transition-all ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''} ${isHoveringJoker ? 'scale-110 z-50 shadow-[0_0_30px_#fbbf24] ring-4 ring-gold-400' : ''}`}
-                                            style={{ color: tile.hex }}>{tile.val}</div>
-                                        );
-                                    })}
+                    <div className="flex-1 relative mx-4 mt-4 mb-2 rounded-3xl border-[6px] p-6 overflow-y-auto" style={{ borderColor: `${hex}80`, backgroundColor: '#0a0f1a' }}>
+                        <div className="flex flex-wrap gap-6 items-start">
+                            {board.map((group, gIdx) => (
+                                <div key={gIdx} className="flex bg-black/40 p-3 rounded-2xl border-2 border-white/10 min-h-[90px]">
+                                    {group.map((t, tIdx) => (
+                                        <div key={t.id} className="w-12 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-3xl font-black mx-0.5 border-b-4 border-r-2 border-gray-400" style={{ color: t.hex }}>{t.val}</div>
+                                    ))}
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div data-zone="rack" className="relative z-20 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center pb-6 bg-slate-950 border-t-[3px]" style={{ borderTopColor: `${hex}50`, boxShadow: `0 -20px 50px rgba(0,0,0,0.9)` }}>
-                    
-                        {tableState?.isTournament && isPlaying && (
-                            <div className="absolute right-4 top-[-20px] bg-slate-900 border border-gold-500/50 px-4 py-2 rounded-xl shadow-2xl flex flex-col items-center z-40">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase">הניקוד שלך:</span>
-                                <span className={`text-xl font-black font-rubik ${myPlayerData?.score < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{myPlayerData?.score || 0}</span>
-                            </div>
-                        )}
-
-                        <div className="absolute left-4 top-4 flex flex-col gap-2 z-[9999] pointer-events-auto">
-                            <div className="flex gap-2 relative">
-                                <button onClick={() => {setShowEmojis(!showEmojis); setShowChat(false);}} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-gold-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
-                                    <i className="fa-regular fa-face-smile text-xl"></i>
-                                </button>
-                                <button onClick={() => {setShowChat(!showChat); setShowEmojis(false);}} className="w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-blue-400 shadow-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
-                                    <i className="fa-regular fa-comment-dots text-xl"></i>
-                                </button>
-
-                                {showEmojis && (
-                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex flex-wrap w-[140px] gap-2">
-                                        {['🍻', '👏', '😠', '🤣', '💔', '🍀', '🤦‍♂️', '🔥'].map(em => (
-                                            <button key={em} onClick={() => sendEmoji(em)} className="text-2xl hover:scale-125 transition-transform">{em}</button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {showChat && (
-                                    <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col w-[280px] sm:w-[320px] h-[350px] overflow-hidden">
-                                        <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center">
-                                            <h3 className="text-white font-bold text-sm">צ'אט השולחן</h3>
-                                            <div className="flex items-center gap-2">
-                                                {isAdmin && (
-                                                    <button onClick={toggleGlobalChat} className={`text-[10px] px-2 py-1 rounded font-bold transition-colors ${tableState.chatEnabled !== false ? 'bg-rose-900 text-rose-300 hover:bg-rose-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800'}`}>
-                                                        {tableState.chatEnabled !== false ? 'השתק הכל' : 'אפשר צ\'אט'}
-                                                    </button>
-                                                )}
-                                                <button onClick={() => setShowChat(false)} className="text-slate-400 hover:text-white transition-colors w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-800">
-                                                    <i className="fa-solid fa-xmark"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 text-sm bg-slate-900/50">
-                                            {tableState.chatEnabled === false && (
-                                                <div className="text-center text-xs text-rose-400 font-bold bg-rose-900/20 p-2 rounded">הצ'אט הושתק על ידי הנהלת המועדון.</div>
-                                            )}
-                                            {(tableState.chat || []).map((msg, idx) => (
-                                                <div key={idx} className="flex flex-col">
-                                                    <span className={`text-[10px] font-bold mb-0.5 flex items-center ${msg.uid === user.uid ? 'text-blue-400' : 'text-slate-400'}`}>
-                                                        {msg.username} {(tableState.mutedPlayers || []).includes(msg.uid) ? '🔇' : ''}
-                                                        {isAdmin && msg.uid !== user.uid && (
-                                                            <span className="mr-2 flex gap-1 items-center bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
-                                                                <button onClick={(e) => { e.stopPropagation(); toggleMutePlayer(msg.uid, msg.username); }} className="text-slate-400 hover:text-amber-400" title="השתק">
-                                                                    <i className={`fa-solid ${(tableState.mutedPlayers || []).includes(msg.uid) ? 'fa-volume-xmark text-amber-500' : 'fa-volume-high'}`}></i>
-                                                                </button>
-                                                                <span className="text-slate-700">|</span>
-                                                                <button onClick={(e) => { e.stopPropagation(); kickPlayer(msg.uid, msg.username); }} className="text-slate-400 hover:text-rose-500" title="הוצא מהשולחן (Kick)">
-                                                                    <i className="fa-solid fa-user-slash"></i>
-                                                                </button>
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                    <div className={`px-3 py-2 rounded-xl inline-block ${msg.uid === user.uid ? 'bg-blue-600 text-white rounded-br-none self-end' : 'bg-slate-800 text-slate-200 rounded-bl-none self-start'}`}>{msg.text}</div>
-                                                </div>
-                                            ))}
-                                            <div ref={chatEndRef} />
-                                        </div>
-                                        <form onSubmit={handleSendChat} className="p-2 bg-slate-950 border-t border-slate-800 flex gap-2">
-                                            <input type="text" value={chatMsg} onChange={(e) => setChatMsg(e.target.value)} placeholder="כתוב הודעה..." className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" disabled={tableState.chatEnabled === false && user.role === ROLES.PLAYER} />
-                                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white w-10 rounded-xl flex items-center justify-center transition-colors"><i className="fa-solid fa-paper-plane text-xs"></i></button>
-                                        </form>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="flex bg-slate-900 rounded-lg border border-slate-700 shadow-lg overflow-hidden flex-col mt-2">
-                                <button onClick={handleSortSets} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 border-b border-slate-800 transition-colors text-xs font-bold" title="סדר קבוצות (7-7-7)">7-7-7</button>
-                                <button onClick={handleSortRuns} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors text-xs font-bold" title="סדר רצפים (7-8-9)">7-8-9</button>
-                            </div>
+                    <div className="relative z-10 bg-slate-900 border-t-2 p-4 pt-12 flex flex-col items-center justify-end pb-8" style={{ borderTopColor: hex }}>
+                        <div className="absolute left-4 md:left-12 top-[-25px] flex gap-2">
+                            <button className="text-white px-6 py-3 rounded-xl font-black shadow-[0_0_20px_rgba(0,0,0,0.8)] uppercase" style={{ backgroundColor: hex }}>סיום תור</button>
+                            <button className="bg-slate-700 text-white px-6 py-3 rounded-xl font-bold shadow-xl">קופה ({deck})</button>
                         </div>
-
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 pointer-events-none z-[9999]">
-                            {floatingEmojis.filter(e => e.uid === user.uid).map(e => (
-                                <div key={e.id} className="absolute emoji-float text-5xl" style={{left: -20}}>{e.emoji}</div>
-                            ))}
-                            {chatBubbles.filter(b => b.uid === user.uid).map(b => (
-                                <div key={b.id} className="absolute bottom-[100%] mb-12 bg-blue-500 text-white px-4 py-2 rounded-2xl rounded-bl-sm font-bold text-sm shadow-[0_10px_30px_rgba(59,130,246,0.6)] whitespace-nowrap border border-blue-400 animate-bounce" style={{left: -50}}>
-                                    {b.text}
-                                </div>
-                            ))}
-                        </div>
-
-                        {isPlaying && (
-                            <div className="absolute top-[-20px] sm:top-[-24px] flex gap-2 z-30">
-                                {!isMyTurn ? (
-                                    <div className="bg-slate-900 text-slate-400 px-6 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-800 flex items-center gap-2 text-sm">
-                                        <i className="fa-solid fa-hourglass-half fa-spin"></i> ממתין לתור...
-                                    </div>
-                                ) : (
-                                    <>
-                                        <button onClick={handleDrawTile} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl font-bold shadow-2xl border border-slate-600 flex items-center gap-2 text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans">
-                                            <i className="fa-solid fa-layer-group text-gold-400"></i> משיכה (<span className="font-rubik">{tableState.deck?.length || 0}</span>)
-                                        </button>
-                                        <div className={`px-4 py-2.5 rounded-xl font-black shadow-2xl border flex items-center gap-2 text-xs sm:text-sm ${timeLeft <= 10 ? 'bg-rose-900/80 border-rose-500 text-white animate-pulse' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>
-                                            <i className="fa-regular fa-clock"></i> <span className="font-rubik w-5 text-center">{timeLeft}</span>
-                                        </div>
-                                        <button onClick={() => handleEndTurn(false)} className="text-slate-950 px-6 py-2.5 rounded-xl font-black shadow-[0_0_20px_rgba(16,185,129,0.5)] uppercase text-xs sm:text-sm transition-transform hover:-translate-y-1 font-sans" style={{ backgroundColor: hex }}>
-                                            <i className="fa-solid fa-check mr-2"></i> סיום תור
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        <div className={`w-[98%] max-w-4xl min-h-[100px] sm:min-h-[130px] bg-gradient-to-b from-slate-800 to-slate-950 rounded-t-3xl border-x-[12px] sm:border-x-[20px] border-b-[10px] sm:border-b-[16px] border-slate-900 shadow-[0_20px_50px_#000] flex flex-wrap justify-center items-end px-2 py-3 sm:py-5 gap-1 relative ${hoverTarget === 'rack' ? `shadow-[0_0_40px_${hex}40]` : ''}`} style={hoverTarget === 'rack' ? {borderColor: `${hex}80`} : {}}>
-                            <div className="absolute inset-0 border-t-8 border-black/50 rounded-t-2xl pointer-events-none"></div>
-
-                            {localRack.map((tile, tIdx) => (
-                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, tIdx)}
-                                    onTouchStart={(e) => startDrag(e, tile, 'rack', null, tIdx)}
-                                    className={`rummi-tile w-12 h-16 sm:w-16 sm:h-24 text-3xl sm:text-5xl mx-0.5 z-10 ${dragData?.tile?.id === tile.id ? 'opacity-10 scale-90' : 'hover:-translate-y-3'}`}
-                                    style={{ color: tile.hex }}>{tile.val}</div>
+                        <div className="flex flex-wrap justify-center items-end gap-1 min-h-[120px] bg-slate-800 px-6 py-4 rounded-t-3xl border-x-[16px] border-b-[12px] border-slate-900 w-[98%] max-w-5xl">
+                            {rack.map((t, idx) => (
+                                <div key={t.id} className="w-12 h-16 sm:w-16 sm:h-24 bg-gray-200 rounded-lg flex items-center justify-center text-3xl sm:text-5xl font-black mx-0.5 shadow-2xl border-b-[8px] border-r-[3px] border-gray-400" style={{ color: t.hex }}>{t.val}</div>
                             ))}
                         </div>
                     </div>
-
-                    {dragData && (
-                        <div className="fixed dragging-ghost rummi-tile w-16 h-24 sm:w-20 sm:h-28 text-5xl sm:text-6xl z-[99999]"
-                            style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(4deg)', color: dragData.tile.hex }}>
-                            {dragData.tile.val}
-                        </div>
-                    )}
                 </div>
             );
         }
