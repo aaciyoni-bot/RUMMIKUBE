@@ -64,7 +64,7 @@
             font-family: 'Rubik', sans-serif; font-weight: 900;
             transition: transform 0.1s ease, box-shadow 0.1s ease; user-select: none;
             text-shadow: 0 1px 1px rgba(0,0,0,0.15);
-            touch-action: none; /* Critical for touch drag/drop */
+            touch-action: none; 
         }
         .rummy-tile:active, .rummy-tile.dragging {
             box-shadow: 0 20px 30px rgba(0,0,0,0.6); transform: scale(1.1) translateY(-8px); z-index: 999;
@@ -72,16 +72,20 @@
 
         .card-back { background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px); }
         
-        .rummy-rack-wood {
-            background: linear-gradient(to bottom, #d4a373 0%, #bc8a5f 40%, #8b5a2b 100%);
-            border-bottom: 14px solid #4a2e15; border-top: 1px solid #e6ccb2;
-            border-left: 3px solid #704728; border-right: 3px solid #704728;
-            border-radius: 12px 12px 6px 6px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 5px 15px rgba(0,0,0,0.3); position: relative;
+        /* Opponent Wooden Rack Back */
+        .opponent-rack-back {
+            background: linear-gradient(to top, #4a2e15 0%, #8b5a2b 100%);
+            border-top: 3px solid #d4a373; border-radius: 4px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.7);
+            width: 140px; height: 35px;
+            transform: perspective(300px) rotateX(25deg);
+            display: flex; justify-content: center; align-items: flex-end;
+            padding-bottom: 2px; gap: 1px;
+            position: relative;
         }
-        .rummy-rack-wood::after {
-            content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-            background-image: repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.04) 15px, rgba(0,0,0,0.04) 30px);
+        .opponent-tile-peek {
+            width: 6px; height: 18px; background: #e2e8f0; border-radius: 2px 2px 0 0;
+            border: 1px solid #cbd5e1; border-bottom: none; box-shadow: inset -1px 0 2px rgba(0,0,0,0.2);
         }
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
@@ -92,8 +96,30 @@
         .loading-dot:nth-child(2) { animation-delay: 0.15s; }
         .loading-dot:nth-child(3) { animation-delay: 0.3s; }
 
-        /* Drop slots inside the rack to allow placing tiles between others */
-        .rack-drop-slot { flex: 0 1 10px; height: 100%; min-width: 5px; }
+        /* The Custom Grid for the Player Rack */
+        .rack-grid {
+            display: grid;
+            grid-template-columns: repeat(14, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 4px;
+            width: 100%; max-width: 900px;
+            padding: 8px;
+            background: linear-gradient(to bottom, #d4a373 0%, #bc8a5f 40%, #8b5a2b 100%);
+            border-bottom: 14px solid #4a2e15; border-top: 1px solid #e6ccb2;
+            border-left: 3px solid #704728; border-right: 3px solid #704728;
+            border-radius: 12px 12px 6px 6px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .rack-slot {
+            aspect-ratio: 9/13; /* roughly rummikub tile proportions */
+            background-color: rgba(0,0,0,0.15);
+            border-radius: 6px;
+            border: 1px dashed rgba(255,255,255,0.1);
+            position: relative;
+        }
+        .rack-slot.hover-target { background-color: rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.8); }
+
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -126,12 +152,11 @@
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
         const formatMoney = (amount) => {
-            if (amount === undefined || amount === null) return '0';
+            if (amount === undefined || amount === null) return '0.00';
             const num = Number(amount);
             if (isNaN(num)) return String(amount);
-            if (num === 0) return '0';
-            // Show exact numbers with formatting, no more 'M' hiding deductions!
-            return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            if (num === 0) return '0.00';
+            return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
         const Coin = ({ amount, className="", size="md" }) => (
@@ -203,11 +228,11 @@
                     const role = q.empty ? ROLES.SUPER_ADMIN : ROLES.PLAYER;
                     const newUser = { 
                         username: user.displayName || 'Player', 
-                        email: user.email || '', // Saved for Agent assignment
+                        email: user.email || '', 
                         role, 
                         status: q.empty ? 'approved' : 'pending', 
                         balance: q.empty ? 10000000 : 0,
-                        clubProfits: 0, // NEW: Rake tracking
+                        clubProfits: 0, 
                         stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
                     };
                     await window.fb.setDoc(ref, newUser); 
@@ -281,7 +306,7 @@
                         {currentView === 'table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => changeView('lobby')} showToast={showToast} />}
                     </main>
                     
-                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
+                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl shadow-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>
                                 {t.msg}
@@ -609,7 +634,7 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <input type="number" step="0.01" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="סכום (ניתן להזין אגורות: 0.50)..." className="w-full bg-slate-950 text-sm text-slate-200 border border-slate-700 rounded-lg p-3 outline-none focus:border-slate-500" />
+                                        <input type="number" step="0.01" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="סכום..." className="w-full bg-slate-950 text-sm text-slate-200 border border-slate-700 rounded-lg p-3 outline-none focus:border-slate-500" />
                                     </div>
                                     <div className="flex gap-2 pt-2">
                                         <button onClick={()=>handleTransfer(true)} className="flex-1 bg-emerald-600/90 hover:bg-emerald-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">
@@ -672,14 +697,14 @@
             const [loading, setLoading] = useState(true);
             const [isGodMode, setIsGodMode] = useState(false); 
             
-            const [rack, setRack] = useState([]);
+            const [rack, setRack] = useState(Array(28).fill(null)); // Fixed Grid of 28 slots
             const [board, setBoard] = useState([]);
             const [startTurnBoard, setStartTurnBoard] = useState([]);
             const [startTurnRack, setStartTurnRack] = useState([]);
             
             const [dragData, setDragData] = useState(null); 
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-            const [hoverTarget, setHoverTarget] = useState(null);
+            const [hoverTarget, setHoverTarget] = useState(null); // Used only for visual styling now
             const [timeLeft, setTimeLeft] = useState(60);
             const [showVictory, setShowVictory] = useState(false);
             const longPressTimer = useRef(null);
@@ -705,13 +730,17 @@
                 if(!tableState) return;
                 if (!dragData) {
                     setBoard(tableState.board || []);
-                    setRack(tableState.players?.[user.uid]?.cards || []);
                     
-                    // Snapshot the turn start state for Undo
+                    // Pad rack with nulls if needed from DB
+                    const dbCards = tableState.players?.[user.uid]?.cards || [];
+                    const fullRack = [...dbCards];
+                    while(fullRack.length < 28) fullRack.push(null);
+                    setRack(fullRack);
+                    
                     if (tableState.currentTurn === user.uid && tableState.board) {
                         if (startTurnBoard.length === 0 && startTurnRack.length === 0) {
                              setStartTurnBoard(tableState.board || []);
-                             setStartTurnRack(tableState.players?.[user.uid]?.cards || []);
+                             setStartTurnRack(fullRack);
                         }
                     } else if (tableState.currentTurn !== user.uid) {
                         setStartTurnBoard([]); setStartTurnRack([]); 
@@ -739,7 +768,6 @@
                                 synthRef.current?.triggerAttackRelease("E6", "0.05");
                             } catch(e) {}
                         }
-
                         if (remaining === 0 && tableState.currentTurn === user.uid) {
                             clearInterval(interval);
                             handleTimeoutPenalty();
@@ -774,18 +802,14 @@
                 return board.every(g => validateGroup(g)); 
             }, [board]);
 
+            // Unified Drag & Drop Engine (The "Ghost Trick")
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { 
                         setDragPos({ x: e.clientX, y: e.clientY }); 
                         if(longPressTimer.current) clearTimeout(longPressTimer.current); 
                         
-                        // Hide ghosts temporarily to find the real drop target underneath
-                        const ghost = document.getElementById('drag-ghost');
-                        const ghostGroup = document.getElementById('drag-ghost-group');
-                        if (ghost) ghost.style.pointerEvents = 'none';
-                        if (ghostGroup) ghostGroup.style.pointerEvents = 'none';
-                        
+                        // Just for visual styling during drag
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
@@ -799,17 +823,30 @@
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                     if (!dragData) return;
                     
+                    // HIDDEN GHOST TRICK FOR PERFECT HIT DETECTION ON MOBILE
+                    const ghost = document.getElementById('drag-ghost');
+                    const ghostGroup = document.getElementById('drag-ghost-group');
+                    if (ghost) ghost.style.visibility = 'hidden';
+                    if (ghostGroup) ghostGroup.style.visibility = 'hidden';
+                    
+                    // Find actual element under the finger
+                    const elemUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const dropZone = elemUnder ? elemUnder.closest('[data-drop]') : null;
+                    const actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
+
+                    if (ghost) ghost.style.visibility = 'visible';
+                    if (ghostGroup) ghostGroup.style.visibility = 'visible';
+                    
                     let newRack = [...rack]; 
                     let newBoard = board.map(g => [...g]);
                     
                     if (dragData.type === 'single') {
-                        // Remove from source
-                        if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
+                        // 1. Remove from source
+                        if (dragData.source === 'rack') newRack[dragData.tileIndex] = null;
                         else if (dragData.source === 'board') {
                             const grp = newBoard[dragData.groupIndex];
                             const tIdx = dragData.tileIndex;
                             if (tIdx > 0 && tIdx < grp.length - 1 && grp.length >= 4) {
-                                // Split group
                                 const left = grp.slice(0, tIdx); const right = grp.slice(tIdx + 1);
                                 newBoard.splice(dragData.groupIndex, 1, left, right);
                             } else {
@@ -818,32 +855,37 @@
                             }
                         }
 
-                        // Add to target
-                        if (hoverTarget && hoverTarget.startsWith('board-group-')) {
-                            const targetIdx = parseInt(hoverTarget.split('-')[2]);
+                        // 2. Add to target
+                        if (actualTarget && actualTarget.startsWith('board-group-')) {
+                            const targetIdx = parseInt(actualTarget.split('-')[2]);
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
                         } 
-                        else if (hoverTarget === 'board-new') newBoard.push([dragData.tile]);
-                        else if (hoverTarget && hoverTarget.startsWith('rack-slot-')) {
-                            // Internal rack drag with specific positioning!
-                            const slotIdx = parseInt(hoverTarget.split('-')[2]);
-                            newRack.splice(slotIdx, 0, dragData.tile);
+                        else if (actualTarget === 'board-new') newBoard.push([dragData.tile]);
+                        else if (actualTarget && actualTarget.startsWith('rack-slot-')) {
+                            const slotIdx = parseInt(actualTarget.split('-')[2]);
+                            if (newRack[slotIdx] !== null && dragData.source === 'rack') {
+                                // Swap!
+                                newRack[dragData.tileIndex] = newRack[slotIdx];
+                            } else if (newRack[slotIdx] !== null) {
+                                // Board to full slot, find next empty
+                                const nextEmpty = newRack.findIndex(t=>t===null);
+                                if(nextEmpty !== -1) slotIdx = nextEmpty;
+                            }
+                            newRack[slotIdx] = dragData.tile;
                         }
-                        else if (hoverTarget === 'rack') newRack.push(dragData.tile);
-                        else if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 0, dragData.tile); 
+                        else if (dragData.source === 'rack') newRack[dragData.tileIndex] = dragData.tile; // Cancelled drag
                     } 
                     else if (dragData.type === 'group') {
                         const groupTiles = dragData.tiles;
                         if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 1);
                         
-                        if (hoverTarget && hoverTarget.startsWith('board-group-')) {
-                            const targetIdx = parseInt(hoverTarget.split('-')[2]);
+                        if (actualTarget && actualTarget.startsWith('board-group-')) {
+                            const targetIdx = parseInt(actualTarget.split('-')[2]);
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(...groupTiles); else newBoard.push([...groupTiles]);
-                        } else if (hoverTarget === 'board-new') newBoard.push([...groupTiles]);
-                        else if (hoverTarget === 'rack' || (hoverTarget && hoverTarget.startsWith('rack-slot-'))) newRack.push(...groupTiles);
-                        else if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 0, groupTiles); 
+                        } else if (actualTarget === 'board-new') newBoard.push([...groupTiles]);
+                        else if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 0, groupTiles); // Cancelled
                     }
                     
                     setRack(newRack); 
@@ -858,9 +900,7 @@
                                 board: newBoard,
                                 [`players.${user.uid}.cards`]: newRack
                             });
-                        } catch(err) {
-                            console.error("Failed to sync move", err);
-                        }
+                        } catch(err) {}
                     }
                 };
                 
@@ -877,7 +917,6 @@
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
                 if (tableState.currentTurn !== user.uid && source === 'board') return showToast("המתן לתורך", "error");
                 
-                // Allow moving own rack anytime
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId); 
                 
                 try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
@@ -896,31 +935,33 @@
 
             const handleSort777 = async () => {
                 if (!tableState || !tableState.players[user.uid]) return;
-                const sorted = [...rack].sort((a,b) => {
-                    if (a.val === '☻') return 1;
-                    if (b.val === '☻') return -1;
+                let activeTiles = rack.filter(t => t !== null);
+                activeTiles.sort((a,b) => {
+                    if (a.val === '☻') return 1; if (b.val === '☻') return -1;
                     if (a.val !== b.val) return a.val - b.val;
                     return a.color.localeCompare(b.color);
                 });
-                setRack(sorted);
-                if(startTurnRack.length > 0) setStartTurnRack(sorted);
+                while(activeTiles.length < 28) activeTiles.push(null);
+                setRack(activeTiles);
+                if(startTurnRack.length > 0) setStartTurnRack([...activeTiles]);
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                    [`players.${user.uid}.cards`]: sorted
+                    [`players.${user.uid}.cards`]: activeTiles
                 });
             };
 
             const handleSort789 = async () => {
                 if (!tableState || !tableState.players[user.uid]) return;
-                const sorted = [...rack].sort((a,b) => {
-                    if (a.val === '☻') return 1;
-                    if (b.val === '☻') return -1;
+                let activeTiles = rack.filter(t => t !== null);
+                activeTiles.sort((a,b) => {
+                    if (a.val === '☻') return 1; if (b.val === '☻') return -1;
                     if (a.color !== b.color) return a.color.localeCompare(b.color);
                     return a.val - b.val;
                 });
-                setRack(sorted);
-                if(startTurnRack.length > 0) setStartTurnRack(sorted);
+                while(activeTiles.length < 28) activeTiles.push(null);
+                setRack(activeTiles);
+                if(startTurnRack.length > 0) setStartTurnRack([...activeTiles]);
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                    [`players.${user.uid}.cards`]: sorted
+                    [`players.${user.uid}.cards`]: activeTiles
                 });
             };
 
@@ -957,7 +998,11 @@
                         setTimeout(() => {
                             const d = generateDeck(); const np = { ...tableState.players, [user.uid]: {username: user.username, cards: [], hasDropped: false, stack: buyInAmount} }; 
                             const uids = Object.keys(np);
-                            uids.forEach(uid => { np[uid].cards = d.splice(0, 14); });
+                            uids.forEach(uid => { 
+                                const initial = d.splice(0, 14);
+                                const padded = [...initial]; while(padded.length<28) padded.push(null);
+                                np[uid].cards = padded; 
+                            });
                             window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { phase: 'playing', deck: d, board: [], players: np, currentTurn: uids[0], turnStartedAt: Date.now() });
                         }, 1500); 
                     }
@@ -967,7 +1012,11 @@
             const handleTimeoutPenalty = async () => {
                 const newDeck = [...(tableState.deck || [])];
                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
+                const newRack = [...startTurnRack];
+                if(tile) {
+                    const emptyIdx = newRack.findIndex(t=>t===null);
+                    if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                }
                 const uids = Object.keys(tableState.players); 
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
@@ -977,7 +1026,11 @@
                 if (tableState.currentTurn !== user.uid) return;
                 const newDeck = [...(tableState.deck || [])];
                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
+                const newRack = [...startTurnRack];
+                if(tile) {
+                    const emptyIdx = newRack.findIndex(t=>t===null);
+                    if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                }
                 const uids = Object.keys(tableState.players); 
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
@@ -987,16 +1040,18 @@
                 if (tableState.currentTurn !== user.uid || !isBoardValid) return;
                 
                 const isFirstDrop = !tableState.players[user.uid].hasDropped;
+                const activeRackCount = rack.filter(t=>t!==null).length;
+
                 if (isFirstDrop) {
-                    const currentRackIds = rack.map(t=>t.id);
-                    const droppedTiles = startTurnRack.filter(t => !currentRackIds.includes(t.id));
+                    const currentRackIds = rack.filter(t=>t!==null).map(t=>t.id);
+                    const droppedTiles = startTurnRack.filter(t => t!==null && !currentRackIds.includes(t.id));
                     if (droppedTiles.length > 0) {
                         const sum = droppedTiles.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
                         if (sum < 30) return showToast(`יש צורך ב-30 נקודות לפחות להורדה ראשונה.`, "error");
                     } else return showToast("לא ירדת, חובה למשוך קופה.", "error");
                 }
 
-                if (rack.length === 0) {
+                if (activeRackCount === 0) {
                     // WIN LOGIC!
                     const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
                     const adminSnaps = await window.fb.getDocs(adminQ);
@@ -1008,7 +1063,7 @@
                     const stakesNum = Number(tableState.stakes) || 0.1;
                     
                     losers.forEach(([uid, pData]) => {
-                         let dw = pData.cards.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
+                         let dw = (pData.cards||[]).filter(t=>t!==null).reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
                          let penalty = Math.min(dw * stakesNum, pData.stack); 
                          updates[`players.${uid}.stack`] = pData.stack - penalty;
                          totalPot += penalty;
@@ -1168,7 +1223,7 @@
                     
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
                         <div className="flex gap-2">
-                            <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? 'כניעה / עזוב שולחן' : 'קום מהשולחן') : 'חזור ללובי'}</button>
+                            <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? <span className="text-rose-400">כניעה / עזוב שולחן</span> : 'קום מהשולחן') : 'חזור ללובי'}</button>
                             {user.role === ROLES.SUPER_ADMIN && (
                                 <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1.5 rounded text-sm font-bold border transition-colors ${isGodMode ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_purple] animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
                             )}
@@ -1192,12 +1247,13 @@
                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0 w-full px-4">
                                 {tableState.phase === 'playing' ? (
                                     <div className="flex flex-col items-center justify-center mb-8 opacity-40">
-                                        <div className="flex -space-x-3 mb-2">
-                                            <div className="w-8 h-12 rounded-md border-2 border-slate-400/30 bg-white/5 transform -rotate-12 backdrop-blur-sm card-back"></div>
-                                            <div className="w-8 h-12 rounded-md border-2 border-emerald-400/40 bg-emerald-900/20 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 backdrop-blur-sm card-back"></div>
-                                            <div className="w-8 h-12 rounded-md border-2 border-slate-400/30 bg-white/5 transform rotate-12 backdrop-blur-sm card-back"></div>
+                                        <div className="relative">
+                                            {/* Stack of transparent tiles */}
+                                            <div className="w-10 h-14 border border-emerald-400/40 rounded bg-emerald-900/20 backdrop-blur-sm transform rotate-6 absolute top-0 left-2"></div>
+                                            <div className="w-10 h-14 border border-emerald-400/40 rounded bg-emerald-900/20 backdrop-blur-sm transform -rotate-3 absolute top-1 -left-2"></div>
+                                            <div className="w-10 h-14 border-2 border-emerald-400/60 rounded bg-emerald-900/30 backdrop-blur-sm relative z-10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"></div>
                                         </div>
-                                        <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase">קופת אבנים</span>
+                                        <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase mt-2">קופת אבנים</span>
                                     </div>
                                 ) : (
                                     <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center max-w-sm mx-auto">
@@ -1233,6 +1289,8 @@
                                         );
                                     }
 
+                                    const tileCount = pData[1].cards ? pData[1].cards.filter(c => c !== null).length : 0;
+
                                     return (
                                         <div key={i} className={`flex flex-col items-center transition-all relative ${isTurn ? 'scale-110' : ''}`}>
                                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 mb-1 flex items-center justify-center relative shadow-lg ${isMe ? 'bg-emerald-900 border-emerald-400 shadow-[0_0_15px_#10b981]' : isTurn ? 'bg-slate-800 border-emerald-500 ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : 'bg-slate-800 border-slate-500'}`}>
@@ -1244,10 +1302,13 @@
                                             </span>
                                             
                                             {tableState.phase === 'playing' && !isMe && (
-                                                <div className="flex -space-x-2 mt-1">
-                                                    {Array(pData[1].cards?.length || 0).fill(0).map((_, idx) => (
-                                                        <div key={idx} className="w-4 h-6 card-back rounded-[2px] border border-slate-500/50 shadow-sm opacity-80" />
-                                                    ))}
+                                                <div className="relative mt-2 flex justify-center">
+                                                    <div className="opponent-rack-back">
+                                                        {[...Array(Math.min(tileCount, 14))].map((_, idx) => (
+                                                            <div key={idx} className="opponent-tile-peek"></div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="absolute -bottom-3 text-[10px] font-bold text-slate-400 bg-slate-950/80 px-2 rounded-full border border-slate-800">{tileCount} אבנים</div>
                                                 </div>
                                             )}
                                         </div>
@@ -1255,19 +1316,19 @@
                                 })}
                             </div>
 
-                            {/* God Mode Panel */}
+                            {/* God Mode Panel (Fixed Z-index to always be on top) */}
                             {isGodMode && tableState.phase === 'playing' && (
-                                <div className="absolute inset-x-0 top-28 pointer-events-none z-[50] flex flex-wrap justify-center gap-4 px-4">
+                                <div className="absolute inset-x-0 top-36 pointer-events-none z-[9999] flex flex-wrap justify-center gap-4 px-4">
                                     {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => (
-                                        <div key={uid} className="flex flex-col items-center bg-purple-950/95 p-2 rounded-xl border-2 border-purple-400 shadow-[0_0_40px_purple] max-w-[200px]">
+                                        <div key={uid} className="flex flex-col items-center bg-purple-950/95 p-2 rounded-xl border-2 border-purple-400 shadow-[0_0_40px_purple] max-w-[250px]">
                                             <div className="text-center text-[9px] text-purple-200 font-black mb-1 uppercase tracking-widest border-b border-purple-500/50 pb-1 w-full">God Mode: {pData.username}</div>
                                             <div className="flex flex-wrap justify-center gap-[2px]">
-                                                {pData.cards?.map((c, idx) => (
+                                                {pData.cards?.filter(c=>c!==null).map((c, idx) => (
                                                     <div key={idx} className="w-5 h-7 bg-white rounded flex flex-col items-center justify-center text-[12px] font-bold shadow-md" style={{ color: c.color }}>
                                                         <span>{c.val}</span>
                                                     </div>
                                                 ))}
-                                                {(!pData.cards || pData.cards.length === 0) && <span className="text-[10px] text-purple-400 py-1">אין אבנים</span>}
+                                                {(!pData.cards || pData.cards.filter(c=>c!==null).length === 0) && <span className="text-[10px] text-purple-400 py-1">אין אבנים</span>}
                                             </div>
                                         </div>
                                     ))}
@@ -1296,13 +1357,13 @@
                             )}
                             
                             {isPlaying && (
-                                <div className="mt-24 w-full flex flex-wrap gap-4 items-start p-2 pb-24 overflow-y-auto h-full scrollbar-hide">
+                                <div className="mt-28 w-full flex flex-wrap gap-4 items-start p-2 pb-32 overflow-y-auto h-full scrollbar-hide">
                                     {board.map((group, gIdx) => (
                                         <div key={gIdx} data-drop={`board-group-${gIdx}`} className={`flex bg-slate-900/30 p-1.5 rounded-lg border transition-colors ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500/50 bg-emerald-500/10 scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800'}`}>
                                             {group.map((t, tIdx) => (
                                                 <div key={t.id} 
                                                      onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} 
-                                                     className={`rummy-tile w-9 h-12 sm:w-11 sm:h-16 flex items-center justify-center text-xl sm:text-2xl mx-[1px] ${dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
+                                                     className={`rummy-tile w-9 h-12 sm:w-11 sm:h-16 flex items-center justify-center text-xl sm:text-2xl mx-[1px] ${dragData?.type === 'group' && dragData.groupIndex === gIdx ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
                                                      style={{ color: t.color }}>{t.val}</div>
                                             ))}
                                         </div>
@@ -1312,25 +1373,21 @@
                         </div>
                     </div>
 
-                    <div className="relative z-10 shrink-0 bg-slate-950">
+                    <div className="relative z-10 shrink-0 bg-slate-950 pt-2">
                         {isSeated && isPlaying && (
-                            <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-y border-slate-800 shadow-md">
+                            <div className="flex justify-between items-center px-4 pb-2">
                                 <div className="flex gap-2">
-                                    {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-2 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
-                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
-                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i></button>}
+                                   <button onClick={handleSort777} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 shadow-sm">סדר 777 🔢</button>
+                                   <button onClick={handleSort789} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 shadow-sm"><span className="text-blue-500">■</span><span className="text-red-500">■</span> סדר 789</button>
                                 </div>
-                                
-                                <div className="flex gap-4 items-center">
-                                   <div className="flex gap-1.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800 shadow-inner">
-                                       <button onClick={handleSort777} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm" title="סדר לפי מספרים">סדר 777 🔢</button>
-                                       <button onClick={handleSort789} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm flex items-center gap-1" title="סדר לפי סדרות"><span className="text-blue-500">■</span><span className="text-red-500">■</span> סדר 789</button>
-                                   </div>
-
-                                   {isMyTurn && (
-                                       <div className={`bg-slate-900 rounded-full w-10 h-10 flex items-center justify-center border relative shadow-lg ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_15px_#f43f5e] animate-pulse' : 'border-emerald-500/50'}`}>
+                                <div className="flex gap-2 items-center">
+                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-1.5 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i></button>}
+                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-1.5 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
+                                    {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-1.5 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
+                                    {isMyTurn && (
+                                       <div className={`bg-slate-900 rounded-full w-9 h-9 flex items-center justify-center border relative shadow-lg ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_15px_#f43f5e] animate-pulse' : 'border-emerald-500/50'}`}>
                                            <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#1e293b" strokeWidth="3"></circle><circle cx="50%" cy="50%" r="45%" fill="none" stroke={timeLeft <= 5 ? '#f43f5e' : '#10b981'} strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - (100 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
-                                           <span className={`font-bold text-xs z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
+                                           <span className={`font-bold text-[10px] z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
                                        </div>
                                    )}
                                 </div>
@@ -1339,25 +1396,27 @@
 
                         {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center backdrop-blur-[1px]"><span className="text-white/80 font-medium text-sm">המתן לתורך...</span></div>}
 
-                        <div className="px-2 sm:px-4 py-4" data-drop="rack">
-                            <div className="flex flex-wrap justify-center items-end gap-[1px] min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood relative">
+                        <div className="px-2 sm:px-4 pb-4">
+                            <div className="rack-grid">
                                 {rack.map((tile, index) => (
-                                    <React.Fragment key={tile.id}>
-                                        <div data-drop={`rack-slot-${index}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-500/30' : ''}`}></div>
-                                        <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>{tile.val}</div>
-                                    </React.Fragment>
+                                    <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'hover-target' : ''}`}>
+                                        {tile && (
+                                            <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[90%] h-[90%] flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>
+                                                {tile.val}
+                                            </div>
+                                        )}
+                                    </div>
                                 ))}
-                                <div data-drop={`rack-slot-${rack.length}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${rack.length}` ? 'bg-emerald-500/30' : ''}`}></div>
                             </div>
                         </div>
                     </div>
                     
-                    {/* The Ghost Elements with pointer-events-none to fix Drop target blocking */}
+                    {/* The Ghost Elements with strict pointer-events-none */}
                     {dragData && dragData.type === 'single' && (
-                        <div id="drag-ghost" style={{ pointerEvents: 'none' }} className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
+                        <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
                     )}
                     {dragData && dragData.type === 'group' && (
-                        <div id="drag-ghost-group" style={{ pointerEvents: 'none' }} className="fixed z-[9999] flex bg-slate-900/60 p-1.5 rounded-xl border border-emerald-500/50 shadow-2xl scale-110 backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
+                        <div id="drag-ghost-group" className="fixed z-[9999] flex bg-slate-900/60 p-1.5 rounded-xl border border-emerald-500/50 shadow-2xl scale-110 backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
                             {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-9 h-12 flex items-center justify-center text-xl mx-[1px]" style={{ color: t.color }}>{t.val}</div>))}
                         </div>
                     )}
