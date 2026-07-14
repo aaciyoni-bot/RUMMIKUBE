@@ -18,7 +18,7 @@
                     colors: {
                         slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
                         gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
-                        texas: '#ef4444', omaha4: '#8b5cf6', omaha5: '#ec4899', omaha6: '#f97316', pineapple: '#facc15', rummikub: '#10b981', gin: '#3b82f6'
+                        rummikub: '#10b981', gin: '#3b82f6'
                     },
                     fontFamily: { sans: ['Heebo', 'sans-serif'], rubik: ['Rubik', 'sans-serif'] }
                 }
@@ -27,11 +27,12 @@
     </script>
 
     <style>
+        /* Base Styles & Resets */
         body {
             background-color: #020617; 
             color: #e2e8f0;
             overflow: hidden; 
-            touch-action: none; 
+            touch-action: none; /* Prevent browser zooming/scrolling on drag */
             user-select: none; 
             -webkit-user-select: none;
             font-family: 'Heebo', sans-serif;
@@ -40,6 +41,7 @@
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         
+        /* UI Components */
         .glass-panel { 
             background: rgba(15, 23, 42, 0.8); 
             backdrop-filter: blur(20px); 
@@ -53,64 +55,57 @@
             font-weight: 900; 
         }
         
+        /* Animations */
         @keyframes slideInUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .toast-animate { animation: slideInUp 0.3s ease-out forwards; }
         
         @keyframes flashRed { 0%, 100% { border-color: rgba(255,0,0,0.2); } 50% { border-color: rgba(255,0,0,0.8); box-shadow: 0 0 20px rgba(255,0,0,0.5); } }
         .board-invalid-group { animation: flashRed 1s infinite; border: 2px solid red !important; }
+
+        @keyframes popInModal { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .victory-modal { animation: popInModal 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         
+        /* Rummy 3D Tiles */
         .rummy-tile {
-            background: linear-gradient(135deg, #ffffff 0%, #f4f1e1 100%);
-            box-shadow: 2px 6px 12px rgba(0,0,0,0.6), 
-                        inset -1px -3px 4px rgba(0,0,0,0.15), 
-                        inset 1px 2px 3px rgba(255,255,255,1);
-            border-bottom: 7px solid #d1ccb8; 
+            background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.5), inset -1px -2px 3px rgba(0,0,0,0.1), inset 1px 2px 3px rgba(255,255,255,1);
+            border-bottom: 5px solid #d1ccb8; /* 3D thickness */
             border-right: 2px solid #e2ddd0; 
             border-left: 1px solid #ffffff;
-            border-radius: 8px; 
+            border-radius: 6px; 
             font-family: 'Rubik', sans-serif; 
             text-shadow: 0 1px 1px rgba(0,0,0,0.2);
             transition: transform 0.1s, box-shadow 0.1s;
         }
         .rummy-tile:active, .rummy-tile.dragging {
-            box-shadow: 0 30px 40px rgba(0,0,0,0.8);
+            box-shadow: 0 20px 30px rgba(0,0,0,0.8);
             transform: scale(1.1) translateY(-10px);
             z-index: 999;
         }
         
+        /* Realistic Wood Rack */
         .rummy-rack-wood {
-            background: linear-gradient(to bottom, #e3b782 0%, #c49258 40%, #8b5a33 100%);
-            border-bottom: 12px solid #5c3a21; 
-            border-left: 4px solid #704728; 
-            border-right: 4px solid #704728;
-            box-shadow: inset 0 -10px 30px rgba(60,30,10,0.6), 
-                        0 20px 50px rgba(0,0,0,0.9);
-            border-top-left-radius: 20px; 
-            border-top-right-radius: 20px;
+            background: linear-gradient(to bottom, #d4a373 0%, #a67c52 100%);
+            border-bottom: 24px solid #5c3a21; /* Front lip of the shelf */
+            border-left: 8px solid #7f5539;
+            border-right: 8px solid #7f5539;
+            border-top: 2px solid #e6ccb2;
+            border-radius: 12px 12px 4px 4px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 10px 20px rgba(0,0,0,0.3);
             position: relative;
         }
-        .rummy-rack-wood::before {
-            content: ''; 
-            position: absolute; 
-            inset: 0; 
-            border-top-left-radius: 20px; 
-            border-top-right-radius: 20px;
-            background-image: repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.08) 15px, rgba(0,0,0,0.08) 30px);
+        /* Wood grain effect */
+        .rummy-rack-wood::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(0,0,0,0.05) 20px, rgba(0,0,0,0.05) 40px);
+            border-radius: inherit;
             pointer-events: none;
-        }
-
-        .poker-table-ellipse {
-            background: radial-gradient(ellipse at center, #0f5132 0%, #064e3b 100%);
-            border: 15px solid #1f2937;
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 0 30px rgba(16, 185, 129, 0.3);
-            border-radius: 200px;
         }
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
         .bg-dots { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 20px 20px; }
-        
-        @keyframes popInModal { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        .victory-modal { animation: popInModal 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -122,6 +117,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+        // IMPORTANT: Replace these with your actual Firebase config in production
         const firebaseConfig = {
             apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
             authDomain: "rummikube-5c138.firebaseapp.com",
@@ -141,17 +137,12 @@
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
+        // Rummy Focused Setup (Removed Poker)
         const MAIN_CATEGORIES = [
-            { id: 'poker', name: 'פוקר', icon: 'fa-diamond', color: 'text-rose-400' },
             { id: 'rummy', name: 'רמי', icon: 'fa-layer-group', color: 'text-emerald-400' }
         ];
 
         const GAME_TYPES = [
-            { id: 'texas', category: 'poker', name: 'טקסס הולדם', hex: '#ef4444', maxPlayersLimit: 9 },
-            { id: 'omaha4', category: 'poker', name: 'אומהה 4', hex: '#8b5cf6', maxPlayersLimit: 9 },
-            { id: 'omaha5', category: 'poker', name: 'אומהה 5', hex: '#ec4899', maxPlayersLimit: 7 }, 
-            { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 },
-            { id: 'pineapple', category: 'poker', name: 'Crazy Pineapple', hex: '#facc15', maxPlayersLimit: 8 },
             { id: 'rummikub', category: 'rummy', name: 'רמיקוב אבנים', hex: '#10b981', maxPlayersLimit: 4 },
             { id: 'gin', category: 'rummy', name: 'ג\'ין רמי', hex: '#3b82f6', maxPlayersLimit: 2 }
         ];
@@ -167,23 +158,26 @@
             const [fbReady, setFbReady] = useState(false);
             const [authUser, setAuthUser] = useState(null);
             const [dbUser, setDbUser] = useState(null);
-            const [currentView, setCurrentView] = useState('auth'); 
+            const [currentView, setCurrentView] = useState('auth'); // 'auth', 'pending', 'lobby', 'table', 'backoffice'
             const [tablesDB, setTablesDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
             const [activeSession, setActiveSession] = useState(null); 
             const [toasts, setToasts] = useState([]);
             
+            // Global Toast Notification System
             const showToast = (msg, type = 'info') => {
                 const id = Date.now(); 
                 setToasts(prev => [...prev, { id, msg, type }]);
                 setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 4000);
             };
 
+            // Wait for Firebase to initialize
             useEffect(() => {
                 if (window.fb) setFbReady(true);
                 else window.addEventListener('firebase-ready', () => setFbReady(true));
             }, []);
 
+            // Auth Listener
             useEffect(() => {
                 if (!fbReady) return;
                 const unsub = window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
@@ -197,11 +191,13 @@
                 return () => unsub();
             }, [fbReady]);
 
+            // Database User Initialization
             const fetchOrInitUser = async (user) => {
                 const ref = window.fb.doc(window.fb.db, "users", user.uid);
                 const snap = await window.fb.getDoc(ref);
                 if (snap.exists()) {
                     let data = snap.data(); let updates = {};
+                    // Auto-fund Super Admin for testing
                     if (data.role === ROLES.SUPER_ADMIN && data.balance < 1000000) { updates.balance = 10000000; data.balance = 10000000; }
                     if (Object.keys(updates).length > 0) await window.fb.updateDoc(ref, updates);
                     setDbUser({ uid: user.uid, ...data });
@@ -213,14 +209,19 @@
                 }
             };
 
+            // Global Real-time Listeners (Tables & User Data)
             useEffect(() => {
                 if (!fbReady || !dbUser) return;
+                
                 const unsubT = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (s) => {
                     const tables = s.docs.map(d => ({ docId: d.id, ...d.data() }));
                     setTablesDB(tables);
+                    
+                    // Check if user is currently seated in an active game
                     const myTable = tables.find(t => t.players && t.players[dbUser.uid] !== undefined);
                     setActiveSession(myTable);
                 });
+                
                 const unsubU = window.fb.onSnapshot(window.fb.doc(window.fb.db, "users", dbUser.uid), (d) => {
                     if(d.exists()) {
                         const data = d.data(); setDbUser({ uid: d.id, ...data });
@@ -235,16 +236,19 @@
 
             return (
                 <div className="h-full flex flex-col relative bg-slate-950 overflow-hidden">
+                    
+                    {/* Top Navigation Bar - Responsive & Clean */}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
-                        <nav className="bg-slate-950 p-3 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
+                        <nav className="bg-slate-950 p-2 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10 gap-2">
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
+                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition shadow-lg"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
                                     
+                                    {/* Backoffice Button for Admins */}
                                     {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(dbUser.role) && (
                                         <button 
                                             onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} 
-                                            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-blue-400 border-slate-800 hover:bg-slate-800'}`}
+                                            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition shadow-lg ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-blue-400 border-slate-800 hover:bg-slate-800'}`}
                                             title="ניהול מועדון"
                                         >
                                             <i className="fa-solid fa-chart-line"></i>
@@ -260,13 +264,14 @@
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end cursor-pointer" onClick={() => setCurrentView('lobby')}>
-                                    <h1 className="text-xl sm:text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-white">RUMMIKUBE</h1>
-                                    <p className="text-[10px] text-blue-400 font-bold tracking-[0.3em] uppercase mt-[-2px]">Elite Club</p>
+                                    <h1 className="text-xl sm:text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-400 drop-shadow-lg">RUMMIKUBE</h1>
+                                    <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase mt-[-2px]">Elite Club</p>
                                 </div>
                             </div>
                         </nav>
                     )}
                     
+                    {/* Disconnect / Reconnect Banner */}
                     {currentView === 'lobby' && activeSession && (
                         <div onClick={() => { setActiveTable(activeSession); setCurrentView('table'); }} className="bg-emerald-600 cursor-pointer hover:bg-emerald-500 text-white p-3 flex justify-center items-center gap-2 font-bold z-50 shrink-0 shadow-lg animate-pulse border-b-4 border-emerald-800 text-sm sm:text-base">
                             <i className="fa-solid fa-play"></i> יש לך משחק פעיל! לחץ כאן לחזור לשולחן
@@ -278,9 +283,10 @@
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
                         {currentView === 'backoffice' && <BackofficeView user={dbUser} showToast={showToast} />}
-                        {currentView === 'table' && <TableDirector tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
+                        {currentView === 'table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
                     
+                    {/* Toast Notification Container */}
                     <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (<div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>{t.msg}</div>))}
                     </div>
@@ -293,13 +299,13 @@
                 <div className="flex-1 flex flex-col items-center justify-center p-4 bg-slate-950 relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950"></div>
                     <div className="glass-panel p-10 sm:p-14 rounded-[2rem] text-center shadow-2xl border-t border-white/10 relative z-10 w-full max-w-md">
-                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/50">
+                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(16,185,129,0.5)]">
                             <span className="text-4xl font-black text-white font-rubik">R</span>
                         </div>
                         <h2 className="text-3xl sm:text-4xl font-black text-white mb-2 tracking-widest drop-shadow-lg uppercase">Rummikube</h2>
-                        <p className="text-blue-400 mb-10 font-bold tracking-[0.3em] uppercase text-xs">Elite Private Club</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.3em] uppercase text-xs">Elite Private Club</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-gray-100 transition-all transform hover:scale-105 text-slate-900 font-black py-4 px-8 rounded-xl shadow-xl flex items-center justify-center gap-3">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-6 h-6" />
+                            <i className="fa-brands fa-google text-rose-500 text-xl"></i>
                             התחברות מהירה
                         </button>
                     </div>
@@ -318,7 +324,7 @@
             const [activeCat, setActiveCat] = useState('rummy');
             const [activeType, setActiveType] = useState('rummikub');
             const [showCreate, setShowCreate] = useState(false);
-            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, isDealerChoice: false, buyIn: 1000 });
+            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, buyIn: 1000 });
             
             const subTypes = GAME_TYPES.filter(g => g.category === activeCat);
             const filteredTables = tables.filter(t => t.type === activeType);
@@ -326,16 +332,15 @@
             
             useEffect(() => { 
                 if(!subTypes.find(s=>s.id===activeType)) setActiveType(subTypes[0].id); 
-                if(typeInfo) setNewTableOptions(prev => ({ ...prev, maxPlayers: typeInfo.maxPlayersLimit, isDealerChoice: false })); // Reset DC on category switch
+                if(typeInfo) setNewTableOptions(prev => ({ ...prev, maxPlayers: typeInfo.maxPlayersLimit }));
             }, [activeCat, activeType]);
             
             const handleCreate = async () => {
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), { 
                     type: activeType, 
                     maxPlayers: newTableOptions.maxPlayers, 
-                    isDealerChoice: newTableOptions.isDealerChoice,
                     minBuyIn: newTableOptions.buyIn, 
-                    stakes: newTableOptions.buyIn / 100, 
+                    stakes: newTableOptions.buyIn / 100, // 100 points per buy-in basically
                     players: {}, 
                     board: [], deck: [], phase: 'waiting', createdAt: Date.now()
                 });
@@ -353,7 +358,7 @@
             return (
                 <div className="flex-1 flex flex-col overflow-y-auto bg-slate-950 pb-10">
                     <div className="bg-slate-900 flex p-2 gap-2 justify-center border-b border-slate-800 shadow-md">
-                        {MAIN_CATEGORIES.map(c => <button key={c.id} onClick={()=>setActiveCat(c.id)} className={`px-6 py-3 rounded-lg font-bold transition-all ${activeCat===c.id?'bg-slate-800 text-white border-b-4 border-blue-500':'text-slate-500 hover:text-white'}`}>{c.name}</button>)}
+                        {MAIN_CATEGORIES.map(c => <button key={c.id} onClick={()=>setActiveCat(c.id)} className={`px-6 py-3 rounded-lg font-bold transition-all ${activeCat===c.id?'bg-slate-800 text-white border-b-4 border-emerald-500':'text-slate-500 hover:text-white'}`}>{c.name}</button>)}
                     </div>
                     <div className="bg-slate-900/50 flex p-3 gap-3 justify-center overflow-x-auto scrollbar-hide">
                         {subTypes.map(t => <button key={t.id} onClick={()=>setActiveType(t.id)} className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${activeType===t.id?'bg-slate-800 text-white shadow-lg':'text-slate-500'}`} style={activeType===t.id?{color:t.hex, boxShadow:`0 0 10px ${t.hex}40`}:{}}>{t.name}</button>)}
@@ -372,11 +377,12 @@
                             )}
                         </div>
                         
+                        {/* Create Table Form */}
                         {showCreate && (
                             <div className="glass-panel p-6 rounded-2xl mb-6 text-right relative overflow-hidden border border-blue-500/30 animate-[slideInUp_0.2s_ease-out]">
                                 <div className="absolute top-0 right-0 w-full h-1 bg-blue-500"></div>
                                 <h3 className="text-lg font-bold text-white mb-4">הגדרות שולחן חדש</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="text-slate-400 text-sm">מקסימום שחקנים</label>
                                         <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg p-3 mt-1 outline-none focus:border-blue-500">
@@ -391,14 +397,6 @@
                                             <option value={10000}>10,000 צ'יפים</option>
                                         </select>
                                     </div>
-                                    {typeInfo.category === 'poker' && (
-                                        <div className="flex items-end">
-                                            <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-3 border border-slate-700 rounded-lg w-full hover:bg-slate-800 transition-colors">
-                                                <input type="checkbox" checked={newTableOptions.isDealerChoice} onChange={(e)=>setNewTableOptions({...newTableOptions, isDealerChoice: e.target.checked})} className="w-5 h-5 accent-blue-500" />
-                                                Dealer's Choice
-                                            </label>
-                                        </div>
-                                    )}
                                 </div>
                                 <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-800">
                                     <button onClick={()=>setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">ביטול</button>
@@ -407,34 +405,38 @@
                             </div>
                         )}
 
+                        {/* Tables Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                             {filteredTables.map(t => (
-                                <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-5 rounded-2xl border border-slate-700 relative cursor-pointer hover:-translate-y-1 hover:shadow-2xl transition-all group overflow-hidden">
+                                <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-4 sm:p-5 rounded-2xl border border-slate-700 relative cursor-pointer hover:-translate-y-1 hover:shadow-2xl transition-all group overflow-hidden">
                                     <div className="absolute top-0 right-0 w-full h-1" style={{backgroundColor: typeInfo.hex}}></div>
+                                    
+                                    {/* Admin Delete Button - Adjusted positioning to avoid overlap */}
                                     {user.role !== ROLES.PLAYER && (
-                                        <button onClick={(e)=>handleDelete(e,t.docId)} className="absolute top-3 left-3 w-8 h-8 rounded bg-slate-800/80 text-slate-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center z-10 opacity-50 group-hover:opacity-100" title="מחק שולחן">
-                                            <i className="fa-solid fa-trash"></i>
+                                        <button onClick={(e)=>handleDelete(e,t.docId)} className="absolute top-4 left-4 w-8 h-8 rounded bg-slate-800 border border-slate-600 text-slate-400 hover:bg-rose-600 hover:text-white hover:border-rose-500 transition-colors flex items-center justify-center z-10" title="מחק שולחן לצמיתות">
+                                            <i className="fa-solid fa-trash text-sm"></i>
                                         </button>
                                     )}
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="text-xl font-black text-white mb-1">{t.stakes} stakes</h3>
-                                            <p className="text-slate-400 text-sm">כניסה: 🪙{formatMoney(t.minBuyIn)}</p>
-                                        </div>
-                                        <div className={`px-3 py-1 rounded-full text-sm font-bold border flex items-center gap-1 ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
-                                            <i className="fa-solid fa-users"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
-                                        </div>
+
+                                    <div className="flex flex-col mb-4 pt-1">
+                                        <h3 className="text-xl font-black text-white mb-1">Stakes {t.stakes}</h3>
+                                        <p className="text-emerald-400 font-bold text-sm">כניסה: 🪙{formatMoney(t.minBuyIn)}</p>
                                     </div>
-                                    {t.isDealerChoice && <div className="text-xs text-amber-400 bg-amber-400/10 px-2 py-1 rounded inline-block mb-3 border border-amber-400/20"><i className="fa-solid fa-rotate mr-1"></i> Dealer's Choice</div>}
-                                    <div className="mt-4 flex justify-between items-center">
-                                        <span className="text-sm text-slate-500 font-bold">Rake: 6%</span>
-                                        <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold group-hover:bg-blue-600 transition-colors" style={t.phase === 'playing' ? {opacity: 0.5} : {}}>
+                                    
+                                    <div className="flex justify-between items-end mt-4">
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-xs text-slate-400 font-bold bg-slate-900 px-2 py-1 rounded inline-block w-max border border-slate-800">Rake: 6%</span>
+                                            <div className={`px-3 py-1 rounded-full text-sm font-bold border inline-flex items-center gap-1 w-max ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
+                                                <i className="fa-solid fa-users"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
+                                            </div>
+                                        </div>
+                                        <button className="bg-slate-700 text-white px-5 py-2 rounded-lg font-bold group-hover:bg-emerald-600 transition-colors shadow-lg" style={t.phase === 'playing' ? {opacity: 0.5} : {}}>
                                             {t.phase === 'playing' ? 'צפה' : 'היכנס'}
                                         </button>
                                     </div>
                                 </div>
                             ))}
-                            {filteredTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">אין שולחנות פעילים כרגע בקטגוריה זו.</div>}
+                            {filteredTables.length === 0 && <div className="col-span-full text-center py-12 text-slate-500 font-bold bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">אין שולחנות פעילים כרגע בקטגוריה זו. לחץ על פתיחת שולחן.</div>}
                         </div>
                     </div>
                 </div>
@@ -502,10 +504,10 @@
             const approvedPlayers = usersList.filter(u => u.status === 'approved' && u.id !== user.uid);
 
             return (
-                <div className="flex-1 bg-slate-950 overflow-y-auto">
-                    <div className="p-4 sm:p-6 max-w-6xl mx-auto pb-32">
+                <div className="flex-1 bg-slate-950 overflow-y-auto block">
+                    <div className="p-4 sm:p-6 max-w-6xl mx-auto pb-40">
                         <h2 className="text-3xl font-black text-white mb-2">ניהול מועדון (Backoffice)</h2>
-                        <p className="text-slate-400 mb-8">מסך זה מאפשר לך לאשר שחקנים, לנהל יתרות, ולהעביר צ'יפים בצורה מאובטחת.</p>
+                        <p className="text-slate-400 mb-8">מסך זה מאפשר לך לאשר שחקנים, לנהל יתרות, ולהעביר צ'יפים בצורה מאובטחת (Zero-Sum).</p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl">
@@ -521,15 +523,16 @@
                             </div>
                             <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl relative overflow-hidden">
                                 <div className="absolute -left-4 -top-4 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl"></div>
-                                <h3 className="text-slate-400 text-sm font-semibold mb-2">ממתינים לאישור</h3>
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">ממתינים לאישור כניסה</h3>
                                 <p className="text-3xl font-black text-amber-400">{pendingUsers.length}</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Chip Transfer */}
                             <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl">
                                 <h3 className="font-bold text-lg text-white mb-6 flex items-center gap-2">
-                                    <i className="fa-solid fa-money-bill-transfer text-emerald-400"></i> העברת צ'יפים
+                                    <i className="fa-solid fa-money-bill-transfer text-emerald-400"></i> הפקדה ומשיכת צ'יפים
                                 </h3>
                                 <div className="space-y-4">
                                     <div>
@@ -542,10 +545,10 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-1 block">סכום צ'יפים:</label>
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">סכום צ'יפים לביצוע:</label>
                                         <input type="number" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="0" className="w-full bg-slate-950 text-white border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500 font-bold text-xl" />
                                     </div>
-                                    <div className="flex gap-3 pt-2">
+                                    <div className="flex gap-3 pt-4">
                                         <button onClick={()=>handleTransfer(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold shadow-lg transition-transform hover:scale-[1.02]">
                                             הפקד לשחקן <i className="fa-solid fa-arrow-down ml-1"></i>
                                         </button>
@@ -556,9 +559,10 @@
                                 </div>
                             </div>
 
+                            {/* Pending Approvals */}
                             <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col min-h-[300px]">
                                 <h3 className="font-bold text-lg text-white mb-6 flex items-center gap-2">
-                                    <i className="fa-solid fa-user-clock text-amber-400"></i> ממתינים לאישור כניסה
+                                    <i className="fa-solid fa-user-clock text-amber-400"></i> אישור שחקנים חדשים
                                 </h3>
                                 <div className="flex-1 overflow-y-auto pr-2 space-y-3">
                                     {pendingUsers.length === 0 && (
@@ -583,8 +587,9 @@
             );
         }
 
-        function TableDirector({ tableDocId, user, onLeave, showToast }) {
+        function RummyTable({ tableDocId, user, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
+            
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
@@ -593,32 +598,9 @@
                 });
                 return () => unsub();
             }, [tableDocId]);
-            if(!tableState) return <div className="flex-1 bg-slate-950 flex justify-center items-center text-emerald-400"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
             
-            const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
-            if(category === 'poker') return <PokerTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
-            if(category === 'rummy') return <RummyTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
-            return null;
-        }
+            if(!tableState) return <div className="flex-1 flex justify-center items-center bg-slate-950"><i className="fa-solid fa-spinner fa-spin text-4xl text-emerald-400"></i></div>;
 
-        function PokerTable({ tableState, user, onLeave, showToast }) {
-            return (
-                <div className="flex-1 flex flex-col bg-slate-950 relative">
-                    <div className="p-3 bg-slate-900 border-b border-white/10 shrink-0 flex justify-between">
-                        <button onClick={onLeave} className="text-white bg-slate-800 px-4 py-2 rounded-lg font-bold"><i className="fa-solid fa-arrow-right ml-2"></i> יציאה</button>
-                        <h2 className="text-xl font-black text-white">פוקר בפיתוח</h2>
-                    </div>
-                    <div className="flex-1 flex items-center justify-center p-4">
-                        <div className="w-full max-w-4xl h-[400px] poker-table-ellipse flex items-center justify-center">
-                            <span className="text-emerald-400/50 text-2xl font-black">הלוגיקה תוכנס בקרוב...</span>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function RummyTable({ tableState, user, onLeave, showToast }) {
-            const typeInfo = GAME_TYPES.find(g => g.id === tableState.type) || GAME_TYPES[0];
             const isSeated = tableState?.players?.[user.uid] !== undefined;
             const isPlaying = tableState.phase === 'playing';
             const isMyTurn = tableState.currentTurn === user.uid;
@@ -636,6 +618,7 @@
             
             const longPressTimer = useRef(null);
 
+            // Sync Game State
             useEffect(() => {
                 if (!dragData) {
                     setBoard(tableState.board || []);
@@ -653,16 +636,19 @@
                 else setShowVictory(false);
             }, [tableState.board, tableState.players?.[user.uid]?.cards, tableState.currentTurn, dragData, tableState.phase]);
 
+            // Auto Start Game
             useEffect(() => {
                 if (tableState.phase === 'waiting' && isSeated) {
                     const pCount = Object.keys(tableState.players || {}).length;
-                    if (pCount === (tableState.maxPlayers || 4)) {
+                    const maxP = Number(tableState.maxPlayers) || 4;
+                    if (pCount === maxP) {
                         const firstPlayerUid = Object.keys(tableState.players)[0];
                         if (user.uid === firstPlayerUid) startGame();
                     }
                 }
             }, [tableState.phase, tableState.players]);
 
+            // Timer Loop
             useEffect(() => {
                 let interval;
                 if (isPlaying && tableState.turnStartedAt) {
@@ -736,6 +722,7 @@
                     let newBoard = board.map(g => [...g]);
                     
                     if (dragData.type === 'single') {
+                        // 1. Remove from source
                         if (dragData.source === 'rack') {
                             newRack.splice(dragData.tileIndex, 1);
                         } else if (dragData.source === 'board') {
@@ -751,10 +738,12 @@
                             }
                         }
 
+                        // 2. Drop Target Logic
                         if (hoverTarget && hoverTarget.startsWith('board-tile-')) {
                             const [,,targetGroupIdx, targetTileIdx] = hoverTarget.split('-');
                             const actualGIdx = (dragData.source === 'board' && dragData.groupIndex < targetGroupIdx && newBoard.length < board.length) ? targetGroupIdx - 1 : targetGroupIdx;
                             
+                            // JOKER SWAP LOGIC
                             if (newBoard[actualGIdx] && newBoard[actualGIdx][targetTileIdx]?.val === '☻') {
                                 let tempGroup = [...newBoard[actualGIdx]];
                                 tempGroup[targetTileIdx] = dragData.tile;
@@ -764,13 +753,11 @@
                                     newRack.push(retrievedJoker); 
                                     showToast("שחררת ג'וקר חוקי!", "success");
                                 } else {
-                                    newBoard[actualGIdx].push(dragData.tile); 
+                                    newBoard[actualGIdx].splice(targetTileIdx, 0, dragData.tile); // Insert adjacent
                                 }
                             } else {
-                                // EXACT INSERTION LOGIC
-                                if (newBoard[actualGIdx]) {
-                                    newBoard[actualGIdx].splice(targetTileIdx, 0, dragData.tile);
-                                }
+                                // Insert Exactly
+                                if (newBoard[actualGIdx]) newBoard[actualGIdx].splice(targetTileIdx, 0, dragData.tile);
                             }
                         } 
                         else if (hoverTarget && hoverTarget.startsWith('board-group-')) {
@@ -785,7 +772,7 @@
                             newRack.push(dragData.tile);
                         } 
                         else if (dragData.source === 'rack') {
-                            newRack.splice(dragData.tileIndex, 0, dragData.tile); 
+                            newRack.splice(dragData.tileIndex, 0, dragData.tile); // Revert
                         } 
                     } 
                     else if (dragData.type === 'group') {
@@ -835,17 +822,19 @@
 
             const handleSit = async () => {
                 try { 
+                    const minBuyIn = Number(tableState.minBuyIn) || 0;
+                    
                     await window.fb.runTransaction(window.fb.db, async (transaction) => {
                         const userRef = window.fb.doc(window.fb.db, "users", user.uid);
                         const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                         const userSnap = await transaction.get(userRef);
                         const uData = userSnap.data();
                         
-                        if (uData.balance < tableState.minBuyIn) throw "אין לך מספיק צ'יפים להיכנס.";
+                        if (uData.balance < minBuyIn) throw `אין לך מספיק צ'יפים (${formatMoney(minBuyIn)}).`;
                         
-                        transaction.update(userRef, { balance: uData.balance - tableState.minBuyIn });
+                        transaction.update(userRef, { balance: uData.balance - minBuyIn });
                         transaction.update(tableRef, { 
-                            [`players.${user.uid}`]: { username: uData.username, cards: [], hasDropped: false, stack: tableState.minBuyIn } 
+                            [`players.${user.uid}`]: { username: uData.username, cards: [], hasDropped: false, stack: minBuyIn } 
                         });
                     });
                     showToast("התיישבת בהצלחה והכנסת צ'יפים לשולחן!", "success"); 
@@ -886,7 +875,7 @@
                 
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
                     phase: 'playing', deck: d, board: [], players: newPlayers, 
-                    currentTurn: uids[0], turnStartedAt: Date.now() 
+                    currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null 
                 });
                 showToast("המשחק מתחיל!", "success");
             };
@@ -928,15 +917,15 @@
                     const droppedTiles = startTurnRack.filter(t => !currentRackIds.includes(t.id));
                     if (droppedTiles.length > 0) {
                         const sum = droppedTiles.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
-                        if (sum < 30) return showToast(`הורדה ראשונה חייבת להיות 30 נקודות. הורדת רק ${sum}.`, "error");
+                        if (sum < 30) return showToast(`הורדה ראשונה חייבת להיות 30 נקודות. הורדת רק ${sum}. החזר ומשוך מקופה.`, "error");
                     } else {
                         return showToast("לא ביצעת שום מהלך! עליך למשוך מהקופה.", "error");
                     }
                 }
 
+                // WINNER SETTLEMENT
                 if (rack.length === 0) {
-                    // WIN CONDITION AND ECONOMY CALCULATION
-                    showToast("ניצחון! 🏆 מחשב צ'יפים...", "success");
+                    showToast("ניצחון! 🏆 מחשב קופה...", "success");
                     
                     const losers = Object.entries(tableState.players).filter(([uid]) => uid !== user.uid);
                     let totalPot = 0;
@@ -944,8 +933,8 @@
                     
                     losers.forEach(([uid, pData]) => {
                          let dw = pData.cards.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
-                         let penalty = dw * tableState.stakes;
-                         penalty = Math.min(penalty, pData.stack); // Cannot lose more than stack
+                         let penalty = dw * (tableState.stakes || 10);
+                         penalty = Math.min(penalty, pData.stack); // Cap loss to stack
                          updates[`players.${uid}.stack`] = pData.stack - penalty;
                          totalPot += penalty;
                     });
@@ -981,125 +970,132 @@
             return (
                 <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden" style={{ backgroundColor: '#0f386d', backgroundImage: 'radial-gradient(circle at 50% 0%, #174b8e 0%, #0a2142 100%)', touchAction: 'none' }}>
                     
-                    <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900/50 border-b border-white/10 shrink-0 shadow-lg">
-                        <button onClick={handleLeaveSafely} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition border border-slate-700"><i className="fa-solid fa-arrow-right ml-2"></i> {isSeated ? 'קום מהשולחן' : 'חזור ללובי'}</button>
-                        <h2 className="text-xl sm:text-2xl font-black text-white/90 tracking-wider font-rubik drop-shadow-md">Rummikub Elite</h2>
-                        <div className="flex gap-2">
-                            {isSeated && <div className="text-emerald-400 font-bold bg-emerald-900/50 border border-emerald-500/50 px-3 py-1.5 rounded-lg shadow-[0_0_10px_rgba(16,185,129,0.2)]">קופה שלי: 🪙{formatMoney(tableState.players[user.uid]?.stack)}</div>}
-                            <div className="text-amber-400 font-bold bg-amber-900/50 border border-amber-500/50 px-3 py-1.5 rounded-lg shadow-[0_0_10px_rgba(245,158,11,0.2)] flex items-center gap-2">
-                                <i className="fa-solid fa-coins"></i> {tableState.stakes}
-                            </div>
+                    {/* Header Top Bar (Responsive) */}
+                    <div className="relative z-10 flex flex-wrap sm:flex-nowrap justify-between items-center p-2 sm:p-3 bg-slate-900/90 border-b border-white/10 shrink-0 shadow-lg gap-2">
+                        <button onClick={handleLeaveSafely} className="text-slate-300 bg-slate-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold hover:bg-slate-700 transition border border-slate-700 text-sm sm:text-base"><i className="fa-solid fa-arrow-right ml-1 sm:ml-2"></i> ללובי</button>
+                        <div className="text-center w-full sm:w-auto order-last sm:order-none">
+                            <h2 className="text-lg sm:text-2xl font-black text-white/90 tracking-wider font-rubik drop-shadow-md leading-tight">Rummikub Elite</h2>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {isSeated && <div className="text-emerald-400 font-bold text-xs sm:text-sm bg-emerald-900/50 border border-emerald-500/50 px-2 py-1 rounded-lg">קופה: 🪙{formatMoney(tableState.players[user.uid]?.stack)}</div>}
+                            <div className="text-amber-400 font-bold text-xs sm:text-sm bg-amber-900/50 border border-amber-500/50 px-2 py-1 rounded-lg">Stakes: {tableState.stakes}</div>
                         </div>
                     </div>
 
+                    {/* Central Board Area */}
                     <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
                         
-                        {/* Opponents */}
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 flex gap-8 z-10">
+                        {/* Opponents Rendering */}
+                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 flex gap-4 sm:gap-8 z-10">
                             {opponents.map(([uid, p]) => (
                                 <div key={uid} className="flex flex-col items-center">
-                                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'border-emerald-400 shadow-[0_0_20px_#10b981] scale-110':'border-slate-600 opacity-70'}`}>
-                                        <i className="fa-solid fa-user text-slate-300"></i>
+                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full border-2 sm:border-4 flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'border-emerald-400 shadow-[0_0_20px_#10b981] scale-110':'border-slate-600 opacity-70'}`}>
+                                        <i className="fa-solid fa-user text-slate-300 text-xs sm:text-base"></i>
                                     </div>
-                                    <span className="text-xs font-bold text-white mt-1 bg-black/50 px-3 py-0.5 rounded-full">{p.username}</span>
-                                    <span className="text-[10px] text-emerald-400 font-black bg-slate-900 px-2 rounded-full mt-1 border border-emerald-900">{p.cards?.length||0} אבנים</span>
-                                    <span className="text-xs text-gold-400 font-bold mt-1">🪙{formatMoney(p.stack)}</span>
+                                    <span className="text-[10px] sm:text-xs font-bold text-white mt-1 bg-black/50 px-2 py-0.5 rounded-full">{p.username}</span>
+                                    <span className="text-[9px] sm:text-[10px] text-emerald-400 font-black bg-slate-900 px-2 rounded-full mt-1 border border-emerald-900">{p.cards?.length||0} אבנים</span>
+                                    <span className="text-[10px] sm:text-xs text-gold-400 font-bold mt-1">🪙{formatMoney(p.stack)}</span>
                                 </div>
                             ))}
                         </div>
                         
+                        {/* Sit Button Overlay */}
                         {!isSeated && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                                <button onClick={handleSit} className="bg-gradient-to-b from-blue-500 to-blue-700 text-white px-8 py-4 rounded-full font-black text-2xl shadow-[0_0_30px_rgba(59,130,246,0.6)] border-2 border-blue-400 hover:scale-105 transition-transform">
-                                    התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})
+                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm px-4">
+                                <button onClick={handleSit} className="bg-blue-600 text-white w-full max-w-[300px] py-4 rounded-full font-black text-lg sm:text-2xl shadow-[0_0_30px_rgba(37,99,235,0.8)] border-2 border-blue-400 hover:scale-105 transition-transform text-center tracking-wide">
+                                    התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers || 4})
                                 </button>
                             </div>
                         )}
 
-                        {/* Victory Modal Summary */}
+                        {/* Victory Modal */}
                         {showVictory && (
-                             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md">
-                                 <div className="victory-modal bg-slate-900 border-4 border-emerald-500 p-8 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.5)] text-center max-w-md">
-                                     <i className="fa-solid fa-trophy text-6xl text-gold-400 mb-4 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]"></i>
-                                     <h2 className="text-3xl font-black text-white mb-2">{tableState.players[tableState.winner]?.username} ניצח!</h2>
+                             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md px-4">
+                                 <div className="victory-modal bg-slate-900 border-4 border-emerald-500 p-6 sm:p-8 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.5)] text-center w-full max-w-md">
+                                     <i className="fa-solid fa-trophy text-5xl sm:text-6xl text-gold-400 mb-4 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]"></i>
+                                     <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">{tableState.players[tableState.winner]?.username} ניצח!</h2>
                                      <div className="bg-slate-800 rounded-xl p-4 my-6 text-right">
-                                         <p className="text-emerald-400 font-bold text-lg mb-1">סה"כ קופה: 🪙{formatMoney(tableState.lastResults?.totalPot)}</p>
-                                         <p className="text-slate-400 text-sm">רווח נקי למנצח: 🪙{formatMoney(tableState.lastResults?.winnerProfit)}</p>
-                                         <p className="text-slate-400 text-sm">עמלת מועדון (Rake): 🪙{formatMoney(tableState.lastResults?.rake)}</p>
+                                         <p className="text-emerald-400 font-bold text-base sm:text-lg mb-1">סה"כ קופה: 🪙{formatMoney(tableState.lastResults?.totalPot)}</p>
+                                         <p className="text-slate-400 text-xs sm:text-sm">רווח נקי למנצח: 🪙{formatMoney(tableState.lastResults?.winnerProfit)}</p>
+                                         <p className="text-slate-400 text-xs sm:text-sm">עמלת מועדון (Rake): 🪙{formatMoney(tableState.lastResults?.rake)}</p>
                                      </div>
-                                     <p className="text-amber-500 font-bold animate-pulse">המשחק הבא מתחיל בעוד כמה שניות...</p>
+                                     <p className="text-amber-500 font-bold animate-pulse text-sm">מכין סיבוב חדש...</p>
                                  </div>
                              </div>
                         )}
                         
+                        {/* Board Groups Rendering */}
                         {isPlaying && (
-                            <div className="mt-24 flex flex-wrap gap-5 items-start pb-24 overflow-y-auto w-full h-full p-2 scrollbar-hide">
+                            <div className="mt-20 flex flex-wrap gap-3 sm:gap-5 items-start pb-24 overflow-y-auto w-full h-full p-2 scrollbar-hide">
                                 {board.map((group, gIdx) => (
-                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/20 p-2 rounded-xl border-2 transition-all duration-200 ${hoverTarget === `board-group-${gIdx}` ? 'border-amber-400 shadow-[0_0_20px_#f59e0b] scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-white/5 shadow-md'}`}>
+                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/20 p-1.5 sm:p-2 rounded-xl border-2 transition-all duration-200 ${hoverTarget === `board-group-${gIdx}` ? 'border-amber-400 shadow-[0_0_20px_#f59e0b] scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-white/5 shadow-md'}`}>
                                         {group.map((t, tIdx) => (
                                             <div key={t.id} 
                                                  onPointerEnter={(e)=>{e.stopPropagation(); setHoverTarget(`board-tile-${gIdx}-${tIdx}`);}}
                                                  onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} 
-                                                 className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl font-black mx-0.5 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === t.id ? 'opacity-30' : ''} ${hoverTarget===`board-tile-${gIdx}-${tIdx}` && dragData && t.val==='☻' ? 'ring-4 ring-emerald-500 scale-110 z-10 shadow-[0_0_20px_#10b981]' : ''}`} 
+                                                 className={`rummy-tile w-9 h-12 sm:w-12 sm:h-16 flex items-center justify-center text-xl sm:text-2xl font-black mx-0.5 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === t.id ? 'opacity-30' : ''} ${hoverTarget===`board-tile-${gIdx}-${tIdx}` && dragData ? 'ml-6 ring-2 ring-emerald-500' : ''}`} 
                                                  style={{ color: t.hex }}>
                                                 {t.val}
                                             </div>
                                         ))}
                                     </div>
                                 ))}
-                                {board.length === 0 && <div className="w-full text-center mt-10 text-white/20 font-black text-2xl sm:text-3xl pointer-events-none drop-shadow-md">גרור אבנים לכאן כדי ליצור סדרות</div>}
+                                {board.length === 0 && <div className="w-full text-center mt-10 text-white/20 font-black text-xl sm:text-3xl pointer-events-none drop-shadow-md px-4">גרור אבנים לכאן כדי ליצור סדרות</div>}
                             </div>
                         )}
                     </div>
 
+                    {/* Bottom Area: Action Buttons & Wood Rack */}
                     <div className="relative z-10 p-2 sm:p-4 flex flex-col items-center justify-end pb-4 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
                         
                         {isSeated && isPlaying && (
-                            <div className="absolute left-4 top-[-40px] flex gap-2 z-30">
-                                {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-5 py-2.5 rounded-xl font-black shadow-lg text-white transition-all ${!isBoardValid ? 'bg-slate-600 opacity-50 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-1'}`}>סיום תור</button>}
-                                {isMyTurn && <button onClick={handleDraw} className="bg-gradient-to-b from-blue-700 to-blue-900 text-white px-5 py-2.5 rounded-xl font-bold border border-blue-500 shadow-lg hover:-translate-y-1 transition-transform">קופה <span className="text-xs text-amber-400">({tableState.deck?.length})</span></button>}
-                                {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900 text-rose-200 px-4 py-2.5 rounded-xl font-bold shadow-lg border border-rose-700 hover:-translate-y-1 transition-transform" title="איפוס לוח"><i className="fa-solid fa-rotate-left"></i></button>}
+                            <div className="absolute left-2 sm:left-4 top-[-30px] sm:top-[-40px] flex gap-1 sm:gap-2 z-30">
+                                {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-lg sm:rounded-xl font-black shadow-lg text-white text-xs sm:text-base transition-all ${!isBoardValid ? 'bg-slate-600 opacity-50 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום</button>}
+                                {isMyTurn && <button onClick={handleDraw} className="bg-gradient-to-b from-blue-700 to-blue-900 text-white px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-lg sm:rounded-xl font-bold border border-blue-500 shadow-lg text-xs sm:text-base">קופה ({tableState.deck?.length})</button>}
+                                {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900 text-rose-200 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl font-bold shadow-lg border border-rose-700 text-xs sm:text-base" title="איפוס"><i className="fa-solid fa-rotate-left"></i></button>}
                             </div>
                         )}
 
-                        <div className="absolute right-4 top-[-40px] flex gap-2 z-30">
+                        <div className="absolute right-2 sm:right-4 top-[-30px] sm:top-[-40px] flex gap-1 sm:gap-2 z-30">
                            {isMyTurn && (
-                               <div className="bg-slate-900 rounded-full w-12 h-12 flex items-center justify-center border-2 border-emerald-400 shadow-[0_0_15px_#10b981] relative">
-                                   <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="24" cy="24" r="22" fill="none" stroke="#334155" strokeWidth="4"></circle><circle cx="24" cy="24" r="22" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="138" strokeDashoffset={138 - (138 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
-                                   <span className="font-black text-white text-sm z-10">{timeLeft}</span>
+                               <div className="bg-slate-900 rounded-full w-9 h-9 sm:w-12 sm:h-12 flex items-center justify-center border-2 border-emerald-400 shadow-[0_0_15px_#10b981] relative">
+                                   <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#334155" strokeWidth="3"></circle><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - (100 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
+                                   <span className="font-black text-white text-xs sm:text-sm z-10">{timeLeft}</span>
                                </div>
                            )}
                            {isSeated && (
                                <div className="flex gap-1">
-                                   <button onClick={sortRackNumbers} className="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center transition-colors"><span>1-9</span></button>
-                                   <button onClick={sortRackColors} className="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center transition-colors"><div className="flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></div></button>
+                                   <button onClick={sortRackNumbers} className="bg-slate-800 text-slate-300 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl font-bold border border-slate-600 text-[10px] sm:text-xs">1-9</button>
+                                   <button onClick={sortRackColors} className="bg-slate-800 text-slate-300 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl font-bold border border-slate-600 text-[10px] sm:text-xs flex flex-col items-center justify-center"><div className="flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></div></button>
                                </div>
                            )}
-                           <div className="bg-slate-900/90 px-3 py-1 rounded-xl flex flex-col items-center border border-slate-700 shadow-lg backdrop-blur-md">
-                               <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">עונשין</span>
-                               <span className={`text-sm font-black ${deadwoodScore===0?'text-emerald-400':'text-rose-400'}`}>{deadwoodScore}</span>
+                           <div className="bg-slate-900/90 px-2 sm:px-3 py-1 rounded-lg sm:rounded-xl flex flex-col items-center border border-slate-700">
+                               <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-bold">עונשין</span>
+                               <span className={`text-xs sm:text-sm font-black ${deadwoodScore===0?'text-emerald-400':'text-rose-400'}`}>{deadwoodScore}</span>
                            </div>
                         </div>
 
-                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-[2px] rounded-t-[20px]"><span className="text-white font-black text-xl shadow-black drop-shadow-2xl animate-pulse tracking-widest uppercase">המתן לתורך...</span></div>}
+                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-[2px] rounded-t-[20px]"><span className="text-white font-black text-lg sm:text-xl shadow-black drop-shadow-2xl animate-pulse tracking-widest uppercase">המתן לתורך...</span></div>}
 
-                        <div className="flex flex-wrap justify-center items-end gap-1 h-auto min-h-[130px] px-4 py-6 w-[98%] max-w-5xl relative z-10 rummy-rack-wood">
+                        {/* Physical Wood Rack */}
+                        <div className="flex flex-wrap justify-center items-end gap-0.5 sm:gap-1 h-auto min-h-[100px] sm:min-h-[130px] px-2 py-4 sm:px-4 sm:py-6 w-[98%] max-w-5xl relative z-10 rummy-rack-wood">
                             {rack.map((tile, index) => (
-                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl sm:text-4xl font-black cursor-grab active:cursor-grabbing transition-transform z-10 ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-4 hover:shadow-[0_20px_25px_rgba(0,0,0,0.8)]'}`} style={{ color: tile.hex }}>{tile.val}</div>
+                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-4xl font-black cursor-grab active:cursor-grabbing transition-transform z-10 ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-2 sm:hover:-translate-y-4 hover:shadow-[0_20px_25px_rgba(0,0,0,0.8)]'}`} style={{ color: tile.hex }}>{tile.val}</div>
                             ))}
-                            {rack.length === 0 && isPlaying && <div className="text-amber-700 font-bold text-xl opacity-50 select-none">התושבת ריקה</div>}
+                            {rack.length === 0 && isPlaying && <div className="text-amber-900 font-bold text-lg sm:text-xl opacity-50 select-none">התושבת ריקה</div>}
                         </div>
                     </div>
                     
+                    {/* Floating Drag Objects */}
                     {dragData && dragData.type === 'single' && (
-                        <div className="fixed pointer-events-none z-[9999] rummy-tile w-14 h-20 sm:w-16 sm:h-24 flex items-center justify-center text-4xl font-black scale-110 shadow-[0_30px_50px_rgba(0,0,0,0.9)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex }}>
+                        <div className="fixed pointer-events-none z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl sm:text-4xl font-black scale-110 shadow-[0_30px_50px_rgba(0,0,0,0.9)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex }}>
                             {dragData.tile.val}
                         </div>
                     )}
                     {dragData && dragData.type === 'group' && (
                         <div className="fixed pointer-events-none z-[9999] flex bg-black/30 p-2 rounded-2xl border-2 border-emerald-400 shadow-[0_30px_60px_rgba(0,0,0,0.9)] scale-110 backdrop-blur-md" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>
                             {dragData.tiles.map(t => (
-                                <div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl font-black mx-0.5" style={{ color: t.hex }}>{t.val}</div>
+                                <div key={t.id} className="rummy-tile w-9 h-12 sm:w-10 sm:h-14 flex items-center justify-center text-xl sm:text-2xl font-black mx-0.5" style={{ color: t.hex }}>{t.val}</div>
                             ))}
                         </div>
                     )}
