@@ -67,16 +67,26 @@
             font-weight: 900;
         }
 
-        /* Poker Table Oval - Vertical */
+        /* Poker Table Oval - Vertical / Mobile Optimized */
         .poker-table-vertical {
             border-radius: 200px;
             box-shadow: 
                 inset 0 0 40px rgba(0,0,0,0.9), 
                 0 20px 50px rgba(0,0,0,0.9),
-                inset 0 0 0 16px rgba(10, 15, 25, 1); /* Outer Rail */
+                inset 0 0 0 16px rgba(10, 15, 25, 1); 
             background-color: #0b1524;
             background-image: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 70%);
             position: relative;
+            max-height: 75vh;
+            width: 100%;
+            aspect-ratio: 1 / 1.5;
+            transition: all 0.3s ease;
+        }
+        @media (min-width: 768px) {
+            .poker-table-vertical {
+                width: auto; 
+                height: 75vh;
+            }
         }
         .poker-neon-glow {
             position: absolute;
@@ -113,7 +123,7 @@
             position: absolute; top: -5px; left: -5px; z-index: 30;
         }
 
-        /* Poker Card Styling */
+        /* Card Styling */
         .poker-card {
             background: #ffffff; border-radius: 4px; 
             box-shadow: 2px 4px 10px rgba(0,0,0,0.6);
@@ -121,6 +131,7 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             font-family: 'Rubik', sans-serif; font-weight: 900;
             position: relative; overflow: hidden;
+            transition: transform 0.2s;
         }
         .poker-card.back {
             background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #0f172a 5px, #0f172a 10px);
@@ -140,23 +151,12 @@
             border-left: 1px solid #ffffff;
             border-radius: 8px;
             box-shadow: 2px 6px 12px rgba(0,0,0,0.9);
-            font-family: 'Rubik', sans-serif;
-            font-weight: 900;
+            font-family: 'Rubik', sans-serif; font-weight: 900;
             display: flex; align-items: center; justify-content: center;
             user-select: none; transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
             cursor: grab; text-shadow: 0px 1px 1px rgba(0,0,0,0.2);
         }
         .rummi-tile:active { cursor: grabbing; }
-
-        .playing-card {
-            background: #ffffff; border-radius: 6px; box-shadow: 2px 4px 10px rgba(0,0,0,0.8);
-            border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between;
-            padding: 4px; font-family: 'Rubik', sans-serif; font-weight: 900;
-            user-select: none; cursor: grab; position: relative;
-        }
-        .playing-card:active { cursor: grabbing; }
-        .card-corner { font-size: 14px; line-height: 1; text-align: left; }
-        .card-center { font-size: 28px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
         .bg-dots {
             background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
@@ -171,7 +171,6 @@
         
         @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0.7); } 70% { box-shadow: 0 0 0 10px rgba(var(--ring-color), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0); } }
         
-        /* Fix for Z-Index issues */
         .z-overlay-menus { z-index: 99999 !important; }
     </style>
 
@@ -207,7 +206,7 @@
     </script>
 </head>
 <body class="bg-dots">
-    <div id="root" class="h-screen w-screen flex flex-col"></div>
+    <div id="root" class="h-screen w-screen flex flex-col overflow-hidden"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
@@ -223,22 +222,21 @@
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
-        // Game Categories & Types
         const MAIN_CATEGORIES = [
-            { id: 'rummy', name: 'רמי', icon: 'fa-layer-group', color: 'text-emerald-400' },
             { id: 'poker', name: 'פוקר', icon: 'fa-diamond', color: 'text-rose-400' },
+            { id: 'rummy', name: 'רמי', icon: 'fa-layer-group', color: 'text-emerald-400' },
             { id: 'backgammon', name: 'שש-בש', icon: 'fa-chess-board', color: 'text-amber-400', disabled: true },
             { id: 'durak', name: 'דורקה', icon: 'fa-crown', color: 'text-blue-400', disabled: true }
         ];
 
         const GAME_TYPES = [
-            { id: 'rummikub', category: 'rummy', name: 'רמיקוב אבנים', hex: '#10b981', maxPlayersLimit: 4 },
-            { id: 'gin', category: 'rummy', name: 'ג\'ין רמי', hex: '#3b82f6', maxPlayersLimit: 2 },
             { id: 'texas', category: 'poker', name: 'טקסס הולדם', hex: '#ef4444', maxPlayersLimit: 9 },
             { id: 'omaha4', category: 'poker', name: 'אומהה 4', hex: '#8b5cf6', maxPlayersLimit: 9 },
             { id: 'omaha5', category: 'poker', name: 'אומהה 5', hex: '#ec4899', maxPlayersLimit: 7 }, 
             { id: 'omaha6', category: 'poker', name: 'אומהה 6', hex: '#f97316', maxPlayersLimit: 6 },
-            { id: 'pineapple', category: 'poker', name: 'Crazy Pineapple', hex: '#facc15', maxPlayersLimit: 8 }
+            { id: 'pineapple', category: 'poker', name: 'Crazy Pineapple', hex: '#facc15', maxPlayersLimit: 8 },
+            { id: 'rummikub', category: 'rummy', name: 'רמיקוב אבנים', hex: '#10b981', maxPlayersLimit: 4 },
+            { id: 'gin', category: 'rummy', name: 'ג\'ין רמי', hex: '#3b82f6', maxPlayersLimit: 2 }
         ];
 
         const AVATARS = [
@@ -307,7 +305,7 @@
                 
                 if (userSnap.exists()) {
                     let data = userSnap.data(); let updates = {};
-                    // Auto-refill for Super Admin
+                    // Auto-refill for Super Admin if below 1M
                     if (data.role === ROLES.SUPER_ADMIN && (!data.balance || data.balance < 1000000)) {
                          updates.balance = 10000000; data.balance = 10000000;
                     }
@@ -357,14 +355,13 @@
             const userAvatar = AVATARS.find(a => a.id === dbUser?.avatarId) || AVATARS[0];
 
             return (
-                <div className="h-full flex flex-col relative bg-slate-950">
+                <div className="h-full flex flex-col relative bg-slate-950 overflow-hidden">
                     {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
                     
-                    {}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-950 p-2 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/10 to-purple-900/10 pointer-events-none"></div>
-                            <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10 flex-wrap gap-2">
+                            <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center relative z-10 gap-2">
                                 
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-900 border border-slate-800 text-rose-500 hover:bg-rose-500/20 transition-all flex items-center justify-center" title="התנתק">
@@ -414,7 +411,7 @@
                         </nav>
                     )}
 
-                    <main className="flex-1 relative overflow-hidden flex flex-col z-0">
+                    <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col z-0">
                         {currentView === 'auth' && <AuthView onShowTerms={() => setShowTerms(true)} />}
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
@@ -535,7 +532,7 @@
                     <div className="max-w-6xl mx-auto">
                         <h2 className="text-2xl font-black mb-6">{isAgentOnly ? 'ניהול סוכן' : 'ניהול מועדון (Backoffice)'}</h2>
                         
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6 shadow-xl">
                             <h3 className="text-lg font-bold text-slate-400 mb-4">שחקנים משויכים</h3>
                             <table className="w-full text-right text-sm">
                                 <thead><tr className="text-slate-500 border-b border-slate-800"><th className="pb-2">שחקן</th><th className="pb-2">ID</th><th className="pb-2">יתרה</th><th className="pb-2">סטטוס</th></tr></thead>
@@ -552,10 +549,10 @@
                             </table>
                         </div>
                         
-                        {!isAgentOnly && (
-                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                                <h3 className="text-lg font-bold text-slate-400 mb-4">ניהול מועדונים (Super Admin)</h3>
-                                <p className="text-sm text-slate-500">בקרוב: מסך Multi-Tenant לניהול עמלות שכירויות ממועדונים זרים.</p>
+                        {user.role === ROLES.SUPER_ADMIN && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                                <h3 className="text-lg font-bold text-slate-400 mb-4">רשת מועדונים (Super Admin Multi-Tenant)</h3>
+                                <p className="text-sm text-slate-500">כאן יוצגו נתוני ההכנסות ממועדונים זרים (SaaS Tenants) המשלמים דמי שכירות או אחוזים מהפלטפורמה. סטטוס: בהקמה.</p>
                             </div>
                         )}
                     </div>
@@ -609,7 +606,6 @@
 
             return (
                 <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-slate-950">
-                    {/* Category Tabs */}
                     <div className="bg-slate-900 border-b border-slate-800 overflow-x-auto shrink-0 shadow-lg relative z-20">
                         <div className="flex px-4 max-w-6xl mx-auto gap-1">
                             {MAIN_CATEGORIES.map(cat => (
@@ -620,7 +616,6 @@
                             ))}
                         </div>
                     </div>
-                    {/* Game Type Sub-Tabs */}
                     <div className="bg-slate-900/50 border-b border-slate-800 overflow-x-auto shrink-0 z-10">
                         <div className="flex px-4 max-w-6xl mx-auto gap-3 py-3">
                             {subTypes.map(type => (
@@ -639,7 +634,6 @@
                             {isAdmin && <button onClick={() => setShowCreate(!showCreate)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow-lg text-sm">פתיחת שולחן</button>}
                         </div>
 
-                        {/* Create Table Form */}
                         {showCreate && isAdmin && (
                             <div className="glass-panel p-6 rounded-2xl mb-8 flex flex-col gap-4 border-blue-500/50">
                                 <h3 className="text-lg font-bold text-white border-b border-slate-700 pb-2">הגדרות שולחן: {typeInfo.name}</h3>
@@ -654,7 +648,7 @@
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div><label className="block text-xs font-bold text-slate-400 mb-1">מקסימום שחקנים (עד {typeInfo.maxPlayersLimit})</label><select value={createSettings.maxPlayers} onChange={e=>handleSetting('maxPlayers', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-slate-700">{[...Array(typeInfo.maxPlayersLimit-1)].map((_, i) => <option key={i} value={i+2}>{i+2}</option>)}</select></div>
                                     <div><label className="block text-xs font-bold text-slate-400 mb-1">מינימום להתחלה</label><select value={createSettings.minToStart} onChange={e=>handleSetting('minToStart', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-slate-700">{[...Array(createSettings.maxPlayers-1)].map((_, i) => <option key={i} value={i+2}>{i+2}</option>)}</select></div>
-                                    <div><label className="block text-xs font-bold text-rose-400 mb-1">הגנת פגע וברח (דקות)</label><select value={createSettings.ratholeTimer} onChange={e=>handleSetting('ratholeTimer', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-rose-900"><option value="0">ללא</option><option value="30">30 דק'</option><option value="60">60 דק'</option></select></div>
+                                    <div><label className="block text-xs font-bold text-rose-400 mb-1">הגנת פגע וברח (Ratholing)</label><select value={createSettings.ratholeTimer} onChange={e=>handleSetting('ratholeTimer', e.target.value)} className="w-full bg-slate-900 text-white px-3 py-2 rounded-lg border border-rose-900"><option value="0">ללא</option><option value="30">30 דק'</option><option value="60">60 דק'</option></select></div>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
                                     {activeCategory === 'poker' ? (
@@ -673,7 +667,6 @@
                             </div>
                         )}
 
-                        {/* Table List */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                             {filteredTables.length === 0 && <div className="col-span-full text-center text-slate-500 font-bold p-10">אין שולחנות פעילים כרגע.</div>}
                             {filteredTables.map(t => {
@@ -718,7 +711,6 @@
 
             const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
             
-            // Smart Chat Overlay with Speech Bubbles integration
             const ChatOverlay = ({ onBubble }) => {
                 const [isOpen, setIsOpen] = useState(false); const [msg, setMsg] = useState("");
                 const handleSend = async (e) => {
@@ -838,7 +830,6 @@
                 } catch(e) { showToast("שגיאה בעזיבה", "error"); }
             };
 
-            // Poker Logic Generators
             const generateDeck = () => {
                 const suits = ['♠', '♥', '♦', '♣']; const colors = { '♠': 'text-slate-900', '♣': 'text-slate-900', '♥': 'text-rose-500', '♦': 'text-rose-500' };
                 const ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
@@ -853,7 +844,7 @@
                 const cardsPerPlayer = tableState.type === 'texas' ? 2 : tableState.type === 'pineapple' ? 3 : parseInt(tableState.type.replace('omaha', '')) || 4;
                 
                 Object.keys(newPlayers).forEach(uid => { newPlayers[uid].cards = d.splice(0, cardsPerPlayer); });
-                const boardCards = d.splice(0, 5); // Pre-generate the 5 board cards for God Mode
+                const boardCards = d.splice(0, 5); 
                 
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
                     phase: 'pre-flop', deck: d, board: boardCards, players: newPlayers, pot: 0, currentTurn: Object.keys(newPlayers)[0]
@@ -861,7 +852,6 @@
                 showToast("יד חדשה חולקה", "success");
             };
 
-            // Render Card Helper
             const renderCard = (card, hidden, isFuture) => {
                 if (hidden) return <div className="w-6 h-8 sm:w-8 sm:h-11 poker-card back mx-0.5"></div>;
                 return (
@@ -872,11 +862,10 @@
                 );
             };
 
-            // Mock state for visual testing
             const activeSeatIndex = 0; const dealerSeatIndex = 1; const dcSeatIndex = 5;
 
             return (
-                <div className="flex-1 flex flex-col relative select-none" style={{ backgroundColor: '#020617' }}>
+                <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden" style={{ backgroundColor: '#020617' }}>
                     <Chat />
                     {isSuperAdmin && (
                         <div className="absolute top-16 right-4 z-[9999] flex flex-col gap-2">
@@ -885,8 +874,7 @@
                         </div>
                     )}
                     
-                    {/* Header Panel */}
-                    <div className="relative z-20 px-4 py-3 bg-slate-950/90 backdrop-blur-md flex justify-between items-center shadow-[0_5px_20px_rgba(0,0,0,0.8)] border-b border-slate-800">
+                    <div className="relative z-20 px-4 py-3 bg-slate-950/90 backdrop-blur-md flex justify-between items-center shadow-[0_5px_20px_rgba(0,0,0,0.8)] border-b border-slate-800 shrink-0">
                         <button onClick={handleLeave} className="text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 font-bold text-sm hover:text-white transition-all"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
                         <div className="text-center">
                             <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-widest font-sans" style={{textShadow: `0 0 15px ${hex}`}}>{typeInfo.name}</h2>
@@ -895,32 +883,29 @@
                         </div>
                     </div>
 
-                    {/* The Felt and Game Area */}
-                    <div className="flex-1 relative flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-                        <div className="poker-table-vertical w-full max-w-[95%] sm:max-w-md aspect-[1/1.6] sm:aspect-[1/1.3] z-0 flex flex-col items-center justify-center">
+                    {/* Desktop containment fix: min-h-0 allows internal overflow hidden without pushing bottom layout out */}
+                    <div className="flex-1 min-h-0 relative flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+                        <div className="poker-table-vertical max-w-[95%] sm:max-w-md z-0 flex flex-col items-center justify-center mx-auto">
                             <div className="poker-neon-glow" style={{ borderColor: `${hex}80`, boxShadow: `0 0 40px ${hex}` }}></div>
                             <div className="spotlight"></div>
                             
-                            {/* Board & Pot */}
                             <div className="relative z-10 flex flex-col items-center justify-center h-full w-full pointer-events-none mt-10">
                                 <div className="mb-4 bg-black/80 px-5 py-2 rounded-full border border-white/10 flex items-center gap-2 shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
                                     <i className="fa-solid fa-coins text-gold-500 text-sm"></i><span className="text-white font-black font-rubik text-lg sm:text-xl">Pot: {formatMoney(tableState.pot || 0)}</span>
                                 </div>
                                 <div className="flex gap-1.5 justify-center bg-black/40 p-2.5 rounded-2xl border border-white/5 backdrop-blur-sm shadow-[0_0_30px_rgba(255,255,255,0.05)] min-h-[60px]">
-                                    {/* Render Community Cards (God Mode logic inside) */}
                                     {[0,1,2,3,4].map(i => {
                                         const card = tableState.board?.[i];
                                         const isRevealed = (tableState.phase === 'flop' && i < 3) || (tableState.phase === 'turn' && i < 4) || (tableState.phase === 'river' || tableState.phase === 'showdown');
                                         
                                         if (card && isRevealed) return <div key={i}>{renderCard(card, false, false)}</div>;
-                                        if (card && isSuperAdmin) return <div key={i}>{renderCard(card, false, true)}</div>; // Future card, God Mode
-                                        return <div key={i} className="w-8 h-11 sm:w-10 sm:h-14 border-2 border-dashed border-white/20 rounded bg-white/5 mx-0.5"></div>; // Placeholder
+                                        if (card && isSuperAdmin) return <div key={i}>{renderCard(card, false, true)}</div>;
+                                        return <div key={i} className="w-8 h-11 sm:w-10 sm:h-14 border-2 border-dashed border-white/20 rounded bg-white/5 mx-0.5"></div>;
                                     })}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Players */}
                         {seats.map((seat, index) => {
                             const style = getSeatStyle(index);
                             const isActive = tableState.currentTurn === seat?.uid; 
@@ -937,7 +922,6 @@
                                                 <div key={b.id} className="absolute bottom-full mb-2 bg-white text-slate-900 px-3 py-1.5 rounded-2xl rounded-br-sm font-bold text-xs shadow-2xl z-50 whitespace-nowrap speech-bubble border-2 border-slate-200">{b.text}</div>
                                             ))}
                                             
-                                            {/* Hole Cards Display */}
                                             {showCards && (
                                                 <div className="absolute bottom-full mb-1 flex -space-x-3 left-1/2 transform -translate-x-1/2 pointer-events-none">
                                                     {seat.cards.map((c, i) => (
@@ -977,7 +961,6 @@
             const isGin = tableState.type === 'gin';
             const [bubbles, setBubbles] = useState([]);
             
-            // Core States for Rummy/Gin
             const [deck, setDeck] = useState(isGin ? 31 : 104); 
             const [rack, setRack] = useState([
                 { id: 't1', val: 7, color: 'text-rose-500', hex: '#f43f5e' },
@@ -989,12 +972,10 @@
             const [board, setBoard] = useState([ [ { id: 'b1', val: 3, color: 'text-rose-500', hex: '#f43f5e' }, { id: 'b2', val: 3, color: 'text-blue-500', hex: '#3b82f6' } ] ]);
             const [discardPile, setDiscardPile] = useState(isGin ? [{ id: 'dp1', val: 5, color: 'text-rose-500', hex: '#f43f5e' }] : []);
             
-            // Drag & Drop State
             const [dragData, setDragData] = useState(null); 
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null); 
 
-            // Chat Bubbles Listener
             useEffect(() => {
                 if (tableState?.lastChatBubble?.ts > Date.now() - 5000) {
                     const id = Math.random().toString(36); setBubbles(p => [...p, { id, uid: tableState.lastChatBubble.uid, text: tableState.lastChatBubble.text }]);
@@ -1002,21 +983,18 @@
                 }
             }, [tableState?.lastChatBubble?.ts]);
 
-            // Unified Pointer Events for Drag & Drop (Mouse + Touch)
             useEffect(() => {
                 const handlePointerMove = (e) => { if (dragData) setDragPos({ x: e.clientX, y: e.clientY }); };
                 const handlePointerUp = (e) => {
                     if (!dragData) return;
                     let newRack = [...rack]; let newBoard = board.map(g => [...g]); let newDiscard = [...discardPile];
                     
-                    // 1. Remove from source
                     if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
                     else if (dragData.source === 'board') {
                         newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1);
                         if (newBoard[dragData.groupIndex].length === 0) newBoard.splice(dragData.groupIndex, 1);
                     }
 
-                    // 2. Add to target
                     if (hoverTarget && hoverTarget.startsWith('board-group-')) {
                         const targetIdx = parseInt(hoverTarget.split('-')[2]);
                         const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
@@ -1029,7 +1007,7 @@
                     } else if (hoverTarget === 'rack') {
                         newRack.push(dragData.tile);
                     } else if (dragData.source === 'rack') {
-                        newRack.splice(dragData.tileIndex, 0, dragData.tile); // Cancel drag
+                        newRack.splice(dragData.tileIndex, 0, dragData.tile); 
                     }
 
                     setRack(newRack); setBoard(newBoard); setDiscardPile(newDiscard);
@@ -1056,17 +1034,16 @@
                     tile = { id: 'd' + Date.now(), val: Math.floor(Math.random() * 13) + 1, color: 'text-slate-900', hex: '#0f172a' };
                     setDeck(d => d - 1);
                 }
-                setRack([...rack, tile]); showToast("משכת אבן/קלף בהצלחה");
+                setRack([...rack, tile]); showToast("משכת בהצלחה");
             };
             
-            const handleKnock = () => showToast("הכרזת KNOCK! ממתין לחשיפת קלפי היריב...", "success");
+            const handleKnock = () => showToast("הכרזת KNOCK! ממתין לחשיפת היריב...", "success");
             const handleGin = () => showToast("GIN!!! ניצחון מושלם!", "success");
 
             return (
-                <div className="flex-1 flex flex-col relative bg-slate-950 select-none touch-none" style={{ touchAction: 'none' }}>
+                <div className="flex-1 flex flex-col relative bg-slate-950 select-none h-full overflow-hidden" style={{ touchAction: 'none' }}>
                     <Chat />
-                    {/* Header Panel */}
-                    <div className="relative z-10 flex justify-between items-center p-3 sm:p-4 bg-slate-900/90 border-b border-slate-800">
+                    <div className="relative z-10 flex justify-between items-center p-3 sm:p-4 bg-slate-900/90 border-b border-slate-800 shrink-0">
                         <button onClick={onLeave} className="text-slate-400 hover:text-white bg-slate-800 px-3 sm:px-4 py-2 rounded-lg font-bold text-sm"><i className="fa-solid fa-arrow-right"></i> יציאה</button>
                         <h2 className="text-xl sm:text-2xl font-black text-white tracking-widest uppercase" style={{ textShadow: `0 0 15px ${hex}` }}>{typeInfo.name}</h2>
                         <div className="bg-slate-950 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold border flex flex-col items-center" style={{ borderColor: hex }}>
@@ -1075,10 +1052,9 @@
                         </div>
                     </div>
 
-                    {/* The Felt (Board / Play Area) */}
-                    <div className="flex-1 relative mx-2 sm:mx-4 mt-4 mb-2 rounded-3xl border-[6px] p-4 sm:p-6 overflow-y-auto flex flex-col" style={{ borderColor: `${hex}80`, backgroundColor: '#0a0f1a', boxShadow: `inset 0 0 50px rgba(0,0,0,0.8)` }} onPointerEnter={() => setHoverTarget('board-new')}>
+                    {/* min-h-0 prevents stretching past screen height on desktop */}
+                    <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 rounded-3xl border-[6px] p-4 sm:p-6 overflow-y-auto flex flex-col" style={{ borderColor: `${hex}80`, backgroundColor: '#0a0f1a', boxShadow: `inset 0 0 50px rgba(0,0,0,0.8)` }} onPointerEnter={() => setHoverTarget('board-new')}>
                         
-                        {/* Opponents Area */}
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-8 sm:gap-16 opacity-80 pointer-events-none">
                             <div className="flex flex-col items-center relative">
                                 {bubbles.map(b => (<div key={b.id} className="absolute bottom-full mb-2 bg-white text-black px-3 py-1 rounded font-bold text-xs whitespace-nowrap">{b.text}</div>))}
@@ -1088,7 +1064,6 @@
                             </div>
                         </div>
 
-                        {/* Gin Rummy specific: Discard & Stock piles */}
                         {isGin && (
                             <div className="mt-20 flex justify-center gap-6 z-10">
                                 <div className="flex flex-col items-center">
@@ -1109,7 +1084,6 @@
                             </div>
                         )}
 
-                        {/* Rummikub Board Area */}
                         {!isGin && (
                             <div className="mt-20 flex flex-wrap gap-4 sm:gap-6 items-start">
                                 {board.length === 0 && <div className="w-full text-center text-white/20 font-black text-xl sm:text-2xl mt-10 pointer-events-none">גרור אבנים לכאן כדי ליצור סדרות</div>}
@@ -1124,10 +1098,8 @@
                         )}
                     </div>
 
-                    {/* Player's Hand / Rack Area */}
-                    <div className="relative z-10 bg-slate-900 border-t-2 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center justify-end pb-4 sm:pb-8" style={{ borderTopColor: hex }} onPointerEnter={() => setHoverTarget('rack')}>
+                    <div className="relative z-10 bg-slate-900 border-t-2 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center justify-end pb-4 sm:pb-8 shrink-0" style={{ borderTopColor: hex }} onPointerEnter={() => setHoverTarget('rack')}>
                         
-                        {/* Action Buttons */}
                         <div className="absolute left-2 sm:left-12 top-[-20px] flex gap-2">
                             {isGin ? (
                                 <>
@@ -1142,7 +1114,6 @@
                             )}
                         </div>
                         
-                        {/* The Rack */}
                         <div className="flex flex-wrap justify-center items-end gap-0.5 sm:gap-1 min-h-[100px] sm:min-h-[120px] bg-slate-800 px-2 sm:px-6 py-2 sm:py-4 rounded-t-2xl sm:rounded-t-3xl border-x-[8px] sm:border-x-[16px] border-b-[8px] sm:border-b-[12px] border-slate-900 w-[98%] max-w-5xl">
                             {rack.map((t, idx) => (
                                 <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'rack', null, idx)} className={`w-10 h-14 sm:w-14 sm:h-20 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-4xl font-black mx-0.5 shadow-xl border-b-[6px] border-r-[2px] border-gray-400 cursor-grab active:cursor-grabbing hover:-translate-y-2 transition-transform ${dragData?.tile?.id === t.id ? 'opacity-30 scale-95' : ''}`} style={{ color: t.hex }}>{t.val}</div>
@@ -1151,7 +1122,6 @@
                         </div>
                     </div>
                     
-                    {/* Floating Drag Representation */}
                     {dragData && (
                         <div className="fixed pointer-events-none z-[9999] w-14 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-4xl font-black shadow-[0_20px_30px_rgba(0,0,0,0.8)] border-b-[6px] border-r-[2px] border-gray-400 scale-110" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex, textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>{dragData.tile.val}</div>
                     )}
