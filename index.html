@@ -949,12 +949,13 @@
                         
                         if (longPressTimer.current) {
                             const dist = Math.hypot(e.clientX - dragDataRef.current.startX, e.clientY - dragDataRef.current.startY);
-                            if (dist > 10) { 
+                            if (dist > 15) { // Increased shock absorber for touch screens
                                 clearTimeout(longPressTimer.current);
                                 longPressTimer.current = null;
                             }
                         } 
 
+                        // X-Ray technique: Hide ghosts temporarily to find what's underneath
                         const ghost = document.getElementById('drag-ghost');
                         const ghostGroup = document.getElementById('drag-ghost-group');
                         if(ghost) ghost.style.pointerEvents = 'none';
@@ -985,14 +986,14 @@
                     const dropZone = elemUnder ? elemUnder.closest('[data-drop]') : null;
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
-                    // Absolute Board Magnet (Geometry Fallback)
+                    // Absolute Board Magnet (Geometry Fallback) - Free form dropping
                     const boardArea = document.getElementById('felt-board');
                     let dropX = 50, dropY = 50;
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            dropX = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-                            dropY = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+                            dropX = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+                            dropY = Math.max(2, Math.min(98, ((e.clientY - rect.top) / rect.height) * 100));
                             if (!actualTarget || (!actualTarget.startsWith('board-group-'))) {
                                 actualTarget = 'board-new';
                             }
@@ -1023,12 +1024,18 @@
                                      const left = grp.tiles.slice(0, currentDrag.tileIndex);
                                      const right = grp.tiles.slice(currentDrag.tileIndex + 1);
                                      grp.tiles = left;
-                                     newBoard.push({ id: `grp_${Date.now()}_split`, x: Math.min(90, grp.x + 5), y: Math.min(90, grp.y + 5), tiles: right });
+                                     newBoard.push({ id: `grp_${Date.now()}_split`, x: Math.min(95, grp.x + 8), y: grp.y, tiles: right });
                                 } else {
                                      grp.tiles.splice(currentDrag.tileIndex, 1);
                                      if (grp.tiles.length === 0) newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
                                 }
                             }
+                        }
+                    } else if (currentDrag.type === 'group_from_rack') {
+                        tilesToAdd = currentDrag.tiles;
+                        // Remove the contiguous block from the rack
+                        for (let i = currentDrag.startIndex; i < currentDrag.startIndex + currentDrag.tiles.length; i++) {
+                            newRack[i] = null;
                         }
                     } else { 
                         tilesToAdd = currentDrag.tiles;
@@ -1041,8 +1048,11 @@
                     if (actualTarget && actualTarget.startsWith('board-group-')) {
                         const targetId = actualTarget.replace('board-group-', '');
                         const targetGrp = newBoard.find(g => g.id === targetId);
-                        if (targetGrp) targetGrp.tiles.push(...tilesToAdd);
-                        else newBoard.push({ id: `grp_${Date.now()}`, x: dropX, y: dropY, tiles: tilesToAdd });
+                        if (targetGrp) {
+                             targetGrp.tiles.push(...tilesToAdd);
+                        } else {
+                             newBoard.push({ id: `grp_${Date.now()}`, x: dropX, y: dropY, tiles: tilesToAdd });
+                        }
                     } 
                     else if (actualTarget === 'board-new') {
                         newBoard.push({ id: `grp_${Date.now()}`, x: dropX, y: dropY, tiles: tilesToAdd });
@@ -1057,17 +1067,23 @@
                              }
                              if(slotIdx !== -1) newRack[slotIdx] = tilesToAdd[0];
                         } else {
+                             // Distribute group into empty rack slots
                              tilesToAdd.forEach(t => {
                                  const emptyIdx = newRack.findIndex(r=>r===null);
                                  if(emptyIdx !== -1) newRack[emptyIdx] = t;
                              });
                         }
                     } else {
-                        // Return to source
+                        // Return to source if dropped outside
                         if (currentDrag.source === 'rack') {
                             if(currentDrag.type === 'single') {
                                 const eIdx = newRack.findIndex(t=>t===null);
                                 newRack[eIdx !== -1 ? eIdx : 0] = tilesToAdd[0];
+                            } else if (currentDrag.type === 'group_from_rack') {
+                                tilesToAdd.forEach(t => {
+                                    const emptyIdx = newRack.findIndex(r=>r===null);
+                                    if(emptyIdx !== -1) newRack[emptyIdx] = t;
+                                });
                             }
                         } else {
                             newBoard.push({ id: currentDrag.groupId, x: currentDrag.startX_pct || 50, y: currentDrag.startY_pct || 50, tiles: tilesToAdd });
@@ -1079,6 +1095,7 @@
                     setDragData(null); 
                     setHoverTarget(null);
                     
+                    // Live Sync: Only fire if we modified the board or if it's our turn
                     if (tableState?.id && (isMyTurn || currentDrag.source === 'rack')) {
                         try {
                             await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
@@ -1107,8 +1124,8 @@
                 const boardArea = document.getElementById('felt-board');
                 if (boardArea) {
                     const rect = boardArea.getBoundingClientRect();
-                    pctX = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-                    pctY = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+                    pctX = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+                    pctY = Math.max(2, Math.min(98, ((e.clientY - rect.top) / rect.height) * 100));
                 }
 
                 setDragData({ type: 'single', tile, source, groupId, tileIndex, startX: e.clientX, startY: e.clientY, startX_pct: pctX, startY_pct: pctY }); 
@@ -1122,6 +1139,29 @@
                             setDragData({ type: 'group', tiles: grp.tiles, source, groupId, startX: e.clientX, startY: e.clientY, startX_pct: grp.x, startY_pct: grp.y });
                         }, 400); 
                     }
+                } else if (source === 'rack') {
+                    // Rack Group Long Press (Contiguous Block)
+                    longPressTimer.current = setTimeout(() => {
+                        if (navigator.vibrate) navigator.vibrate(50);
+                        
+                        let left = tileIndex;
+                        while (left > 0 && rack[left - 1] !== null) left--;
+                        
+                        let right = tileIndex;
+                        while (right < 27 && rack[right + 1] !== null) right++;
+                        
+                        const groupTiles = rack.slice(left, right + 1);
+                        if (groupTiles.length > 1) {
+                            setDragData({ 
+                                type: 'group_from_rack', 
+                                tiles: groupTiles, 
+                                source: 'rack', 
+                                startIndex: left,
+                                startX: e.clientX, 
+                                startY: e.clientY 
+                            });
+                        }
+                    }, 400);
                 }
             };
 
@@ -1209,11 +1249,11 @@
                 if (tableState.currentTurn !== user.uid) return;
                 
                 if (!isBoardValid) {
-                    return showToast("הלוח לא תקין! ודא שכל הקבוצות מכילות מינימום 3 אבנים חוקיות.", "error");
+                    return showToast("הלוח לא תקין! ודא שכל הסדרות חוקיות (מינימום 3 אבנים בצבע זהה או קבוצות).", "error");
                 }
                 
                 const activeRackCount = rack.filter(t=>t!==null).length;
-                const startRackCount = tableState.players[user.uid].cards.filter(t=>t!==null).length;
+                const startRackCount = (tableState.players[user.uid].cards || []).filter(t=>t!==null).length;
 
                 if (activeRackCount >= startRackCount) {
                     return showToast("לא הורדת אף אבן! אם אין לך מה לשחק, עליך למשוך אבן מהקופה.", "error");
@@ -1331,7 +1371,7 @@
                         if (!isPlaying) {
                             t.update(uRef, { balance: uData.balance + myStack });
                         } else {
-                            const remainingUids = Object.keys(newP);
+                            const remainingUids = Object.keys(newP).sort();
                             const currentStats = uData.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
                             
                             t.update(uRef, {
@@ -1402,75 +1442,94 @@
             const myTileCount = rack.filter(t=>t!==null).length;
 
             return (
-                <div className="h-full w-full flex relative select-none bg-slate-950 font-sans" dir="ltr">
+                <div className="h-full w-full flex flex-col relative select-none bg-slate-950 font-sans" dir="rtl">
                     
-                    {/* LEFT SIDEBAR - Opponents */}
+                    {/* TOP BAR - Opponents HUD */}
                     {isPlaying && (
-                        <div className="w-20 md:w-28 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 z-20 shrink-0 shadow-2xl">
-                            <button onClick={handleLeave} className="mb-6 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-rose-600 transition-colors" title="עזוב שולחן">
-                                <i className="fa-solid fa-person-walking-arrow-right text-lg"></i>
-                            </button>
-                            
-                            <div className="flex-1 flex flex-col gap-6 w-full px-2 overflow-y-auto overflow-x-hidden scrollbar-hide items-center">
-                                {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
-                                    const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
-                                    const isTurn = tableState.currentTurn === uid;
-                                    
-                                    return (
-                                        <div key={uid} className={`flex flex-col items-center w-full sidebar-avatar ${isTurn ? 'active-turn' : 'opacity-80'}`}>
-                                            <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full border-[3px] mb-1 flex items-center justify-center bg-slate-800 relative ${isTurn ? 'border-amber-400' : 'border-slate-600'}`}>
-                                                <i className={`fa-solid fa-user text-xl md:text-2xl ${isTurn ? 'text-amber-400' : 'text-slate-400'}`}></i>
-                                                <div className="absolute -bottom-2 bg-slate-900 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-full border border-slate-700 w-max shadow-md">
-                                                    {tileCount}
-                                                </div>
-                                            </div>
-                                            <span className="text-[10px] md:text-xs font-bold text-white mt-2 truncate w-full text-center px-1">
-                                                {pData.username.substring(0,8)}
-                                            </span>
+                        <div className="h-20 bg-slate-900 border-b border-slate-800 flex justify-center items-center px-4 shrink-0 shadow-lg relative z-20 gap-8">
+                            {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
+                                const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
+                                const isTurn = tableState.currentTurn === uid;
+                                
+                                return (
+                                    <div key={uid} className={`flex flex-col items-center sidebar-avatar ${isTurn ? 'active-turn scale-110' : 'opacity-80'}`}>
+                                        <div className={`w-10 h-10 rounded-full border-2 mb-1 flex items-center justify-center bg-slate-800 relative ${isTurn ? 'border-amber-400 shadow-[0_0_15px_#f59e0b]' : 'border-slate-600'}`}>
+                                            <i className={`fa-solid fa-user ${isTurn ? 'text-amber-400' : 'text-slate-400'}`}></i>
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                        <span className="text-[10px] font-bold text-white mb-0.5">{pData.username.substring(0,10)}</span>
+                                        <span className="text-[9px] bg-slate-800 border border-slate-700 px-2 rounded text-amber-400 font-bold">
+                                            📦 {tileCount} אבנים
+                                        </span>
+                                    </div>
+                                );
+                            })}
 
-                            {/* Deck Count */}
-                            <div className="mt-4 flex flex-col items-center">
-                                <i className="fa-solid fa-layer-group text-slate-500 mb-1"></i>
-                                <span className="text-xs font-bold text-slate-400">{tableState.deck?.length || 0}</span>
+                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-4">
+                                <button onClick={handleLeave} className="text-xs font-bold text-slate-400 hover:text-white border border-slate-700 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 transition-colors flex items-center gap-2">
+                                    כניעה / עזוב שולחן <i className="fa-solid fa-door-open"></i>
+                                </button>
+                                {user.role === ROLES.SUPER_ADMIN && (
+                                    <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1.5 rounded text-xs font-bold border ${isGodMode ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_purple]' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
+                                )}
+                            </div>
+                            
+                            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-left">
+                                <div className="text-emerald-400 font-bold text-sm tracking-widest uppercase">רמיקוב</div>
+                                <div className="text-slate-400 text-[10px]">ערך נקודה: {tableState.stakes}</div>
                             </div>
                         </div>
                     )}
 
-                    {/* CENTER - Board & Rack */}
-                    <div className="flex-1 flex flex-col relative min-w-0">
+                    {/* MAIN CENTER - Free Form Board & Right Controls */}
+                    <div className="flex-1 flex relative min-h-0">
                         
-                        {/* Top Info Bar */}
-                        <div className="h-12 bg-slate-900/50 border-b border-slate-800/50 flex justify-between items-center px-4 shrink-0 z-10" dir="rtl">
-                            <div className="flex gap-4">
-                                <span className="text-emerald-400 font-bold text-sm tracking-widest uppercase">רמיקוב</span>
-                                <span className="text-slate-400 text-xs">כניסה: 🪙 {tableState.minBuyIn}</span>
-                            </div>
-                            
-                            {isPlaying && (
-                                <div className={`flex items-center gap-3 px-4 py-1 rounded-full border ${isMyTurn ? 'bg-emerald-900/40 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-slate-800/50 border-slate-700'}`}>
-                                    <span className={`text-xs font-bold uppercase tracking-wider ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>
-                                        {isMyTurn ? 'התור שלך' : 'המתן לתורך'}
-                                    </span>
-                                    <span className={`font-mono text-xl font-black ${timeLeft <= 10 && isMyTurn ? 'text-rose-500' : 'text-white'}`}>
-                                        00:{timeLeft.toString().padStart(2, '0')}
-                                    </span>
+                        {/* RIGHT CONTROLS */}
+                        {isSeated && isPlaying && (
+                            <div className="w-24 bg-slate-900 border-l border-slate-800 flex flex-col items-center justify-between py-4 z-20 shrink-0 shadow-xl">
+                                <div className="flex flex-col gap-3 w-full px-2">
+                                    <button onClick={handleSort789} className="w-full aspect-square rounded-xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי סדרות">
+                                        <span className="font-black text-sm text-blue-400 leading-none mb-1">789</span>
+                                        <span className="text-[10px] font-bold">סדר</span>
+                                    </button>
+                                    <button onClick={handleSort777} className="w-full aspect-square rounded-xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי קבוצות">
+                                        <span className="font-black text-sm text-rose-400 leading-none mb-1">777</span>
+                                        <span className="text-[10px] font-bold">סדר</span>
+                                    </button>
+                                    
+                                    {isMyTurn && (
+                                        <button onClick={()=>{
+                                            setBoard(startTurnBoard);
+                                            const dbCards = tableState.players?.[user.uid]?.cards || [];
+                                            const fullRack = [...dbCards]; while(fullRack.length<28) fullRack.push(null);
+                                            setRack(fullRack);
+                                        }} className="w-full aspect-square rounded-xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white mt-4">
+                                            <i className="fa-solid fa-undo text-lg mb-1"></i>
+                                            <span className="text-[10px] font-bold">בטל</span>
+                                        </button>
+                                    )}
                                 </div>
-                            )}
 
-                            {user.role === ROLES.SUPER_ADMIN && (
-                                <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1 rounded text-xs font-bold border ${isGodMode ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
-                            )}
-                        </div>
+                                <div className="flex flex-col gap-3 w-full px-2">
+                                    {isMyTurn && (
+                                        <button onClick={handleDraw} className="w-full aspect-square rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center border-2 border-amber-300 transform transition-transform hover:scale-105 active:scale-95" title="משיכה מהקופה">
+                                            <i className="fa-solid fa-plus text-xl mb-1"></i>
+                                            <span className="text-[10px]">קופה</span>
+                                        </button>
+                                    )}
+                                    {isMyTurn && (
+                                        <button onClick={handleEndTurn} className="w-full aspect-square rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-black shadow-[0_0_15px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center border-2 border-emerald-300 transform transition-transform hover:scale-105 active:scale-95" title="סיום תור">
+                                            <i className="fa-solid fa-check text-2xl"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                        {/* The Felt Board */}
+                        {/* FELT BOARD (FREE FORM) */}
                         <div 
                             id="felt-board"
                             data-drop="board-new" 
-                            className="flex-1 relative overflow-auto bg-[#0a1128] z-0"
+                            className="flex-1 relative bg-[#0a1128] z-0 overflow-hidden"
                             style={{ background: 'radial-gradient(circle at center, #0f172a 0%, #020617 100%)' }}
                         >
                             {!isSeated && tableState.phase === 'waiting' && (
@@ -1491,13 +1550,38 @@
                                 </div>
                             )}
 
-                            {/* Absolute Free-Form Board */}
+                            {/* Big Shot Clock */}
+                            {isPlaying && (
+                                <div className="absolute top-6 left-6 z-10 text-center pointer-events-none">
+                                    <div className={`text-sm font-bold mb-1 ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>
+                                        {isMyTurn ? 'התור שלך' : 'תור היריב'}
+                                    </div>
+                                    <div className={`font-mono text-4xl sm:text-5xl font-black bg-slate-900/80 px-4 py-2 rounded-xl border-2 shadow-2xl ${isMyTurn ? 'border-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'border-slate-800 text-slate-500'}`}>
+                                        {timeLeft.toString().padStart(2, '0')}:00
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* My Tile Count Indicator */}
+                            {isPlaying && (
+                                <div className="absolute top-6 right-6 z-10 text-center pointer-events-none flex flex-col items-center">
+                                    <div className="w-12 h-12 rounded-full border-2 border-emerald-500 mb-1 flex items-center justify-center bg-slate-800 shadow-[0_0_15px_#10b981]">
+                                        <i className="fa-solid fa-user text-emerald-400"></i>
+                                    </div>
+                                    <span className="text-[12px] font-bold text-white mb-0.5">אתה</span>
+                                    <span className="text-[10px] bg-slate-800 border border-slate-700 px-2 rounded text-emerald-400 font-bold">
+                                        📦 {myTileCount} אבנים
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Free Form Board Logic */}
                             {isPlaying && (
                                 <div className="w-full h-full relative" style={{ '--board-scale': boardScale }}>
                                     {board.map((groupObj) => (
                                         <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`} 
-                                             className={`absolute flex board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-500/20 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-105' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : 'border-2 border-transparent'}`}
-                                             style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)' }}>
+                                             className={`absolute flex board-group p-[15px] ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-500/20 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-105' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : 'border-2 border-transparent hover:bg-white/5'}`}
+                                             style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)', direction: 'ltr' }}>
                                             {groupObj.tiles.map((t, tIdx) => (
                                                 <div key={t.id} 
                                                      onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} 
@@ -1509,79 +1593,35 @@
                                 </div>
                             )}
                         </div>
+                    </div>
 
-                        {/* Player's Rack (Bottom) */}
-                        {isSeated && isPlaying && (
-                            <div className="h-44 md:h-56 shrink-0 bg-slate-900 border-t border-slate-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex items-end justify-center pb-2 px-2 relative z-10">
-                                
-                                {/* Rack Name Tag */}
-                                <div className="absolute top-2 left-4 text-white font-bold text-sm bg-slate-800 px-3 py-1 rounded-md border border-slate-700 flex gap-2 items-center">
-                                    <span>{user.username}</span>
-                                    <span className="text-emerald-400">{myTileCount}</span>
-                                </div>
-
-                                <div className="rack-grid h-full max-h-[160px] md:max-h-[200px]">
-                                    {rack.map((tile, index) => (
+                    {/* PLAYER'S RACK (BOTTOM) */}
+                    {isSeated && isPlaying && (
+                        <div className="h-44 md:h-52 shrink-0 bg-slate-900 border-t border-slate-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex items-end justify-center pb-2 px-2 relative z-30">
+                            <div className="rack-grid h-full max-h-[150px] md:max-h-[180px]">
+                                {rack.map((tile, index) => {
+                                    // Visual feedback if this tile is part of a rack group being dragged
+                                    const isDraggingThisGroup = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
+                                    
+                                    return (
                                         <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'hover-target' : ''}`}>
                                             {tile && (
-                                                <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[90%] h-[95%] flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length ? 'opacity-20' : ''}`} style={{ color: tile.color }}>
+                                                <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[90%] h-[95%] flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDraggingThisGroup ? 'opacity-20' : ''}`} style={{ color: tile.color }}>
                                                     {tile.val}
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
-
-                    {/* RIGHT SIDEBAR - Controls */}
-                    {isSeated && isPlaying && (
-                        <div className="w-20 md:w-28 bg-slate-900 border-l border-slate-800 flex flex-col items-center justify-center gap-4 py-4 z-20 shrink-0 shadow-[-10px_0_20px_rgba(0,0,0,0.3)]">
-                            
-                            <button onClick={handleSort789} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי סדרות">
-                                <span className="font-black text-lg md:text-xl text-blue-400 leading-none mb-1">789</span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider">סדר</span>
-                            </button>
-                            
-                            <button onClick={handleSort777} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי קבוצות">
-                                <span className="font-black text-lg md:text-xl text-rose-400 leading-none mb-1">777</span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider">סדר</span>
-                            </button>
-
-                            {isMyTurn && (
-                                <button onClick={()=>{
-                                    setBoard(startTurnBoard);
-                                    const dbCards = tableState.players?.[user.uid]?.cards || [];
-                                    const fullRack = [...dbCards]; while(fullRack.length<28) fullRack.push(null);
-                                    setRack(fullRack);
-                                }} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white mt-auto" title="בטל מהלכים">
-                                    <i className="fa-solid fa-undo text-lg md:text-xl mb-1"></i>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider">בטל</span>
-                                </button>
-                            )}
-
-                            {isMyTurn && (
-                                <button onClick={handleDraw} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center border-2 border-amber-300 transform transition-transform hover:scale-105 active:scale-95" title="משיכה מהקופה">
-                                    <i className="fa-solid fa-plus text-xl md:text-2xl mb-1"></i>
-                                    <span className="text-[10px] uppercase tracking-wider">קופה</span>
-                                </button>
-                            )}
-
-                            {isMyTurn && (
-                                <button onClick={handleEndTurn} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-black shadow-[0_0_15px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center border-2 border-emerald-300 transform transition-transform hover:scale-105 active:scale-95" title="סיום תור">
-                                    <i className="fa-solid fa-check text-2xl md:text-3xl"></i>
-                                </button>
-                            )}
-
                         </div>
                     )}
                     
-                    {/* Ghost Elements for Dragging */}
+                    {/* GHOST ELEMENTS FOR DRAGGING */}
                     {dragData && dragData.type === 'single' && (
                         <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-14 h-20 md:w-16 md:h-24 flex items-center justify-center text-4xl md:text-5xl font-bold shadow-[0_30px_50px_rgba(0,0,0,0.8)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg) scale(1.1)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
                     )}
-                    {(dragData && dragData.type === 'group') && (
+                    {(dragData && (dragData.type === 'group' || dragData.type === 'group_from_rack')) && (
                         <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl backdrop-blur-sm border border-emerald-500 shadow-[0_20px_40px_rgba(0,0,0,0.8)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1)', pointerEvents: 'none' }} dir="ltr">
                             {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-12 h-16 flex items-center justify-center text-3xl mx-0.5 shadow-md" style={{ color: t.color }}>{t.val}</div>))}
                         </div>
