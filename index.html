@@ -394,48 +394,6 @@
         function LobbyView({ user, tables, onJoin, showToast }) {
             const [showCreate, setShowCreate] = useState(false);
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
-            
-            // Auto-sit bot logic for SUPER_ADMIN
-            useEffect(() => {
-                if (user.role !== ROLES.SUPER_ADMIN) return;
-                const interval = setInterval(async () => {
-                    const waitingTables = tables.filter(t => t.type === 'rummikub' && t.phase === 'waiting' && Object.keys(t.players || {}).length > 0 && Object.keys(t.players || {}).length < t.maxPlayers);
-                    if (waitingTables.length === 0) return;
-
-                    const t = waitingTables[0];
-                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
-                    const botSnaps = await window.fb.getDocs(botQ);
-                    if (botSnaps.empty) return;
-                    
-                    const bots = botSnaps.docs.map(d => ({id: d.id, ...d.data()}));
-                    const availableBots = bots.filter(b => !t.players[b.id]);
-                    if (availableBots.length === 0) return;
-
-                    const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
-                    const buyInAmount = Number(t.minBuyIn);
-
-                    const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: true } };
-                    const updates = { players: newPlayers };
-                    
-                    if (Object.keys(newPlayers).length === t.maxPlayers) {
-                        const d = generateDeck();
-                        const uids = Object.keys(newPlayers);
-                        uids.forEach(uid => { 
-                            const initial = d.splice(0, 14);
-                            const padded = [...initial]; while(padded.length<28) padded.push(null);
-                            newPlayers[uid].cards = padded; 
-                        });
-                        updates.phase = 'playing';
-                        updates.deck = d;
-                        updates.currentTurn = uids[0];
-                        updates.turnStartedAt = Date.now();
-                    }
-                    
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", t.docId), updates);
-                }, 6000); // Check every 6 seconds to feel natural
-                
-                return () => clearInterval(interval);
-            }, [tables, user.role]);
 
             const handleCreate = async () => {
                 const calculatedBuyIn = newTableOptions.stakes * 100; 
@@ -779,6 +737,54 @@
             const longPressTimer = useRef(null);
             const synthRef = useRef(null);
             const tableRef = useRef(null);
+
+            // המוח החדש של האווטארים - עכשיו הם מצטרפים אליך לשולחן!
+            useEffect(() => {
+                if (user.role !== ROLES.SUPER_ADMIN || tableState?.phase !== 'waiting') return;
+                
+                const interval = setInterval(async () => {
+                    const tblRef = window.fb.doc(window.fb.db, "tables", tableDocId);
+                    const tblSnap = await window.fb.getDoc(tblRef);
+                    if (!tblSnap.exists()) return;
+                    const t = tblSnap.data();
+                    
+                    const playersCount = Object.keys(t.players || {}).length;
+                    if (playersCount === 0 || playersCount >= t.maxPlayers || t.phase !== 'waiting') return;
+
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const botSnaps = await window.fb.getDocs(botQ);
+                    if (botSnaps.empty) return;
+                    
+                    const bots = botSnaps.docs.map(d => ({id: d.id, ...d.data()}));
+                    const availableBots = bots.filter(b => !t.players[b.id]);
+                    if (availableBots.length === 0) return;
+
+                    const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+                    const buyInAmount = Number(t.minBuyIn);
+
+                    const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: true } };
+                    const updates = { players: newPlayers };
+                    
+                    // מתחילים את המשחק אם השולחן התמלא
+                    if (Object.keys(newPlayers).length === t.maxPlayers) {
+                        const d = generateDeck();
+                        const uids = Object.keys(newPlayers);
+                        uids.forEach(uid => { 
+                            const initial = d.splice(0, 14);
+                            const padded = [...initial]; while(padded.length<28) padded.push(null);
+                            newPlayers[uid].cards = padded; 
+                        });
+                        updates.phase = 'playing';
+                        updates.deck = d;
+                        updates.currentTurn = uids[0];
+                        updates.turnStartedAt = Date.now();
+                    }
+                    
+                    await window.fb.updateDoc(tblRef, updates);
+                }, 3000); // בודק כל 3 שניות כדי להאיץ את הטסטים
+                
+                return () => clearInterval(interval);
+            }, [tableState?.phase, user.role, tableDocId]);
 
             useEffect(() => {
                 if(!tableDocId) return;
