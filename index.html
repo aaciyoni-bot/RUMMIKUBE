@@ -27,54 +27,88 @@
     </script>
 
     <style>
+        /* Base Styles & Resets */
         body {
-            background-color: #020617; color: #e2e8f0;
-            overflow: hidden; touch-action: none;
-            user-select: none; -webkit-user-select: none;
+            background-color: #020617; 
+            color: #e2e8f0;
+            overflow: hidden; 
+            touch-action: none; /* Prevent browser zooming/scrolling on drag */
+            user-select: none; 
+            -webkit-user-select: none;
             font-family: 'Heebo', sans-serif;
         }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         
-        .glass-panel { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8); }
-        .chip-text { color: #fbbf24; text-shadow: 0 2px 5px rgba(0,0,0,0.8), 0 0 15px rgba(251, 191, 36, 0.4); font-family: 'Rubik', sans-serif; font-weight: 900; }
+        /* UI Components */
+        .glass-panel { 
+            background: rgba(15, 23, 42, 0.8); 
+            backdrop-filter: blur(20px); 
+            border: 1px solid rgba(255, 255, 255, 0.05); 
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8); 
+        }
+        .chip-text { 
+            color: #fbbf24; 
+            text-shadow: 0 2px 5px rgba(0,0,0,0.8), 0 0 15px rgba(251, 191, 36, 0.4); 
+            font-family: 'Rubik', sans-serif; 
+            font-weight: 900; 
+        }
         
+        /* Animations */
         @keyframes slideInUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .toast-animate { animation: slideInUp 0.3s ease-out forwards; }
         
         @keyframes flashRed { 0%, 100% { border-color: rgba(255,0,0,0.2); } 50% { border-color: rgba(255,0,0,0.8); box-shadow: 0 0 20px rgba(255,0,0,0.5); } }
         .board-invalid-group { animation: flashRed 1s infinite; border: 2px solid red !important; }
+
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         
-        /* Premium 3D Rummy Tiles (Ivory Look) */
         .rummy-tile {
             background: linear-gradient(135deg, #ffffff 0%, #f4f1e1 100%);
-            box-shadow: 2px 6px 12px rgba(0,0,0,0.5), inset -1px -3px 4px rgba(0,0,0,0.1), inset 1px 2px 3px rgba(255,255,255,1);
-            border-bottom: 7px solid #d1ccb8; border-right: 2px solid #e2ddd0; border-left: 1px solid #ffffff;
-            border-radius: 8px; font-family: 'Rubik', sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            box-shadow: 2px 6px 12px rgba(0,0,0,0.6), 
+                        inset -1px -3px 4px rgba(0,0,0,0.15), 
+                        inset 1px 2px 3px rgba(255,255,255,1);
+            border-bottom: 7px solid #d1ccb8; 
+            border-right: 2px solid #e2ddd0; 
+            border-left: 1px solid #ffffff;
+            border-radius: 8px; 
+            font-family: 'Rubik', sans-serif; 
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
             transition: transform 0.1s, box-shadow 0.1s;
         }
+        .rummy-tile:active, .rummy-tile.dragging {
+            box-shadow: 0 30px 40px rgba(0,0,0,0.8);
+            transform: scale(1.1) translateY(-10px);
+            z-index: 999;
+        }
         
-        /* Premium Wood Rack */
         .rummy-rack-wood {
             background: linear-gradient(to bottom, #e3b782 0%, #c49258 40%, #8b5a33 100%);
-            border-bottom: 12px solid #5c3a21; border-left: 4px solid #704728; border-right: 4px solid #704728;
-            box-shadow: inset 0 -10px 30px rgba(60,30,10,0.5), 0 15px 40px rgba(0,0,0,0.9);
-            border-top-left-radius: 15px; border-top-right-radius: 15px;
+            border-bottom: 12px solid #5c3a21; 
+            border-left: 4px solid #704728; 
+            border-right: 4px solid #704728;
+            box-shadow: inset 0 -10px 30px rgba(60,30,10,0.6), 
+                        0 20px 50px rgba(0,0,0,0.9);
+            border-top-left-radius: 20px; 
+            border-top-right-radius: 20px;
             position: relative;
         }
         .rummy-rack-wood::before {
-            content: ''; position: absolute; inset: 0; border-top-left-radius: 15px; border-top-right-radius: 15px;
+            content: ''; 
+            position: absolute; 
+            inset: 0; 
+            border-top-left-radius: 20px; 
+            border-top-right-radius: 20px;
             background-image: repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.08) 15px, rgba(0,0,0,0.08) 30px);
             pointer-events: none;
         }
 
-        /* Poker Table Ellipse */
         .poker-table-ellipse {
             background: radial-gradient(ellipse at center, #0f5132 0%, #064e3b 100%);
             border: 15px solid #1f2937;
             box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 0 30px rgba(16, 185, 129, 0.3);
-            border-radius: 200px; /* Highly rounded for ellipse */
+            border-radius: 200px;
         }
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
@@ -90,6 +124,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+        // IMPORTANT: Replace these with your actual Firebase config in production
         const firebaseConfig = {
             apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
             authDomain: "rummikube-5c138.firebaseapp.com",
@@ -97,6 +132,8 @@
         };
         const app = initializeApp(firebaseConfig);
         window.fb = { auth: getAuth(app), db: getFirestore(app), googleProvider: new GoogleAuthProvider(), signInWithPopup, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
+        
+        // Dispatch event to let React know Firebase is ready
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -134,31 +171,40 @@
             const [fbReady, setFbReady] = useState(false);
             const [authUser, setAuthUser] = useState(null);
             const [dbUser, setDbUser] = useState(null);
-            const [currentView, setCurrentView] = useState('auth'); 
+            const [currentView, setCurrentView] = useState('auth'); // 'auth', 'pending', 'lobby', 'table', 'backoffice'
             const [tablesDB, setTablesDB] = useState([]);
             const [activeTable, setActiveTable] = useState(null);
             const [activeSession, setActiveSession] = useState(null); 
             const [toasts, setToasts] = useState([]);
             
+            // Global Toast Notification System
             const showToast = (msg, type = 'info') => {
-                const id = Date.now(); setToasts(prev => [...prev, { id, msg, type }]);
+                const id = Date.now(); 
+                setToasts(prev => [...prev, { id, msg, type }]);
                 setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 4000);
             };
 
+            // Wait for Firebase to initialize
             useEffect(() => {
                 if (window.fb) setFbReady(true);
                 else window.addEventListener('firebase-ready', () => setFbReady(true));
             }, []);
 
+            // Auth Listener
             useEffect(() => {
                 if (!fbReady) return;
                 const unsub = window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
-                    if (user) { setAuthUser(user); await fetchOrInitUser(user); } 
-                    else { setAuthUser(null); setDbUser(null); setCurrentView('auth'); }
+                    if (user) { 
+                        setAuthUser(user); 
+                        await fetchOrInitUser(user); 
+                    } else { 
+                        setAuthUser(null); setDbUser(null); setCurrentView('auth'); 
+                    }
                 });
                 return () => unsub();
             }, [fbReady]);
 
+            // Database User Initialization
             const fetchOrInitUser = async (user) => {
                 const ref = window.fb.doc(window.fb.db, "users", user.uid);
                 const snap = await window.fb.getDoc(ref);
@@ -175,15 +221,21 @@
                 }
             };
 
+            // Global Real-time Listeners (Tables & User Data)
             useEffect(() => {
                 if (!fbReady || !dbUser) return;
+                
+                // Listen to all tables
                 const unsubT = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (s) => {
                     const tables = s.docs.map(d => ({ docId: d.id, ...d.data() }));
                     setTablesDB(tables);
+                    
+                    // Check if user is currently seated in an active game
                     const myTable = tables.find(t => t.players && t.players[dbUser.uid] !== undefined);
                     setActiveSession(myTable);
                 });
                 
+                // Listen to user's own data (balance changes, status)
                 const unsubU = window.fb.onSnapshot(window.fb.doc(window.fb.db, "users", dbUser.uid), (d) => {
                     if(d.exists()) {
                         const data = d.data(); setDbUser({ uid: d.id, ...data });
@@ -198,14 +250,30 @@
 
             return (
                 <div className="h-full flex flex-col relative bg-slate-950 overflow-hidden">
-                    {/* Top Navigation Bar - Responsive */}
+                    
+                    {/* Top Navigation Bar - Responsive & Clean */}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-950 p-2 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10 gap-2">
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center hover:bg-slate-800"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
+                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
+                                    
+                                    {/* Backoffice Button for Admins */}
+                                    {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(dbUser.role) && (
+                                        <button 
+                                            onClick={() => setCurrentView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} 
+                                            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-blue-400 border-slate-800 hover:bg-slate-800'}`}
+                                            title="ניהול מועדון"
+                                        >
+                                            <i className="fa-solid fa-chart-line"></i>
+                                        </button>
+                                    )}
+
                                     <div className="flex flex-col items-end px-2">
-                                        <span className="text-sm font-bold text-white">{dbUser.username} {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px]" title="Super Admin"></i>}</span>
+                                        <span className="text-sm font-bold text-white">
+                                            {dbUser.username} 
+                                            {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px] mr-1" title="Super Admin"></i>}
+                                        </span>
                                         <span className="chip-text text-sm"><i className="fa-solid fa-coins text-gold-500 text-[10px] mr-1"></i>{formatMoney(dbUser.balance)}</span>
                                     </div>
                                 </div>
@@ -217,9 +285,9 @@
                         </nav>
                     )}
                     
-                    {/* Reconnect Banner */}
+                    {/* Disconnect / Reconnect Banner */}
                     {currentView === 'lobby' && activeSession && (
-                        <div onClick={() => { setActiveTable(activeSession); setCurrentView('table'); }} className="bg-emerald-600 cursor-pointer hover:bg-emerald-500 text-white p-3 flex justify-center items-center gap-2 font-bold z-50 shrink-0 shadow-lg animate-pulse">
+                        <div onClick={() => { setActiveTable(activeSession); setCurrentView('table'); }} className="bg-emerald-600 cursor-pointer hover:bg-emerald-500 text-white p-3 flex justify-center items-center gap-2 font-bold z-50 shrink-0 shadow-lg animate-pulse border-b-4 border-emerald-800 text-sm sm:text-base">
                             <i className="fa-solid fa-play"></i> יש לך משחק פעיל! לחץ כאן לחזור לשולחן
                         </div>
                     )}
@@ -228,9 +296,11 @@
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} onJoin={(t) => {setActiveTable(t); setCurrentView('table');}} showToast={showToast} />}
+                        {currentView === 'backoffice' && <BackofficeView user={dbUser} showToast={showToast} />}
                         {currentView === 'table' && <TableDirector tableDocId={activeTable?.docId} user={dbUser} onLeave={() => {setActiveTable(null); setCurrentView('lobby');}} showToast={showToast} />}
                     </main>
                     
+                    {/* Toast Notification Container */}
                     <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[999999] flex flex-col items-center gap-2 pointer-events-none">
                         {toasts.map(t => (<div key={t.id} className={`toast-animate px-6 py-3 rounded-2xl shadow-2xl font-bold whitespace-nowrap border ${t.type === 'error' ? 'bg-rose-900 border-rose-500 text-white' : 'bg-slate-800 border-slate-600 text-white'}`}>{t.msg}</div>))}
                     </div>
@@ -263,7 +333,7 @@
             const [activeCat, setActiveCat] = useState('rummy');
             const [activeType, setActiveType] = useState('rummikub');
             const [showCreate, setShowCreate] = useState(false);
-            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, isDealerChoice: false });
+            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, isDealerChoice: false, buyIn: 1000 });
             
             const subTypes = GAME_TYPES.filter(g => g.category === activeCat);
             const filteredTables = tables.filter(t => t.type === activeType);
@@ -271,7 +341,7 @@
             
             useEffect(() => { 
                 if(!subTypes.find(s=>s.id===activeType)) setActiveType(subTypes[0].id); 
-                if(typeInfo) setNewTableOptions({ maxPlayers: typeInfo.maxPlayersLimit, isDealerChoice: false });
+                if(typeInfo) setNewTableOptions(prev => ({ ...prev, maxPlayers: typeInfo.maxPlayersLimit }));
             }, [activeCat, activeType]);
             
             const handleCreate = async () => {
@@ -279,14 +349,17 @@
                     type: activeType, 
                     maxPlayers: newTableOptions.maxPlayers, 
                     isDealerChoice: newTableOptions.isDealerChoice,
-                    minBuyIn: 1000, stakes: '10', players: {}, board: [], deck: [], phase: 'waiting', createdAt: Date.now()
+                    minBuyIn: newTableOptions.buyIn, 
+                    stakes: newTableOptions.buyIn / 100, 
+                    players: {}, 
+                    board: [], deck: [], phase: 'waiting', createdAt: Date.now()
                 });
                 setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
             };
 
             const handleDelete = async (e, id) => {
                 e.stopPropagation(); 
-                if (window.confirm("בטוח שברצונך למחוק שולחן זה?")) {
+                if (window.confirm("בטוח שברצונך למחוק שולחן זה לצמיתות?")) {
                     await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", id));
                     showToast("השולחן נמחק", "info");
                 }
@@ -297,7 +370,7 @@
                     <div className="bg-slate-900 flex p-2 gap-2 justify-center border-b border-slate-800 shadow-md">
                         {MAIN_CATEGORIES.map(c => <button key={c.id} onClick={()=>setActiveCat(c.id)} className={`px-6 py-3 rounded-lg font-bold transition-all ${activeCat===c.id?'bg-slate-800 text-white border-b-4 border-blue-500':'text-slate-500 hover:text-white'}`}>{c.name}</button>)}
                     </div>
-                    <div className="bg-slate-900/50 flex p-3 gap-3 justify-center overflow-x-auto">
+                    <div className="bg-slate-900/50 flex p-3 gap-3 justify-center overflow-x-auto scrollbar-hide">
                         {subTypes.map(t => <button key={t.id} onClick={()=>setActiveType(t.id)} className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${activeType===t.id?'bg-slate-800 text-white shadow-lg':'text-slate-500'}`} style={activeType===t.id?{color:t.hex, boxShadow:`0 0 10px ${t.hex}40`}:{}}>{t.name}</button>)}
                     </div>
                     
@@ -307,40 +380,61 @@
                                 <span className="w-3 h-3 rounded-full animate-pulse" style={{backgroundColor: typeInfo.hex}}></span>
                                 שולחנות - {typeInfo.name}
                             </h2>
-                            {user.role !== ROLES.PLAYER && <button onClick={()=>setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold transition-all"><i className="fa-solid fa-plus ml-2"></i> פתיחת שולחן</button>}
+                            {user.role !== ROLES.PLAYER && (
+                                <button onClick={()=>setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold transition-all flex items-center">
+                                    <i className="fa-solid fa-plus ml-2"></i> פתיחת שולחן
+                                </button>
+                            )}
                         </div>
                         
+                        {/* Create Table Form */}
                         {showCreate && (
                             <div className="glass-panel p-6 rounded-2xl mb-6 text-right relative overflow-hidden border border-blue-500/30 animate-[slideInUp_0.2s_ease-out]">
                                 <div className="absolute top-0 right-0 w-full h-1 bg-blue-500"></div>
                                 <h3 className="text-lg font-bold text-white mb-4">הגדרות שולחן חדש</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                                     <div>
                                         <label className="text-slate-400 text-sm">מקסימום שחקנים</label>
-                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded p-2 mt-1 outline-none focus:border-blue-500">
+                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg p-3 mt-1 outline-none focus:border-blue-500">
                                             {[...Array(typeInfo.maxPlayersLimit-1)].map((_,i) => <option key={i+2} value={i+2}>{i+2} שחקנים</option>)}
                                         </select>
                                     </div>
-                                    {activeCat === 'poker' && (
-                                        <div className="flex items-end">
-                                            <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-2 border border-slate-700 rounded w-full hover:bg-slate-800 transition-colors">
-                                                <input type="checkbox" checked={newTableOptions.isDealerChoice} onChange={(e)=>setNewTableOptions({...newTableOptions, isDealerChoice: e.target.checked})} className="w-5 h-5 accent-blue-500" />
-                                                Dealer's Choice (פתוח תמיד)
-                                            </label>
-                                        </div>
-                                    )}
+                                    <div>
+                                        <label className="text-slate-400 text-sm">דמי כניסה (Buy-In)</label>
+                                        <select value={newTableOptions.buyIn} onChange={(e)=>setNewTableOptions({...newTableOptions, buyIn: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg p-3 mt-1 outline-none focus:border-blue-500">
+                                            <option value={1000}>1,000 צ'יפים</option>
+                                            <option value={5000}>5,000 צ'יפים</option>
+                                            <option value={10000}>10,000 צ'יפים</option>
+                                        </select>
+                                    </div>
+                                    {/* Dealer's Choice Option is now open for ALL tables */}
+                                    <div className="flex items-end">
+                                        <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-3 border border-slate-700 rounded-lg w-full hover:bg-slate-800 transition-colors">
+                                            <input type="checkbox" checked={newTableOptions.isDealerChoice} onChange={(e)=>setNewTableOptions({...newTableOptions, isDealerChoice: e.target.checked})} className="w-5 h-5 accent-blue-500" />
+                                            Dealer's Choice (פתוח תמיד)
+                                        </label>
+                                    </div>
                                 </div>
-                                <div className="flex justify-end gap-2">
+                                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-800">
                                     <button onClick={()=>setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">ביטול</button>
-                                    <button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-transform hover:scale-105">אשר פתיחה</button>
+                                    <button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-lg font-bold shadow-lg transition-transform hover:scale-105">אשר ופתח</button>
                                 </div>
                             </div>
                         )}
 
+                        {/* Tables Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                             {filteredTables.map(t => (
                                 <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-5 rounded-2xl border border-slate-700 relative cursor-pointer hover:-translate-y-1 hover:shadow-2xl transition-all group overflow-hidden">
                                     <div className="absolute top-0 right-0 w-full h-1" style={{backgroundColor: typeInfo.hex}}></div>
+                                    
+                                    {/* Admin Delete Button */}
+                                    {user.role !== ROLES.PLAYER && (
+                                        <button onClick={(e)=>handleDelete(e,t.docId)} className="absolute top-3 left-3 w-8 h-8 rounded bg-slate-800/80 text-slate-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center z-10 opacity-50 group-hover:opacity-100" title="מחק שולחן לצמיתות">
+                                            <i className="fa-solid fa-trash"></i>
+                                        </button>
+                                    )}
+
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <h3 className="text-xl font-black text-white mb-1">{t.stakes} stakes</h3>
@@ -355,18 +449,46 @@
                                     
                                     <div className="mt-4 flex justify-between items-center">
                                         <span className="text-sm text-slate-500 font-bold">Rake: 6%</span>
-                                        <div className="flex items-center gap-2">
-                                            {user.role !== ROLES.PLAYER && (
-                                                <button onClick={(e)=>handleDelete(e,t.docId)} className="w-8 h-8 rounded bg-slate-800 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center border border-slate-700 z-10" title="מחק שולחן">
-                                                    <i className="fa-solid fa-trash"></i>
-                                                </button>
-                                            )}
-                                            <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold group-hover:bg-blue-600 transition-colors">היכנס</button>
-                                        </div>
+                                        <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold group-hover:bg-blue-600 transition-colors" style={t.phase === 'playing' ? {opacity: 0.5} : {}}>
+                                            {t.phase === 'playing' ? 'צפה' : 'היכנס'}
+                                        </button>
                                     </div>
                                 </div>
                             ))}
-                            {filteredTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold">אין שולחנות פעילים כרגע בקטגוריה זו.</div>}
+                            {filteredTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">אין שולחנות פעילים כרגע בקטגוריה זו. לחץ על פתיחת שולחן.</div>}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function BackofficeView({ user, showToast }) {
+            // Placeholder for full Backoffice logic
+            return (
+                <div className="flex-1 bg-slate-950 p-6 overflow-y-auto">
+                    <div className="max-w-6xl mx-auto">
+                        <h2 className="text-3xl font-black text-white mb-2">ניהול מועדון (Backoffice)</h2>
+                        <p className="text-slate-400 mb-8">מסך זה מאפשר לך לנהל יתרות, להעביר צ'יפים לשחקנים ולעקוב אחרי הכנסות ה-Rake שלך.</p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">יתרת המועדון שלך</h3>
+                                <p className="text-3xl font-black text-white">{formatMoney(user.balance)}</p>
+                            </div>
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden">
+                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl"></div>
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">רווחי Rake מצטברים</h3>
+                                <p className="text-3xl font-black text-emerald-400">{formatMoney(14250)}</p>
+                            </div>
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">שחקנים ממתינים לאישור</h3>
+                                <p className="text-3xl font-black text-amber-400">0</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                            <h3 className="font-bold text-lg text-white mb-6">העברת צ'יפים (בהמשך)</h3>
+                            <div className="text-slate-500">מודול הנהלת החשבונות המלא של מנהל המועדון ייבנה כאן, כולל טבלת היסטוריית העברות וסליקה.</div>
                         </div>
                     </div>
                 </div>
@@ -375,11 +497,12 @@
 
         function TableDirector({ tableDocId, user, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
+            
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
                     if(doc.exists()) setTableState({id: doc.id, ...doc.data()}); 
-                    else { showToast("השולחן נסגר.", "error"); onLeave(); }
+                    else { showToast("השולחן נסגר על ידי המנהל.", "error"); onLeave(); }
                 });
                 return () => unsub();
             }, [tableDocId]);
@@ -394,14 +517,13 @@
 
         function PokerTable({ tableState, user, onLeave, showToast }) {
             const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
-            
             return (
                 <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden bg-slate-950">
                      <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900/80 border-b border-white/10 shrink-0">
-                        <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
-                        <h2 className="text-xl font-black text-white/90 tracking-wider">Poker Room</h2>
+                        <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition border border-slate-700"><i className="fa-solid fa-arrow-right ml-2"></i> חזור ללובי</button>
+                        <h2 className="text-xl font-black text-white/90 tracking-wider">Texas Hold'em Room</h2>
                         <div className="flex items-center gap-2">
-                           {isSuperAdmin && <div className="bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse"><i className="fa-solid fa-eye"></i> God Mode</div>}
+                           {isSuperAdmin && <div className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse shadow-[0_0_10px_purple]"><i className="fa-solid fa-eye mr-1"></i> God Mode</div>}
                         </div>
                     </div>
                     
@@ -414,7 +536,7 @@
                             {tableState.isDealerChoice && <div className="absolute top-10 right-20 w-8 h-8 rounded-full bg-amber-400 text-black font-black flex items-center justify-center shadow-lg border-2 border-amber-600 text-[10px]">DC</div>}
 
                             <div className="absolute bottom-10 bg-black/60 px-6 py-3 rounded-full text-white font-bold text-sm text-center">
-                                מנוע הפוקר בפיתוח - מתמקדים כעת ברמיקוב!
+                                מנוע הפוקר בפיתוח - הלוגיקה תיבנה כאן לאחר סיום הרמיקוב
                             </div>
                         </div>
                     </div>
@@ -428,34 +550,55 @@
             const isPlaying = tableState.phase === 'playing';
             const isMyTurn = tableState.currentTurn === user.uid;
             
+            // Local State for Rendering
             const [rack, setRack] = useState([]);
             const [board, setBoard] = useState([]);
+            
+            // Snapshot state for "Reset Turn" feature
             const [startTurnBoard, setStartTurnBoard] = useState([]);
             const [startTurnRack, setStartTurnRack] = useState([]);
             
+            // Advanced Drag & Drop State
             const [dragData, setDragData] = useState(null); 
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null);
             
+            // Timer
             const [timeLeft, setTimeLeft] = useState(60);
             const longPressTimer = useRef(null);
 
-            // Sync with Server (only if not currently dragging to avoid jitter)
+            // Sync local state with Firebase Server (only if not currently dragging to avoid jitter)
             useEffect(() => {
                 if (!dragData) {
                     setBoard(tableState.board || []);
                     setRack(tableState.players?.[user.uid]?.cards || []);
+                    
+                    // Capture snapshot at start of turn for "Reset" functionality
                     if (tableState.currentTurn === user.uid && tableState.board) {
-                        // Capture snapshot at start of turn for "Reset" functionality
-                        if(startTurnBoard.length === 0 && startTurnRack.length === 0) {
+                        if (startTurnBoard.length === 0 && startTurnRack.length === 0) {
                              setStartTurnBoard(tableState.board || []);
                              setStartTurnRack(tableState.players?.[user.uid]?.cards || []);
                         }
                     } else if (tableState.currentTurn !== user.uid) {
-                        setStartTurnBoard([]); setStartTurnRack([]); // clear snapshot
+                        setStartTurnBoard([]); 
+                        setStartTurnRack([]); // clear snapshot when not my turn
                     }
                 }
-            }, [tableState.board, tableState.players?.[user.uid]?.cards, tableState.currentTurn]);
+            }, [tableState.board, tableState.players?.[user.uid]?.cards, tableState.currentTurn, dragData]);
+
+            // Auto-Start Game when minimum players are seated
+            useEffect(() => {
+                if (tableState.phase === 'waiting' && isSeated) {
+                    const pCount = Object.keys(tableState.players || {}).length;
+                    if (pCount === (tableState.maxPlayers || 4)) {
+                        // Only the "Host" (first player) triggers the start to avoid multiple writes
+                        const firstPlayerUid = Object.keys(tableState.players)[0];
+                        if (user.uid === firstPlayerUid) {
+                            startGame();
+                        }
+                    }
+                }
+            }, [tableState.phase, tableState.players]);
 
             // Turn Timer Logic
             useEffect(() => {
@@ -466,6 +609,7 @@
                         const remaining = Math.max(0, 60 - elapsed);
                         setTimeLeft(remaining);
                         
+                        // Force Timeout if time reaches 0
                         if (remaining === 0 && isMyTurn) {
                             clearInterval(interval);
                             handleTimeoutPenalty();
@@ -475,28 +619,20 @@
                 return () => clearInterval(interval);
             }, [isPlaying, tableState.turnStartedAt, isMyTurn]);
 
-            // Auto-Start Game when full
-            useEffect(() => {
-                if (tableState.phase === 'waiting' && isSeated) {
-                    const pCount = Object.keys(tableState.players || {}).length;
-                    if (pCount === (tableState.maxPlayers || 4)) {
-                        const firstPlayerUid = Object.keys(tableState.players)[0];
-                        if (user.uid === firstPlayerUid) startGame();
-                    }
-                }
-            }, [tableState.phase, tableState.players]);
-
             const generateRummyDeck = () => {
                 const colors = ['text-orange-500', 'text-blue-600', 'text-red-600', 'text-slate-900'];
                 const hexes = ['#f97316', '#2563eb', '#dc2626', '#0f172a'];
                 let d = [];
                 for (let set = 0; set < 2; set++) { 
                     for (let c = 0; c < 4; c++) { 
-                        for (let v = 1; v <= 13; v++) { d.push({ id: `t_${set}_${c}_${v}`, val: v, color: colors[c], hex: hexes[c] }); } 
+                        for (let v = 1; v <= 13; v++) { 
+                            d.push({ id: `t_${set}_${c}_${v}`, val: v, color: colors[c], hex: hexes[c] }); 
+                        } 
                     } 
                 }
-                d.push({ id: 'j1', val: '☻', color: 'text-red-600', hex: '#dc2626' }, { id: 'j2', val: '☻', color: 'text-slate-900', hex: '#0f172a' });
-                return d.sort(() => Math.random() - 0.5);
+                d.push({ id: 'j1', val: '☻', color: 'text-red-600', hex: '#dc2626' });
+                d.push({ id: 'j2', val: '☻', color: 'text-slate-900', hex: '#0f172a' });
+                return d.sort(() => Math.random() - 0.5); // Shuffle
             };
 
             const validateGroup = (group) => {
@@ -505,30 +641,39 @@
                 const regulars = group.filter(t => t.val !== '☻');
                 if(regulars.length === 0) return true; // all jokers
 
-                // SET: Same value, different colors (Max 4)
+                // Check SET: Same value, different colors (Max 4)
                 const isSet = regulars.every(t => t.val === regulars[0].val) && new Set(regulars.map(t => t.hex)).size === regulars.length;
                 if (isSet && group.length <= 4) return true;
 
-                // RUN: Same color, consecutive values
+                // Check RUN: Same color, consecutive values
                 const isRunColor = regulars.every(t => t.hex === regulars[0].hex);
                 if (isRunColor) {
                     const sorted = [...regulars].sort((a,b) => a.val - b.val);
                     let neededJokers = 0;
                     for(let i=0; i<sorted.length-1; i++) {
-                        if (sorted[i].val === sorted[i+1].val) return false; // Duplicate
-                        neededJokers += (sorted[i+1].val - sorted[i].val - 1);
+                        if (sorted[i].val === sorted[i+1].val) return false; // Duplicate number
+                        neededJokers += (sorted[i+1].val - sorted[i].val - 1); // Calculate gaps
                     }
                     if (neededJokers <= jCount && group.length <= 13) return true;
                 }
                 return false;
             };
 
-            const isBoardValid = useMemo(() => { if (board.length === 0) return true; return board.every(g => validateGroup(g)); }, [board]);
+            const isBoardValid = useMemo(() => { 
+                if (board.length === 0) return true; 
+                return board.every(g => validateGroup(g)); 
+            }, [board]);
+            
+            // Deadwood calculation for penalties (Joker = 30)
             const deadwoodScore = rack.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
 
             useEffect(() => {
                 const handlePointerMove = (e) => { 
-                    if (dragData) { setDragPos({ x: e.clientX, y: e.clientY }); if(longPressTimer.current) clearTimeout(longPressTimer.current); } 
+                    if (dragData) { 
+                        setDragPos({ x: e.clientX, y: e.clientY }); 
+                        // Cancel long press if finger moved
+                        if(longPressTimer.current) clearTimeout(longPressTimer.current); 
+                    } 
                 };
                 
                 const handlePointerUp = (e) => {
@@ -539,13 +684,14 @@
                     let newBoard = board.map(g => [...g]);
                     
                     if (dragData.type === 'single') {
-                        // 1. Remove from source & Smart Split
+                        // 1. Remove from source
                         if (dragData.source === 'rack') {
                             newRack.splice(dragData.tileIndex, 1);
                         } else if (dragData.source === 'board') {
                             const grp = newBoard[dragData.groupIndex];
                             const tIdx = dragData.tileIndex;
-                            // SMART SPLIT: If pulling from middle of a group of 4 or more
+                            
+                            // SMART SPLIT LOGIC: Pulling from middle of a group of 4 or more
                             if (tIdx > 0 && tIdx < grp.length - 1 && grp.length >= 4) {
                                 const left = grp.slice(0, tIdx);
                                 const right = grp.slice(tIdx + 1);
@@ -556,22 +702,25 @@
                             }
                         }
 
-                        // 2. Drop Logic & Joker Swap
+                        // 2. Drop Logic & JOKER SWAP
                         if (hoverTarget && hoverTarget.startsWith('board-tile-')) {
                             const [,,targetGroupIdx, targetTileIdx] = hoverTarget.split('-');
                             const actualGIdx = (dragData.source === 'board' && dragData.groupIndex < targetGroupIdx && newBoard.length < board.length) ? targetGroupIdx - 1 : targetGroupIdx;
                             
-                            // JOKER SWAP: If targeting a joker
+                            // JOKER SWAP logic: If dropping onto a joker
                             if (newBoard[actualGIdx] && newBoard[actualGIdx][targetTileIdx]?.val === '☻') {
                                 let tempGroup = [...newBoard[actualGIdx]];
                                 tempGroup[targetTileIdx] = dragData.tile;
+                                
+                                // Verify if swap makes sense
                                 if (validateGroup(tempGroup)) {
                                     const retrievedJoker = newBoard[actualGIdx][targetTileIdx];
-                                    newBoard[actualGIdx][targetTileIdx] = dragData.tile; // Swap
-                                    newRack.push(retrievedJoker); // Give Joker to Player
-                                    showToast("שחררת ג'וקר!", "success");
+                                    newBoard[actualGIdx][targetTileIdx] = dragData.tile; // Put my tile
+                                    newRack.push(retrievedJoker); // Give me the joker
+                                    showToast("שחררת ג'וקר חוקי! נוסף לתושבת שלך.", "success");
                                 } else {
-                                    newBoard[actualGIdx].push(dragData.tile); // Invalid swap, just push to end
+                                    // Invalid swap, just append to group
+                                    newBoard[actualGIdx].push(dragData.tile); 
                                 }
                             } else {
                                 if (newBoard[actualGIdx]) newBoard[actualGIdx].push(dragData.tile);
@@ -581,41 +730,66 @@
                             const targetIdx = parseInt(hoverTarget.split('-')[2]);
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
-                        } else if (hoverTarget === 'board-new') {
+                        } 
+                        else if (hoverTarget === 'board-new') {
                             newBoard.push([dragData.tile]);
-                        } else if (hoverTarget === 'rack') {
+                        } 
+                        else if (hoverTarget === 'rack') {
                             newRack.push(dragData.tile);
-                        } else if (dragData.source === 'rack') {
-                            newRack.splice(dragData.tileIndex, 0, dragData.tile); // Put back where it was
+                        } 
+                        else if (dragData.source === 'rack') {
+                            // Cancelled - put back in rack
+                            newRack.splice(dragData.tileIndex, 0, dragData.tile); 
                         } 
                     } 
                     else if (dragData.type === 'group') {
-                        // Group Drag (Long Press)
+                        // GROUP DRAG LOGIC (Triggered by Long Press)
                         const groupTiles = dragData.tiles;
                         if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 1);
+                        
                         if (hoverTarget && hoverTarget.startsWith('board-group-')) {
                             const targetIdx = parseInt(hoverTarget.split('-')[2]);
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(...groupTiles); else newBoard.push([...groupTiles]);
-                        } else if (hoverTarget === 'board-new') newBoard.push([...groupTiles]);
-                        else if (hoverTarget === 'rack') newRack.push(...groupTiles);
-                        else if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 0, groupTiles); 
+                        } 
+                        else if (hoverTarget === 'board-new') {
+                            newBoard.push([...groupTiles]);
+                        }
+                        else if (hoverTarget === 'rack') {
+                            newRack.push(...groupTiles);
+                        }
+                        else if (dragData.source === 'board') {
+                            newBoard.splice(dragData.groupIndex, 0, groupTiles); // cancel
+                        } 
                     }
                     
                     setRack(newRack); setBoard(newBoard); setDragData(null); setHoverTarget(null);
                 };
-                if (dragData) { window.addEventListener('pointermove', handlePointerMove, { passive: false }); window.addEventListener('pointerup', handlePointerUp); }
-                return () => { window.removeEventListener('pointermove', handlePointerMove); window.removeEventListener('pointerup', handlePointerUp); };
+                
+                if (dragData) { 
+                    window.addEventListener('pointermove', handlePointerMove, { passive: false }); 
+                    window.addEventListener('pointerup', handlePointerUp); 
+                }
+                return () => { 
+                    window.removeEventListener('pointermove', handlePointerMove); 
+                    window.removeEventListener('pointerup', handlePointerUp); 
+                };
             }, [dragData, hoverTarget, rack, board]);
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
-                if (!isMyTurn) return showToast("זה לא התור שלך. המתן.", "error");
+                if (!isMyTurn) {
+                    showToast("זה לא התור שלך! המתן.", "error");
+                    return;
+                }
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
-                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
                 
+                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); 
+                setDragPos({ x: e.clientX, y: e.clientY });
+                
+                // LONG PRESS TIMER (For Group Drag)
                 if (source === 'board') {
                     longPressTimer.current = setTimeout(() => {
-                        if (navigator.vibrate) navigator.vibrate(50); 
+                        if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
                         setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex });
                     }, 500); 
                 }
@@ -623,7 +797,11 @@
 
             const handleSit = async () => {
                 try { 
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}`]: { username: user.username, cards: [], hasDropped: false } }); 
+                    if (user.balance < tableState.minBuyIn) return showToast("אין לך מספיק צ'יפים להיכנס.", "error");
+                    
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                        [`players.${user.uid}`]: { username: user.username, cards: [], hasDropped: false } 
+                    }); 
                     showToast("התיישבת בהצלחה!", "success"); 
                 } catch(e) { showToast("שגיאה בישיבה בשולחן", "error"); }
             };
@@ -633,19 +811,22 @@
                 const newPlayers = { ...tableState.players }; 
                 const uids = Object.keys(newPlayers);
                 uids.forEach(uid => { newPlayers[uid].cards = d.splice(0, 14); newPlayers[uid].hasDropped = false; });
+                
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
                     phase: 'playing', deck: d, board: [], players: newPlayers, 
                     currentTurn: uids[0], turnStartedAt: Date.now() 
                 });
+                showToast("המשחק מתחיל!", "success");
             };
 
             const handleTimeoutPenalty = async () => {
-                showToast("נגמר הזמן! הלוח אופס ומשכת עונשין.", "error");
+                showToast("נגמר הזמן! הלוח אופס ומשכת עונשין מהקופה.", "error");
                 const newDeck = [...(tableState.deck || [])];
                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                 const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
                 const uids = Object.keys(tableState.players); 
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
+                
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
                     deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, 
                     currentTurn: nextTurn, turnStartedAt: Date.now() 
@@ -657,31 +838,49 @@
                 const newDeck = [...(tableState.deck || [])];
                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                 const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
-                const uids = Object.keys(tableState.players); const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                const uids = Object.keys(tableState.players); 
+                const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
+                
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                    deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, 
+                    currentTurn: nextTurn, turnStartedAt: Date.now() 
+                });
             };
             
             const handleEndTurn = async () => {
                 if (!isMyTurn || !isBoardValid) return;
+                
+                // 30 POINTS RULE VALIDATION
                 const isFirstDrop = !tableState.players[user.uid].hasDropped;
                 if (isFirstDrop) {
                     const currentRackIds = rack.map(t=>t.id);
                     const droppedTiles = startTurnRack.filter(t => !currentRackIds.includes(t.id));
                     if (droppedTiles.length > 0) {
                         const sum = droppedTiles.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
-                        if (sum < 30) return showToast(`הורדה ראשונה חייבת להיות 30 ומעלה. (חסרים ${30-sum})`, "error");
-                    } else return showToast("לא ביצעת שום מהלך! עליך למשוך מהקופה.", "error");
+                        if (sum < 30) return showToast(`הורדה ראשונה חייבת להיות 30 נקודות. הורדת רק ${sum}. החזר ומשוך מקופה.`, "error");
+                    } else {
+                        return showToast("לא ביצעת שום מהלך! עליך למשוך מהקופה.", "error");
+                    }
                 }
 
+                // WIN CONDITION (Rummikub!)
                 if (rack.length === 0) {
                     showToast("ניצחון! 🏆 Rummikub!", "success");
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { phase: 'showdown', board: board, [`players.${user.uid}.cards`]: [], winner: user.uid });
-                    setTimeout(() => startGame(), 6000); 
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                        phase: 'showdown', board: board, [`players.${user.uid}.cards`]: [], winner: user.uid 
+                    });
+                    // Auto restart after 5 seconds
+                    setTimeout(() => startGame(), 5000); 
                     return;
                 }
 
-                const uids = Object.keys(tableState.players); const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                // NORMAL END TURN
+                const uids = Object.keys(tableState.players); 
+                const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                    board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, 
+                    currentTurn: nextTurn, turnStartedAt: Date.now() 
+                });
             };
 
             const sortRackNumbers = () => setRack([...rack].sort((a,b) => (a.val==='☻'?1:(b.val==='☻'?-1:a.val-b.val))));
@@ -691,48 +890,66 @@
 
             return (
                 <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden" style={{ backgroundColor: '#0f386d', backgroundImage: 'radial-gradient(circle at 50% 0%, #174b8e 0%, #0a2142 100%)', touchAction: 'none' }}>
+                    
+                    {/* Header Top Bar */}
                     <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900/50 border-b border-white/10 shrink-0 shadow-lg">
-                        <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
-                        <h2 className="text-xl font-black text-white/90 tracking-wider font-rubik drop-shadow-md">Rummikub Elite</h2>
-                        <div className="text-amber-400 font-bold bg-amber-900/30 border border-amber-500/50 px-4 py-1.5 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.2)]">Stakes: {tableState.stakes}</div>
+                        <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition border border-slate-700"><i className="fa-solid fa-arrow-right ml-2"></i> חזור ללובי</button>
+                        <h2 className="text-xl sm:text-2xl font-black text-white/90 tracking-wider font-rubik drop-shadow-md">Rummikub Elite</h2>
+                        <div className="text-amber-400 font-bold bg-amber-900/50 border border-amber-500/50 px-4 py-1.5 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.2)] flex items-center gap-2">
+                            <i className="fa-solid fa-coins"></i> {tableState.stakes} Stakes
+                        </div>
                     </div>
 
+                    {/* Central Board Area */}
                     <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
+                        
+                        {/* Opponents Rendering */}
                         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 flex gap-8 z-10">
                             {opponents.map(([uid, p]) => (
                                 <div key={uid} className="flex flex-col items-center">
-                                    <div className={`w-12 h-12 rounded-full border-4 flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'border-emerald-400 shadow-[0_0_20px_#10b981] scale-110':'border-slate-600 opacity-70'}`}>
+                                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'border-emerald-400 shadow-[0_0_20px_#10b981] scale-110':'border-slate-600 opacity-70'}`}>
                                         <i className="fa-solid fa-user text-slate-300"></i>
                                     </div>
-                                    <span className="text-xs font-bold text-white mt-1 bg-black/50 px-2 rounded-full">{p.username}</span>
-                                    <span className="text-[10px] text-emerald-400 font-black">{p.cards?.length||0} אבנים</span>
+                                    <span className="text-xs font-bold text-white mt-1 bg-black/50 px-3 py-0.5 rounded-full">{p.username}</span>
+                                    <span className="text-[10px] text-emerald-400 font-black bg-slate-900 px-2 rounded-full mt-1 border border-emerald-900">{p.cards?.length||0} אבנים</span>
                                 </div>
                             ))}
                         </div>
                         
-                        {!isSeated && <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm"><button onClick={handleSit} className="bg-gradient-to-b from-blue-500 to-blue-700 text-white px-8 py-4 rounded-full font-black text-2xl shadow-[0_0_30px_rgba(59,130,246,0.6)] border-2 border-blue-400 hover:scale-105 transition-transform">התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})</button></div>}
+                        {/* Sit Button Overlay */}
+                        {!isSeated && (
+                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                                <button onClick={handleSit} className="bg-gradient-to-b from-blue-500 to-blue-700 text-white px-8 py-4 rounded-full font-black text-2xl shadow-[0_0_30px_rgba(59,130,246,0.6)] border-2 border-blue-400 hover:scale-105 transition-transform">
+                                    התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})
+                                </button>
+                            </div>
+                        )}
                         
+                        {/* Board Groups Rendering */}
                         {isPlaying && (
-                            <div className="mt-20 flex flex-wrap gap-5 items-start pb-24 overflow-y-auto w-full h-full p-2">
+                            <div className="mt-20 flex flex-wrap gap-5 items-start pb-24 overflow-y-auto w-full h-full p-2 scrollbar-hide">
                                 {board.map((group, gIdx) => (
-                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/20 p-2 rounded-xl border-2 transition-all ${hoverTarget === `board-group-${gIdx}` ? 'border-amber-400 shadow-[0_0_20px_#f59e0b]' : !validateGroup(group) ? 'board-invalid-group' : 'border-white/5 shadow-md'}`}>
+                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-black/20 p-2 rounded-xl border-2 transition-all duration-200 ${hoverTarget === `board-group-${gIdx}` ? 'border-amber-400 shadow-[0_0_20px_#f59e0b] scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-white/5 shadow-md'}`}>
                                         {group.map((t, tIdx) => (
                                             <div key={t.id} 
                                                  onPointerEnter={(e)=>{e.stopPropagation(); setHoverTarget(`board-tile-${gIdx}-${tIdx}`);}}
                                                  onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} 
-                                                 className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl font-black mx-0.5 cursor-grab ${dragData?.tile?.id === t.id ? 'opacity-30' : ''} ${hoverTarget===`board-tile-${gIdx}-${tIdx}` && dragData && t.val==='☻' ? 'ring-4 ring-emerald-500 scale-110 z-10' : ''}`} 
+                                                 className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl font-black mx-0.5 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === t.id ? 'opacity-30' : ''} ${hoverTarget===`board-tile-${gIdx}-${tIdx}` && dragData && t.val==='☻' ? 'ring-4 ring-emerald-500 scale-110 z-10 shadow-[0_0_20px_#10b981]' : ''}`} 
                                                  style={{ color: t.hex }}>
                                                 {t.val}
                                             </div>
                                         ))}
                                     </div>
                                 ))}
-                                {board.length === 0 && <div className="w-full text-center mt-10 text-white/20 font-black text-2xl pointer-events-none">גרור אבנים לכאן</div>}
+                                {board.length === 0 && <div className="w-full text-center mt-10 text-white/20 font-black text-2xl sm:text-3xl pointer-events-none drop-shadow-md">גרור אבנים לכאן כדי ליצור סדרות</div>}
                             </div>
                         )}
                     </div>
 
+                    {/* Bottom Area: Action Buttons & Wood Rack */}
                     <div className="relative z-10 p-2 sm:p-4 flex flex-col items-center justify-end pb-4 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
+                        
+                        {/* Action Buttons Left Side */}
                         {isSeated && isPlaying && (
                             <div className="absolute left-4 top-[-40px] flex gap-2 z-30">
                                 {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-5 py-2.5 rounded-xl font-black shadow-lg text-white transition-all ${!isBoardValid ? 'bg-slate-600 opacity-50 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-1'}`}>סיום תור</button>}
@@ -740,6 +957,8 @@
                                 {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900 text-rose-200 px-4 py-2.5 rounded-xl font-bold shadow-lg border border-rose-700 hover:-translate-y-1 transition-transform" title="איפוס לוח"><i className="fa-solid fa-rotate-left"></i></button>}
                             </div>
                         )}
+
+                        {/* Status/Timer Right Side */}
                         <div className="absolute right-4 top-[-40px] flex gap-2 z-30">
                            {isMyTurn && (
                                <div className="bg-slate-900 rounded-full w-12 h-12 flex items-center justify-center border-2 border-emerald-400 shadow-[0_0_15px_#10b981] relative">
@@ -749,29 +968,46 @@
                            )}
                            {isSeated && (
                                <div className="flex gap-1">
-                                   <button onClick={sortRackNumbers} className="bg-slate-800 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center"><span>1-9</span></button>
-                                   <button onClick={sortRackColors} className="bg-slate-800 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center"><div className="flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></div></button>
+                                   <button onClick={sortRackNumbers} className="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center transition-colors"><span>1-9</span></button>
+                                   <button onClick={sortRackColors} className="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-xl font-bold shadow-lg border border-slate-600 text-xs flex flex-col items-center justify-center transition-colors"><div className="flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></div></button>
                                </div>
                            )}
-                           <div className="bg-slate-900/80 px-3 py-1 rounded-xl flex flex-col items-center border border-slate-700 shadow-lg"><span className="text-[9px] text-slate-400 uppercase font-bold">עונשין</span><span className={`text-sm font-black ${deadwoodScore===0?'text-emerald-400':'text-red-400'}`}>{deadwoodScore}</span></div>
+                           <div className="bg-slate-900/90 px-3 py-1 rounded-xl flex flex-col items-center border border-slate-700 shadow-lg backdrop-blur-md">
+                               <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">עונשין</span>
+                               <span className={`text-sm font-black ${deadwoodScore===0?'text-emerald-400':'text-rose-400'}`}>{deadwoodScore}</span>
+                           </div>
                         </div>
 
-                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-black/40 z-20 flex items-center justify-center backdrop-blur-[1px] rounded-t-3xl"><span className="text-white font-black text-xl shadow-black drop-shadow-xl animate-pulse">המתן לתורך...</span></div>}
+                        {/* Wait Turn Overlay */}
+                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-[2px] rounded-t-[20px]"><span className="text-white font-black text-xl shadow-black drop-shadow-2xl animate-pulse tracking-widest uppercase">המתן לתורך...</span></div>}
 
+                        {/* Physical Wood Rack */}
                         <div className="flex flex-wrap justify-center items-end gap-1 h-auto min-h-[130px] px-4 py-6 w-[98%] max-w-5xl relative z-10 rummy-rack-wood">
                             {rack.map((tile, index) => (
-                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl sm:text-4xl font-black cursor-grab transition-transform z-10 ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-4 hover:shadow-[0_20px_25px_rgba(0,0,0,0.8)]'}`} style={{ color: tile.hex }}>{tile.val}</div>
+                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl sm:text-4xl font-black cursor-grab active:cursor-grabbing transition-transform z-10 ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-4 hover:shadow-[0_20px_25px_rgba(0,0,0,0.8)]'}`} style={{ color: tile.hex }}>{tile.val}</div>
                             ))}
+                            {rack.length === 0 && isPlaying && <div className="text-amber-700 font-bold text-xl opacity-50 select-none">התושבת ריקה</div>}
                         </div>
                     </div>
                     
-                    {/* Floating Drag Object */}
-                    {dragData && dragData.type === 'single' && (<div className="fixed pointer-events-none z-[9999] rummy-tile w-14 h-20 sm:w-16 sm:h-24 flex items-center justify-center text-4xl font-black scale-110 shadow-[0_30px_40px_rgba(0,0,0,0.8)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex }}>{dragData.tile.val}</div>)}
-                    {dragData && dragData.type === 'group' && (<div className="fixed pointer-events-none z-[9999] flex bg-black/20 p-2 rounded-2xl border-2 border-amber-400 shadow-[0_30px_50px_rgba(0,0,0,0.9)] scale-105" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl font-black mx-0.5" style={{ color: t.hex }}>{t.val}</div>))}</div>)}
+                    {/* Floating Drag Objects (Single & Group) */}
+                    {dragData && dragData.type === 'single' && (
+                        <div className="fixed pointer-events-none z-[9999] rummy-tile w-14 h-20 sm:w-16 sm:h-24 flex items-center justify-center text-4xl font-black scale-110 shadow-[0_30px_50px_rgba(0,0,0,0.9)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex }}>
+                            {dragData.tile.val}
+                        </div>
+                    )}
+                    {dragData && dragData.type === 'group' && (
+                        <div className="fixed pointer-events-none z-[9999] flex bg-black/30 p-2 rounded-2xl border-2 border-emerald-400 shadow-[0_30px_60px_rgba(0,0,0,0.9)] scale-110 backdrop-blur-md" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>
+                            {dragData.tiles.map(t => (
+                                <div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl font-black mx-0.5" style={{ color: t.hex }}>{t.val}</div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             );
         }
 
+        // Render App
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
