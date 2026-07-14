@@ -170,7 +170,6 @@
         
         .z-overlay-menus { z-index: 99999 !important; }
         
-        /* Board Invalid Animation */
         @keyframes flashRed { 0%, 100% { border-color: rgba(255,0,0,0.2); } 50% { border-color: rgba(255,0,0,0.8); box-shadow: 0 0 20px rgba(255,0,0,0.5); } }
         .board-invalid-group { animation: flashRed 1s infinite; border: 2px solid red !important; }
     </style>
@@ -401,12 +400,12 @@
 
                                 <div className="flex flex-col items-end cursor-pointer" onClick={() => setCurrentView('lobby')}>
                                     <h1 className="text-xl sm:text-3xl font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
-                                        RUMMIKUBE<span className="text-blue-500">.COM</span>
+                                        RUMMIKUBE
                                     </h1>
                                     <div className="flex items-center gap-2 mt-1">
                                         <button onClick={(e) => { e.stopPropagation(); setShowTerms(true); }} className="text-[10px] text-slate-400 hover:text-white underline font-bold tracking-[0.1em]">תקנון</button>
                                         <span className="text-slate-600 text-[10px]">|</span>
-                                        <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em] sm:tracking-[0.4em] uppercase">Elite Private Club</p>
+                                        <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em] sm:tracking-[0.4em] uppercase">Elite Club</p>
                                     </div>
                                 </div>
                             </div>
@@ -466,7 +465,7 @@
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
                     <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center border-t-4 border-blue-500 shadow-2xl mb-6">
                         <h2 className="text-3xl font-black text-white tracking-widest mb-1">RUMMIKUBE</h2>
-                        <p className="text-slate-400 text-xs font-bold tracking-[0.2em] mb-10">ELITE PRIVATE CLUB</p>
+                        <p className="text-slate-400 text-xs font-bold tracking-[0.2em] mb-10">ELITE CLUB</p>
                         <button onClick={handleLogin} className="w-full bg-white text-slate-900 font-black py-4 rounded-xl shadow-lg hover:bg-slate-200 transition-transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
                             <i className="fa-brands fa-google text-rose-500"></i> התחבר עם Google
                         </button>
@@ -550,13 +549,6 @@
                                 </tbody>
                             </table>
                         </div>
-                        
-                        {user.role === ROLES.SUPER_ADMIN && (
-                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
-                                <h3 className="text-lg font-bold text-slate-400 mb-4">רשת מועדונים (Super Admin Multi-Tenant)</h3>
-                                <p className="text-sm text-slate-500">תשתית לריבוי מועדונים - ייושם בשלב הבא.</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             );
@@ -571,6 +563,9 @@
             const subTypes = GAME_TYPES.filter(g => g.category === activeCategory);
             const filteredTables = tables.filter(t => t.type === activeGameType);
             const typeInfo = GAME_TYPES.find(g => g.id === activeGameType) || GAME_TYPES[0];
+
+            // Check if user is already sitting at a table
+            const activeMyTable = tables.find(t => t.players && t.players[user.uid]);
 
             const [createSettings, setCreateSettings] = useState({
                 maxPlayers: typeInfo.maxPlayersLimit, minToStart: 2, turnTime: 30, sb: 10, bb: 20, minBuyIn: 1000, maxBuyIn: 5000,
@@ -618,6 +613,14 @@
 
             return (
                 <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-slate-950">
+                    
+                    {/* Reconnect Banner */}
+                    {activeMyTable && (
+                        <div onClick={() => onJoin(activeMyTable)} className="bg-emerald-600 text-white p-3 text-center cursor-pointer shadow-lg animate-pulse hover:bg-emerald-500 transition-colors z-30">
+                            <span className="font-black"><i className="fa-solid fa-play-circle mr-2"></i> יש לך משחק פעיל! לחץ כאן לחזור לשולחן</span>
+                        </div>
+                    )}
+
                     <div className="bg-slate-900 border-b border-slate-800 overflow-x-auto shrink-0 shadow-lg relative z-20">
                         <div className="flex px-4 max-w-6xl mx-auto gap-1">
                             {MAIN_CATEGORIES.map(cat => (
@@ -994,6 +997,7 @@
             const [dragData, setDragData] = useState(null); 
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null); 
+            const pressTimer = useRef(null);
 
             const calculateDeadwood = (currentRack) => {
                 return currentRack.reduce((sum, t) => {
@@ -1011,11 +1015,9 @@
                 const regulars = group.filter(t => t.val !== '☻');
                 if(regulars.length === 0) return true; // all jokers is valid
 
-                // Check Set (Same number, distinct colors)
                 const isSet = regulars.every(t => t.val === regulars[0].val) && new Set(regulars.map(t => t.color)).size === regulars.length;
                 if (isSet && group.length <= 4) return true;
 
-                // Check Run (Same color, consecutive)
                 const isRunColor = regulars.every(t => t.color === regulars[0].color);
                 if (isRunColor) {
                     const sorted = [...regulars].sort((a,b)=>a.val - b.val);
@@ -1039,30 +1041,53 @@
             }, [tableState?.lastChatBubble?.ts]);
 
             useEffect(() => {
-                const handlePointerMove = (e) => { if (dragData) setDragPos({ x: e.clientX, y: e.clientY }); };
+                const handlePointerMove = (e) => { 
+                    if (dragData) {
+                        setDragPos({ x: e.clientX, y: e.clientY }); 
+                        if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+                    }
+                };
                 const handlePointerUp = (e) => {
+                    if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; }
                     if (!dragData) return;
                     let newRack = [...rack]; let newBoard = board.map(g => [...g]); let newDiscard = [...discardPile];
                     
-                    if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
-                    else if (dragData.source === 'board') {
-                        newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1);
-                        if (newBoard[dragData.groupIndex].length === 0) newBoard.splice(dragData.groupIndex, 1);
-                    }
+                    if (dragData.type === 'single') {
+                        if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
+                        else if (dragData.source === 'board') {
+                            newBoard[dragData.groupIndex].splice(dragData.tileIndex, 1);
+                            if (newBoard[dragData.groupIndex].length === 0) newBoard.splice(dragData.groupIndex, 1);
+                        }
 
-                    if (hoverTarget && hoverTarget.startsWith('board-group-')) {
-                        const targetIdx = parseInt(hoverTarget.split('-')[2]);
-                        const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
-                        if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
-                    } else if (hoverTarget === 'board-new') {
-                        newBoard.push([dragData.tile]);
-                    } else if (hoverTarget === 'discard' && isGin) {
-                         newDiscard.push(dragData.tile);
-                         showToast("זרקת קלף - תורך הסתיים!", "info");
-                    } else if (hoverTarget === 'rack') {
-                        newRack.push(dragData.tile);
-                    } else if (dragData.source === 'rack') {
-                        newRack.splice(dragData.tileIndex, 0, dragData.tile); 
+                        if (hoverTarget && hoverTarget.startsWith('board-group-')) {
+                            const targetIdx = parseInt(hoverTarget.split('-')[2]);
+                            const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
+                            if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
+                        } else if (hoverTarget === 'board-new') {
+                            newBoard.push([dragData.tile]);
+                        } else if (hoverTarget === 'discard' && isGin) {
+                             newDiscard.push(dragData.tile);
+                             showToast("זרקת קלף - תורך הסתיים!", "info");
+                        } else if (hoverTarget === 'rack') {
+                            newRack.push(dragData.tile);
+                        } else if (dragData.source === 'rack') {
+                            newRack.splice(dragData.tileIndex, 0, dragData.tile); 
+                        }
+                    } else if (dragData.type === 'group') {
+                        const groupTiles = dragData.tiles;
+                        if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 1);
+
+                        if (hoverTarget && hoverTarget.startsWith('board-group-')) {
+                            const targetIdx = parseInt(hoverTarget.split('-')[2]);
+                            const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
+                            if (newBoard[actualIdx]) newBoard[actualIdx].push(...groupTiles); else newBoard.push([...groupTiles]);
+                        } else if (hoverTarget === 'board-new') {
+                            newBoard.push([...groupTiles]);
+                        } else if (hoverTarget === 'rack') {
+                            newRack.push(...groupTiles);
+                        } else if (dragData.source === 'board') {
+                            newBoard.splice(dragData.groupIndex, 0, groupTiles); 
+                        }
                     }
 
                     setRack(newRack); setBoard(newBoard); setDiscardPile(newDiscard);
@@ -1075,7 +1100,16 @@
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
-                setDragData({ tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
+                
+                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); 
+                setDragPos({ x: e.clientX, y: e.clientY });
+
+                if (source === 'board') {
+                    pressTimer.current = setTimeout(() => {
+                        if (navigator.vibrate) navigator.vibrate(50); 
+                        setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex });
+                    }, 500); 
+                }
             };
 
             const drawTile = (fromDiscard = false) => {
@@ -1161,36 +1195,35 @@
 
                     <div className="relative z-10 bg-slate-900 border-t-2 p-2 sm:p-4 pt-10 sm:pt-12 flex flex-col items-center justify-end pb-4 sm:pb-8 shrink-0" style={{ borderTopColor: hex }} onPointerEnter={() => setHoverTarget('rack')}>
                         
-                        <div className="absolute left-2 sm:left-12 top-[-20px] flex gap-2">
-                            {isGin ? (
-                                <>
-                                    <button onClick={handleKnock} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${deadwoodScore<=10?'bg-amber-600 hover:scale-105':'bg-slate-600 opacity-50 cursor-not-allowed'}`}>Knock</button>
-                                    <button onClick={handleGin} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${deadwoodScore===0?'bg-rose-600 hover:scale-105':'bg-slate-600 opacity-50 cursor-not-allowed'}`}>GIN!</button>
-                                </>
-                            ) : (
-                                <>
-                                    <button onClick={handleEndTurn} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg uppercase text-xs sm:text-sm transition-all ${isBoardValid?'hover:scale-105':'opacity-50 cursor-not-allowed'}`} style={{ backgroundColor: isBoardValid ? hex : '#475569' }}>סיום תור</button>
-                                    <button onClick={()=>drawTile(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold shadow-xl text-xs sm:text-sm transition-colors border border-slate-500">קופה ({deck})</button>
-                                </>
-                            )}
-                        </div>
-                        
-                        {/* Penalty Score Badge */}
-                        <div className="absolute right-4 top-[-15px] bg-slate-800 border border-slate-600 px-3 py-1 rounded-full shadow-lg flex items-center gap-2">
-                            <span className="text-[10px] text-slate-400 font-bold">עץ מת (חובה)</span>
-                            <span className={`font-black ${deadwoodScore===0?'text-emerald-400':deadwoodScore>30?'text-rose-400':'text-amber-400'}`}>{deadwoodScore}</span>
+                        <div className="absolute left-2 sm:left-4 top-[-25px] flex gap-2">
+                            {isGin && <button onClick={handleKnock} className="text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg bg-rose-600 hover:bg-rose-500 text-xs sm:text-base border border-rose-400">Knock</button>}
+                            {isGin && <button onClick={handleGin} className="text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg bg-blue-600 hover:bg-blue-500 text-xs sm:text-base border border-blue-400">GIN!</button>}
+                            {!isGin && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-black shadow-lg text-xs sm:text-base transition-all ${!isBoardValid ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:scale-105'}`} style={{ backgroundColor: hex }}>סיום תור</button>}
+                            <button onClick={()=>drawTile(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-xl font-bold shadow-xl border border-slate-500 flex items-center gap-2 text-xs sm:text-base"><i className="fa-solid fa-layer-group"></i> קופה</button>
                         </div>
 
-                        <div className="flex flex-wrap justify-center items-end gap-0.5 sm:gap-1 min-h-[100px] sm:min-h-[120px] bg-slate-800 px-2 sm:px-6 py-2 sm:py-4 rounded-t-2xl sm:rounded-t-3xl border-x-[8px] sm:border-x-[16px] border-b-[8px] sm:border-b-[12px] border-slate-900 w-[98%] max-w-5xl">
-                            {rack.map((t, idx) => (
-                                <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'rack', null, idx)} className={`w-10 h-14 sm:w-14 sm:h-20 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-4xl font-black mx-0.5 shadow-xl border-b-[6px] border-r-[2px] border-gray-400 cursor-grab active:cursor-grabbing hover:-translate-y-2 transition-transform ${dragData?.tile?.id === t.id ? 'opacity-30 scale-95' : ''}`} style={{ color: t.hex }}>{t.val}</div>
+                        <div className="absolute right-4 top-[-15px] bg-slate-950 border border-slate-700 px-3 py-1 rounded-lg shadow-lg flex flex-col items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">נק' חובה</span>
+                            <span className={`text-sm sm:text-lg font-black ${deadwoodScore === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{deadwoodScore}</span>
+                        </div>
+
+                        <div className="flex flex-wrap justify-center items-end gap-1 h-auto min-h-[90px] sm:min-h-[120px] bg-gradient-to-b from-slate-800 to-slate-950 px-2 sm:px-6 py-2 sm:py-4 rounded-t-3xl border-x-[10px] sm:border-x-[16px] border-b-[8px] sm:border-b-[12px] border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,1)] w-[98%] max-w-5xl relative">
+                            {rack.map((tile, index) => (
+                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`w-10 h-14 sm:w-16 sm:h-24 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-5xl font-black cursor-grab active:cursor-grabbing mx-0.5 shadow-lg border-b-[6px] border-r-[2px] sm:border-b-[8px] sm:border-r-[3px] border-gray-400 transition-all ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-2 sm:hover:-translate-y-4 hover:shadow-2xl opacity-100'}`} style={{ color: tile.hex, textShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>{tile.val}</div>
                             ))}
-                            {rack.length === 0 && <span className="text-slate-500 font-bold mb-4">התושבת ריקה</span>}
                         </div>
                     </div>
                     
-                    {dragData && (
+                    {dragData && dragData.type === 'single' && (
                         <div className="fixed pointer-events-none z-[9999] w-14 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-4xl font-black shadow-[0_20px_30px_rgba(0,0,0,0.8)] border-b-[6px] border-r-[2px] border-gray-400 scale-110" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.hex, textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>{dragData.tile.val}</div>
+                    )}
+                    
+                    {dragData && dragData.type === 'group' && (
+                        <div className="fixed pointer-events-none z-[9999] flex bg-black/40 p-2 rounded-2xl border-2 border-emerald-500 shadow-[0_20px_40px_rgba(16,185,129,0.5)] scale-105" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>
+                            {dragData.tiles.map(t => (
+                                <div key={t.id} className="w-10 h-14 sm:w-12 sm:h-16 bg-gray-200 rounded-lg flex items-center justify-center text-2xl sm:text-3xl font-black mx-0.5 border-b-4 border-r-2 border-gray-400" style={{ color: t.hex }}>{t.val}</div>
+                            ))}
+                        </div>
                     )}
                 </div>
             );
