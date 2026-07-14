@@ -118,6 +118,7 @@
             if (!amount && amount !== 0) return '0';
             if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'M';
             if (amount >= 1000) return (amount / 1000).toFixed(1) + 'K';
+            if (amount % 1 !== 0) return amount.toFixed(2);
             return amount.toLocaleString();
         };
 
@@ -138,7 +139,6 @@
             
             // Reference to track real currentView for stale closures
             const viewRef = useRef(currentView);
-
             useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
             const showToast = (msg, type = 'info') => {
@@ -346,12 +346,13 @@
 
         function LobbyView({ user, tables, onJoin, showToast }) {
             const [showCreate, setShowCreate] = useState(false);
-            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, buyIn: 1000 });
+            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             
             const handleCreate = async () => {
+                const calculatedBuyIn = newTableOptions.stakes * 100; // Auto calc buy-in
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), { 
                     type: 'rummikub', maxPlayers: newTableOptions.maxPlayers, 
-                    minBuyIn: newTableOptions.buyIn, stakes: newTableOptions.buyIn / 100, 
+                    minBuyIn: calculatedBuyIn, stakes: newTableOptions.stakes, 
                     players: {}, board: [], deck: [], phase: 'waiting', createdAt: Date.now()
                 });
                 setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
@@ -385,12 +386,18 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-1 block">דמי כניסה (Buy-In)</label>
-                                        <select value={newTableOptions.buyIn} onChange={(e)=>setNewTableOptions({...newTableOptions, buyIn: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
-                                            <option value={1000}>1,000 צ'יפים</option>
-                                            <option value={5000}>5,000 צ'יפים</option>
-                                            <option value={10000}>10,000 צ'יפים</option>
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">ערך נקודה (Stakes)</label>
+                                        <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                            <option value={0.10}>0.10 ₪ (10 אגורות)</option>
+                                            <option value={0.50}>0.50 ₪ (50 אגורות)</option>
+                                            <option value={1}>1.00 ₪</option>
+                                            <option value={2}>2.00 ₪</option>
+                                            <option value={5}>5.00 ₪</option>
+                                            <option value={10}>10.00 ₪</option>
                                         </select>
+                                        <p className="text-emerald-400 text-xs mt-2 font-bold">
+                                            * דמי כניסה מינימליים (רשת ביטחון): {formatMoney(newTableOptions.stakes * 100)} ₪
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
@@ -414,8 +421,8 @@
 
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <h3 className="text-xl font-black text-white tracking-wide">ערך נקודה: {t.stakes}</h3>
-                                            <p className="text-slate-400 text-sm font-bold mt-1">כניסה: <Coin amount={t.minBuyIn} /></p>
+                                            <h3 className="text-xl font-black text-white tracking-wide">ערך נקודה: {formatMoney(t.stakes)}</h3>
+                                            <p className="text-slate-400 text-sm font-bold mt-1 flex items-center gap-1">כניסה: <Coin amount={t.minBuyIn} /></p>
                                         </div>
                                         <div className={`px-3 py-1 rounded-full text-sm font-bold border flex items-center gap-1.5 ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
                                             <i className="fa-solid fa-users"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
@@ -423,7 +430,7 @@
                                     </div>
                                     
                                     {/* Avatar list */}
-                                    <div className="flex -space-x-2 mb-4 h-8">
+                                    <div className="flex -space-x-2 mb-6 h-8">
                                         {Object.values(t.players || {}).map((p, i) => (
                                             <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title={p.username}>
                                                 {p.username.substring(0,2).toUpperCase()}
@@ -431,10 +438,9 @@
                                         ))}
                                     </div>
 
-                                    <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
-                                        <div></div>
+                                    <div className="flex justify-end items-center">
                                         <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm group-hover:bg-blue-600 transition-colors shadow-md">
-                                            {t.phase === 'playing' ? 'צפה במשחק' : 'התיישב'}
+                                            {t.phase === 'playing' ? 'צפה במשחק' : 'היכנס'}
                                         </button>
                                     </div>
                                 </div>
@@ -476,7 +482,7 @@
 
             const handleTransfer = async (isDeposit) => {
                 if (!selectedUser) return showToast("בחר שחקן להעברה", "error");
-                const amount = parseInt(transferAmount);
+                const amount = parseFloat(transferAmount);
                 if (!amount || amount <= 0) return showToast("הזן סכום חוקי", "error");
 
                 try {
@@ -510,7 +516,6 @@
                 let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
                 csvContent += "שם שחקן,תפקיד,יתרת צ'יפים,סטטוס,רווח כולל,משחקים ששוחקו\n";
                 
-                // Currently filters user snapshot, scalable for transactions later
                 usersList.forEach(u => {
                     const stats = u.stats || {};
                     csvContent += `"${u.username}","${u.role}",${u.balance},"${u.status === 'approved' ? 'פעיל' : 'ממתין'}",${stats.totalProfit||0},${stats.gamesPlayed||0}\n`;
@@ -537,108 +542,105 @@
                                 <p className="text-sm font-bold text-slate-400">ניהול הרשאות, יתרות, סוכנים ודוחות.</p>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto bg-slate-900 p-3 rounded-2xl border border-slate-800 shadow-lg">
-                                <div className="flex gap-2">
-                                    <input type="date" value={startDate} onChange={(e)=>setStartDate(e.target.value)} className="bg-slate-800 text-xs font-bold text-white rounded-lg px-2 py-2 outline-none border border-slate-700" title="מתאריך" />
-                                    <span className="text-slate-500 self-center">-</span>
-                                    <input type="date" value={endDate} onChange={(e)=>setEndDate(e.target.value)} className="bg-slate-800 text-xs font-bold text-white rounded-lg px-2 py-2 outline-none border border-slate-700" title="עד תאריך" />
+                                <div className="flex items-center gap-2">
+                                    <label className="text-slate-400 text-xs font-bold">מ:</label>
+                                    <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="bg-slate-950 text-white border border-slate-700 rounded-lg p-2 outline-none text-sm"/>
                                 </div>
-                                <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2">
-                                    <i className="fa-solid fa-file-excel"></i> ייצוא אקסל
+                                <div className="flex items-center gap-2">
+                                    <label className="text-slate-400 text-xs font-bold">עד:</label>
+                                    <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="bg-slate-950 text-white border border-slate-700 rounded-lg p-2 outline-none text-sm"/>
+                                </div>
+                                <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition-colors flex items-center gap-2">
+                                    <i className="fa-solid fa-file-excel"></i> ייצוא
                                 </button>
                             </div>
                         </div>
 
                         {/* Top Stats */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div className="glass-panel rounded-3xl p-6 relative overflow-hidden">
-                                <h3 className="text-slate-400 text-sm font-bold mb-2 uppercase tracking-widest">היתרה האישית שלך</h3>
-                                <p className="text-3xl font-black text-white"><Coin amount={user.balance}/></p>
+                            <div className="glass-panel p-6 rounded-3xl border-l-4 border-l-blue-500">
+                                <h3 className="text-slate-400 text-sm font-bold mb-2">היתרה האישית שלך</h3>
+                                <p className="text-3xl font-black text-white"><Coin amount={user.balance} /></p>
                             </div>
-                            <div className="glass-panel rounded-3xl p-6 relative overflow-hidden">
-                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl"></div>
-                                <h3 className="text-slate-400 text-sm font-bold mb-2 uppercase tracking-widest">צ'יפים אצל שחקנים</h3>
-                                <p className="text-3xl font-black text-blue-400"><Coin amount={approvedPlayers.reduce((sum, p) => sum + (p.balance || 0), 0)}/></p>
+                            <div className="glass-panel p-6 rounded-3xl border-l-4 border-l-emerald-500">
+                                <h3 className="text-slate-400 text-sm font-bold mb-2">סך הכל אצל שחקנים</h3>
+                                <p className="text-3xl font-black text-white"><Coin amount={approvedPlayers.reduce((sum, p) => sum + (p.balance || 0), 0)} /></p>
                             </div>
-                            <div className="glass-panel rounded-3xl p-6 relative overflow-hidden">
-                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-amber-500/20 rounded-full blur-2xl"></div>
-                                <h3 className="text-slate-400 text-sm font-bold mb-2 uppercase tracking-widest">שחקנים פעילים</h3>
-                                <p className="text-3xl font-black text-amber-400">{approvedPlayers.length}</p>
+                            <div className="glass-panel p-6 rounded-3xl border-l-4 border-l-amber-500 relative overflow-hidden">
+                                <h3 className="text-slate-400 text-sm font-bold mb-2">ממתינים לאישור</h3>
+                                <p className="text-3xl font-black text-white">{pendingUsers.length}</p>
+                                {pendingUsers.length > 0 && <span className="absolute top-6 left-6 w-3 h-3 bg-amber-500 rounded-full animate-ping"></span>}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Banking Area */}
-                            <div className="glass-panel rounded-3xl p-6">
-                                <h3 className="font-black text-xl text-white mb-6 flex items-center gap-3">
-                                    <i className="fa-solid fa-money-bill-transfer text-emerald-400"></i> העברת צ'יפים
-                                </h3>
-                                <div className="space-y-5">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            
+                            {/* Transfer Section */}
+                            <div className="glass-panel p-6 rounded-3xl">
+                                <h3 className="font-bold text-white mb-6 text-lg border-b border-slate-700 pb-2">העברת צ'יפים מהירה</h3>
+                                <div className="space-y-4">
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-2 block">בחר סוכן/שחקן מתוך הרשימה:</label>
-                                        <select value={selectedUser} onChange={(e)=>setSelectedUser(e.target.value)} className="w-full bg-slate-900 text-white font-bold border border-slate-700 rounded-xl p-4 outline-none focus:border-blue-500">
-                                            <option value="">-- בחר שחקן --</option>
-                                            {approvedPlayers.map(p => (<option key={p.id} value={p.id}>{p.username} | {p.role} | יתרה: {formatMoney(p.balance)}</option>))}
+                                        <label className="text-slate-400 text-xs font-bold mb-1 block">בחר שחקן</label>
+                                        <select value={selectedUser} onChange={(e)=>setSelectedUser(e.target.value)} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                            <option value="">-- בחר מהרשימה --</option>
+                                            {approvedPlayers.map(p => (
+                                                <option key={p.id} value={p.id}>{p.username} (יתרה: {formatMoney(p.balance)})</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-2 block">סכום צ'יפים להעברה:</label>
-                                        <input type="number" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="0" className="w-full bg-slate-900 text-white font-black text-2xl border border-slate-700 rounded-xl p-4 outline-none focus:border-blue-500" />
+                                        <label className="text-slate-400 text-xs font-bold mb-1 block">סכום</label>
+                                        <input type="number" step="0.01" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="0.00" className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold" />
                                     </div>
-                                    <div className="flex gap-3 pt-2">
-                                        <button onClick={()=>handleTransfer(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black shadow-lg transition-transform hover:scale-[1.02]">
-                                            הפקד לשחקן <i className="fa-solid fa-arrow-down ml-2"></i>
+                                    <div className="flex gap-3 pt-4">
+                                        <button onClick={()=>handleTransfer(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors flex justify-center items-center gap-2">
+                                            הפקד <i className="fa-solid fa-arrow-down"></i>
                                         </button>
-                                        <button onClick={()=>handleTransfer(false)} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-4 rounded-xl font-black shadow-lg transition-transform hover:scale-[1.02]">
-                                            משוך משחקן <i className="fa-solid fa-arrow-up ml-2"></i>
+                                        <button onClick={()=>handleTransfer(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors flex justify-center items-center gap-2">
+                                            משוך <i className="fa-solid fa-arrow-up"></i>
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* User Management */}
-                            <div className="flex flex-col gap-6">
-                                <div className="glass-panel rounded-3xl p-6 min-h-[200px] flex flex-col">
-                                    <h3 className="font-black text-xl text-white mb-4 flex items-center gap-3">
-                                        <i className="fa-solid fa-user-clock text-amber-400"></i> בקשות הצטרפות 
-                                        {pendingUsers.length > 0 && <span className="bg-amber-500 text-black text-xs px-2 py-0.5 rounded-full">{pendingUsers.length}</span>}
-                                    </h3>
-                                    <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                                        {pendingUsers.length === 0 && <div className="text-center text-slate-500 py-6 font-bold">אין שחקנים בהמתנה.</div>}
-                                        {pendingUsers.map(u => (
-                                            <div key={u.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow-md">
-                                                <span className="font-bold text-white">{u.username}</span>
-                                                <button onClick={()=>handleApprove(u.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-bold shadow-lg text-sm">אשר כניסה</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
-                                    <div className="glass-panel rounded-3xl p-6 flex-1 flex flex-col">
-                                        <h3 className="font-black text-xl text-white mb-4 flex items-center gap-3">
-                                            <i className="fa-solid fa-sitemap text-purple-400"></i> ניהול הרשאות
-                                        </h3>
-                                        <div className="overflow-y-auto space-y-3 pr-2 max-h-[300px]">
-                                            {approvedPlayers.map(p => (
-                                                <div key={p.id} className="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center shadow-md">
-                                                    <div>
-                                                        <span className="font-bold text-white block">{p.username}</span>
-                                                        <span className="text-xs text-slate-400">יתרה: <Coin amount={p.balance}/></span>
-                                                    </div>
-                                                    <select 
-                                                        value={p.role} 
-                                                        onChange={(e)=>handleChangeRole(p.id, e.target.value)}
-                                                        className="bg-slate-800 text-xs font-bold text-white rounded-lg p-2 outline-none border border-slate-600"
-                                                    >
-                                                        <option value={ROLES.PLAYER}>שחקן</option>
-                                                        <option value={ROLES.AGENT}>סוכן</option>
-                                                        <option value={ROLES.MANAGER}>מנהל</option>
-                                                    </select>
-                                                </div>
-                                            ))}
+                            {/* Pending Approvals */}
+                            <div className="glass-panel p-6 rounded-3xl">
+                                <h3 className="font-bold text-white mb-6 text-lg border-b border-slate-700 pb-2 flex items-center justify-between">
+                                    בקשות הצטרפות
+                                    <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-1 rounded-full">{pendingUsers.length} ממתינים</span>
+                                </h3>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                    {pendingUsers.length === 0 && <div className="text-center text-slate-500 py-10 font-bold">אין בקשות בהמתנה.</div>}
+                                    {pendingUsers.map(u => (
+                                        <div key={u.id} className="bg-slate-900 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
+                                            <span className="font-bold text-white">{u.username}</span>
+                                            <button onClick={()=>handleApprove(u.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md">אשר קבלה</button>
                                         </div>
-                                    </div>
-                                )}
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Role Management */}
+                            <div className="glass-panel p-6 rounded-3xl">
+                                <h3 className="font-bold text-white mb-6 text-lg border-b border-slate-700 pb-2">הרשאות ותפקידים</h3>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                    {approvedPlayers.map(u => (
+                                        <div key={u.id} className="bg-slate-900 p-3 rounded-2xl border border-slate-700 flex flex-col gap-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold text-white text-sm">{u.username}</span>
+                                                <span className="text-xs text-slate-400">תפקיד נוכחי: {u.role}</span>
+                                            </div>
+                                            {user.role === ROLES.SUPER_ADMIN && (
+                                                <select value={u.role} onChange={(e) => handleChangeRole(u.id, e.target.value)} className="bg-slate-950 text-white border border-slate-700 rounded-lg p-2 outline-none text-xs">
+                                                    <option value={ROLES.PLAYER}>שחקן רגיל (Player)</option>
+                                                    <option value={ROLES.AGENT}>סוכן (Agent)</option>
+                                                    <option value={ROLES.MANAGER}>מנהל (Manager)</option>
+                                                    <option value={ROLES.CLUB_OWNER}>בעלים (Club Owner)</option>
+                                                </select>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -646,7 +648,7 @@
             );
         }
 
-        function RummyTable({ tableDocId, user, onLeave, showToast, tablesDB }) {
+        function RummyTable({ tableDocId, user, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
             
@@ -661,17 +663,24 @@
             const [timeLeft, setTimeLeft] = useState(60);
             const [showVictory, setShowVictory] = useState(false);
             const longPressTimer = useRef(null);
-            const tickSynth = useRef(null);
+            const synthRef = useRef(null);
 
+            // Fetch table from Firebase
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
-                    if(doc.exists()) { setTableState({id: doc.id, ...doc.data()}); setLoading(false); } 
-                    else { showToast("השולחן נסגר", "error"); onLeave(); }
+                    if(doc.exists()) {
+                        setTableState({id: doc.id, ...doc.data()});
+                        setLoading(false);
+                    } else { 
+                        showToast("השולחן נסגר", "error"); 
+                        onLeave(); 
+                    }
                 });
                 return () => unsub();
             }, [tableDocId]);
 
+            // Sync Local state with Firebase state
             useEffect(() => {
                 if(!tableState) return;
                 if (!dragData) {
@@ -692,27 +701,26 @@
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
-                    
-                    // Initialize Tone.js synth on first use
-                    if (window.Tone && !tickSynth.current) {
-                        tickSynth.current = new Tone.MembraneSynth().toDestination();
-                        tickSynth.current.volume.value = -5; // Subtle but noticeable tick
-                    }
-
                     interval = setInterval(() => {
                         const elapsed = Math.floor((Date.now() - tableState.turnStartedAt) / 1000);
                         const remaining = Math.max(0, 60 - elapsed);
                         setTimeLeft(remaining);
+                        
+                        // Play ticking sound in the last 5 seconds if it's my turn
+                        if (remaining <= 5 && remaining > 0 && tableState.currentTurn === user.uid) {
+                            try {
+                                if (Tone.context.state !== 'running') Tone.context.resume();
+                                if (!synthRef.current) {
+                                    synthRef.current = new Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
+                                    synthRef.current.volume.value = -10;
+                                }
+                                synthRef.current.triggerAttackRelease("E6", "0.05");
+                            } catch(e) {}
+                        }
 
-                        // Time warning sound logic
-                        if (tableState.currentTurn === user.uid) {
-                            if (remaining <= 5 && remaining > 0) {
-                                if (Tone && Tone.context.state !== 'running') Tone.context.resume();
-                                tickSynth.current?.triggerAttackRelease("C3", "32n");
-                            }
-                            if (remaining === 0) {
-                                clearInterval(interval); handleTimeoutPenalty();
-                            }
+                        if (remaining === 0 && tableState.currentTurn === user.uid) {
+                            clearInterval(interval);
+                            handleTimeoutPenalty();
                         }
                     }, 1000);
                 }
@@ -724,10 +732,8 @@
                 const jCount = group.filter(t => t.val === '☻').length;
                 const regulars = group.filter(t => t.val !== '☻');
                 if(regulars.length === 0) return true;
-                
                 const isSet = regulars.every(t => t.val === regulars[0].val) && new Set(regulars.map(t => t.color)).size === regulars.length;
                 if (isSet && group.length <= 4) return true;
-                
                 const isRunColor = regulars.every(t => t.color === regulars[0].color);
                 if (isRunColor) {
                     const sorted = [...regulars].sort((a,b) => a.val - b.val);
@@ -745,9 +751,8 @@
                 if (board.length === 0) return true; 
                 return board.every(g => validateGroup(g)); 
             }, [board]);
-            
-            const deadwoodScore = rack.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
 
+            // Unified Drag & Drop (Touch/Mouse)
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { setDragPos({ x: e.clientX, y: e.clientY }); if(longPressTimer.current) clearTimeout(longPressTimer.current); } 
@@ -766,14 +771,14 @@
                                 const left = grp.slice(0, tIdx); const right = grp.slice(tIdx + 1);
                                 newBoard.splice(dragData.groupIndex, 1, left, right);
                             } else {
-                                grp.splice(tIdx, 1); if (grp.length === 0) newBoard.splice(dragData.groupIndex, 1);
+                                grp.splice(tIdx, 1);
+                                if (grp.length === 0) newBoard.splice(dragData.groupIndex, 1);
                             }
                         }
 
                         if (hoverTarget && hoverTarget.startsWith('board-tile-')) {
                             const [,,targetGroupIdx, targetTileIdx] = hoverTarget.split('-');
                             const actualGIdx = (dragData.source === 'board' && dragData.groupIndex < targetGroupIdx && newBoard.length < board.length) ? targetGroupIdx - 1 : targetGroupIdx;
-                            
                             if (newBoard[actualGIdx] && newBoard[actualGIdx][targetTileIdx]?.val === '☻') {
                                 let tempGroup = [...newBoard[actualGIdx]]; tempGroup[targetTileIdx] = dragData.tile;
                                 if (validateGroup(tempGroup)) {
@@ -814,9 +819,10 @@
                 if (tableState.currentTurn !== user.uid) return showToast("המתן לתורך", "error");
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
                 
-                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); 
-                setDragPos({ x: e.clientX, y: e.clientY });
-                
+                // Init audio context on first user interaction if needed
+                if (Tone.context.state !== 'running') Tone.context.resume();
+
+                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
                 if (source === 'board') {
                     longPressTimer.current = setTimeout(() => {
                         if (navigator.vibrate) navigator.vibrate(20);
@@ -834,11 +840,15 @@
             };
 
             const handleSit = async () => {
-                // Safety logic: Check if user is already seated at another table
-                const isAlreadySeated = tablesDB.some(tbl => tbl.id !== tableState.id && tbl.players && tbl.players[user.uid]);
-                if(isAlreadySeated) {
-                    return showToast("אתה כבר יושב בשולחן אחר! קום ממנו קודם כדי להצטרף לכאן.", "error");
-                }
+                // Check if already seated somewhere else
+                const activeTablesSnap = await window.fb.getDocs(window.fb.collection(window.fb.db, "tables"));
+                let alreadySeated = false;
+                activeTablesSnap.forEach(doc => {
+                    const tData = doc.data();
+                    if (tData.players && tData.players[user.uid]) alreadySeated = true;
+                });
+                
+                if (alreadySeated) return showToast("אתה כבר יושב בשולחן אחר. קום ממנו קודם.", "error");
 
                 try { 
                     const buyInAmount = Number(tableState.minBuyIn);
@@ -847,12 +857,9 @@
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                         const uSnap = await t.get(uRef);
                         if (uSnap.data().balance < buyInAmount) throw "אין לך מספיק יתרה לכניסה.";
-                        
                         t.update(uRef, { balance: uSnap.data().balance - buyInAmount });
                         t.update(tblRef, { [`players.${user.uid}`]: { username: uSnap.data().username, cards: [], hasDropped: false, stack: buyInAmount } });
                     });
-                    
-                    showToast("התיישבת בהצלחה והכנסת צ'יפים לשולחן!", "success"); 
                     
                     const currentPlayersCount = Object.keys(tableState.players || {}).length + 1; 
                     if (currentPlayersCount === Number(tableState.maxPlayers)) {
@@ -861,35 +868,9 @@
                             const uids = Object.keys(np);
                             uids.forEach(uid => { np[uid].cards = d.splice(0, 14); });
                             window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { phase: 'playing', deck: d, board: [], players: np, currentTurn: uids[0], turnStartedAt: Date.now() });
-                        }, 1500);
+                        }, 1500); 
                     }
-                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בישיבה", "error"); }
-            };
-
-            const handleLeaveSafely = async () => {
-                if (!isSeated) { onLeave(); return; }
-                if (isPlaying) { showToast("אי אפשר לקום באמצע יד חיה!", "error"); return; }
-                
-                try {
-                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
-                        const userRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const tableRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const userSnap = await transaction.get(userRef);
-                        const tableSnap = await transaction.get(tableRef);
-                        
-                        const uData = userSnap.data();
-                        const tData = tableSnap.data();
-                        const myStack = tData.players[user.uid]?.stack || 0;
-                        
-                        let newPlayers = { ...tData.players };
-                        delete newPlayers[user.uid];
-                        
-                        transaction.update(userRef, { balance: uData.balance + myStack });
-                        transaction.update(tableRef, { players: newPlayers });
-                    });
-                    showToast("הצ'יפים חזרו לחשבון. יצאת מהשולחן.", "success");
-                    onLeave();
-                } catch(e) { showToast("שגיאה ביציאה", "error"); }
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
 
             const handleTimeoutPenalty = async () => {
@@ -902,7 +883,7 @@
             };
 
             const handleDraw = async () => {
-                if (!isMyTurn) return;
+                if (tableState.currentTurn !== user.uid) return;
                 const newDeck = [...(tableState.deck || [])];
                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                 const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
@@ -912,7 +893,7 @@
             };
             
             const handleEndTurn = async () => {
-                if (!isMyTurn || !isBoardValid) return;
+                if (tableState.currentTurn !== user.uid || !isBoardValid) return;
                 
                 const isFirstDrop = !tableState.players[user.uid].hasDropped;
                 if (isFirstDrop) {
@@ -920,62 +901,58 @@
                     const droppedTiles = startTurnRack.filter(t => !currentRackIds.includes(t.id));
                     if (droppedTiles.length > 0) {
                         const sum = droppedTiles.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
-                        if (sum < 30) return showToast(`חובה 30 נקודות להורדה ראשונה.`, "error");
-                    } else return showToast("חובה למשוך קופה או להוריד אבנים.", "error");
+                        if (sum < 30) return showToast(`יש צורך ב-30 נקודות לפחות להורדה ראשונה.`, "error");
+                    } else return showToast("לא ירדת, חובה למשוך קופה.", "error");
                 }
 
-                if (rack.length === 0) {
-                    showToast("ניצחון! 🏆 מחשב צ'יפים...", "success");
-                    try {
-                        await window.fb.runTransaction(window.fb.db, async (t) => {
-                            const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                            const tblSnap = await t.get(tblRef);
-                            const tData = tblSnap.data();
-                            
-                            const losers = Object.entries(tData.players).filter(([uid]) => uid !== user.uid);
-                            let totalPot = 0; 
-                            const updates = {};
-                            
-                            for (const [uid, pData] of losers) {
-                                 let dw = pData.cards.reduce((s, tile) => s + (tile.val === '☻' ? 30 : tile.val), 0);
-                                 let penalty = Math.min(dw * tData.stakes, pData.stack); 
-                                 updates[`players.${uid}.stack`] = pData.stack - penalty;
-                                 totalPot += penalty;
+                if (rack.length === 0) { // WIN & SETTLEMENT
+                    const losers = Object.entries(tableState.players).filter(([uid]) => uid !== user.uid);
+                    let totalPot = 0; const updates = {};
+                    
+                    losers.forEach(([uid, pData]) => {
+                         let dw = pData.cards.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
+                         let penalty = Math.min(dw * tableState.stakes, pData.stack); 
+                         updates[`players.${uid}.stack`] = pData.stack - penalty;
+                         totalPot += penalty;
+                         // Update Loser Stats
+                         updates[`stats.${uid}`] = { incrementGames: 1, profit: -penalty };
+                    });
+                    
+                    const rake = totalPot * 0.06; // 6% Rake (can result in decimals)
+                    const winnerProfit = totalPot - rake;
+                    
+                    updates[`players.${user.uid}.stack`] = tableState.players[user.uid].stack + winnerProfit;
+                    updates[`players.${user.uid}.cards`] = []; 
+                    updates.phase = 'showdown'; 
+                    updates.board = board; 
+                    updates.winner = user.uid; 
+                    updates.lastResults = { winnerProfit, rake, totalPot };
+                    
+                    // Update Winner Stats
+                    updates[`stats.${user.uid}`] = { incrementGames: 1, incrementWins: 1, profit: winnerProfit };
 
-                                 const lRef = window.fb.doc(window.fb.db, "users", uid);
-                                 const lSnap = await t.get(lRef);
-                                 const lStats = lSnap.data().stats || {gamesPlayed:0, gamesWon:0, totalProfit:0};
-                                 t.update(lRef, { stats: { ...lStats, gamesPlayed: lStats.gamesPlayed + 1, totalProfit: lStats.totalProfit - penalty }});
+                    // Execute updates in Firebase safely
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        t.update(tblRef, updates);
+                        
+                        // Update individual user stats
+                        for (const [uid, pData] of Object.entries(tableState.players)) {
+                            const uRef = window.fb.doc(window.fb.db, "users", uid);
+                            const uSnap = await t.get(uRef);
+                            if (uSnap.exists()) {
+                                const currentStats = uSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                                const statUpdates = updates[`stats.${uid}`] || { incrementGames: 1, profit: 0 };
+                                t.update(uRef, {
+                                    'stats.gamesPlayed': currentStats.gamesPlayed + (statUpdates.incrementGames || 0),
+                                    'stats.gamesWon': currentStats.gamesWon + (statUpdates.incrementWins || 0),
+                                    'stats.totalProfit': currentStats.totalProfit + statUpdates.profit
+                                });
                             }
-                            
-                            const rake = Math.floor(totalPot * 0.06); 
-                            const winnerProfit = totalPot - rake;
-                            
-                            updates[`players.${user.uid}.stack`] = tData.players[user.uid].stack + winnerProfit;
-                            updates[`players.${user.uid}.cards`] = []; 
-                            updates.phase = 'showdown'; 
-                            updates.board = board; 
-                            updates.winner = user.uid; 
-                            updates.lastResults = { winnerProfit, rake, totalPot };
-                            
-                            t.update(tblRef, updates);
+                        }
+                    });
 
-                            const wRef = window.fb.doc(window.fb.db, "users", user.uid);
-                            const wSnap = await t.get(wRef);
-                            const wStats = wSnap.data().stats || {gamesPlayed:0, gamesWon:0, totalProfit:0};
-                            t.update(wRef, { stats: { gamesPlayed: wStats.gamesPlayed + 1, gamesWon: wStats.gamesWon + 1, totalProfit: wStats.totalProfit + winnerProfit }});
-                            
-                            setTimeout(async () => {
-                                const newTblSnap = await window.fb.getDoc(tblRef);
-                                const currentTData = newTblSnap.data();
-                                const d = generateDeck(); 
-                                const np = { ...currentTData.players }; 
-                                const uids = Object.keys(np);
-                                uids.forEach(uid => { np[uid].cards = d.splice(0, 14); np[uid].hasDropped = false; });
-                                window.fb.updateDoc(tblRef, { phase: 'playing', deck: d, board: [], players: np, currentTurn: user.uid, turnStartedAt: Date.now() });
-                            }, 8000);
-                        });
-                    } catch(e) { showToast("שגיאה בסליקה.", "error"); }
+                    setTimeout(() => { showToast("המשחק יתחיל מחדש בעתיד"); }, 5000); 
                     return;
                 }
 
@@ -984,10 +961,23 @@
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now() });
             };
 
-            const sortRackNumbers = () => setRack([...rack].sort((a,b) => (a.val==='☻'?1:(b.val==='☻'?-1:a.val-b.val))));
-            const sortRackColors = () => setRack([...rack].sort((a,b) => (a.color>b.color?1:(a.color<b.color?-1:a.val-b.val))));
+            const handleLeave = async () => {
+                if (!tableState?.players?.[user.uid]) { onLeave(); return; }
+                if (tableState.phase === 'playing') { showToast("אי אפשר לקום באמצע יד חיה", "error"); return; }
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const myStack = (await t.get(tblRef)).data().players[user.uid]?.stack || 0;
+                        let newP = { ...(await t.get(tblRef)).data().players }; delete newP[user.uid];
+                        t.update(uRef, { balance: (await t.get(uRef)).data().balance + myStack });
+                        t.update(tblRef, { players: newP });
+                    });
+                    onLeave();
+                } catch(e) {}
+            };
 
-            if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+            if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
 
             const isSeated = tableState?.players?.[user.uid] !== undefined;
             const isPlaying = tableState.phase === 'playing';
@@ -995,124 +985,114 @@
             const opponents = Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid);
 
             return (
-                <div className="h-full w-full flex flex-col relative select-none bg-slate-950" style={{ touchAction: 'none' }}>
+                <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
                     
-                    <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900 border-b border-slate-800 shrink-0 shadow-lg">
-                        <button onClick={handleLeaveSafely} className="text-white bg-slate-800 px-4 py-2 rounded-lg font-bold border border-slate-700 hover:bg-slate-700 transition">
-                            <i className="fa-solid fa-arrow-right ml-2"></i> {isSeated ? 'קום מהשולחן' : 'חזור ללובי'}
-                        </button>
-                        <h2 className="text-xl font-black text-white tracking-widest font-rubik">Rummikub</h2>
-                        <div className="flex gap-2">
-                            {isSeated && <div className="text-emerald-400 font-bold bg-slate-950 border border-emerald-900 px-3 py-1.5 rounded-lg">קופה שלי: <Coin amount={tableState.players[user.uid]?.stack}/></div>}
-                            <div className="text-amber-400 font-bold bg-slate-950 border border-amber-900 px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm">
-                                <i className="fa-solid fa-coins"></i> נקודה: {tableState.stakes}
-                            </div>
+                    {/* Minimalist Header */}
+                    <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
+                        <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? 'קום מהשולחן' : 'חזור ללובי'}</button>
+                        <div className="flex flex-col items-center">
+                            <span className="text-sm font-bold text-slate-200 opacity-80 tracking-widest uppercase">רמיקוב</span>
+                            <span className="text-[10px] text-emerald-400 font-semibold">ערך נקודה: {formatMoney(tableState.stakes)}</span>
+                        </div>
+                        <div className="w-[80px] text-left">
+                            {isSeated && <div className="text-emerald-400 text-xs font-bold bg-slate-950/50 px-2 py-1 rounded inline-block border border-slate-800"><Coin amount={tableState.players[user.uid]?.stack}/></div>}
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 flex gap-6 sm:gap-10 z-10">
+                    {}
+                    <div className="flex-1 relative flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
+                        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-4 sm:gap-8 z-10 opacity-70">
                             {opponents.map(([uid, p]) => (
                                 <div key={uid} className="flex flex-col items-center">
-                                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'border-emerald-400 shadow-[0_0_20px_#10b981] scale-110':'border-slate-600 opacity-70'}`}>
-                                        <i className="fa-solid fa-user text-slate-300"></i>
+                                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-slate-800 transition-all ${tableState.currentTurn===uid?'ring-2 ring-emerald-500 scale-110 opacity-100':'ring-1 ring-slate-600'}`}>
+                                        <i className="fa-solid fa-user text-slate-400 text-sm"></i>
                                     </div>
-                                    <span className="text-xs font-bold text-white mt-1 bg-slate-900 px-3 py-0.5 rounded-full border border-slate-700">{p.username}</span>
-                                    <span className="text-[10px] text-emerald-400 font-black bg-slate-950 px-2 rounded-full mt-1 border border-emerald-900">{p.cards?.length||0} אבנים</span>
+                                    <span className="text-[10px] font-medium text-slate-300 mt-1">{p.username}</span>
+                                    <span className="text-[9px] text-slate-500">{p.cards?.length||0} אבנים</span>
                                 </div>
                             ))}
                         </div>
                         
                         {!isSeated && tableState.phase === 'waiting' && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-3xl">
-                                <button onClick={handleSit} className="bg-emerald-600 text-white px-8 py-4 rounded-xl font-black text-xl shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-105 transition-transform">
+                            <div className="absolute inset-0 z-20 flex items-center justify-center">
+                                <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-xl transition-transform hover:scale-105">
                                     התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})
                                 </button>
                             </div>
                         )}
 
                         {showVictory && (
-                             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md rounded-3xl animate-fade-in">
-                                 <div className="glass-panel border-2 border-gold-500 p-8 rounded-3xl shadow-[0_0_50px_rgba(234,179,8,0.4)] text-center max-w-sm w-full">
-                                     <i className="fa-solid fa-trophy text-6xl text-gold-400 mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]"></i>
-                                     <h2 className="text-3xl font-black text-white mb-2">{tableState.players[tableState.winner]?.username} ניצח!</h2>
-                                     <div className="bg-slate-900 rounded-xl p-4 my-6 text-right border border-slate-700">
-                                         <p className="text-emerald-400 font-bold text-lg mb-2 flex justify-between"><span>רווח נקי:</span> <span><Coin amount={tableState.lastResults?.winnerProfit}/></span></p>
-                                         <p className="text-slate-400 text-sm flex justify-between"><span>עמלת מועדון (Rake):</span> <span><Coin amount={tableState.lastResults?.rake}/></span></p>
-                                         <p className="text-slate-500 text-xs flex justify-between mt-1"><span>סה"כ תשלומים:</span> <span><Coin amount={tableState.lastResults?.totalPot}/></span></p>
+                             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in">
+                                 <div className="bg-slate-900 border border-emerald-500/50 p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm">
+                                     <i className="fa-solid fa-award text-4xl text-amber-400 mb-3 drop-shadow-md"></i>
+                                     <h2 className="text-xl font-bold text-white mb-4">{tableState.players[tableState.winner]?.username} ניצח!</h2>
+                                     <div className="bg-slate-950 rounded-xl p-4 text-right mb-4">
+                                         <p className="text-slate-300 text-sm mb-1 flex justify-between"><span>רווח נקי:</span> <span className="font-bold text-emerald-400"><Coin amount={tableState.lastResults?.winnerProfit}/></span></p>
+                                         <p className="text-slate-500 text-xs flex justify-between"><span>עמלת מועדון:</span> <span><Coin amount={tableState.lastResults?.rake}/></span></p>
                                      </div>
-                                     <p className="text-amber-500 font-bold animate-pulse">המשחק הבא מתחיל בקרוב...</p>
                                  </div>
                              </div>
                         )}
                         
                         {isPlaying && (
-                            <div className="mt-24 flex flex-wrap gap-4 items-start pb-24 overflow-y-auto w-full h-full p-2 scrollbar-hide">
+                            <div className="mt-16 flex flex-wrap gap-4 items-start p-2 pb-24 overflow-y-auto h-full scrollbar-hide">
                                 {board.map((group, gIdx) => (
-                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-slate-900/50 p-2 rounded-xl border transition-all duration-200 ${hoverTarget === `board-group-${gIdx}` ? 'border-amber-400 shadow-[0_0_20px_#f59e0b] scale-105' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800 shadow-md'}`}>
+                                    <div key={gIdx} onPointerEnter={(e) => { e.stopPropagation(); setHoverTarget(`board-group-${gIdx}`); }} className={`flex bg-slate-900/30 p-1.5 rounded-lg border transition-colors ${hoverTarget === `board-group-${gIdx}` ? 'border-emerald-500/50 bg-emerald-500/10' : !validateGroup(group) ? 'board-invalid-group' : 'border-slate-800'}`}>
                                         {group.map((t, tIdx) => (
                                             <div key={t.id} 
                                                  onPointerEnter={(e)=>{e.stopPropagation(); setHoverTarget(`board-tile-${gIdx}-${tIdx}`);}}
                                                  onPointerDown={(e) => startDrag(e, t, 'board', gIdx, tIdx)} 
-                                                 className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl font-black mx-0.5 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
+                                                 className={`rummy-tile w-9 h-12 sm:w-11 sm:h-16 flex items-center justify-center text-xl sm:text-2xl mx-[1px] ${dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
                                                  style={{ color: t.color }}>{t.val}</div>
                                         ))}
                                     </div>
                                 ))}
-                                {board.length === 0 && <div className="w-full text-center mt-10 text-slate-700 font-black text-2xl pointer-events-none">הלוח ריק. ממתינים למהלך.</div>}
+                                {board.length === 0 && <div className="w-full text-center mt-20 text-slate-700 text-lg font-medium pointer-events-none">הלוח ריק. ממתינים למהלך ראשון.</div>}
                             </div>
                         )}
                     </div>
 
-                    <div className="relative z-10 p-2 sm:p-4 flex flex-col items-center justify-end pb-4 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
-                        
+                    <div className="relative z-10 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
                         {isSeated && isPlaying && (
-                            <div className="absolute left-4 top-[-40px] flex gap-2 z-30">
-                                {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-5 py-2.5 rounded-xl font-black shadow-lg text-white transition-all ${!isBoardValid ? 'bg-slate-600 opacity-50 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-1'}`}>סיום תור</button>}
-                                {isMyTurn && <button onClick={handleDraw} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg hover:-translate-y-1 transition-transform">קופה ({tableState.deck?.length})</button>}
-                                {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900 text-rose-200 px-4 py-2.5 rounded-xl font-bold shadow-lg border border-rose-700 hover:-translate-y-1 transition-transform" title="איפוס לוח"><i className="fa-solid fa-rotate-left"></i></button>}
+                            <div className="absolute left-2 right-2 top-[-45px] flex justify-between items-end z-30 pointer-events-none">
+                                <div className="flex gap-2 pointer-events-auto">
+                                    {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-2.5 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
+                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
+                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2.5 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-rotate-left"></i></button>}
+                                </div>
+                                
+                                <div className="flex gap-2 pointer-events-auto items-center">
+                                   {isMyTurn && (
+                                       <div className={`bg-slate-900 rounded-full w-10 h-10 flex items-center justify-center border relative shadow-lg ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_15px_#f43f5e] animate-pulse' : 'border-emerald-500/50'}`}>
+                                           <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#1e293b" strokeWidth="3"></circle><circle cx="50%" cy="50%" r="45%" fill="none" stroke={timeLeft <= 5 ? '#f43f5e' : '#10b981'} strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - (100 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
+                                           <span className={`font-bold text-xs z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
+                                       </div>
+                                   )}
+                                   <div className="flex gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 shadow-md">
+                                       <button onClick={()=>setRack([...rack].sort((a,b)=>(a.val==='☻'?1:(b.val==='☻'?-1:a.val-b.val))))} className="bg-slate-800 text-slate-400 w-8 h-8 rounded font-medium text-[10px] hover:text-white transition-colors">1-9</button>
+                                       <button onClick={()=>setRack([...rack].sort((a,b)=>(a.color>b.color?1:(a.color<b.color?-1:a.val-b.val))))} className="bg-slate-800 text-slate-400 w-8 h-8 rounded font-medium text-[10px] hover:text-white transition-colors flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></button>
+                                   </div>
+                                </div>
                             </div>
                         )}
 
-                        <div className="absolute right-4 top-[-40px] flex gap-2 z-30">
-                           {isMyTurn && (
-                               <div className={`bg-slate-900 rounded-full w-12 h-12 flex items-center justify-center border-2 relative transition-all ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_20px_#f43f5e] animate-pulse' : 'border-emerald-400 shadow-[0_0_15px_#10b981]'}`}>
-                                   <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="24" cy="24" r="22" fill="none" stroke="#334155" strokeWidth="4"></circle><circle cx="24" cy="24" r="22" fill="none" stroke={timeLeft <= 5 ? '#f43f5e' : '#10b981'} strokeWidth="4" strokeDasharray="138" strokeDashoffset={138 - (138 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
-                                   <span className={`font-black text-sm z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
-                               </div>
-                           )}
-                           {isSeated && (
-                               <div className="flex gap-1">
-                                   <button onClick={sortRackNumbers} className="bg-slate-800 text-slate-300 w-10 h-10 rounded-xl font-bold border border-slate-700 text-xs hover:bg-slate-700">1-9</button>
-                                   <button onClick={sortRackColors} className="bg-slate-800 text-slate-300 w-10 h-10 rounded-xl font-bold border border-slate-700 text-xs hover:bg-slate-700 flex"><span className="text-blue-500">■</span><span className="text-red-500">■</span></button>
-                               </div>
-                           )}
-                           <div className="bg-slate-900/90 px-3 py-1 rounded-xl flex flex-col items-center border border-slate-700 shadow-lg backdrop-blur-md">
-                               <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">עונשין</span>
-                               <span className={`text-sm font-black ${deadwoodScore===0?'text-emerald-400':'text-rose-400'}`}>{deadwoodScore}</span>
-                           </div>
-                        </div>
+                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center backdrop-blur-[1px]"><span className="text-white/80 font-medium text-sm">המתן לתורך...</span></div>}
 
-                        {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/60 z-20 flex items-center justify-center backdrop-blur-sm rounded-t-[20px]"><span className="text-white font-black text-xl shadow-black drop-shadow-2xl animate-pulse tracking-widest uppercase">המתן לתורך...</span></div>}
-
-                        <div className="flex flex-wrap justify-center items-end gap-1 h-auto min-h-[130px] px-4 py-6 w-[98%] max-w-5xl relative z-10 rummy-rack-wood">
-                            {rack.map((tile, index) => (
-                                <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl sm:text-4xl font-black cursor-grab active:cursor-grabbing transition-transform z-10 ${dragData?.tile?.id === tile.id ? 'opacity-20 scale-95' : 'hover:-translate-y-4 hover:shadow-[0_20px_25px_rgba(0,0,0,0.8)]'}`} style={{ color: tile.color }}>{tile.val}</div>
-                            ))}
-                            {rack.length === 0 && isPlaying && <div className="text-amber-900/50 font-bold text-xl select-none">התושבת ריקה</div>}
+                        <div className="bg-slate-950 px-2 sm:px-4 pt-8 pb-4">
+                            <div className="flex flex-wrap justify-center items-end gap-0.5 min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood">
+                                {rack.map((tile, index) => (
+                                    <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-3xl mx-[1px] z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>{tile.val}</div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     
                     {dragData && dragData.type === 'single' && (
-                        <div className="fixed pointer-events-none z-[9999] rummy-tile w-14 h-20 sm:w-16 sm:h-24 flex items-center justify-center text-4xl font-black scale-110 shadow-[0_30px_50px_rgba(0,0,0,0.9)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(5deg)', color: dragData.tile.color }}>
-                            {dragData.tile.val}
-                        </div>
+                        <div className="fixed pointer-events-none z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color }}>{dragData.tile.val}</div>
                     )}
                     {dragData && dragData.type === 'group' && (
-                        <div className="fixed pointer-events-none z-[9999] flex bg-black/40 p-2 rounded-2xl border-2 border-emerald-400 shadow-[0_30px_60px_rgba(0,0,0,0.9)] scale-110 backdrop-blur-md" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>
-                            {dragData.tiles.map(t => (
-                                <div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl font-black mx-0.5" style={{ color: t.color }}>{t.val}</div>
-                            ))}
+                        <div className="fixed pointer-events-none z-[9999] flex bg-slate-900/60 p-1.5 rounded-xl border border-emerald-500/50 shadow-2xl scale-110 backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%)' }}>
+                            {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-9 h-12 flex items-center justify-center text-xl mx-[1px]" style={{ color: t.color }}>{t.val}</div>))}
                         </div>
                     )}
                 </div>
