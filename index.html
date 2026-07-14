@@ -88,6 +88,7 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -413,7 +414,7 @@
 
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <h3 className="text-2xl font-black text-white tracking-wide">Stakes {t.stakes}</h3>
+                                            <h3 className="text-xl font-black text-white tracking-wide">ערך נקודה: {t.stakes}</h3>
                                             <p className="text-slate-400 text-sm font-bold mt-1">כניסה: <Coin amount={t.minBuyIn} /></p>
                                         </div>
                                         <div className={`px-3 py-1 rounded-full text-sm font-bold border flex items-center gap-1.5 ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
@@ -431,7 +432,7 @@
                                     </div>
 
                                     <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
-                                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Rake: 6%</span>
+                                        <div></div>
                                         <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm group-hover:bg-blue-600 transition-colors shadow-md">
                                             {t.phase === 'playing' ? 'צפה במשחק' : 'התיישב'}
                                         </button>
@@ -660,6 +661,7 @@
             const [timeLeft, setTimeLeft] = useState(60);
             const [showVictory, setShowVictory] = useState(false);
             const longPressTimer = useRef(null);
+            const tickSynth = useRef(null);
 
             useEffect(() => {
                 if(!tableDocId) return;
@@ -690,12 +692,27 @@
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
+                    
+                    // Initialize Tone.js synth on first use
+                    if (window.Tone && !tickSynth.current) {
+                        tickSynth.current = new Tone.MembraneSynth().toDestination();
+                        tickSynth.current.volume.value = -5; // Subtle but noticeable tick
+                    }
+
                     interval = setInterval(() => {
                         const elapsed = Math.floor((Date.now() - tableState.turnStartedAt) / 1000);
                         const remaining = Math.max(0, 60 - elapsed);
                         setTimeLeft(remaining);
-                        if (remaining === 0 && tableState.currentTurn === user.uid) {
-                            clearInterval(interval); handleTimeoutPenalty();
+
+                        // Time warning sound logic
+                        if (tableState.currentTurn === user.uid) {
+                            if (remaining <= 5 && remaining > 0) {
+                                if (Tone && Tone.context.state !== 'running') Tone.context.resume();
+                                tickSynth.current?.triggerAttackRelease("C3", "32n");
+                            }
+                            if (remaining === 0) {
+                                clearInterval(interval); handleTimeoutPenalty();
+                            }
                         }
                     }, 1000);
                 }
@@ -987,8 +1004,8 @@
                         <h2 className="text-xl font-black text-white tracking-widest font-rubik">Rummikub</h2>
                         <div className="flex gap-2">
                             {isSeated && <div className="text-emerald-400 font-bold bg-slate-950 border border-emerald-900 px-3 py-1.5 rounded-lg">קופה שלי: <Coin amount={tableState.players[user.uid]?.stack}/></div>}
-                            <div className="text-amber-400 font-bold bg-slate-950 border border-amber-900 px-3 py-1.5 rounded-lg flex items-center gap-1">
-                                <i className="fa-solid fa-coins"></i> {tableState.stakes}
+                            <div className="text-amber-400 font-bold bg-slate-950 border border-amber-900 px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm">
+                                <i className="fa-solid fa-coins"></i> נקודה: {tableState.stakes}
                             </div>
                         </div>
                     </div>
@@ -1059,9 +1076,9 @@
 
                         <div className="absolute right-4 top-[-40px] flex gap-2 z-30">
                            {isMyTurn && (
-                               <div className="bg-slate-900 rounded-full w-12 h-12 flex items-center justify-center border-2 border-emerald-400 shadow-[0_0_15px_#10b981] relative">
-                                   <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="24" cy="24" r="22" fill="none" stroke="#334155" strokeWidth="4"></circle><circle cx="24" cy="24" r="22" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="138" strokeDashoffset={138 - (138 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
-                                   <span className="font-black text-white text-sm z-10">{timeLeft}</span>
+                               <div className={`bg-slate-900 rounded-full w-12 h-12 flex items-center justify-center border-2 relative transition-all ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_20px_#f43f5e] animate-pulse' : 'border-emerald-400 shadow-[0_0_15px_#10b981]'}`}>
+                                   <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="24" cy="24" r="22" fill="none" stroke="#334155" strokeWidth="4"></circle><circle cx="24" cy="24" r="22" fill="none" stroke={timeLeft <= 5 ? '#f43f5e' : '#10b981'} strokeWidth="4" strokeDasharray="138" strokeDashoffset={138 - (138 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
+                                   <span className={`font-black text-sm z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
                                </div>
                            )}
                            {isSeated && (
