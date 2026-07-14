@@ -33,7 +33,8 @@
         body, html {
             background-color: #020617; 
             color: #f8fafc; margin: 0; padding: 0;
-            height: 100vh; width: 100vw; overflow: hidden; overscroll-behavior: none;
+            height: 100dvh; /* התיקון הקריטי למובייל - גובה דינמי */
+            width: 100vw; overflow: hidden; overscroll-behavior: none;
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -110,7 +111,7 @@
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
-<body class="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
+<body class="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950 h-full w-full">
     <div id="root" class="h-full w-full"></div>
 
     <script type="text/babel">
@@ -1017,14 +1018,16 @@
                     {/* Felt Area (Board & Empty States) */}
                     <div className="flex-1 relative flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
                         
-                        {/* Visual Anchors for Empty Table / Waiting Phase */}
+                        {/* Minimalist Center Anchor */}
                         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0">
-                            <div className="w-28 h-28 sm:w-32 sm:h-32 bg-black/20 rounded-3xl border-4 border-white/5 flex flex-col items-center justify-center shadow-inner mb-6 relative">
-                                <i className="fa-solid fa-sack-xmark text-4xl sm:text-5xl text-amber-700/40"></i>
-                                <span className="text-white/20 font-bold text-[10px] sm:text-xs mt-2 uppercase tracking-widest text-center">קופת<br/>אבנים</span>
-                                <div className="absolute -top-3 -right-3 w-8 h-8 sm:w-10 sm:h-10 bg-slate-900 rounded-full border-2 border-slate-700 flex items-center justify-center shadow-lg">
-                                    <i className="fa-regular fa-clock text-slate-500 text-sm sm:text-base"></i>
+                            
+                            <div className="flex flex-col items-center justify-center mb-8 opacity-30">
+                                <div className="flex -space-x-3 mb-2">
+                                    <div className="w-8 h-12 rounded border-2 border-white/20 bg-white/5 transform -rotate-12"></div>
+                                    <div className="w-8 h-12 rounded border-2 border-white/30 bg-white/10 shadow-lg z-10"></div>
+                                    <div className="w-8 h-12 rounded border-2 border-white/20 bg-white/5 transform rotate-12"></div>
                                 </div>
+                                <span className="text-white font-bold text-[10px] tracking-[0.3em] uppercase">קופה</span>
                             </div>
                             
                             {tableState.phase === 'waiting' && (
