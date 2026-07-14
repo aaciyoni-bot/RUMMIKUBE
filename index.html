@@ -764,7 +764,7 @@
                     
                     if (Object.keys(newPlayers).length === t.maxPlayers) {
                         const d = generateDeck();
-                        const uids = Object.keys(newPlayers);
+                        const uids = Object.keys(newPlayers).sort();
                         uids.forEach(uid => { 
                             const initial = d.splice(0, 14);
                             const padded = [...initial]; while(padded.length<28) padded.push(null);
@@ -795,6 +795,8 @@
                                 const tblSnap = await window.fb.getDoc(tblRef);
                                 const currentTbl = tblSnap.data();
                                 
+                                if (currentTbl.currentTurn !== currentUid) return;
+
                                 const newDeck = [...(currentTbl.deck || [])];
                                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                                 
@@ -805,7 +807,7 @@
                                     if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
                                 }
                                 
-                                const uids = Object.keys(currentTbl.players); 
+                                const uids = Object.keys(currentTbl.players).sort(); 
                                 const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
                                 
                                 await window.fb.updateDoc(tblRef, { 
@@ -1173,7 +1175,7 @@
                     if (currentPlayersCount === Number(tableState.maxPlayers)) {
                         setTimeout(() => {
                             const d = generateDeck(); const np = { ...tableState.players, [user.uid]: {username: user.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: false} }; 
-                            const uids = Object.keys(np);
+                            const uids = Object.keys(np).sort();
                             uids.forEach(uid => { 
                                 const initial = d.splice(0, 14);
                                 const padded = [...initial]; while(padded.length<28) padded.push(null);
@@ -1193,7 +1195,7 @@
                     const emptyIdx = newRack.findIndex(t=>t===null);
                     if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
                 }
-                const uids = Object.keys(tableState.players); 
+                const uids = Object.keys(tableState.players).sort(); 
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
             };
@@ -1210,17 +1212,20 @@
                     return showToast("הלוח לא תקין! ודא שכל הקבוצות מכילות מינימום 3 אבנים חוקיות.", "error");
                 }
                 
-                const isFirstDrop = !tableState.players[user.uid].hasDropped;
                 const activeRackCount = rack.filter(t=>t!==null).length;
+                const startRackCount = tableState.players[user.uid].cards.filter(t=>t!==null).length;
+
+                if (activeRackCount >= startRackCount) {
+                    return showToast("לא הורדת אף אבן! אם אין לך מה לשחק, עליך למשוך אבן מהקופה.", "error");
+                }
+
+                const isFirstDrop = !tableState.players[user.uid].hasDropped;
 
                 if (isFirstDrop) {
                     const currentBoardPoints = calculateBoardPoints(board);
                     const startBoardPoints = calculateBoardPoints(startTurnBoard);
                     const dropValue = currentBoardPoints - startBoardPoints;
 
-                    if (dropValue <= 0) {
-                        return showToast("לא הורדת אבנים ללוח, משוך אבן מהקופה (+).", "error");
-                    }
                     if (dropValue < 30) {
                         return showToast(`חובה לרדת עם 30 נקודות לפחות להורדה ראשונה (הורדת רק ${dropValue}).`, "error");
                     }
@@ -1287,7 +1292,7 @@
                     return;
                 }
 
-                const uids = Object.keys(tableState.players); 
+                const uids = Object.keys(tableState.players).sort(); 
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now() });
             };
@@ -1335,7 +1340,7 @@
                             });
                             
                             if (tblData.currentTurn === user.uid && remainingUids.length > 1) {
-                                const origUids = Object.keys(tblData.players);
+                                const origUids = Object.keys(tblData.players).sort();
                                 let myIdx = origUids.indexOf(user.uid);
                                 let nextTurn = origUids[(myIdx + 1) % origUids.length];
                                 while (!newP[nextTurn]) {
