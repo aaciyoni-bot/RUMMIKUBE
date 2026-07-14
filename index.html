@@ -463,32 +463,148 @@
         }
 
         function BackofficeView({ user, showToast }) {
-            // Placeholder for full Backoffice logic
+            const [usersList, setUsersList] = useState([]);
+            const [selectedUser, setSelectedUser] = useState('');
+            const [transferAmount, setTransferAmount] = useState('');
+
+            useEffect(() => {
+                // Fetch all users to manage them
+                const unsub = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snap) => {
+                    const users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setUsersList(users);
+                });
+                return () => unsub();
+            }, []);
+
+            const handleApprove = async (uid) => {
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { status: 'approved' });
+                    showToast("שחקן אושר בהצלחה", "success");
+                } catch(e) { showToast("שגיאה באישור שחקן", "error"); }
+            };
+
+            const handleTransfer = async (isDeposit) => {
+                if (!selectedUser) return showToast("בחר שחקן להעברה", "error");
+                const amount = parseInt(transferAmount);
+                if (!amount || amount <= 0) return showToast("הזן סכום חוקי", "error");
+
+                try {
+                    // Transaction ensures atomic operation (both balances update, or neither)
+                    await window.fb.runTransaction(window.fb.db, async (transaction) => {
+                        const ownerRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const targetRef = window.fb.doc(window.fb.db, "users", selectedUser);
+                        
+                        const ownerSnap = await transaction.get(ownerRef);
+                        const targetSnap = await transaction.get(targetRef);
+
+                        let ownerBal = ownerSnap.data().balance;
+                        let targetBal = targetSnap.data().balance;
+
+                        if (isDeposit) {
+                            if (ownerBal < amount) throw "אין לך מספיק יתרה במועדון כדי לבצע הפקדה זו.";
+                            ownerBal -= amount;
+                            targetBal += amount;
+                        } else {
+                            if (targetBal < amount) throw "לשחקן אין מספיק יתרה כדי לבצע משיכה זו.";
+                            ownerBal += amount;
+                            targetBal -= amount;
+                        }
+
+                        transaction.update(ownerRef, { balance: ownerBal });
+                        transaction.update(targetRef, { balance: targetBal });
+                    });
+                    
+                    showToast(`פעולת ה${isDeposit?'הפקדה':'משיכה'} בוצעה בהצלחה!`, "success");
+                    setTransferAmount('');
+                } catch (e) {
+                    showToast(typeof e === 'string' ? e : "שגיאה בביצוע ההעברה.", "error");
+                }
+            };
+
+            const pendingUsers = usersList.filter(u => u.status === 'pending');
+            const approvedPlayers = usersList.filter(u => u.status === 'approved' && u.id !== user.uid);
+
             return (
-                <div className="flex-1 bg-slate-950 p-6 overflow-y-auto">
+                <div className="flex-1 bg-slate-950 p-4 sm:p-6 overflow-y-auto">
                     <div className="max-w-6xl mx-auto">
                         <h2 className="text-3xl font-black text-white mb-2">ניהול מועדון (Backoffice)</h2>
-                        <p className="text-slate-400 mb-8">מסך זה מאפשר לך לנהל יתרות, להעביר צ'יפים לשחקנים ולעקוב אחרי הכנסות ה-Rake שלך.</p>
+                        <p className="text-slate-400 mb-8">מסך זה מאפשר לך לאשר שחקנים, לנהל יתרות, ולהעביר צ'יפים בצורה מאובטחת.</p>
                         
+                        {/* Stats Row */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-                                <h3 className="text-slate-400 text-sm font-semibold mb-2">יתרת המועדון שלך</h3>
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl">
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">היתרה האישית שלך (Owner)</h3>
                                 <p className="text-3xl font-black text-white">{formatMoney(user.balance)}</p>
                             </div>
-                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden">
-                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl"></div>
-                                <h3 className="text-slate-400 text-sm font-semibold mb-2">רווחי Rake מצטברים</h3>
-                                <p className="text-3xl font-black text-emerald-400">{formatMoney(14250)}</p>
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl relative overflow-hidden">
+                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">סך צ'יפים אצל שחקנים</h3>
+                                <p className="text-3xl font-black text-blue-400">
+                                    {formatMoney(approvedPlayers.reduce((sum, p) => sum + (p.balance || 0), 0))}
+                                </p>
                             </div>
-                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-                                <h3 className="text-slate-400 text-sm font-semibold mb-2">שחקנים ממתינים לאישור</h3>
-                                <p className="text-3xl font-black text-amber-400">0</p>
+                            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl relative overflow-hidden">
+                                <div className="absolute -left-4 -top-4 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl"></div>
+                                <h3 className="text-slate-400 text-sm font-semibold mb-2">ממתינים לאישור</h3>
+                                <p className="text-3xl font-black text-amber-400">{pendingUsers.length}</p>
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-                            <h3 className="font-bold text-lg text-white mb-6">העברת צ'יפים (בהמשך)</h3>
-                            <div className="text-slate-500">מודול הנהלת החשבונות המלא של מנהל המועדון ייבנה כאן, כולל טבלת היסטוריית העברות וסליקה.</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            
+                            {/* Chip Transfer Module */}
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl">
+                                <h3 className="font-bold text-lg text-white mb-6 flex items-center gap-2">
+                                    <i className="fa-solid fa-money-bill-transfer text-emerald-400"></i> העברת צ'יפים
+                                </h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">בחר שחקן:</label>
+                                        <select value={selectedUser} onChange={(e)=>setSelectedUser(e.target.value)} className="w-full bg-slate-950 text-white border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500">
+                                            <option value="">-- בחר מהרשימה --</option>
+                                            {approvedPlayers.map(p => (
+                                                <option key={p.id} value={p.id}>{p.username} (יתרה: {formatMoney(p.balance)})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">סכום צ'יפים:</label>
+                                        <input type="number" value={transferAmount} onChange={(e)=>setTransferAmount(e.target.value)} placeholder="0" className="w-full bg-slate-950 text-white border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500 font-bold text-xl" />
+                                    </div>
+                                    <div className="flex gap-3 pt-2">
+                                        <button onClick={()=>handleTransfer(true)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold shadow-lg transition-transform hover:scale-[1.02]">
+                                            הפקד לשחקן <i className="fa-solid fa-arrow-down ml-1"></i>
+                                        </button>
+                                        <button onClick={()=>handleTransfer(false)} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-3 rounded-lg font-bold shadow-lg transition-transform hover:scale-[1.02]">
+                                            משוך משחקן <i className="fa-solid fa-arrow-up ml-1"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Pending Approvals Module */}
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col h-full">
+                                <h3 className="font-bold text-lg text-white mb-6 flex items-center gap-2">
+                                    <i className="fa-solid fa-user-clock text-amber-400"></i> ממתינים לאישור כניסה למועדון
+                                </h3>
+                                <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                                    {pendingUsers.length === 0 && (
+                                        <div className="text-center text-slate-500 py-10 font-bold">אין שחקנים בהמתנה כרגע.</div>
+                                    )}
+                                    {pendingUsers.map(u => (
+                                        <div key={u.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-slate-400"><i className="fa-solid fa-user"></i></div>
+                                                <span className="font-bold text-white">{u.username}</span>
+                                            </div>
+                                            <button onClick={()=>handleApprove(u.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition-colors text-sm">
+                                                אשר כניסה
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
                         </div>
                     </div>
                 </div>
