@@ -33,7 +33,7 @@
         body, html {
             background-color: #020617; 
             color: #f8fafc; margin: 0; padding: 0;
-            height: 100dvh; 
+            height: 100dvh; /* Mobile viewport fix */
             width: 100vw; overflow: hidden; overscroll-behavior: none;
         }
 
@@ -64,7 +64,7 @@
             font-family: 'Rubik', sans-serif; font-weight: 900;
             transition: transform 0.1s ease, box-shadow 0.1s ease; user-select: none;
             text-shadow: 0 1px 1px rgba(0,0,0,0.15);
-            touch-action: none;
+            touch-action: none; /* Critical for drag drop */
         }
         .rummy-tile:active, .rummy-tile.dragging {
             box-shadow: 0 20px 30px rgba(0,0,0,0.6); transform: scale(1.1) translateY(-8px); z-index: 999;
@@ -84,14 +84,14 @@
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
         
-        .animated-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
-        @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
-
         @keyframes wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         .loading-dot { display: inline-block; animation: wave 1.2s infinite ease-in-out; }
         .loading-dot:nth-child(1) { animation-delay: 0s; }
         .loading-dot:nth-child(2) { animation-delay: 0.15s; }
         .loading-dot:nth-child(3) { animation-delay: 0.3s; }
+
+        /* New invisible drop slots for the rack */
+        .rack-drop-slot { flex: 0 1 10px; height: 100%; min-width: 5px; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -130,6 +130,7 @@
             if (num === 0) return '0';
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
             if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            // Show pennies (agurot) if exists
             if (num % 1 !== 0) return num.toFixed(2); 
             return num.toLocaleString();
         };
@@ -203,7 +204,7 @@
                     const role = q.empty ? ROLES.SUPER_ADMIN : ROLES.PLAYER;
                     const newUser = { 
                         username: user.displayName || 'Player', 
-                        email: user.email || '', 
+                        email: user.email || '', // Saved for Agent assignment
                         role, 
                         status: q.empty ? 'approved' : 'pending', 
                         balance: q.empty ? 10000000 : 0,
@@ -238,7 +239,6 @@
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
                     
-                    {/* Header */}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-900/90 backdrop-blur-md px-4 py-3 z-40 shrink-0 border-b border-slate-800 shadow-xl flex justify-between items-center">
                             <div className="flex items-center gap-2 sm:gap-4">
@@ -407,7 +407,7 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-1 block">ערך נקודה ב-₪</label>
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">ערך נקודה ב-₪ (Stakes)</label>
                                         <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
                                             <option value={0.10}>0.10 ₪ (10 אגורות)</option>
                                             <option value={0.50}>0.50 ₪ (50 אגורות)</option>
@@ -429,7 +429,7 @@
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {tables.map(t => (
+                            {tables.filter(t => t.type === 'rummikub').map(t => (
                                 <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all group border border-white/10 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
                                     
@@ -474,7 +474,7 @@
                                     </div>
                                 </div>
                             ))}
-                            {tables.length === 0 && <div className="col-span-full text-center py-20 text-slate-500 font-bold text-xl glass-panel rounded-3xl border-dashed">אין שולחנות פעילים כרגע.</div>}
+                            {tables.filter(t=>t.type==='rummikub').length === 0 && <div className="col-span-full text-center py-20 text-slate-500 font-bold text-xl glass-panel rounded-3xl border-dashed">אין שולחנות פעילים כרגע.</div>}
                         </div>
                     </div>
                 </div>
@@ -692,6 +692,7 @@
                 return () => unsub();
             }, [tableDocId]);
 
+            // Sync with Firebase unless currently dragging
             useEffect(() => {
                 if(!tableState) return;
                 if (!dragData) {
@@ -709,6 +710,7 @@
                 setShowVictory(tableState.phase === 'showdown');
             }, [tableState, dragData, user.uid]);
 
+            // Timer and Sound Logic
             useEffect(() => {
                 let interval;
                 if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
@@ -768,6 +770,12 @@
                         setDragPos({ x: e.clientX, y: e.clientY }); 
                         if(longPressTimer.current) clearTimeout(longPressTimer.current); 
                         
+                        // Hide ghost element temporarily to find what's underneath it
+                        const ghost = document.getElementById('drag-ghost');
+                        const ghostGroup = document.getElementById('drag-ghost-group');
+                        if (ghost) ghost.style.pointerEvents = 'none';
+                        if (ghostGroup) ghostGroup.style.pointerEvents = 'none';
+                        
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
@@ -777,12 +785,15 @@
                     } 
                 };
                 
-                const handlePointerUp = (e) => {
+                const handlePointerUp = async (e) => {
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                     if (!dragData) return;
-                    let newRack = [...rack]; let newBoard = board.map(g => [...g]);
+                    
+                    let newRack = [...rack]; 
+                    let newBoard = board.map(g => [...g]);
                     
                     if (dragData.type === 'single') {
+                        // Remove from source
                         if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 1);
                         else if (dragData.source === 'board') {
                             const grp = newBoard[dragData.groupIndex];
@@ -796,12 +807,18 @@
                             }
                         }
 
+                        // Add to target
                         if (hoverTarget && hoverTarget.startsWith('board-group-')) {
                             const targetIdx = parseInt(hoverTarget.split('-')[2]);
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(dragData.tile); else newBoard.push([dragData.tile]);
                         } 
                         else if (hoverTarget === 'board-new') newBoard.push([dragData.tile]);
+                        else if (hoverTarget && hoverTarget.startsWith('rack-slot-')) {
+                            // Internal rack dragging logic
+                            const slotIdx = parseInt(hoverTarget.split('-')[2]);
+                            newRack.splice(slotIdx, 0, dragData.tile);
+                        }
                         else if (hoverTarget === 'rack') newRack.push(dragData.tile);
                         else if (dragData.source === 'rack') newRack.splice(dragData.tileIndex, 0, dragData.tile); 
                     } 
@@ -813,16 +830,28 @@
                             const actualIdx = (dragData.source === 'board' && dragData.groupIndex < targetIdx && newBoard.length < board.length) ? targetIdx - 1 : targetIdx;
                             if (newBoard[actualIdx]) newBoard[actualIdx].push(...groupTiles); else newBoard.push([...groupTiles]);
                         } else if (hoverTarget === 'board-new') newBoard.push([...groupTiles]);
-                        else if (hoverTarget === 'rack') newRack.push(...groupTiles);
+                        else if (hoverTarget === 'rack' || (hoverTarget && hoverTarget.startsWith('rack-slot-'))) newRack.push(...groupTiles);
                         else if (dragData.source === 'board') newBoard.splice(dragData.groupIndex, 0, groupTiles); 
                     }
                     
                     setRack(newRack); setBoard(newBoard); setDragData(null); setHoverTarget(null);
+                    
+                    // CRITICAL FIX: Live sync to Firebase so tiles don't "run away"
+                    if (tableState?.id && tableState.currentTurn === user.uid) {
+                        try {
+                            await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
+                                board: newBoard,
+                                [`players.${user.uid}.cards`]: newRack
+                            });
+                        } catch(err) {
+                            console.error("Failed to sync move", err);
+                        }
+                    }
                 };
                 
                 if (dragData) { window.addEventListener('pointermove', handlePointerMove, { passive: false }); window.addEventListener('pointerup', handlePointerUp); }
                 return () => { window.removeEventListener('pointermove', handlePointerMove); window.removeEventListener('pointerup', handlePointerUp); };
-            }, [dragData, hoverTarget, rack, board]);
+            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn]);
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
                 if (tableState.currentTurn !== user.uid) return showToast("המתן לתורך", "error");
@@ -1012,6 +1041,7 @@
                         
                         const tblData = tblSnap.data();
                         const myStack = tblData.players[user.uid]?.stack || 0;
+                        const uData = uSnap.data();
                         
                         let newP = { ...tblData.players }; 
                         delete newP[user.uid];
@@ -1020,10 +1050,17 @@
 
                         if (!isPlaying) {
                             // Refund buy-in if game hasn't started yet
-                            t.update(uRef, { balance: uSnap.data().balance + myStack });
+                            t.update(uRef, { balance: uData.balance + myStack });
                         } else {
                             // Surrender Logic Mid-Game
                             const remainingUids = Object.keys(newP);
+                            const currentStats = uData.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            
+                            // CRITICAL FIX: Update surrendering player's stats to show loss
+                            t.update(uRef, {
+                                'stats.gamesPlayed': currentStats.gamesPlayed + 1,
+                                'stats.totalProfit': currentStats.totalProfit - myStack
+                            });
                             
                             // Pass turn if it was my turn
                             if (tblData.currentTurn === user.uid && remainingUids.length > 1) {
@@ -1043,7 +1080,7 @@
                                 const winnerUid = remainingUids[0];
                                 updates.phase = 'showdown';
                                 updates.winner = winnerUid;
-                                newP[winnerUid].stack += myStack; // They take the surrendered money
+                                newP[winnerUid].stack += myStack; 
                                 updates.lastResults = { winnerProfit: myStack, rake: 0, totalPot: myStack };
                             }
                         }
@@ -1067,7 +1104,7 @@
             return (
                 <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
                     
-                    {/* Minimalist Header */}
+                    {/* Header */}
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
                         <div className="flex gap-2">
                             <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? 'כניעה / עזוב שולחן' : 'קום מהשולחן') : 'חזור ללובי'}</button>
@@ -1088,9 +1125,9 @@
                     <div className="flex-1 relative flex flex-col" data-drop="board-new">
                         
                         {/* Center Anchor & Loading Message */}
-                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0">
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0 w-full px-4">
                             {tableState.phase === 'playing' ? (
-                                <div className="flex flex-col items-center justify-center mb-8 opacity-30">
+                                <div className="flex flex-col items-center justify-center mb-8 opacity-40">
                                     <div className="flex -space-x-3 mb-2">
                                         <div className="w-8 h-12 rounded-md border-2 border-slate-400/30 bg-white/5 transform -rotate-12 backdrop-blur-sm"></div>
                                         <div className="w-8 h-12 rounded-md border-2 border-emerald-400/40 bg-emerald-900/20 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 backdrop-blur-sm"></div>
@@ -1099,7 +1136,7 @@
                                     <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase">קופה</span>
                                 </div>
                             ) : (
-                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center">
+                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center max-w-sm mx-auto">
                                     <h2 className="text-lg sm:text-xl font-bold text-emerald-400 flex items-center justify-center gap-1">
                                         ממתינים לשחקנים 
                                         <span className="flex items-end h-full gap-0.5 ml-1">
@@ -1113,7 +1150,7 @@
                             )}
                         </div>
 
-                        {}
+                        {/* Opponents Avatars */}
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-start gap-4 sm:gap-12 z-10">
                             {[...Array(Number(tableState.maxPlayers) || 4)].map((_, i) => {
                                 const seatedPlayers = Object.entries(tableState.players || {});
@@ -1149,22 +1186,29 @@
                                                 </span>
                                             </div>
                                         )}
-
-                                        {isGodMode && !isMe && pData[1].cards && (
-                                            <div className="absolute top-full mt-4 w-[160px] flex flex-wrap justify-center gap-[2px] bg-purple-950/95 p-2 rounded-xl border-2 border-purple-400 shadow-[0_0_40px_purple] z-[9999]">
-                                                <div className="w-full text-center text-[9px] text-purple-200 font-black mb-1 uppercase tracking-widest border-b border-purple-500/50 pb-1">God Mode (לעיניך בלבד)</div>
-                                                {pData[1].cards.map((c, idx) => (
-                                                    <div key={idx} className="w-5 h-7 bg-white rounded flex flex-col items-center justify-center text-[12px] font-bold shadow-md" style={{ color: c.color }}>
-                                                        <span>{c.val}</span>
-                                                    </div>
-                                                ))}
-                                                {pData[1].cards.length === 0 && <span className="text-[10px] text-purple-400">אין אבנים</span>}
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
                         </div>
+                        
+                        {/* God Mode Global Overlay (Unclipped) */}
+                        {isGodMode && tableState.phase === 'playing' && (
+                            <div className="absolute inset-x-0 top-24 pointer-events-none z-[50] flex flex-wrap justify-center gap-4 px-4">
+                                {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => (
+                                    <div key={uid} className="flex flex-col items-center bg-purple-950/95 p-2 rounded-xl border-2 border-purple-400 shadow-[0_0_40px_purple] max-w-[200px]">
+                                        <div className="text-center text-[9px] text-purple-200 font-black mb-1 uppercase tracking-widest border-b border-purple-500/50 pb-1 w-full">God Mode: {pData.username}</div>
+                                        <div className="flex flex-wrap justify-center gap-[2px]">
+                                            {pData.cards?.map((c, idx) => (
+                                                <div key={idx} className="w-5 h-7 bg-white rounded flex flex-col items-center justify-center text-[12px] font-bold shadow-md" style={{ color: c.color }}>
+                                                    <span>{c.val}</span>
+                                                </div>
+                                            ))}
+                                            {(!pData.cards || pData.cards.length === 0) && <span className="text-[10px] text-purple-400 py-1">אין אבנים</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                         
                         {/* Sit Down Overlay */}
                         {!isSeated && tableState.phase === 'waiting' && (
@@ -1206,46 +1250,53 @@
                         )}
                     </div>
 
-                    {/* Action Bar & Rack */}
-                    <div className="relative z-10 shrink-0" data-drop="rack">
+                    <div className="relative z-10 shrink-0 bg-slate-950">
                         
-                        {/* Controls */}
+                        {/* Controls Bar - Made prominent and beautiful */}
                         {isSeated && isPlaying && (
-                            <div className="absolute left-2 right-2 top-[-45px] flex justify-between items-end z-30 pointer-events-none">
-                                <div className="flex gap-2 pointer-events-auto">
-                                    {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-2.5 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
-                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
-                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2.5 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i></button>}
+                            <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-y border-slate-800 shadow-md">
+                                <div className="flex gap-2">
+                                    {isMyTurn && <button onClick={handleEndTurn} disabled={!isBoardValid} className={`px-4 py-2 rounded-lg font-bold shadow-md text-white text-sm transition-colors ${!isBoardValid ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500'}`}>סיום תור</button>}
+                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium shadow-md hover:bg-slate-700 transition-colors">קופה</button>}
+                                    {isMyTurn && <button onClick={()=>{setBoard(startTurnBoard); setRack(startTurnRack);}} className="bg-rose-900/80 text-rose-300 px-3 py-2 rounded-lg text-sm font-medium shadow-md border border-rose-800/50 hover:bg-rose-800 transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i></button>}
                                 </div>
                                 
-                                <div className="flex gap-2 pointer-events-auto items-center">
+                                <div className="flex gap-4 items-center">
+                                   {/* Sort Buttons UI Fix */}
+                                   <div className="flex gap-1.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800 shadow-inner">
+                                       <button onClick={handleSort777} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm" title="סדר לפי מספרים">סדר 777 🔢</button>
+                                       <button onClick={handleSort789} className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 hover:border-slate-500 shadow-sm flex items-center gap-1" title="סדר לפי סדרות"><span className="text-blue-500">■</span><span className="text-red-500">■</span> סדר 789</button>
+                                   </div>
+
                                    {isMyTurn && (
                                        <div className={`bg-slate-900 rounded-full w-10 h-10 flex items-center justify-center border relative shadow-lg ${timeLeft <= 5 ? 'border-rose-500 shadow-[0_0_15px_#f43f5e] animate-pulse' : 'border-emerald-500/50'}`}>
                                            <svg className="absolute inset-0 w-full h-full timer-ring"><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#1e293b" strokeWidth="3"></circle><circle cx="50%" cy="50%" r="45%" fill="none" stroke={timeLeft <= 5 ? '#f43f5e' : '#10b981'} strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - (100 * (timeLeft/60))} className="timer-ring-circle"></circle></svg>
                                            <span className={`font-bold text-xs z-10 ${timeLeft <= 5 ? 'text-rose-400' : 'text-white'}`}>{timeLeft}</span>
                                        </div>
                                    )}
-                                   <div className="flex gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 shadow-md">
-                                       <button onClick={handleSort777} className="bg-slate-800 text-slate-400 px-2 h-8 rounded font-medium text-[10px] hover:text-white transition-colors" title="סדר לפי מספרים (777)">סדר 🔢</button>
-                                       <button onClick={handleSort789} className="bg-slate-800 text-slate-400 px-2 h-8 rounded font-medium text-[10px] hover:text-white transition-colors flex items-center gap-1" title="סדר לפי צד (789)"><span className="text-blue-500">■</span><span className="text-red-500">■</span></button>
-                                   </div>
                                 </div>
                             </div>
                         )}
 
                         {!isMyTurn && isPlaying && isSeated && <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center backdrop-blur-[1px]"><span className="text-white/80 font-medium text-sm">המתן לתורך...</span></div>}
 
-                        {/* Physical Rack */}
-                        <div className="bg-slate-950 px-2 sm:px-4 pt-8 pb-4">
-                            <div className="flex flex-wrap justify-center items-end gap-0.5 min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood">
+                        {/* Physical Rack with drop zones for manual sorting */}
+                        <div className="px-2 sm:px-4 py-4" data-drop="rack">
+                            <div className="flex flex-wrap justify-center items-end gap-[1px] min-h-[90px] px-2 py-4 w-full max-w-4xl mx-auto rummy-rack-wood relative">
                                 {rack.map((tile, index) => (
-                                    <div key={tile.id} onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-3xl mx-[1px] z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>{tile.val}</div>
+                                    <React.Fragment key={tile.id}>
+                                        {/* Invisible drop slot before tile */}
+                                        <div data-drop={`rack-slot-${index}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-500/30' : ''}`}></div>
+                                        
+                                        <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-10 h-14 sm:w-14 sm:h-20 flex items-center justify-center text-2xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : ''}`} style={{ color: tile.color }}>{tile.val}</div>
+                                    </React.Fragment>
                                 ))}
+                                {/* Invisible drop slot at the end */}
+                                <div data-drop={`rack-slot-${rack.length}`} className={`rack-drop-slot ${hoverTarget === `rack-slot-${rack.length}` ? 'bg-emerald-500/30' : ''}`}></div>
                             </div>
                         </div>
                     </div>
                     
-                    {}
                     {dragData && dragData.type === 'single' && (
                         <div id="drag-ghost" className="fixed pointer-events-none z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color }}>{dragData.tile.val}</div>
                     )}
