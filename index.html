@@ -114,12 +114,16 @@
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
 
+        // Bulletproof formatMoney to handle legacy string data without crashing
         const formatMoney = (amount) => {
-            if (!amount && amount !== 0) return '0';
-            if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'M';
-            if (amount >= 1000) return (amount / 1000).toFixed(1) + 'K';
-            if (amount % 1 !== 0) return amount.toFixed(2);
-            return amount.toLocaleString();
+            if (amount === undefined || amount === null) return '0';
+            const num = Number(amount);
+            if (isNaN(num)) return String(amount); // Protects against legacy data like '10/20'
+            if (num === 0) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            if (num % 1 !== 0) return num.toFixed(2);
+            return num.toLocaleString();
         };
 
         const Coin = ({ amount, className="" }) => (
@@ -257,7 +261,7 @@
                             </div>
 
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
-                                <h1 className="text-xl sm:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-300">RUMMIKUBE</h1>
+                                <h1 className="text-xl sm:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">RUMMIKUBE</h1>
                                 <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em] uppercase leading-none mt-[-2px]">Elite Club</p>
                             </div>
                         </nav>
@@ -349,13 +353,20 @@
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             
             const handleCreate = async () => {
-                const calculatedBuyIn = newTableOptions.stakes * 100; // Auto calc buy-in
+                const calculatedBuyIn = newTableOptions.stakes * 100; // Auto calc buy-in network safety
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), { 
                     type: 'rummikub', maxPlayers: newTableOptions.maxPlayers, 
                     minBuyIn: calculatedBuyIn, stakes: newTableOptions.stakes, 
                     players: {}, board: [], deck: [], phase: 'waiting', createdAt: Date.now()
                 });
                 setShowCreate(false); showToast("שולחן נפתח בהצלחה!", "success");
+            };
+
+            const handleDelete = async (e, id) => {
+                e.stopPropagation(); 
+                if (window.confirm("למחוק שולחן זה מהמועדון? (למנהלים בלבד)")) {
+                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", id));
+                }
             };
 
             return (
@@ -367,19 +378,19 @@
                                 שולחנות רמיקוב
                             </h2>
                             {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(user.role) && (
-                                <button onClick={()=>setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-transform hover:scale-105 flex items-center text-sm">
+                                <button onClick={()=>setShowCreate(!showCreate)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-transform hover:scale-105 flex items-center text-sm">
                                     <i className="fa-solid fa-plus ml-2"></i> שולחן חדש
                                 </button>
                             )}
                         </div>
                         
                         {showCreate && (
-                            <div className="glass-panel p-6 rounded-2xl mb-8 animate-pop-in">
+                            <div className="glass-panel p-6 rounded-2xl mb-8 animate-pop-in border border-emerald-500/30">
                                 <h3 className="text-lg font-bold text-white mb-4">הגדרות שולחן חדש</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                     <div>
-                                        <label className="text-slate-400 text-sm font-bold mb-1 block">שחקנים</label>
-                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                        <label className="text-slate-400 text-sm font-bold mb-1 block">שחקנים מקסימום</label>
+                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
                                             <option value={2}>2 שחקנים</option>
                                             <option value={3}>3 שחקנים</option>
                                             <option value={4}>4 שחקנים</option>
@@ -387,7 +398,7 @@
                                     </div>
                                     <div>
                                         <label className="text-slate-400 text-sm font-bold mb-1 block">ערך נקודה (Stakes)</label>
-                                        <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                        <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
                                             <option value={0.10}>0.10 ₪ (10 אגורות)</option>
                                             <option value={0.50}>0.50 ₪ (50 אגורות)</option>
                                             <option value={1}>1.00 ₪</option>
@@ -396,7 +407,7 @@
                                             <option value={10}>10.00 ₪</option>
                                         </select>
                                         <p className="text-emerald-400 text-xs mt-2 font-bold">
-                                            * דמי כניסה מינימליים (רשת ביטחון): {formatMoney(newTableOptions.stakes * 100)} ₪
+                                            * דמי כניסה מחושבים אוטומטית (X100): {formatMoney(newTableOptions.stakes * 100)} ₪
                                         </p>
                                     </div>
                                 </div>
@@ -409,17 +420,24 @@
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {tables.map(t => (
-                                <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all group border-t border-white/10 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-blue-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                                <div key={t.docId} onClick={()=>onJoin(t)} className="glass-panel p-6 rounded-3xl cursor-pointer hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all group border border-white/10 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
                                     
+                                    {/* Delete Button for Admins */}
+                                    {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
+                                        <button onClick={(e) => handleDelete(e, t.docId)} className="absolute top-3 left-3 w-8 h-8 rounded bg-slate-800/80 text-slate-500 hover:text-rose-400 transition-colors flex items-center justify-center z-10" title="מחק שולחן">
+                                            <i className="fa-solid fa-trash text-xs"></i>
+                                        </button>
+                                    )}
+
                                     {/* Seat Indicator */}
                                     {t.players && t.players[user.uid] && (
-                                        <div className="absolute top-3 left-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold">
+                                        <div className="absolute top-3 right-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold">
                                             🟢 אתה יושב כאן
                                         </div>
                                     )}
 
-                                    <div className="flex justify-between items-start mb-4">
+                                    <div className="flex justify-between items-start mb-4 mt-2">
                                         <div>
                                             <h3 className="text-xl font-black text-white tracking-wide">ערך נקודה: {formatMoney(t.stakes)}</h3>
                                             <p className="text-slate-400 text-sm font-bold mt-1 flex items-center gap-1">כניסה: <Coin amount={t.minBuyIn} /></p>
@@ -429,18 +447,22 @@
                                         </div>
                                     </div>
                                     
-                                    {/* Avatar list */}
-                                    <div className="flex -space-x-2 mb-6 h-8">
-                                        {Object.values(t.players || {}).map((p, i) => (
-                                            <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title={p.username}>
-                                                {p.username.substring(0,2).toUpperCase()}
-                                            </div>
-                                        ))}
+                                    {/* Avatar list showing who is seated */}
+                                    <div className="flex -space-x-2 mb-6 h-8 items-center">
+                                        {Object.values(t.players || {}).length > 0 ? (
+                                            Object.values(t.players || {}).map((p, i) => (
+                                                <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold shadow-md" title={p.username}>
+                                                    {p.username.substring(0,2).toUpperCase()}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <span className="text-xs text-slate-500 font-bold ml-2">השולחן ריק</span>
+                                        )}
                                     </div>
 
                                     <div className="flex justify-end items-center">
-                                        <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm group-hover:bg-blue-600 transition-colors shadow-md">
-                                            {t.phase === 'playing' ? 'צפה במשחק' : 'היכנס'}
+                                        <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm group-hover:bg-emerald-600 transition-colors shadow-md">
+                                            {t.phase === 'playing' ? 'צפה במשחק' : 'היכנס לשולחן'}
                                         </button>
                                     </div>
                                 </div>
@@ -709,12 +731,12 @@
                         // Play ticking sound in the last 5 seconds if it's my turn
                         if (remaining <= 5 && remaining > 0 && tableState.currentTurn === user.uid) {
                             try {
-                                if (Tone.context.state !== 'running') Tone.context.resume();
-                                if (!synthRef.current) {
-                                    synthRef.current = new Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
+                                if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume();
+                                if (!synthRef.current && window.Tone) {
+                                    synthRef.current = new window.Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
                                     synthRef.current.volume.value = -10;
                                 }
-                                synthRef.current.triggerAttackRelease("E6", "0.05");
+                                synthRef.current?.triggerAttackRelease("E6", "0.05");
                             } catch(e) {}
                         }
 
@@ -752,7 +774,6 @@
                 return board.every(g => validateGroup(g)); 
             }, [board]);
 
-            // Unified Drag & Drop (Touch/Mouse)
             useEffect(() => {
                 const handlePointerMove = (e) => { 
                     if (dragData) { setDragPos({ x: e.clientX, y: e.clientY }); if(longPressTimer.current) clearTimeout(longPressTimer.current); } 
@@ -819,8 +840,8 @@
                 if (tableState.currentTurn !== user.uid) return showToast("המתן לתורך", "error");
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
                 
-                // Init audio context on first user interaction if needed
-                if (Tone.context.state !== 'running') Tone.context.resume();
+                // Safe ToneJS initialization
+                try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
 
                 setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
                 if (source === 'board') {
@@ -840,7 +861,7 @@
             };
 
             const handleSit = async () => {
-                // Check if already seated somewhere else
+                // Check if already seated somewhere else to prevent double-sitting
                 const activeTablesSnap = await window.fb.getDocs(window.fb.collection(window.fb.db, "tables"));
                 let alreadySeated = false;
                 activeTablesSnap.forEach(doc => {
@@ -908,17 +929,18 @@
                 if (rack.length === 0) { // WIN & SETTLEMENT
                     const losers = Object.entries(tableState.players).filter(([uid]) => uid !== user.uid);
                     let totalPot = 0; const updates = {};
+                    const stakesNum = Number(tableState.stakes) || 0.1;
                     
                     losers.forEach(([uid, pData]) => {
                          let dw = pData.cards.reduce((s, t) => s + (t.val === '☻' ? 30 : t.val), 0);
-                         let penalty = Math.min(dw * tableState.stakes, pData.stack); 
+                         let penalty = Math.min(dw * stakesNum, pData.stack); 
                          updates[`players.${uid}.stack`] = pData.stack - penalty;
                          totalPot += penalty;
                          // Update Loser Stats
                          updates[`stats.${uid}`] = { incrementGames: 1, profit: -penalty };
                     });
                     
-                    const rake = totalPot * 0.06; // 6% Rake (can result in decimals)
+                    const rake = totalPot * 0.06; // 6% Rake
                     const winnerProfit = totalPot - rake;
                     
                     updates[`players.${user.uid}.stack`] = tableState.players[user.uid].stack + winnerProfit;
@@ -999,7 +1021,6 @@
                         </div>
                     </div>
 
-                    {}
                     <div className="flex-1 relative flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
                         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-4 sm:gap-8 z-10 opacity-70">
                             {opponents.map(([uid, p]) => (
