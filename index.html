@@ -101,7 +101,7 @@
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             width: 80%; height: 60%;
-            background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 60%);
+            background: radial-gradient(ellipse at center, rgba(255,255,255,0.15) 0%, transparent 60%);
             pointer-events: none;
         }
 
@@ -305,7 +305,6 @@
                 
                 if (userSnap.exists()) {
                     let data = userSnap.data(); let updates = {};
-                    // Auto-refill for Super Admin if below 1M
                     if (data.role === ROLES.SUPER_ADMIN && (!data.balance || data.balance < 1000000)) {
                          updates.balance = 10000000; data.balance = 10000000;
                     }
@@ -883,7 +882,6 @@
                         </div>
                     </div>
 
-                    {/* Desktop containment fix: min-h-0 allows internal overflow hidden without pushing bottom layout out */}
                     <div className="flex-1 min-h-0 relative flex items-center justify-center p-2 sm:p-4 overflow-hidden">
                         <div className="poker-table-vertical max-w-[95%] sm:max-w-md z-0 flex flex-col items-center justify-center mx-auto">
                             <div className="poker-neon-glow" style={{ borderColor: `${hex}80`, boxShadow: `0 0 40px ${hex}` }}></div>
@@ -1052,7 +1050,6 @@
                         </div>
                     </div>
 
-                    {/* min-h-0 prevents stretching past screen height on desktop */}
                     <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 rounded-3xl border-[6px] p-4 sm:p-6 overflow-y-auto flex flex-col" style={{ borderColor: `${hex}80`, backgroundColor: '#0a0f1a', boxShadow: `inset 0 0 50px rgba(0,0,0,0.8)` }} onPointerEnter={() => setHoverTarget('board-new')}>
                         
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-8 sm:gap-16 opacity-80 pointer-events-none">
