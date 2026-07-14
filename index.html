@@ -33,7 +33,7 @@
         body, html {
             background-color: #020617; 
             color: #f8fafc; margin: 0; padding: 0;
-            height: 100dvh; /* Mobile viewport fix - CRITICAL for mobile */
+            height: 100dvh; /* Mobile viewport dynamic fix */
             width: 100vw; overflow: hidden; overscroll-behavior: none;
         }
 
@@ -69,8 +69,6 @@
         .rummy-tile:active, .rummy-tile.dragging {
             box-shadow: 0 20px 30px rgba(0,0,0,0.6); transform: scale(1.1) translateY(-8px); z-index: 999;
         }
-
-        .card-back { background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px); }
         
         /* Opponent Wooden Rack Back */
         .opponent-rack-back {
@@ -87,8 +85,6 @@
             width: 6px; height: 18px; background: #e2e8f0; border-radius: 2px 2px 0 0;
             border: 1px solid #cbd5e1; border-bottom: none; box-shadow: inset -1px 0 2px rgba(0,0,0,0.2);
         }
-
-        .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
         
         @keyframes wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         .loading-dot { display: inline-block; animation: wave 1.2s infinite ease-in-out; }
@@ -150,6 +146,7 @@
         const { useState, useEffect, useRef, useMemo } = React;
 
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
+        const BOT_NAMES = ['Alex_Pro', 'TileMaster99', 'RummyKing', 'Sara_Play', 'PokerFace_Dan', 'Lucky_Jim', 'AceOfSpades', 'JokerQueen', 'Max_Bet', 'Fast_Hand'];
 
         const formatMoney = (amount) => {
             if (amount === undefined || amount === null) return '0.00';
@@ -157,6 +154,14 @@
             if (isNaN(num)) return String(amount);
             if (num === 0) return '0.00';
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        const generateDeck = () => {
+            const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0f172a'];
+            let d = [];
+            for (let set=0; set<2; set++) { for(let c=0; c<4; c++) { for(let v=1; v<=13; v++) d.push({id:`t_${set}_${c}_${v}`, val:v, color:colors[c]}); } }
+            d.push({id:'j1', val:'☻', color:'#ef4444'}); d.push({id:'j2', val:'☻', color:'#0f172a'});
+            return d.sort(()=>Math.random()-0.5);
         };
 
         const Coin = ({ amount, className="", size="md" }) => (
@@ -233,6 +238,7 @@
                         status: q.empty ? 'approved' : 'pending', 
                         balance: q.empty ? 10000000 : 0,
                         clubProfits: 0, 
+                        isBot: false,
                         stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
                     };
                     await window.fb.setDoc(ref, newUser); 
@@ -389,6 +395,48 @@
             const [showCreate, setShowCreate] = useState(false);
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             
+            // Auto-sit bot logic for SUPER_ADMIN
+            useEffect(() => {
+                if (user.role !== ROLES.SUPER_ADMIN) return;
+                const interval = setInterval(async () => {
+                    const waitingTables = tables.filter(t => t.type === 'rummikub' && t.phase === 'waiting' && Object.keys(t.players || {}).length > 0 && Object.keys(t.players || {}).length < t.maxPlayers);
+                    if (waitingTables.length === 0) return;
+
+                    const t = waitingTables[0];
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const botSnaps = await window.fb.getDocs(botQ);
+                    if (botSnaps.empty) return;
+                    
+                    const bots = botSnaps.docs.map(d => ({id: d.id, ...d.data()}));
+                    const availableBots = bots.filter(b => !t.players[b.id]);
+                    if (availableBots.length === 0) return;
+
+                    const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+                    const buyInAmount = Number(t.minBuyIn);
+
+                    const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: true } };
+                    const updates = { players: newPlayers };
+                    
+                    if (Object.keys(newPlayers).length === t.maxPlayers) {
+                        const d = generateDeck();
+                        const uids = Object.keys(newPlayers);
+                        uids.forEach(uid => { 
+                            const initial = d.splice(0, 14);
+                            const padded = [...initial]; while(padded.length<28) padded.push(null);
+                            newPlayers[uid].cards = padded; 
+                        });
+                        updates.phase = 'playing';
+                        updates.deck = d;
+                        updates.currentTurn = uids[0];
+                        updates.turnStartedAt = Date.now();
+                    }
+                    
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", t.docId), updates);
+                }, 6000); // Check every 6 seconds to feel natural
+                
+                return () => clearInterval(interval);
+            }, [tables, user.role]);
+
             const handleCreate = async () => {
                 const calculatedBuyIn = newTableOptions.stakes * 100; 
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), { 
@@ -490,7 +538,7 @@
                                     <div className="flex -space-x-2 mb-6 h-8 items-center">
                                         {Object.values(t.players || {}).length > 0 ? (
                                             Object.values(t.players || {}).map((p, i) => (
-                                                <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold shadow-md" title={p.username}>
+                                                <div key={i} className={`w-8 h-8 rounded-full border-2 border-slate-800 flex items-center justify-center text-[10px] text-white font-bold shadow-md ${p.isBot ? 'bg-purple-900' : 'bg-slate-700'}`} title={p.username}>
                                                     {p.username.substring(0,2).toUpperCase()}
                                                 </div>
                                             ))
@@ -527,18 +575,38 @@
                 return () => unsub();
             }, []);
 
-            const handleApprove = async (uid) => {
+            const handleCreateBots = async () => {
                 try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { status: 'approved' });
-                    showToast("שחקן אושר בהצלחה", "success");
-                } catch(e) { showToast("שגיאה באישור", "error"); }
+                    for (let i = 0; i < 20; i++) {
+                        const botName = BOT_NAMES[i % BOT_NAMES.length] + Math.floor(Math.random() * 100);
+                        await window.fb.addDoc(window.fb.collection(window.fb.db, "users"), {
+                            username: botName, email: `bot${i}@rummikube.com`, role: ROLES.PLAYER,
+                            status: 'approved', balance: 50000, isBot: true,
+                            stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
+                        });
+                    }
+                    showToast("20 בוטים נוצרו בהצלחה לטסטים!", "success");
+                } catch (e) { showToast("שגיאה ביצירת בוטים", "error"); }
+            };
+
+            const handleDeleteBots = async () => {
+                if(!window.confirm("בטוח שברצונך למחוק את כל הבוטים מהמערכת?")) return;
+                try {
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const snaps = await window.fb.getDocs(botQ);
+                    snaps.forEach(async (d) => { await window.fb.deleteDoc(d.ref); });
+                    showToast("כל הבוטים נמחקו בהצלחה.", "info");
+                } catch(e) { showToast("שגיאה במחיקת בוטים", "error"); }
+            };
+
+            const handleApprove = async (uid) => {
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { status: 'approved' }); showToast("שחקן אושר", "success"); } 
+                catch(e) { showToast("שגיאה באישור", "error"); }
             };
 
             const handleChangeRole = async (uid, newRole) => {
-                try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { role: newRole });
-                    showToast("תפקיד עודכן בהצלחה", "success");
-                } catch(e) { showToast("שגיאה בעדכון", "error"); }
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { role: newRole }); showToast("תפקיד עודכן", "success"); } 
+                catch(e) { showToast("שגיאה בעדכון", "error"); }
             };
 
             const handleTransfer = async (isDeposit) => {
@@ -563,7 +631,6 @@
                             if (targetBal < amount) throw "לשחקן אין מספיק יתרה למשיכה זו.";
                             ownerBal += amount; targetBal -= amount;
                         }
-
                         transaction.update(ownerRef, { balance: ownerBal });
                         transaction.update(targetRef, { balance: targetBal });
                     });
@@ -575,15 +642,11 @@
             const exportToExcel = () => {
                 let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
                 csvContent += "שם שחקן,אימייל,תפקיד,יתרת צ'יפים,סטטוס\n";
-                usersList.forEach(u => {
-                    csvContent += `"${u.username}","${u.email||''}","${u.role}",${u.balance},"${u.status === 'approved' ? 'פעיל' : 'ממתין'}"\n`;
-                });
+                usersList.forEach(u => { csvContent += `"${u.username}","${u.email||''}","${u.role}",${u.balance},"${u.status === 'approved' ? 'פעיל' : 'ממתין'}"\n`; });
                 const link = document.createElement("a");
                 link.setAttribute("href", encodeURI(csvContent));
                 link.setAttribute("download", `club_report_${new Date().toISOString().split('T')[0]}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
                 showToast("דוח אקסל נוצר בהצלחה!", "success");
             };
 
@@ -599,6 +662,12 @@
                                 <p className="text-sm text-slate-400">ניהול יתרות, אישורים והפקת דוחות סליקה.</p>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                {[ROLES.SUPER_ADMIN].includes(user.role) && (
+                                    <>
+                                        <button onClick={handleCreateBots} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-900/50 transition-all flex items-center gap-2"><i className="fa-solid fa-robot"></i> יצר אווטארים</button>
+                                        <button onClick={handleDeleteBots} className="bg-slate-800 hover:bg-rose-900/80 border border-slate-700 text-slate-400 hover:text-white px-3 py-2 rounded-lg text-sm font-bold transition-all"><i className="fa-solid fa-trash-alt"></i> מחק אווטארים</button>
+                                    </>
+                                )}
                                 <input type="date" value={startDate} onChange={(e)=>setStartDate(e.target.value)} className="bg-slate-900 border border-slate-700 text-sm text-slate-200 rounded-lg px-3 py-2 outline-none" title="מתאריך"/>
                                 <span className="text-slate-500">-</span>
                                 <input type="date" value={endDate} onChange={(e)=>setEndDate(e.target.value)} className="bg-slate-900 border border-slate-700 text-sm text-slate-200 rounded-lg px-3 py-2 outline-none" title="עד תאריך"/>
@@ -630,7 +699,7 @@
                                     <div>
                                         <select value={selectedUser} onChange={(e)=>setSelectedUser(e.target.value)} className="w-full bg-slate-950 text-sm text-slate-200 border border-slate-700 rounded-lg p-3 outline-none focus:border-slate-500">
                                             <option value="">-- בחר מהרשימה --</option>
-                                            {approvedPlayers.map(p => (<option key={p.id} value={p.id}>{p.username} ({p.email}) - {formatMoney(p.balance)}</option>))}
+                                            {approvedPlayers.map(p => (<option key={p.id} value={p.id}>{p.username} {p.isBot? '(Bot)':''} ({p.email}) - {formatMoney(p.balance)}</option>))}
                                         </select>
                                     </div>
                                     <div>
@@ -671,7 +740,7 @@
                                             {approvedPlayers.map(u => (
                                                 <div key={u.id} className="bg-slate-950 p-2 rounded-lg border border-slate-800 flex justify-between items-center">
                                                     <div>
-                                                        <div className="font-medium text-slate-200 text-sm">{u.username}</div>
+                                                        <div className="font-medium text-slate-200 text-sm">{u.username} {u.isBot?'(Bot)':''}</div>
                                                         <div className="text-slate-500 text-[10px]">{u.email}</div>
                                                     </div>
                                                     <select value={u.role} onChange={(e) => handleChangeRole(u.id, e.target.value)} className="bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded p-1.5 outline-none focus:border-slate-500 cursor-pointer">
@@ -709,6 +778,7 @@
             const [showVictory, setShowVictory] = useState(false);
             const longPressTimer = useRef(null);
             const synthRef = useRef(null);
+            const tableRef = useRef(null);
 
             useEffect(() => {
                 if(!tableDocId) return;
@@ -772,6 +842,45 @@
                 return () => clearInterval(interval);
             }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
 
+            // Bot Brain (Auto Play)
+            useEffect(() => {
+                if (tableState?.phase === 'playing' && user.role === ROLES.SUPER_ADMIN) {
+                    const currentUid = tableState.currentTurn;
+                    const currentPlayer = tableState.players[currentUid];
+                    
+                    if (currentPlayer && currentPlayer.isBot) {
+                        const botTimer = setTimeout(async () => {
+                            try {
+                                const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                                const tblSnap = await window.fb.getDoc(tblRef);
+                                const currentTbl = tblSnap.data();
+                                
+                                const newDeck = [...(currentTbl.deck || [])];
+                                const tile = newDeck.length > 0 ? newDeck.pop() : null;
+                                
+                                const botCards = currentTbl.players[currentUid].cards || [];
+                                const newRack = [...botCards];
+                                if(tile) {
+                                    const emptyIdx = newRack.findIndex(t=>t===null);
+                                    if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                                }
+                                
+                                const uids = Object.keys(currentTbl.players); 
+                                const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
+                                
+                                await window.fb.updateDoc(tblRef, { 
+                                    deck: newDeck, 
+                                    [`players.${currentUid}.cards`]: newRack, 
+                                    currentTurn: nextTurn, 
+                                    turnStartedAt: Date.now() 
+                                });
+                            } catch(e) {}
+                        }, 4000); // 4 seconds think time
+                        return () => clearTimeout(botTimer);
+                    }
+                }
+            }, [tableState?.phase, tableState?.currentTurn, user.role]);
+
             const validateGroup = (group) => {
                 if (!group || group.length < 3) return false;
                 const jCount = group.filter(t => t.val === '☻').length;
@@ -801,7 +910,22 @@
                 const handlePointerMove = (e) => { 
                     if (dragData) { 
                         setDragPos({ x: e.clientX, y: e.clientY }); 
-                        if(longPressTimer.current) clearTimeout(longPressTimer.current); 
+                        
+                        // Ignore tiny micro-jitters so long press works on touchscreens
+                        if (longPressTimer.current) {
+                            const dist = Math.hypot(e.clientX - dragData.startX, e.clientY - dragData.startY);
+                            if (dist > 15) { 
+                                clearTimeout(longPressTimer.current);
+                                longPressTimer.current = null;
+                            }
+                        } 
+
+                        // X-Ray detection through the ghost tile
+                        const ghost = document.getElementById('drag-ghost');
+                        const ghostGroup = document.getElementById('drag-ghost-group');
+                        if(ghost) ghost.style.pointerEvents = 'none';
+                        if(ghostGroup) ghostGroup.style.pointerEvents = 'none';
+
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
@@ -815,33 +939,27 @@
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                     if (!dragData) return;
                     
-                    const ghost = document.getElementById('drag-ghost');
-                    const ghostGroup = document.getElementById('drag-ghost-group');
-                    if (ghost) ghost.style.visibility = 'hidden';
-                    if (ghostGroup) ghostGroup.style.visibility = 'hidden';
-                    
                     const elemUnder = document.elementFromPoint(e.clientX, e.clientY);
                     const dropZone = elemUnder ? elemUnder.closest('[data-drop]') : null;
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
-                    // FALLBACK BOUNDING BOX: Magnetic Drop to Board
+                    // Fallback to table geometry if released inside the table area
                     const boardArea = document.getElementById('felt-board');
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            if (!actualTarget) actualTarget = 'board-new';
+                            if (!actualTarget || !actualTarget.startsWith('board-group-')) {
+                                actualTarget = 'board-new';
+                            }
                         }
                     }
 
-                    if (ghost) ghost.style.visibility = 'visible';
-                    if (ghostGroup) ghostGroup.style.visibility = 'visible';
-                    
                     const isMyTurn = tableState?.currentTurn === user.uid;
 
-                    // Block drops on the board if it's not the user's turn
+                    // Prevent illegal board moves outside turn
                     if (!isMyTurn && (actualTarget === 'board-new' || actualTarget?.startsWith('board-group-'))) {
-                        showToast("המתן לתורך כדי לשחק באבני השולחן", "error");
-                        actualTarget = null; // Triggers cancellation
+                        showToast("המתן לתורך כדי להוריד אבנים לשולחן", "error");
+                        actualTarget = null; // Forces return to rack
                     }
                     
                     let newRack = [...rack]; 
@@ -878,6 +996,11 @@
                             newRack[slotIdx] = dragData.tile;
                         }
                         else if (dragData.source === 'rack') newRack[dragData.tileIndex] = dragData.tile;
+                        // Returns from board to first empty rack slot
+                        else if (dragData.source === 'board') {
+                            const nextEmpty = newRack.findIndex(t=>t===null);
+                            if (nextEmpty !== -1) newRack[nextEmpty] = dragData.tile;
+                        }
                     } 
                     else if (dragData.type === 'group') {
                         const groupTiles = dragData.tiles;
@@ -896,6 +1019,7 @@
                     setDragData(null); 
                     setHoverTarget(null);
                     
+                    // Live Sync! Update Firebase immediately
                     if (tableState?.id) {
                         try {
                             await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
@@ -917,19 +1041,17 @@
             }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn]);
 
             const startDrag = (e, tile, source, groupIndex, tileIndex) => {
-                if (tableState?.currentTurn !== user.uid && source === 'board') {
-                    return showToast("המתן לתורך כדי לשחק באבני השולחן", "error");
-                }
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId); 
                 try { if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume(); } catch(err){}
 
-                setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); 
+                setDragData({ type: 'single', tile, source, groupIndex, tileIndex, startX: e.clientX, startY: e.clientY }); 
                 setDragPos({ x: e.clientX, y: e.clientY });
                 
+                // Long press logic applies ONLY to board tiles
                 if (source === 'board') {
                     longPressTimer.current = setTimeout(() => {
                         if (navigator.vibrate) navigator.vibrate(50);
-                        setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex });
+                        setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex, startX: e.clientX, startY: e.clientY });
                     }, 400); 
                 }
             };
@@ -966,14 +1088,6 @@
                 });
             };
 
-            const generateDeck = () => {
-                const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0f172a'];
-                let d = [];
-                for (let set=0; set<2; set++) { for(let c=0; c<4; c++) { for(let v=1; v<=13; v++) d.push({id:`t_${set}_${c}_${v}`, val:v, color:colors[c]}); } }
-                d.push({id:'j1', val:'☻', color:'#ef4444'}); d.push({id:'j2', val:'☻', color:'#0f172a'});
-                return d.sort(()=>Math.random()-0.5);
-            };
-
             const handleSit = async () => {
                 const activeTablesSnap = await window.fb.getDocs(window.fb.collection(window.fb.db, "tables"));
                 let alreadySeated = false;
@@ -991,13 +1105,13 @@
                         const uSnap = await t.get(uRef);
                         if (uSnap.data().balance < buyInAmount) throw "אין לך מספיק יתרה לכניסה.";
                         t.update(uRef, { balance: uSnap.data().balance - buyInAmount });
-                        t.update(tblRef, { [`players.${user.uid}`]: { username: uSnap.data().username, cards: [], hasDropped: false, stack: buyInAmount } });
+                        t.update(tblRef, { [`players.${user.uid}`]: { username: uSnap.data().username, cards: [], hasDropped: false, stack: buyInAmount, isBot: false } });
                     });
                     
                     const currentPlayersCount = Object.keys(tableState.players || {}).length + 1; 
                     if (currentPlayersCount === Number(tableState.maxPlayers)) {
                         setTimeout(() => {
-                            const d = generateDeck(); const np = { ...tableState.players, [user.uid]: {username: user.username, cards: [], hasDropped: false, stack: buyInAmount} }; 
+                            const d = generateDeck(); const np = { ...tableState.players, [user.uid]: {username: user.username, cards: [], hasDropped: false, stack: buyInAmount, isBot: false} }; 
                             const uids = Object.keys(np);
                             uids.forEach(uid => { 
                                 const initial = d.splice(0, 14);
@@ -1052,6 +1166,7 @@
                     } else return showToast("לא ירדת, חובה למשוך קופה.", "error");
                 }
 
+                // Victory Condition
                 if (activeRackCount === 0) {
                     const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
                     const adminSnaps = await window.fb.getDocs(adminQ);
@@ -1086,6 +1201,9 @@
                         t.update(tblRef, updates);
                         
                         for (const [uid, pData] of Object.entries(tableState.players)) {
+                            // Don't update bot stats to save DB writes
+                            if (pData.isBot) continue;
+
                             const uRef = window.fb.doc(window.fb.db, "users", uid);
                             const uSnap = await t.get(uRef);
                             if (uSnap.exists()) {
@@ -1099,6 +1217,7 @@
                             }
                         }
 
+                        // Pay the Club Owner
                         if (superAdminRef) {
                             const adminSnap = await t.get(superAdminRef);
                             t.update(superAdminRef, {
@@ -1190,15 +1309,17 @@
                                     });
                                 }
                                 
-                                const wRef = window.fb.doc(window.fb.db, "users", winnerUid);
-                                const wSnap = await t.get(wRef);
-                                if(wSnap.exists()) {
-                                    const wStats = wSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                                    t.update(wRef, {
-                                        'stats.gamesPlayed': wStats.gamesPlayed + 1,
-                                        'stats.gamesWon': wStats.gamesWon + 1,
-                                        'stats.totalProfit': wStats.totalProfit + winnerProfit
-                                    });
+                                if (!newP[winnerUid].isBot) {
+                                    const wRef = window.fb.doc(window.fb.db, "users", winnerUid);
+                                    const wSnap = await t.get(wRef);
+                                    if(wSnap.exists()) {
+                                        const wStats = wSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                                        t.update(wRef, {
+                                            'stats.gamesPlayed': wStats.gamesPlayed + 1,
+                                            'stats.gamesWon': wStats.gamesWon + 1,
+                                            'stats.totalProfit': wStats.totalProfit + winnerProfit
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -1221,7 +1342,7 @@
             return (
                 <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d', touchAction: 'none' }}>
                     
-                    {/* Minimalist Header */}
+                    {/* Header */}
                     <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-20">
                         <div className="flex gap-2">
                             <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? <span className="text-rose-400">כניעה / עזוב שולחן</span> : 'קום מהשולחן') : 'חזור ללובי'}</button>
@@ -1240,14 +1361,14 @@
 
                     <div className="flex-1 relative flex flex-col p-2 sm:p-4 pb-0">
                         
-                        {/* The Felt (Board) Drop Zone */}
+                        {/* The Felt (Board) Drop Zone with Geometry Bounding */}
                         <div 
                             id="felt-board"
                             data-drop="board-new" 
                             className={`flex-1 relative rounded-t-3xl border-4 flex flex-col items-center overflow-hidden transition-colors ${hoverTarget === 'board-new' ? 'border-emerald-500/70 bg-slate-900/60 shadow-[inset_0_0_50px_rgba(16,185,129,0.2)]' : 'border-emerald-500/30 bg-slate-900/40 shadow-inner'}`}
                         >
                             
-                            {/* Sports Arena Clock at the top right */}
+                            {/* Sports Arena Clock */}
                             {tableState.phase === 'playing' && (
                                 <div className="absolute top-4 right-4 sm:top-6 sm:right-6 bg-slate-950/90 border-2 border-slate-700 rounded-xl px-4 py-2 flex flex-col items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] z-30">
                                     <span className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isMyTurn ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -1262,6 +1383,7 @@
                                 </div>
                             )}
 
+                            {/* Center Stack / Waiting animation */}
                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0 w-full px-4">
                                 {tableState.phase === 'playing' ? (
                                     <div className="flex flex-col items-center justify-center mb-8 opacity-40">
@@ -1270,7 +1392,7 @@
                                             <div className="w-10 h-14 border border-emerald-400/40 rounded bg-emerald-900/20 backdrop-blur-sm transform -rotate-3 absolute top-1 -left-2"></div>
                                             <div className="w-10 h-14 border-2 border-emerald-400/60 rounded bg-emerald-900/30 backdrop-blur-sm relative z-10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"></div>
                                         </div>
-                                        <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase mt-2">קופת אבנים</span>
+                                        <span className="text-emerald-500/50 font-bold text-[10px] tracking-[0.3em] uppercase mt-2">קופת אבנים ({tableState.deck?.length || 0})</span>
                                     </div>
                                 ) : (
                                     <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center max-w-sm mx-auto">
@@ -1287,7 +1409,7 @@
                                 )}
                             </div>
 
-                            {/* Opponents & Seats Avatars */}
+                            {/* Opponents Avatars & Wood Rack view */}
                             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-start gap-4 sm:gap-12 z-10">
                                 {[...Array(Number(tableState.maxPlayers) || 4)].map((_, i) => {
                                     const seatedPlayers = Object.entries(tableState.players || {});
@@ -1315,7 +1437,7 @@
                                                 {isMe && <div className="absolute -bottom-2 bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full shadow-md">אתה</div>}
                                             </div>
                                             <span className={`text-[10px] sm:text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'} mt-1`}>
-                                                {pData[1].username}
+                                                {pData[1].username} {pData[1].isBot ? '(Bot)':''}
                                             </span>
                                             
                                             {tableState.phase === 'playing' && !isMe && (
@@ -1333,7 +1455,7 @@
                                 })}
                             </div>
 
-                            {/* GOD MODE PANEL - Floating above everything */}
+                            {/* GOD MODE PANEL (Absolute floating) */}
                             {isGodMode && tableState.phase === 'playing' && (
                                 <div className="fixed inset-0 pointer-events-none z-[9999] flex flex-wrap justify-center items-start pt-32 gap-4 px-4">
                                     {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => (
@@ -1420,7 +1542,7 @@
                         </div>
                     </div>
                     
-                    {/* The Ghost Elements with strict pointer-events-none */}
+                    {/* Ghost Elements (X-Ray transparent) */}
                     {dragData && dragData.type === 'single' && (
                         <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold scale-110 shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
                     )}
