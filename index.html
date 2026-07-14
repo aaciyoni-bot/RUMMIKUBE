@@ -48,25 +48,33 @@
         
         /* Premium 3D Rummy Tiles (Ivory Look) */
         .rummy-tile {
-            background: linear-gradient(135deg, #ffffff 0%, #f0ebd8 100%);
-            box-shadow: 2px 5px 10px rgba(0,0,0,0.7), inset 0 2px 3px rgba(255,255,255,1);
-            border-bottom: 6px solid #d1ccb8; border-right: 2px solid #e2ddd0;
-            border-radius: 10px; font-family: 'Rubik', sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            background: linear-gradient(135deg, #ffffff 0%, #f4f1e1 100%);
+            box-shadow: 2px 6px 12px rgba(0,0,0,0.5), inset -1px -3px 4px rgba(0,0,0,0.1), inset 1px 2px 3px rgba(255,255,255,1);
+            border-bottom: 7px solid #d1ccb8; border-right: 2px solid #e2ddd0; border-left: 1px solid #ffffff;
+            border-radius: 8px; font-family: 'Rubik', sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,0.2);
             transition: transform 0.1s, box-shadow 0.1s;
         }
         
         /* Premium Wood Rack */
         .rummy-rack-wood {
-            background: linear-gradient(to bottom, #d4a373 0%, #b5835a 50%, #8b5a33 100%);
-            border-bottom: 15px solid #5c3a21; border-left: 5px solid #704728; border-right: 5px solid #704728;
-            box-shadow: inset 0 -10px 30px rgba(60,30,10,0.6), 0 15px 40px rgba(0,0,0,0.9);
-            border-top-left-radius: 25px; border-top-right-radius: 25px;
+            background: linear-gradient(to bottom, #e3b782 0%, #c49258 40%, #8b5a33 100%);
+            border-bottom: 12px solid #5c3a21; border-left: 4px solid #704728; border-right: 4px solid #704728;
+            box-shadow: inset 0 -10px 30px rgba(60,30,10,0.5), 0 15px 40px rgba(0,0,0,0.9);
+            border-top-left-radius: 15px; border-top-right-radius: 15px;
             position: relative;
         }
         .rummy-rack-wood::before {
-            content: ''; position: absolute; inset: 0; border-top-left-radius: 25px; border-top-right-radius: 25px;
-            background-image: repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(0,0,0,0.05) 20px, rgba(0,0,0,0.05) 40px);
+            content: ''; position: absolute; inset: 0; border-top-left-radius: 15px; border-top-right-radius: 15px;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.08) 15px, rgba(0,0,0,0.08) 30px);
             pointer-events: none;
+        }
+
+        /* Poker Table Ellipse */
+        .poker-table-ellipse {
+            background: radial-gradient(ellipse at center, #0f5132 0%, #064e3b 100%);
+            border: 15px solid #1f2937;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 0 30px rgba(16, 185, 129, 0.3);
+            border-radius: 200px; /* Highly rounded for ellipse */
         }
 
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
@@ -76,7 +84,6 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -157,7 +164,6 @@
                 const snap = await window.fb.getDoc(ref);
                 if (snap.exists()) {
                     let data = snap.data(); let updates = {};
-                    // Auto Top-up for Super Admin testing
                     if (data.role === ROLES.SUPER_ADMIN && data.balance < 1000000) { updates.balance = 10000000; data.balance = 10000000; }
                     if (Object.keys(updates).length > 0) await window.fb.updateDoc(ref, updates);
                     setDbUser({ uid: user.uid, ...data });
@@ -192,24 +198,26 @@
 
             return (
                 <div className="h-full flex flex-col relative bg-slate-950 overflow-hidden">
+                    {/* Top Navigation Bar - Responsive */}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-950 p-2 sm:p-4 z-40 shrink-0 border-b border-slate-800 shadow-2xl relative">
                             <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10 gap-2">
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
+                                    <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-900 text-rose-500 border border-slate-800 flex items-center justify-center hover:bg-slate-800"><i className="fa-solid fa-arrow-right-from-bracket"></i></button>
                                     <div className="flex flex-col items-end px-2">
-                                        <span className="text-sm font-bold text-white">{dbUser.username} {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px]"></i>}</span>
+                                        <span className="text-sm font-bold text-white">{dbUser.username} {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-bolt text-purple-400 text-[10px]" title="Super Admin"></i>}</span>
                                         <span className="chip-text text-sm"><i className="fa-solid fa-coins text-gold-500 text-[10px] mr-1"></i>{formatMoney(dbUser.balance)}</span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end cursor-pointer" onClick={() => setCurrentView('lobby')}>
-                                    <h1 className="text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-white">RUMMIKUBE</h1>
-                                    <p className="text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase">Elite Club</p>
+                                    <h1 className="text-xl sm:text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-white">RUMMIKUBE</h1>
+                                    <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold tracking-[0.4em] uppercase">Elite Club</p>
                                 </div>
                             </div>
                         </nav>
                     )}
                     
+                    {/* Reconnect Banner */}
                     {currentView === 'lobby' && activeSession && (
                         <div onClick={() => { setActiveTable(activeSession); setCurrentView('table'); }} className="bg-emerald-600 cursor-pointer hover:bg-emerald-500 text-white p-3 flex justify-center items-center gap-2 font-bold z-50 shrink-0 shadow-lg animate-pulse">
                             <i className="fa-solid fa-play"></i> יש לך משחק פעיל! לחץ כאן לחזור לשולחן
@@ -232,17 +240,23 @@
 
         function AuthView() {
             return (
-                <div className="flex-1 flex flex-col items-center justify-center p-4">
-                    <div className="glass-panel p-10 rounded-3xl text-center shadow-2xl">
-                        <h2 className="text-3xl font-black text-white mb-8">RUMMIKUBE</h2>
-                        <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="bg-white text-slate-900 font-black py-4 px-8 rounded-xl"><i className="fa-brands fa-google text-rose-500"></i> התחבר עם Google</button>
+                <div className="flex-1 flex flex-col items-center justify-center p-4 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                    <div className="glass-panel p-10 rounded-3xl text-center shadow-2xl border-t border-white/10">
+                        <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-8 tracking-widest drop-shadow-lg">RUMMIKUBE</h2>
+                        <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="bg-white hover:bg-gray-100 transition-colors text-slate-900 font-black py-4 px-8 rounded-xl shadow-xl flex items-center gap-3 mx-auto">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
+                            התחבר עם Google
+                        </button>
                     </div>
                 </div>
             );
         }
 
         function PendingView() {
-            return <div className="flex-1 text-white flex justify-center items-center font-bold text-xl">ממתין לאישור מנהל המועדון...</div>;
+            return <div className="flex-1 text-white flex justify-center items-center font-bold text-xl flex-col gap-4">
+                <i className="fa-solid fa-clock-rotate-left text-4xl text-amber-500 animate-spin"></i>
+                ממתין לאישור מנהל המועדון...
+            </div>;
         }
 
         function LobbyView({ user, tables, onJoin, showToast }) {
@@ -274,6 +288,7 @@
                 e.stopPropagation(); 
                 if (window.confirm("בטוח שברצונך למחוק שולחן זה?")) {
                     await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", id));
+                    showToast("השולחן נמחק", "info");
                 }
             };
 
@@ -295,30 +310,29 @@
                             {user.role !== ROLES.PLAYER && <button onClick={()=>setShowCreate(!showCreate)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold transition-all"><i className="fa-solid fa-plus ml-2"></i> פתיחת שולחן</button>}
                         </div>
                         
-                        {}
                         {showCreate && (
-                            <div className="glass-panel p-6 rounded-2xl mb-6 text-right relative overflow-hidden border border-blue-500/30">
+                            <div className="glass-panel p-6 rounded-2xl mb-6 text-right relative overflow-hidden border border-blue-500/30 animate-[slideInUp_0.2s_ease-out]">
                                 <div className="absolute top-0 right-0 w-full h-1 bg-blue-500"></div>
                                 <h3 className="text-lg font-bold text-white mb-4">הגדרות שולחן חדש</h3>
-                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="text-slate-400 text-sm">מקסימום שחקנים</label>
-                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded p-2 mt-1">
+                                        <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded p-2 mt-1 outline-none focus:border-blue-500">
                                             {[...Array(typeInfo.maxPlayersLimit-1)].map((_,i) => <option key={i+2} value={i+2}>{i+2} שחקנים</option>)}
                                         </select>
                                     </div>
                                     {activeCat === 'poker' && (
                                         <div className="flex items-end">
-                                            <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-2 border border-slate-700 rounded w-full">
+                                            <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-2 border border-slate-700 rounded w-full hover:bg-slate-800 transition-colors">
                                                 <input type="checkbox" checked={newTableOptions.isDealerChoice} onChange={(e)=>setNewTableOptions({...newTableOptions, isDealerChoice: e.target.checked})} className="w-5 h-5 accent-blue-500" />
-                                                Dealer's Choice
+                                                Dealer's Choice (פתוח תמיד)
                                             </label>
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex justify-end gap-2">
-                                    <button onClick={()=>setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white">ביטול</button>
-                                    <button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg">אשר פתיחה</button>
+                                    <button onClick={()=>setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">ביטול</button>
+                                    <button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-transform hover:scale-105">אשר פתיחה</button>
                                 </div>
                             </div>
                         )}
@@ -332,8 +346,8 @@
                                             <h3 className="text-xl font-black text-white mb-1">{t.stakes} stakes</h3>
                                             <p className="text-slate-400 text-sm">כניסה: 🪙{t.minBuyIn}</p>
                                         </div>
-                                        <div className={`px-3 py-1 rounded-full text-sm font-bold border ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
-                                            <i className="fa-solid fa-users ml-1"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
+                                        <div className={`px-3 py-1 rounded-full text-sm font-bold border flex items-center gap-1 ${Object.keys(t.players||{}).length === t.maxPlayers ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'}`}>
+                                            <i className="fa-solid fa-users"></i> {Object.keys(t.players||{}).length}/{t.maxPlayers}
                                         </div>
                                     </div>
                                     
@@ -342,7 +356,11 @@
                                     <div className="mt-4 flex justify-between items-center">
                                         <span className="text-sm text-slate-500 font-bold">Rake: 6%</span>
                                         <div className="flex items-center gap-2">
-                                            {user.role !== ROLES.PLAYER && <button onClick={(e)=>handleDelete(e,t.docId)} className="w-8 h-8 rounded bg-slate-800 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center border border-slate-700"><i className="fa-solid fa-trash"></i></button>}
+                                            {user.role !== ROLES.PLAYER && (
+                                                <button onClick={(e)=>handleDelete(e,t.docId)} className="w-8 h-8 rounded bg-slate-800 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center border border-slate-700 z-10" title="מחק שולחן">
+                                                    <i className="fa-solid fa-trash"></i>
+                                                </button>
+                                            )}
                                             <button className="bg-slate-700 text-white px-6 py-2 rounded-lg font-bold group-hover:bg-blue-600 transition-colors">היכנס</button>
                                         </div>
                                     </div>
@@ -369,9 +387,39 @@
             if(!tableState) return <div className="flex-1 bg-slate-950 flex justify-center items-center text-emerald-400"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
             
             const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
-            if(category === 'poker') return <div className="flex-1 flex items-center justify-center text-white bg-slate-900 font-bold">מנוע הפוקר מושהה - אנו מתמקדים בהשלמת הרמיקוב!</div>;
+            if(category === 'poker') return <PokerTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
             if(category === 'rummy') return <RummyTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
             return null;
+        }
+
+        function PokerTable({ tableState, user, onLeave, showToast }) {
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            
+            return (
+                <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden bg-slate-950">
+                     <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900/80 border-b border-white/10 shrink-0">
+                        <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
+                        <h2 className="text-xl font-black text-white/90 tracking-wider">Poker Room</h2>
+                        <div className="flex items-center gap-2">
+                           {isSuperAdmin && <div className="bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse"><i className="fa-solid fa-eye"></i> God Mode</div>}
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 flex items-center justify-center p-4 sm:p-10">
+                        <div className="w-full max-w-4xl h-full max-h-[600px] poker-table-ellipse relative flex items-center justify-center">
+                            <div className="text-emerald-400/30 text-4xl font-black opacity-50 tracking-widest uppercase">Elite Poker</div>
+                            
+                            {/* Dummy Buttons for D and DC */}
+                            <div className="absolute top-10 left-20 w-8 h-8 rounded-full bg-white text-black font-black flex items-center justify-center shadow-lg border-2 border-gray-300 text-xs">D</div>
+                            {tableState.isDealerChoice && <div className="absolute top-10 right-20 w-8 h-8 rounded-full bg-amber-400 text-black font-black flex items-center justify-center shadow-lg border-2 border-amber-600 text-[10px]">DC</div>}
+
+                            <div className="absolute bottom-10 bg-black/60 px-6 py-3 rounded-full text-white font-bold text-sm text-center">
+                                מנוע הפוקר בפיתוח - מתמקדים כעת ברמיקוב!
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
         function RummyTable({ tableState, user, onLeave, showToast }) {
@@ -392,7 +440,7 @@
             const [timeLeft, setTimeLeft] = useState(60);
             const longPressTimer = useRef(null);
 
-            // Sync with Server (only if not currently dragging)
+            // Sync with Server (only if not currently dragging to avoid jitter)
             useEffect(() => {
                 if (!dragData) {
                     setBoard(tableState.board || []);
@@ -409,6 +457,7 @@
                 }
             }, [tableState.board, tableState.players?.[user.uid]?.cards, tableState.currentTurn]);
 
+            // Turn Timer Logic
             useEffect(() => {
                 let interval;
                 if (isPlaying && tableState.turnStartedAt) {
@@ -438,7 +487,6 @@
             }, [tableState.phase, tableState.players]);
 
             const generateRummyDeck = () => {
-                // Orange, Blue, Red, Black for Premium Look
                 const colors = ['text-orange-500', 'text-blue-600', 'text-red-600', 'text-slate-900'];
                 const hexes = ['#f97316', '#2563eb', '#dc2626', '#0f172a'];
                 let d = [];
@@ -449,37 +497,6 @@
                 }
                 d.push({ id: 'j1', val: '☻', color: 'text-red-600', hex: '#dc2626' }, { id: 'j2', val: '☻', color: 'text-slate-900', hex: '#0f172a' });
                 return d.sort(() => Math.random() - 0.5);
-            };
-
-            const handleSit = async () => {
-                try { 
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}`]: { username: user.username, cards: [], hasDropped: false } }); 
-                    showToast("התיישבת בהצלחה!", "success"); 
-                } catch(e) { showToast("שגיאה בישיבה בשולחן", "error"); }
-            };
-
-            const startGame = async () => {
-                const d = generateRummyDeck(); 
-                const newPlayers = { ...tableState.players }; 
-                const uids = Object.keys(newPlayers);
-                uids.forEach(uid => { newPlayers[uid].cards = d.splice(0, 14); newPlayers[uid].hasDropped = false; });
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
-                    phase: 'playing', deck: d, board: [], players: newPlayers, 
-                    currentTurn: uids[0], turnStartedAt: Date.now() 
-                });
-            };
-
-            const handleTimeoutPenalty = async () => {
-                showToast("נגמר הזמן! הלוח אופס ומשכת עונשין.", "error");
-                const newDeck = [...(tableState.deck || [])];
-                const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
-                const uids = Object.keys(tableState.players); 
-                const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
-                    deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, 
-                    currentTurn: nextTurn, turnStartedAt: Date.now() 
-                });
             };
 
             const validateGroup = (group) => {
@@ -596,13 +613,43 @@
                 if (e.pointerType === 'touch') e.target.releasePointerCapture(e.pointerId);
                 setDragData({ type: 'single', tile, source, groupIndex, tileIndex }); setDragPos({ x: e.clientX, y: e.clientY });
                 
-                // Long Press -> Group Drag
                 if (source === 'board') {
                     longPressTimer.current = setTimeout(() => {
                         if (navigator.vibrate) navigator.vibrate(50); 
                         setDragData({ type: 'group', tiles: board[groupIndex], source, groupIndex });
                     }, 500); 
                 }
+            };
+
+            const handleSit = async () => {
+                try { 
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}`]: { username: user.username, cards: [], hasDropped: false } }); 
+                    showToast("התיישבת בהצלחה!", "success"); 
+                } catch(e) { showToast("שגיאה בישיבה בשולחן", "error"); }
+            };
+
+            const startGame = async () => {
+                const d = generateRummyDeck(); 
+                const newPlayers = { ...tableState.players }; 
+                const uids = Object.keys(newPlayers);
+                uids.forEach(uid => { newPlayers[uid].cards = d.splice(0, 14); newPlayers[uid].hasDropped = false; });
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                    phase: 'playing', deck: d, board: [], players: newPlayers, 
+                    currentTurn: uids[0], turnStartedAt: Date.now() 
+                });
+            };
+
+            const handleTimeoutPenalty = async () => {
+                showToast("נגמר הזמן! הלוח אופס ומשכת עונשין.", "error");
+                const newDeck = [...(tableState.deck || [])];
+                const tile = newDeck.length > 0 ? newDeck.pop() : null;
+                const newRack = tile ? [...startTurnRack, tile] : [...startTurnRack];
+                const uids = Object.keys(tableState.players); 
+                const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { 
+                    deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, 
+                    currentTurn: nextTurn, turnStartedAt: Date.now() 
+                });
             };
 
             const handleDraw = async () => {
@@ -626,7 +673,6 @@
                     } else return showToast("לא ביצעת שום מהלך! עליך למשוך מהקופה.", "error");
                 }
 
-                // Win Condition
                 if (rack.length === 0) {
                     showToast("ניצחון! 🏆 Rummikub!", "success");
                     await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { phase: 'showdown', board: board, [`players.${user.uid}.cards`]: [], winner: user.uid });
@@ -645,16 +691,13 @@
 
             return (
                 <div className="flex-1 flex flex-col relative select-none h-full overflow-hidden" style={{ backgroundColor: '#0f386d', backgroundImage: 'radial-gradient(circle at 50% 0%, #174b8e 0%, #0a2142 100%)', touchAction: 'none' }}>
-                    {/* Header */}
                     <div className="relative z-10 flex justify-between items-center p-3 bg-slate-900/50 border-b border-white/10 shrink-0 shadow-lg">
                         <button onClick={onLeave} className="text-slate-300 bg-slate-800/80 px-4 py-2 rounded-lg font-bold hover:bg-slate-700 transition"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
                         <h2 className="text-xl font-black text-white/90 tracking-wider font-rubik drop-shadow-md">Rummikub Elite</h2>
                         <div className="text-amber-400 font-bold bg-amber-900/30 border border-amber-500/50 px-4 py-1.5 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.2)]">Stakes: {tableState.stakes}</div>
                     </div>
 
-                    {/* Central Board (Felt) */}
                     <div className="flex-1 min-h-0 relative mx-2 sm:mx-4 mt-4 mb-2 flex flex-col" onPointerEnter={() => setHoverTarget('board-new')}>
-                        {/* Opponents HUD */}
                         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 flex gap-8 z-10">
                             {opponents.map(([uid, p]) => (
                                 <div key={uid} className="flex flex-col items-center">
@@ -689,7 +732,6 @@
                         )}
                     </div>
 
-                    {/* Player Area (Wood Rack & Controls) */}
                     <div className="relative z-10 p-2 sm:p-4 flex flex-col items-center justify-end pb-4 shrink-0" onPointerEnter={() => setHoverTarget('rack')}>
                         {isSeated && isPlaying && (
                             <div className="absolute left-4 top-[-40px] flex gap-2 z-30">
