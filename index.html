@@ -35,7 +35,7 @@
             color: #f8fafc; margin: 0; padding: 0;
             height: 100dvh; 
             width: 100vw; overflow: hidden; overscroll-behavior: none;
-            touch-action: none; /* Prevents pull-to-refresh and global scrolling */
+            touch-action: none; 
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -58,6 +58,7 @@
         @keyframes flashRed { 0%, 100% { border-color: rgba(239, 68, 68, 0.3); box-shadow: none; } 50% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239,68,68,0.5); } }
         .board-invalid-group { animation: flashRed 1.5s infinite; border: 2px solid #ef4444 !important; background: rgba(239, 68, 68, 0.05); }
         
+        /* New Tile Design (Commercial Look) */
         .rummy-tile {
             background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
             box-shadow: 2px 4px 8px rgba(0,0,0,0.4), inset -1px -2px 3px rgba(0,0,0,0.1), inset 1px 1px 2px rgba(255,255,255,1);
@@ -83,21 +84,22 @@
             font-size: calc(1.25rem * var(--board-scale, 1));
             margin-left: calc(2px * var(--board-scale, 1));
             margin-right: calc(2px * var(--board-scale, 1));
-            transition: width 0.3s ease, height 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
         }
         @media (min-width: 640px) {
             .board-tile {
                 width: calc(2.75rem * var(--board-scale, 1));
                 height: calc(4rem * var(--board-scale, 1));
-                font-size: calc(1.5rem * var(--board-scale, 1));
+                font-size: calc(1.75rem * var(--board-scale, 1));
             }
         }
+        
         .board-group {
-            padding: calc(0.75rem * var(--board-scale, 1));
+            padding: calc(0.5rem * var(--board-scale, 1));
             border-radius: calc(0.75rem * var(--board-scale, 1));
-            transition: transform 0.2s, padding 0.3s ease, border-radius 0.3s ease, background-color 0.2s, border-color 0.2s;
+            transition: background-color 0.2s, border-color 0.2s;
         }
 
+        /* Commercial Wood Rack */
         .rack-grid {
             display: grid;
             grid-template-columns: repeat(14, 1fr);
@@ -122,6 +124,27 @@
         }
         .rack-slot.hover-target { background-color: rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.8); }
 
+        /* Left Sidebar Avatars */
+        .sidebar-avatar {
+            transition: all 0.3s ease;
+        }
+        .sidebar-avatar.active-turn {
+            transform: scale(1.1);
+            border-color: #facc15;
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
+        }
+        
+        /* Right Sidebar Buttons */
+        .action-btn {
+            background: linear-gradient(to bottom, #1e293b, #0f172a);
+            border: 2px solid #334155;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.1);
+            transition: all 0.1s ease;
+        }
+        .action-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -163,7 +186,7 @@
         };
 
         const generateDeck = () => {
-            const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0f172a'];
+            const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0f172a']; // Red, Blue, Orange, Black
             let d = [];
             for (let set=0; set<2; set++) { for(let c=0; c<4; c++) { for(let v=1; v<=13; v++) d.push({id:`t_${set}_${c}_${v}_${Math.random()}`, val:v, color:colors[c]}); } }
             d.push({id:`j1_${Math.random()}`, val:'☻', color:'#ef4444'}); d.push({id:`j2_${Math.random()}`, val:'☻', color:'#0f172a'});
@@ -276,7 +299,7 @@
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
                     
-                    {}
+                    {/* Header */}
                     {dbUser && dbUser.status === 'approved' && currentView !== 'table' && (
                         <nav className="bg-slate-900/90 backdrop-blur-md px-4 py-3 z-40 shrink-0 border-b border-slate-800 shadow-xl flex justify-between items-center">
                             <div className="flex items-center gap-2 sm:gap-4">
@@ -319,7 +342,7 @@
                         {currentView === 'table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => changeView('lobby')} showToast={showToast} />}
                     </main>
                     
-                    {}
+                    {/* Toasts */}
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl shadow-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>
@@ -702,16 +725,17 @@
             const synthRef = useRef(null);
             const tableRef = useRef(null);
 
-            // Auto-Scale engine based on number of groups and tiles
+            // Auto-Scale engine
             const boardScale = useMemo(() => {
                 if (!board || board.length === 0) return 1.0;
                 const totalTiles = board.reduce((sum, g) => sum + g.tiles.length, 0);
-                const scale = 1.2 - (board.length * 0.02 + totalTiles * 0.01);
-                return Math.max(0.5, Math.min(1.0, scale)); 
+                const scale = 1.0 - (board.length * 0.015 + totalTiles * 0.005);
+                return Math.max(0.65, Math.min(1.0, scale)); 
             }, [board]);
 
             useEffect(() => { dragDataRef.current = dragData; }, [dragData]);
 
+            // BOT Brain (Lobby Auto-Join)
             useEffect(() => {
                 if (user.role !== ROLES.SUPER_ADMIN || tableState?.phase !== 'waiting') return;
                 
@@ -758,33 +782,7 @@
                 return () => clearInterval(interval);
             }, [tableState?.phase, user.role, tableDocId]);
 
-            useEffect(() => {
-                let interval;
-                if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
-                    interval = setInterval(() => {
-                        const elapsed = Math.floor((Date.now() - tableState.turnStartedAt) / 1000);
-                        const remaining = Math.max(0, 60 - elapsed);
-                        setTimeLeft(remaining);
-                        
-                        if (remaining <= 10 && remaining > 0 && tableState.currentTurn === user.uid) {
-                            try {
-                                if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume();
-                                if (!synthRef.current && window.Tone) {
-                                    synthRef.current = new window.Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
-                                    synthRef.current.volume.value = -15;
-                                }
-                                synthRef.current?.triggerAttackRelease("E6", "0.05");
-                            } catch(e) {}
-                        }
-                        if (remaining === 0 && tableState.currentTurn === user.uid) {
-                            clearInterval(interval);
-                            handleTimeoutPenalty();
-                        }
-                    }, 1000);
-                }
-                return () => clearInterval(interval);
-            }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
-
+            // Bot Turn Logic
             useEffect(() => {
                 if (tableState?.phase === 'playing' && user.role === ROLES.SUPER_ADMIN) {
                     const currentUid = tableState.currentTurn;
@@ -823,6 +821,35 @@
                 }
             }, [tableState?.phase, tableState?.currentTurn, user.role]);
 
+            // Timer
+            useEffect(() => {
+                let interval;
+                if (tableState?.phase === 'playing' && tableState?.turnStartedAt) {
+                    interval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - tableState.turnStartedAt) / 1000);
+                        const remaining = Math.max(0, 60 - elapsed);
+                        setTimeLeft(remaining);
+                        
+                        if (remaining <= 10 && remaining > 0 && tableState.currentTurn === user.uid) {
+                            try {
+                                if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume();
+                                if (!synthRef.current && window.Tone) {
+                                    synthRef.current = new window.Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
+                                    synthRef.current.volume.value = -15;
+                                }
+                                synthRef.current?.triggerAttackRelease("E6", "0.05");
+                            } catch(e) {}
+                        }
+                        if (remaining === 0 && tableState.currentTurn === user.uid) {
+                            clearInterval(interval);
+                            handleTimeoutPenalty();
+                        }
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
+
+            // Sync from Firebase
             useEffect(() => {
                 if(!tableDocId) return;
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), doc => { 
@@ -841,24 +868,18 @@
                 if(!tableState) return;
                 
                 if (!dragDataRef.current) {
-                    // Normalize Board (backward compatibility + Absolute Positioning support)
                     const rawBoard = tableState.board || [];
-                    const normBoard = rawBoard.map((g, i) => {
-                        if (Array.isArray(g)) return { id: `grp_${i}_${Math.random()}`, x: 10 + (i*10), y: 10 + (i*10), tiles: g };
-                        return g;
-                    });
-                    
-                    setBoard(normBoard);
+                    setBoard(rawBoard);
                     
                     const dbCards = tableState.players?.[user.uid]?.cards || [];
                     const fullRack = [...dbCards];
                     while(fullRack.length < 28) fullRack.push(null);
                     setRack(fullRack);
                     
-                    // Snapshot the board at the EXACT moment your turn begins
+                    // Snapshot
                     if (tableState.currentTurn === user.uid) {
                         if (startTurnRef.current !== tableState.turnStartedAt) {
-                             setStartTurnBoard(normBoard);
+                             setStartTurnBoard(rawBoard);
                              startTurnRef.current = tableState.turnStartedAt;
                         }
                     }
@@ -868,28 +889,41 @@
 
             const validateGroup = (group) => {
                 if (!group || group.length < 3) return false;
-                const jokers = group.filter(t => t.val === '☻');
+                
+                const jokersCount = group.filter(t => t.val === '☻').length;
                 const regulars = group.filter(t => t.val !== '☻');
+                
                 if (regulars.length === 0) return true; 
                 if (group.length > 13) return false; 
 
-                const isSameValue = regulars.every(t => t.val === regulars[0].val);
-                const uniqueColors = new Set(regulars.map(t => t.color)).size === regulars.length;
-                if (isSameValue && uniqueColors && group.length <= 4) return true;
+                // Check Set (Group): Same number, different colors
+                const isSet = () => {
+                    if (group.length > 4) return false;
+                    const expectedVal = regulars[0].val;
+                    if (!regulars.every(t => t.val === expectedVal)) return false;
+                    const uniqueColors = new Set(regulars.map(t => t.color)).size;
+                    return uniqueColors === regulars.length;
+                };
 
-                const isSameColor = regulars.every(t => t.color === regulars[0].color);
-                if (isSameColor) {
-                    const sortedRegulars = [...regulars].sort((a,b) => Number(a.val) - Number(b.val));
-                    const hasDuplicates = new Set(sortedRegulars.map(t=>t.val)).size !== sortedRegulars.length;
-                    if (hasDuplicates) return false;
+                // Check Run: Same color, consecutive numbers
+                const isRun = () => {
+                    const expectedColor = regulars[0].color;
+                    if (!regulars.every(t => t.color === expectedColor)) return false;
+                    
+                    // A run cannot have duplicate numbers
+                    const uniqueVals = new Set(regulars.map(t => t.val));
+                    if (uniqueVals.size !== regulars.length) return false;
 
+                    // Sort to check gaps against jokers
+                    let sorted = [...regulars].sort((a,b) => Number(a.val) - Number(b.val));
                     let gaps = 0;
-                    for(let i=0; i<sortedRegulars.length-1; i++) {
-                        gaps += (Number(sortedRegulars[i+1].val) - Number(sortedRegulars[i].val) - 1);
+                    for(let i=0; i<sorted.length-1; i++) {
+                        gaps += (Number(sorted[i+1].val) - Number(sorted[i].val) - 1);
                     }
-                    if (gaps <= jokers.length) return true;
-                }
-                return false;
+                    return gaps <= jokersCount;
+                };
+
+                return isSet() || isRun();
             };
 
             const isBoardValid = useMemo(() => { 
@@ -913,7 +947,7 @@
                         
                         if (longPressTimer.current) {
                             const dist = Math.hypot(e.clientX - dragDataRef.current.startX, e.clientY - dragDataRef.current.startY);
-                            if (dist > 10) { // Tolerant shock absorber
+                            if (dist > 10) { 
                                 clearTimeout(longPressTimer.current);
                                 longPressTimer.current = null;
                             }
@@ -940,7 +974,6 @@
                     
                     const isMyTurn = tableState?.currentTurn === user.uid;
                     
-                    // Hide ghost to detect actual drop zone
                     const ghost = document.getElementById('drag-ghost');
                     const ghostGroup = document.getElementById('drag-ghost-group');
                     if (ghost) ghost.style.pointerEvents = 'none';
@@ -950,7 +983,7 @@
                     const dropZone = elemUnder ? elemUnder.closest('[data-drop]') : null;
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
-                    // Absolute Board Magnet (Fallback if they missed a specific group but hit the board)
+                    // Absolute Board Magnet (Geometry Fallback)
                     const boardArea = document.getElementById('felt-board');
                     let dropX = 50, dropY = 50;
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
@@ -964,10 +997,10 @@
                         }
                     }
 
-                    // Strict Turn Protection for Board interaction
+                    // Turn Protection
                     if (!isMyTurn) {
                         if (actualTarget === 'board-new' || actualTarget?.startsWith('board-group-') || currentDrag.source === 'board') {
-                            showToast("המתן לתורך כדי להוריד או להזיז אבנים בשולחן", "error");
+                            showToast("המתן לתורך כדי לשחק בלוח המרכזי", "error");
                             actualTarget = null; 
                         }
                     }
@@ -976,33 +1009,33 @@
                     let newBoard = board.map(g => ({...g, tiles: [...g.tiles]}));
                     let tilesToAdd = [];
                     
-                    // 1. Remove from source
+                    // Remove from source
                     if (currentDrag.type === 'single') {
                         tilesToAdd = [currentDrag.tile];
                         if (currentDrag.source === 'rack') newRack[currentDrag.tileIndex] = null;
                         else if (currentDrag.source === 'board') {
                             const grp = newBoard.find(g => g.id === currentDrag.groupId);
                             if(grp) {
-                                // Split Melds logic!
-                                if (currentDrag.tileIndex > 0 && currentDrag.tileIndex < grp.tiles.length - 1 && grp.tiles.length >= 4) {
+                                // Group Split Logic
+                                if (currentDrag.tileIndex > 0 && currentDrag.tileIndex < grp.tiles.length - 1 && grp.tiles.length >= 3) {
                                      const left = grp.tiles.slice(0, currentDrag.tileIndex);
                                      const right = grp.tiles.slice(currentDrag.tileIndex + 1);
                                      grp.tiles = left;
-                                     newBoard.push({ id: `grp_${Date.now()}_split`, x: grp.x + 4, y: grp.y + 4, tiles: right });
+                                     newBoard.push({ id: `grp_${Date.now()}_split`, x: Math.min(90, grp.x + 5), y: Math.min(90, grp.y + 5), tiles: right });
                                 } else {
                                      grp.tiles.splice(currentDrag.tileIndex, 1);
                                      if (grp.tiles.length === 0) newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
                                 }
                             }
                         }
-                    } else { // type === 'group'
+                    } else { 
                         tilesToAdd = currentDrag.tiles;
                         if (currentDrag.source === 'board') {
                             newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
                         }
                     }
                     
-                    // 2. Add to target
+                    // Add to target
                     if (actualTarget && actualTarget.startsWith('board-group-')) {
                         const targetId = actualTarget.replace('board-group-', '');
                         const targetGrp = newBoard.find(g => g.id === targetId);
@@ -1044,7 +1077,6 @@
                     setDragData(null); 
                     setHoverTarget(null);
                     
-                    // Live Sync to Firebase
                     if (tableState?.id && (isMyTurn || currentDrag.source === 'rack')) {
                         try {
                             await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
@@ -1080,7 +1112,6 @@
                 setDragData({ type: 'single', tile, source, groupId, tileIndex, startX: e.clientX, startY: e.clientY, startX_pct: pctX, startY_pct: pctY }); 
                 setDragPos({ x: e.clientX, y: e.clientY });
                 
-                // Long Press (Drag Group) Logic
                 if (source === 'board') {
                     const grp = board.find(g => g.id === groupId);
                     if(grp) {
@@ -1169,7 +1200,7 @@
 
             const handleDraw = async () => {
                 if (tableState.currentTurn !== user.uid) return;
-                handleTimeoutPenalty(); // Does the same thing
+                handleTimeoutPenalty(); 
             };
             
             const handleEndTurn = async () => {
@@ -1183,16 +1214,15 @@
                 const activeRackCount = rack.filter(t=>t!==null).length;
 
                 if (isFirstDrop) {
-                    // Mathematical Absolute Drop Check (100% Bulletproof)
                     const currentBoardPoints = calculateBoardPoints(board);
                     const startBoardPoints = calculateBoardPoints(startTurnBoard);
                     const dropValue = currentBoardPoints - startBoardPoints;
 
                     if (dropValue <= 0) {
-                        return showToast("לא הורדת אבנים מהלוח שלך, עליך למשוך קופה.", "error");
+                        return showToast("לא הורדת אבנים ללוח, משוך אבן מהקופה (+).", "error");
                     }
                     if (dropValue < 30) {
-                        return showToast(`יש צורך ב-30 נקודות לפחות להורדה ראשונה. הורדת רק ${dropValue}.`, "error");
+                        return showToast(`חובה לרדת עם 30 נקודות לפחות להורדה ראשונה (הורדת רק ${dropValue}).`, "error");
                     }
                 }
 
@@ -1267,7 +1297,7 @@
                 const isPlaying = tableState.phase === 'playing';
 
                 if (isPlaying) {
-                    if (!window.confirm("⚠️ אזהרה חמורה!\nפרישה באמצע משחק (כניעה) תגרום לאובדן מלא של כל הצ'יפים שלך בשולחן ויירשם כהפסד.\nהאם אתה בטוח שברצונך להיכנע ולצאת?")) {
+                    if (!window.confirm("⚠️ פרישה באמצע משחק (כניעה) תגרום לאובדן מלא של היתרה שלך בשולחן.\nבטוח?")) {
                         return;
                     }
                 }
@@ -1367,201 +1397,188 @@
             const myTileCount = rack.filter(t=>t!==null).length;
 
             return (
-                <div className="h-full w-full flex flex-col relative select-none" style={{ backgroundColor: '#0a101d' }}>
+                <div className="h-full w-full flex relative select-none bg-slate-950 font-sans" dir="ltr">
                     
-                    {/* Top Stats Bar */}
-                    <div className="flex justify-between items-center p-3 sm:p-4 bg-slate-900/40 border-b border-white/5 shrink-0 z-30">
-                        <div className="flex gap-2">
-                            <button onClick={handleLeave} className="text-slate-300 hover:text-white px-3 py-1.5 rounded bg-slate-800/50 border border-slate-700/50 transition-colors text-sm font-medium"><i className="fa-solid fa-angle-right ml-1.5 text-xs"></i> {isSeated ? (isPlaying ? <span className="text-rose-400">כניעה / עזוב שולחן</span> : 'קום מהשולחן') : 'חזור ללובי'}</button>
-                            {user.role === ROLES.SUPER_ADMIN && (
-                                <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1.5 rounded text-sm font-bold border transition-colors ${isGodMode ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_purple] animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
-                            )}
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-sm font-bold text-slate-200 opacity-80 tracking-widest uppercase">רמיקוב</span>
-                            <span className="text-[10px] text-emerald-400 font-semibold" dir="ltr">ערך נקודה: {formatMoney(tableState.stakes)}</span>
-                        </div>
-                        <div className="w-[80px] text-left flex flex-col items-end">
-                            {isSeated && <div className="text-emerald-400 text-xs font-bold bg-slate-950/50 px-2 py-1 rounded inline-block border border-slate-800"><Coin amount={tableState.players[user.uid]?.stack}/></div>}
-                        </div>
-                    </div>
-
-                    {/* Opponents HUD (Moved Outside the Board) */}
-                    {tableState.phase === 'playing' && (
-                        <div className="flex justify-center items-start gap-4 sm:gap-8 pt-4 pb-2 z-20 shrink-0 pointer-events-none bg-slate-950/50">
-                            {/* MY Avatar (Hero) */}
-                            {isSeated && (
-                                <div className="flex flex-col items-center">
-                                    <div className="w-12 h-12 rounded-full bg-emerald-900 border-2 border-emerald-500 mb-1 flex items-center justify-center relative shadow-[0_0_15px_#10b981]">
-                                        <i className="fa-solid fa-user text-white text-lg"></i>
-                                        <div className="absolute -bottom-2 bg-emerald-500 text-slate-900 text-[10px] font-black px-2 rounded-full border border-slate-900">אתה</div>
-                                    </div>
-                                    <span className="text-xs font-bold text-emerald-400 mt-1">{user.username}</span>
-                                    <span className="text-[10px] bg-emerald-900/40 px-2 py-0.5 rounded text-emerald-300 border border-emerald-500/30 mt-1">📦 {myTileCount} אבנים</span>
-                                </div>
-                            )}
-
-                            {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
-                                const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
-                                const isTurn = tableState.currentTurn === uid;
-                                
-                                return (
-                                    <div key={uid} className={`flex flex-col items-center transition-all ${isTurn ? 'scale-110' : 'opacity-80'}`}>
-                                        <div className={`w-12 h-12 rounded-full border-2 mb-1 flex items-center justify-center shadow-md ${isTurn ? 'bg-slate-800 border-amber-500 ring-2 ring-amber-500 ring-offset-2 ring-offset-slate-950 shadow-[0_0_15px_#f59e0b]' : 'bg-slate-800 border-slate-600'}`}>
-                                            <i className={`fa-solid fa-user text-lg ${isTurn ? 'text-white' : 'text-slate-400'}`}></i>
+                    {/* LEFT SIDEBAR - Opponents */}
+                    {isPlaying && (
+                        <div className="w-20 md:w-28 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 z-20 shrink-0 shadow-2xl">
+                            <button onClick={handleLeave} className="mb-6 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-rose-600 transition-colors" title="עזוב שולחן">
+                                <i className="fa-solid fa-person-walking-arrow-right text-lg"></i>
+                            </button>
+                            
+                            <div className="flex-1 flex flex-col gap-6 w-full px-2 overflow-y-auto overflow-x-hidden scrollbar-hide items-center">
+                                {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
+                                    const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
+                                    const isTurn = tableState.currentTurn === uid;
+                                    
+                                    return (
+                                        <div key={uid} className={`flex flex-col items-center w-full sidebar-avatar ${isTurn ? 'active-turn' : 'opacity-80'}`}>
+                                            <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full border-[3px] mb-1 flex items-center justify-center bg-slate-800 relative ${isTurn ? 'border-amber-400' : 'border-slate-600'}`}>
+                                                <i className={`fa-solid fa-user text-xl md:text-2xl ${isTurn ? 'text-amber-400' : 'text-slate-400'}`}></i>
+                                                <div className="absolute -bottom-2 bg-slate-900 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-full border border-slate-700 w-max shadow-md">
+                                                    {tileCount}
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] md:text-xs font-bold text-white mt-2 truncate w-full text-center px-1">
+                                                {pData.username.substring(0,8)}
+                                            </span>
                                         </div>
-                                        <span className={`text-xs font-bold ${isTurn ? 'text-white' : 'text-slate-400'} mt-1`}>
-                                            {pData.username}
-                                        </span>
-                                        <span className="text-[10px] bg-slate-800/80 px-2 py-0.5 rounded text-slate-300 border border-slate-700/50 mt-1">
-                                            📦 {tileCount} אבנים
-                                        </span>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
+
+                            {/* Deck Count */}
+                            <div className="mt-4 flex flex-col items-center">
+                                <i className="fa-solid fa-layer-group text-slate-500 mb-1"></i>
+                                <span className="text-xs font-bold text-slate-400">{tableState.deck?.length || 0}</span>
+                            </div>
                         </div>
                     )}
 
-                    {/* FREE FORM ABSOLUTE BOARD */}
-                    <div 
-                        id="felt-board"
-                        data-drop="board-new" 
-                        className="flex-1 relative overflow-hidden border-b-2 border-t-2 border-emerald-900/50 mt-2"
-                        style={{ background: 'radial-gradient(circle at center, #0f172a 0%, #020617 100%)' }}
-                    >
-                        {/* BIG SHOT CLOCK */}
-                        {tableState.phase === 'playing' && (
-                            <div className="absolute top-4 right-4 bg-slate-950/80 border border-slate-800 rounded-2xl px-5 py-3 flex flex-col items-center justify-center shadow-2xl z-30 backdrop-blur-sm pointer-events-none">
-                                <span className={`text-xs font-black uppercase tracking-widest mb-1 ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>
-                                    {isMyTurn ? 'התור שלך' : 'תור היריב'}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <span className={`font-mono text-4xl sm:text-5xl font-black tracking-tight ${timeLeft <= 10 && isMyTurn ? 'text-rose-500 drop-shadow-[0_0_15px_#f43f5e] animate-pulse' : 'text-white'}`}>
+                    {/* CENTER - Board & Rack */}
+                    <div className="flex-1 flex flex-col relative min-w-0">
+                        
+                        {/* Top Info Bar */}
+                        <div className="h-12 bg-slate-900/50 border-b border-slate-800/50 flex justify-between items-center px-4 shrink-0 z-10" dir="rtl">
+                            <div className="flex gap-4">
+                                <span className="text-emerald-400 font-bold text-sm tracking-widest uppercase">רמיקוב</span>
+                                <span className="text-slate-400 text-xs">כניסה: 🪙 {tableState.minBuyIn}</span>
+                            </div>
+                            
+                            {isPlaying && (
+                                <div className={`flex items-center gap-3 px-4 py-1 rounded-full border ${isMyTurn ? 'bg-emerald-900/40 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-slate-800/50 border-slate-700'}`}>
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>
+                                        {isMyTurn ? 'התור שלך' : 'המתן לתורך'}
+                                    </span>
+                                    <span className={`font-mono text-xl font-black ${timeLeft <= 10 && isMyTurn ? 'text-rose-500' : 'text-white'}`}>
                                         00:{timeLeft.toString().padStart(2, '0')}
                                     </span>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Center Stack waiting animation */}
-                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0 w-full px-4">
-                            {tableState.phase === 'playing' ? (
-                                <div className="flex flex-col items-center justify-center mb-8 opacity-10">
-                                    <div className="w-10 h-14 border-2 border-emerald-400/60 rounded bg-emerald-900/30 backdrop-blur-sm relative z-10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"></div>
+                            {user.role === ROLES.SUPER_ADMIN && (
+                                <button onClick={() => setIsGodMode(!isGodMode)} className={`px-3 py-1 rounded text-xs font-bold border ${isGodMode ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>GOD</button>
+                            )}
+                        </div>
+
+                        {/* The Felt Board */}
+                        <div 
+                            id="felt-board"
+                            data-drop="board-new" 
+                            className="flex-1 relative overflow-auto bg-[#0a1128] z-0"
+                            style={{ background: 'radial-gradient(circle at center, #0f172a 0%, #020617 100%)' }}
+                        >
+                            {!isSeated && tableState.phase === 'waiting' && (
+                                <div className="absolute inset-0 z-20 flex items-center justify-center">
+                                    <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-xl font-black shadow-2xl transition-transform hover:scale-105 uppercase tracking-widest">
+                                        התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})
+                                    </button>
                                 </div>
-                            ) : (
-                                <div className="bg-slate-900/80 backdrop-blur border border-emerald-500/30 px-6 py-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.1)] text-center max-w-sm mx-auto">
-                                    <h2 className="text-lg sm:text-xl font-bold text-emerald-400 flex items-center justify-center gap-1">
-                                        ממתינים לשחקנים 
-                                        <span className="flex items-end h-full gap-0.5 ml-1">
-                                            <span className="loading-dot">.</span><span className="loading-dot">.</span><span className="loading-dot">.</span>
-                                        </span>
-                                    </h2>
-                                    <p className="text-slate-400 text-xs sm:text-sm mt-2 font-medium">
-                                        {Object.keys(tableState.players||{}).length} מתוך {tableState.maxPlayers} התיישבו
-                                    </p>
+                            )}
+
+                            {showVictory && (
+                                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
+                                    <div className="bg-slate-900 border-2 border-amber-500 p-8 rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.3)] text-center max-w-sm">
+                                        <i className="fa-solid fa-trophy text-6xl text-amber-400 mb-4 drop-shadow-[0_0_15px_#f59e0b]"></i>
+                                        <h2 className="text-2xl font-black text-white mb-2">{tableState.players[tableState.winner]?.username} ניצח!</h2>
+                                        <p className="text-amber-400 font-bold">המשחק יתחיל מחדש מיד...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Absolute Free-Form Board */}
+                            {isPlaying && (
+                                <div className="w-full h-full relative" style={{ '--board-scale': boardScale }}>
+                                    {board.map((groupObj) => (
+                                        <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`} 
+                                             className={`absolute flex board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-500/20 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-105' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : 'border-2 border-transparent'}`}
+                                             style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)' }}>
+                                            {groupObj.tiles.map((t, tIdx) => (
+                                                <div key={t.id} 
+                                                     onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} 
+                                                     className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
+                                                     style={{ color: t.color }}>{t.val}</div>
+                                            ))}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
 
-                        {/* GOD MODE PANEL (Fixed to float everywhere) */}
-                        {isGodMode && tableState.phase === 'playing' && (
-                            <div className="fixed inset-0 pointer-events-none z-[9999] flex flex-wrap justify-center items-center gap-4 px-4 bg-purple-900/20 backdrop-blur-sm">
-                                {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => (
-                                    <div key={uid} className="flex flex-col items-center bg-purple-950/95 p-4 rounded-xl border-2 border-purple-400 shadow-[0_0_50px_purple] max-w-[300px]">
-                                        <div className="text-center text-[10px] text-purple-200 font-black mb-3 uppercase tracking-widest border-b border-purple-500/50 pb-1 w-full"><i className="fa-solid fa-eye mr-1"></i> God Mode: {pData.username}</div>
-                                        <div className="flex flex-wrap justify-center gap-1" dir="ltr">
-                                            {pData.cards?.filter(c=>c!==null).map((c, idx) => (
-                                                <div key={idx} className="w-8 h-10 bg-white rounded flex flex-col items-center justify-center text-lg font-bold shadow-md" style={{ color: c.color }}>
-                                                    <span>{c.val}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        
-                        {!isSeated && tableState.phase === 'waiting' && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center">
-                                <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-xl transition-transform hover:scale-105">
-                                    התיישב בשולחן ({Object.keys(tableState.players||{}).length}/{tableState.maxPlayers})
-                                </button>
-                            </div>
-                        )}
-
-                        {showVictory && (
-                             <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4 animate-fade-in">
-                                 <div className="bg-slate-900 border border-emerald-500/50 p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm">
-                                     <i className="fa-solid fa-award text-4xl text-amber-400 mb-3 drop-shadow-md"></i>
-                                     <h2 className="text-xl font-bold text-white mb-4">{tableState.players[tableState.winner]?.username} ניצח!</h2>
-                                 </div>
-                             </div>
-                        )}
-                        
-                        {/* Auto-scaling Absolute Board Area */}
-                        {isPlaying && (
-                            <div className="w-full h-full relative" style={{ '--board-scale': boardScale }} dir="ltr">
-                                {board.map((groupObj) => (
-                                    <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`} 
-                                         className={`absolute flex bg-slate-900/30 border transition-colors board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'border-emerald-500/80 bg-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : 'border-transparent'}`}
-                                         style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)' }}>
-                                        {groupObj.tiles.map((t, tIdx) => (
-                                            <div key={t.id} 
-                                                 onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} 
-                                                 className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} 
-                                                 style={{ color: t.color }}>{t.val}</div>
-                                        ))}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* User's Rack & Controls */}
-                    <div className="relative z-10 shrink-0 bg-slate-950 pt-3 pb-4 border-t-2 border-emerald-900/30 shadow-[0_-15px_40px_rgba(0,0,0,0.8)]">
+                        {/* Player's Rack (Bottom) */}
                         {isSeated && isPlaying && (
-                            <div className="flex justify-between items-center px-4 pb-3">
-                                <div className="flex gap-2">
-                                   <button onClick={handleSort777} className="bg-slate-800 text-slate-300 px-4 py-2 rounded-lg font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 shadow-sm flex items-center gap-1"><i className="fa-solid fa-list-ol text-blue-400"></i> סדר 777</button>
-                                   <button onClick={handleSort789} className="bg-slate-800 text-slate-300 px-4 py-2 rounded-lg font-bold text-xs hover:text-white hover:bg-slate-700 transition-all border border-slate-700 shadow-sm flex items-center gap-1"><span className="text-red-500 text-xl leading-none -mt-1">■</span> סדר 789</button>
+                            <div className="h-44 md:h-56 shrink-0 bg-slate-900 border-t border-slate-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex items-end justify-center pb-2 px-2 relative z-10">
+                                
+                                {/* Rack Name Tag */}
+                                <div className="absolute top-2 left-4 text-white font-bold text-sm bg-slate-800 px-3 py-1 rounded-md border border-slate-700 flex gap-2 items-center">
+                                    <span>{user.username}</span>
+                                    <span className="text-emerald-400">{myTileCount}</span>
                                 </div>
-                                <div className="flex gap-2 items-center">
-                                    {isMyTurn && <button onClick={()=>{
-                                        setBoard(startTurnBoard);
-                                        const dbCards = tableState.players?.[user.uid]?.cards || [];
-                                        const fullRack = [...dbCards]; while(fullRack.length<28) fullRack.push(null);
-                                        setRack(fullRack);
-                                        window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: startTurnBoard, [`players.${user.uid}.cards`]: dbCards });
-                                    }} className="bg-slate-800 text-slate-300 px-4 py-2 rounded-lg text-sm font-bold shadow-md border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors" title="בטל מהלכים"><i className="fa-solid fa-undo"></i> ביטול</button>}
-                                    {isMyTurn && <button onClick={handleDraw} className="bg-slate-800 text-slate-200 border border-slate-700 px-5 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition-colors">קופה ({tableState.deck?.length || 0})</button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} className={`px-6 py-2 rounded-lg font-black shadow-lg text-white text-sm transition-colors bg-emerald-600 hover:bg-emerald-500`}>סיום תור</button>}
+
+                                <div className="rack-grid h-full max-h-[160px] md:max-h-[200px]">
+                                    {rack.map((tile, index) => (
+                                        <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'hover-target' : ''}`}>
+                                            {tile && (
+                                                <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[90%] h-[95%] flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length ? 'opacity-20' : ''}`} style={{ color: tile.color }}>
+                                                    {tile.val}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
-
-                        <div className="px-2 sm:px-4 flex justify-center">
-                            <div className="rack-grid">
-                                {rack.map((tile, index) => (
-                                    <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'hover-target' : ''}`}>
-                                        {tile && (
-                                            <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[90%] h-[90%] flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length ? 'opacity-20' : ''}`} style={{ color: tile.color }}>
-                                                {tile.val}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
+
+                    {/* RIGHT SIDEBAR - Controls */}
+                    {isSeated && isPlaying && (
+                        <div className="w-20 md:w-28 bg-slate-900 border-l border-slate-800 flex flex-col items-center justify-center gap-4 py-4 z-20 shrink-0 shadow-[-10px_0_20px_rgba(0,0,0,0.3)]">
+                            
+                            <button onClick={handleSort789} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי סדרות">
+                                <span className="font-black text-lg md:text-xl text-blue-400 leading-none mb-1">789</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider">סדר</span>
+                            </button>
+                            
+                            <button onClick={handleSort777} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white" title="סדר לפי קבוצות">
+                                <span className="font-black text-lg md:text-xl text-rose-400 leading-none mb-1">777</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider">סדר</span>
+                            </button>
+
+                            {isMyTurn && (
+                                <button onClick={()=>{
+                                    setBoard(startTurnBoard);
+                                    const dbCards = tableState.players?.[user.uid]?.cards || [];
+                                    const fullRack = [...dbCards]; while(fullRack.length<28) fullRack.push(null);
+                                    setRack(fullRack);
+                                }} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl action-btn flex flex-col items-center justify-center text-slate-300 hover:text-white mt-auto" title="בטל מהלכים">
+                                    <i className="fa-solid fa-undo text-lg md:text-xl mb-1"></i>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">בטל</span>
+                                </button>
+                            )}
+
+                            {isMyTurn && (
+                                <button onClick={handleDraw} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center border-2 border-amber-300 transform transition-transform hover:scale-105 active:scale-95" title="משיכה מהקופה">
+                                    <i className="fa-solid fa-plus text-xl md:text-2xl mb-1"></i>
+                                    <span className="text-[10px] uppercase tracking-wider">קופה</span>
+                                </button>
+                            )}
+
+                            {isMyTurn && (
+                                <button onClick={handleEndTurn} className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-black shadow-[0_0_15px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center border-2 border-emerald-300 transform transition-transform hover:scale-105 active:scale-95" title="סיום תור">
+                                    <i className="fa-solid fa-check text-2xl md:text-3xl"></i>
+                                </button>
+                            )}
+
+                        </div>
+                    )}
                     
                     {/* Ghost Elements for Dragging */}
                     {dragData && dragData.type === 'single' && (
-                        <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-3xl font-bold shadow-[0_20px_40px_rgba(0,0,0,0.6)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg) scale(1.1)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
+                        <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-14 h-20 md:w-16 md:h-24 flex items-center justify-center text-4xl md:text-5xl font-bold shadow-[0_30px_50px_rgba(0,0,0,0.8)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) rotate(3deg) scale(1.1)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>
                     )}
-                    {(dragData && (dragData.type === 'group' || dragData.type === 'group_from_rack')) && (
-                        <div id="drag-ghost-group" className="fixed z-[9999] flex bg-slate-900/60 p-2 rounded-xl border border-emerald-500/50 shadow-2xl backdrop-blur-sm" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1)', pointerEvents: 'none' }} dir="ltr">
-                            {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 flex items-center justify-center text-2xl mx-0.5" style={{ color: t.color }}>{t.val}</div>))}
+                    {(dragData && dragData.type === 'group') && (
+                        <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl backdrop-blur-sm border border-emerald-500 shadow-[0_20px_40px_rgba(0,0,0,0.8)]" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1)', pointerEvents: 'none' }} dir="ltr">
+                            {dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-12 h-16 flex items-center justify-center text-3xl mx-0.5 shadow-md" style={{ color: t.color }}>{t.val}</div>))}
                         </div>
                     )}
                 </div>
