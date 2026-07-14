@@ -326,7 +326,7 @@
             
             useEffect(() => { 
                 if(!subTypes.find(s=>s.id===activeType)) setActiveType(subTypes[0].id); 
-                if(typeInfo) setNewTableOptions(prev => ({ ...prev, maxPlayers: typeInfo.maxPlayersLimit }));
+                if(typeInfo) setNewTableOptions(prev => ({ ...prev, maxPlayers: typeInfo.maxPlayersLimit, isDealerChoice: false })); // Reset DC on category switch
             }, [activeCat, activeType]);
             
             const handleCreate = async () => {
@@ -391,7 +391,6 @@
                                             <option value={10000}>10,000 צ'יפים</option>
                                         </select>
                                     </div>
-                                    {/* Dealer's Choice only for Poker */}
                                     {typeInfo.category === 'poker' && (
                                         <div className="flex items-end">
                                             <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-900 p-3 border border-slate-700 rounded-lg w-full hover:bg-slate-800 transition-colors">
@@ -504,7 +503,6 @@
 
             return (
                 <div className="flex-1 bg-slate-950 overflow-y-auto">
-                    {/* Inner wrapper with padding bottom to ensure scroll works */}
                     <div className="p-4 sm:p-6 max-w-6xl mx-auto pb-32">
                         <h2 className="text-3xl font-black text-white mb-2">ניהול מועדון (Backoffice)</h2>
                         <p className="text-slate-400 mb-8">מסך זה מאפשר לך לאשר שחקנים, לנהל יתרות, ולהעביר צ'יפים בצורה מאובטחת.</p>
@@ -595,7 +593,7 @@
                 });
                 return () => unsub();
             }, [tableDocId]);
-            if(!tableState) return <div className="flex-1 flex justify-center items-center text-emerald-400"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+            if(!tableState) return <div className="flex-1 bg-slate-950 flex justify-center items-center text-emerald-400"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
             
             const category = GAME_TYPES.find(g => g.id === tableState.type)?.category;
             if(category === 'poker') return <PokerTable tableState={tableState} user={user} onLeave={onLeave} showToast={showToast} />;
