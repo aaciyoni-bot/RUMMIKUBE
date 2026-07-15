@@ -96,7 +96,7 @@
         }
         .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
-        .rack-slot { min-height: 44px; position: relative; }
+        .rack-slot { min-height: 36px; position: relative; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
             .rack-slot { min-height: 64px; }
@@ -1013,7 +1013,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.3</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.4</p>
                             </div>
                         </nav>
                     )}
@@ -1048,7 +1048,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.3</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.4</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -2882,7 +2882,7 @@
                     </div>
 
                     {/* מרכז */}
-                    <div className="flex-1 flex flex-col relative h-full min-w-0" style={{ '--board-scale': boardScale }}>
+                    <div className="flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
 
                         {showError && <div className="absolute bottom-[220px] sm:bottom-[250px] left-1/2 transform -translate-x-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 animate-fade-in text-center max-w-[90%] text-sm">{showError}</div>}
 
@@ -2916,12 +2916,32 @@
                         </div>
 
                         {isSeated && isPlaying && (
-                            <div className="h-64 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="sm:hidden absolute left-2 bottom-[200px] z-40 flex flex-col items-center gap-2 pointer-events-none">
+                                <div className={`pointer-events-auto px-3 py-1 rounded-full font-black font-mono text-base border-2 bg-slate-950/95 shadow-xl ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-400 border-rose-500 animate-pulse' : 'text-white border-emerald-500') : 'text-slate-500 border-slate-700'}`}>
+                                    {timeLeft.toString().padStart(2, '0')}
+                                </div>
+                                {isMyTurn && (
+                                    <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור"
+                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 text-white shadow-[0_10px_25px_rgba(245,158,11,0.55)] border-[3px] border-amber-200 active:scale-90 transition-transform flex flex-col items-center justify-center leading-none">
+                                        <i className="fa-solid fa-plus text-2xl"></i>
+                                        <span className="text-[9px] font-black mt-0.5">📦 {(tableState.deck || []).length}</span>
+                                    </button>
+                                )}
+                                {isMyTurn && (
+                                    <button onClick={handleEndTurn} title="סיים תור"
+                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 text-white text-3xl shadow-[0_10px_25px_rgba(16,185,129,0.55)] border-[3px] border-emerald-200 active:scale-90 transition-transform flex items-center justify-center">
+                                        <i className="fa-solid fa-check"></i>
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {isSeated && isPlaying && (
+                            <div className="h-48 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
                                 </div>
-                                <div className="w-full flex-1 max-h-[210px] sm:max-h-[150px]">
+                                <div className="w-full flex-1 max-h-[160px] sm:max-h-[150px]">
                                     <div className="rack-grid h-full">
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
@@ -2942,7 +2962,7 @@
                     {/* פעולות וטיימר */}
                     <div className="w-full sm:w-24 md:w-32 bg-slate-900 border-t sm:border-t-0 sm:border-r border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:p-3 gap-1.5 sm:gap-3 z-20 shrink-0 overflow-x-auto sm:overflow-visible">
                         {isPlaying && (
-                            <div className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 w-auto px-2.5 sm:px-2 sm:w-full bg-slate-950 shadow-lg shrink-0 ${isMyTurn ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'border-slate-800'}`}>
+                            <div className={`hidden sm:flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 w-auto px-2.5 sm:px-2 sm:w-full bg-slate-950 shadow-lg shrink-0 ${isMyTurn ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'border-slate-800'}`}>
                                 <span className={`text-[10px] font-bold mb-1 whitespace-nowrap ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>{isMyTurn ? 'התור שלך!' : 'תור יריב'}</span>
                                 <span className={`text-lg sm:text-3xl font-black font-mono leading-none ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-white') : 'text-slate-500'}`}>{timeLeft.toString().padStart(2, '0')}</span>
                             </div>
@@ -2966,8 +2986,8 @@
                                 {isMyTurn && <button onClick={handleUndo} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"><i className="fa-solid fa-undo"></i> בטל</button>}
                                 <div className="hidden sm:block w-full h-px bg-slate-800 my-1"></div>
                                 <div className="sm:mt-auto flex flex-row sm:flex-col gap-2 shrink-0">
-                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
+                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
+                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
                                 </div>
                             </div>
                         )}
