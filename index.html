@@ -36,9 +36,16 @@
     </script>
     <style>
         :root { --vhpx: 100dvh; }
-        body, html {
+        html {
             background-color: #020617;
             color: #f8fafc; margin: 0; padding: 0;
+            height: var(--vhpx); width: 100vw;
+            overflow: hidden; overscroll-behavior: none; touch-action: none;
+        }
+        body {
+            background-color: #020617;
+            color: #f8fafc; margin: 0; padding: 0;
+            position: fixed; inset: 0;
             height: var(--vhpx); width: 100vw;
             overflow: hidden; overscroll-behavior: none; touch-action: none;
         }
@@ -212,7 +219,19 @@
            ================================================================ */
         const TOUR_SCHEDULE = [[5,10],[10,20],[15,30],[25,50],[40,80],[60,120],[100,200],[150,300],[250,500],[400,800],[600,1200],[1000,2000]];
         const genPlayerId = () => { const C = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r = ''; for (let i = 0; i < 6; i++) r += C[Math.floor(Math.random() * C.length)]; return r; };
-        const CLUB_ID = 'main'; // הכנה לריבוי קלאבים: כל נתון חדש מוחתם, ההפרדה תתבסס על זה
+        let CLUB_ID = 'main'; // הקלאב הפעיל - מוחלף בכניסה לקלאב
+        window.__club = { id: 'main', ownerUid: '', name: 'הקלאב הראשי' };
+        const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id }; };
+        // חשבון החברות: הכסף, התפקיד והסטטיסטיקות של שחקן בקלאב מסוים
+        const memId = (uid, cid) => `${uid}_${cid || CLUB_ID}`;
+        const memDoc = (uid, cid) => window.fb.doc(window.fb.db, "memberships", memId(uid, cid));
+        const newMembership = (uid, u, extra) => ({
+            uid, clubId: CLUB_ID, username: u.username || '', email: (u.email || '').toLowerCase(),
+            photo: u.photo || '', avatarSeed: u.avatarSeed || '', playerId: u.playerId || genPlayerId(), isBot: !!u.isBot,
+            role: ROLES.PLAYER, status: 'pending', balance: 0, clubProfits: 0, agentProfits: 0,
+            agentUid: '', agentPct: 0, managedGames: [], stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 },
+            joinedAt: Date.now(), ...(extra || {})
+        });
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
         const ROLE_LABELS = { super_admin: 'סופר-אדמין', club_owner: 'בעל מועדון', manager: 'מנהל', agent: 'סוכן', player: 'שחקן' };
 
@@ -308,17 +327,18 @@
         };
 
         // זיכוי רייק לרווחי המועדון - משותף לכל המשחקים
-        const creditRakeToClub = async (amount) => {
+        const creditRakeToClub = async (amount, clubId) => {
             if (!amount || amount <= 0) return;
             try {
-                const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
-                const adminDocs = await window.fb.getDocs(adminQ);
-                if (adminDocs.empty) return;
-                const adminRef = adminDocs.docs[0].ref;
+                const cid = clubId || CLUB_ID;
+                const cSnap = await window.fb.getDoc(window.fb.doc(window.fb.db, "clubs", cid));
+                const ownerUid = cSnap.exists() ? cSnap.data().ownerUid : (window.__club || {}).ownerUid;
+                if (!ownerUid) return;
+                const oRef = memDoc(ownerUid, cid);
                 await window.fb.runTransaction(window.fb.db, async (t) => {
-                    const s = await t.get(adminRef);
+                    const s = await t.get(oRef);
                     if (!s.exists()) return;
-                    t.update(adminRef, {
+                    t.update(oRef, {
                         balance: round2((s.data().balance || 0) + amount),
                         clubProfits: round2((s.data().clubProfits || 0) + amount)
                     });
@@ -336,7 +356,7 @@
             const share = rake / list.length;
             for (const uid of list) {
                 try {
-                    const snap = await window.fb.getDoc(window.fb.doc(window.fb.db, "users", uid));
+                    const snap = await window.fb.getDoc(memDoc(uid));
                     if (!snap.exists()) continue;
                     const d = snap.data();
                     const pct = Math.min(100, Math.max(0, Number(d.agentPct) || 0));
@@ -351,7 +371,7 @@
         const creditAgent = async (agentUid, amt) => {
             try {
                 await window.fb.runTransaction(window.fb.db, async (tr) => {
-                    const r = window.fb.doc(window.fb.db, "users", agentUid);
+                    const r = memDoc(agentUid);
                     const sn = await tr.get(r);
                     if (!sn.exists()) return;
                     tr.update(r, { balance: round2((sn.data().balance || 0) + amt), agentProfits: round2((sn.data().agentProfits || 0) + amt) });
@@ -370,14 +390,13 @@
         const payAgentCutsFromHouse = async (rake, uids) => {
             try {
                 const { cuts } = await computeAgentCuts(rake, uids);
+                const ownerUid = (window.__club || {}).ownerUid;
+                if (!ownerUid) return;
                 for (const [aUid, amt] of Object.entries(cuts)) {
                     try {
-                        const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
-                        const adminDocs = await window.fb.getDocs(adminQ);
-                        if (adminDocs.empty) return;
                         await window.fb.runTransaction(window.fb.db, async (tr) => {
-                            const aRef = adminDocs.docs[0].ref;
-                            const gRef = window.fb.doc(window.fb.db, "users", aUid);
+                            const aRef = memDoc(ownerUid);
+                            const gRef = memDoc(aUid);
                             const [aSnap, gSnap] = [await tr.get(aRef), await tr.get(gRef)];
                             if (!aSnap.exists() || !gSnap.exists()) return;
                             tr.update(aRef, { balance: round2((aSnap.data().balance || 0) - amt), clubProfits: round2((aSnap.data().clubProfits || 0) - amt) });
@@ -879,9 +898,31 @@
             const [toasts, setToasts] = useState([]);
             const [clubSettings, setClubSettings] = useState({ rakePct: DEFAULT_RAKE_PCT });
             const [lobbyTab, setLobbyTab] = useState('rummikub'); // זוכר באיזה טאב היית (רמי/פוקר)
+            const [clubsList, setClubsList] = useState([]);
+            const [myMems, setMyMems] = useState([]);
+            const [activeClub, setActiveClubState] = useState(null);   // מסמך הקלאב הפעיל
+            const [activeMem, setActiveMem] = useState(null);          // החברות שלי בקלאב הפעיל
 
             const viewRef = useRef(currentView);
             useEffect(() => { viewRef.current = currentView; }, [currentView]);
+
+            // המשתמש האפקטיבי: זהות מ-users, כסף+תפקיד+סטטוס מהחברות בקלאב הפעיל. GOD תמיד סופר-אדמין.
+            const effUser = useMemo(() => {
+                if (!dbUser) return null;
+                if (!activeClub) return dbUser;
+                const m = activeMem || {};
+                const god = isGodUser(dbUser);
+                return {
+                    ...dbUser,
+                    balance: m.balance || 0,
+                    role: god ? ROLES.SUPER_ADMIN : (m.role || ROLES.PLAYER),
+                    status: god ? 'approved' : (m.status || 'pending'),
+                    stats: m.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 },
+                    clubProfits: m.clubProfits || 0, agentProfits: m.agentProfits || 0,
+                    agentUid: m.agentUid || '', agentPct: m.agentPct || 0,
+                    managedGames: god ? GAMES.map(g => g.id) : (m.managedGames || []),
+                };
+            }, [dbUser, activeClub, activeMem]);
 
             const showToast = (msg, type = 'info') => {
                 const id = Date.now() + Math.random();
@@ -924,11 +965,12 @@
             // הגדרות מועדון (רייק גלובלי) - מתעדכן חי מכל מקום
             useEffect(() => {
                 if (!fbReady) return;
-                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "club", "settings"), (d) => {
+                if (!activeClub) { setClubSettings({ rakePct: DEFAULT_RAKE_PCT }); return; }
+                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "clubs", activeClub.id), (d) => {
                     if (d.exists()) setClubSettings({ rakePct: DEFAULT_RAKE_PCT, ...d.data() });
                 });
                 return () => unsub();
-            }, [fbReady]);
+            }, [fbReady, activeClub?.id]);
 
             const fetchOrInitUser = async (user) => {
                 const ref = window.fb.doc(window.fb.db, "users", user.uid);
@@ -953,6 +995,84 @@
                 }
             };
 
+            // רשימת הקלאבים + החברויות שלי (חי)
+            useEffect(() => {
+                if (!fbReady || !dbUser?.uid) return;
+                const unsubC = window.fb.onSnapshot(window.fb.collection(window.fb.db, "clubs"), (snap) => {
+                    setClubsList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                const memQ = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("uid", "==", dbUser.uid));
+                const unsubM = window.fb.onSnapshot(memQ, (snap) => {
+                    setMyMems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                return () => { unsubC(); unsubM(); };
+            }, [fbReady, dbUser?.uid]);
+
+            // הגירה חד-פעמית: הקלאב הראשי + היתרה/תפקיד הקיימים הופכים לחברות בקלאב הראשי
+            useEffect(() => {
+                if (!fbReady || !dbUser?.uid) return;
+                (async () => {
+                    try {
+                        const mainRef = window.fb.doc(window.fb.db, "clubs", "main");
+                        const mainSnap = await window.fb.getDoc(mainRef);
+                        if (!mainSnap.exists() && (dbUser.email || '').toLowerCase() === SUPER_ADMIN_EMAIL) {
+                            await window.fb.setDoc(mainRef, { name: 'הקלאב הראשי', ownerUid: dbUser.uid, ownerName: dbUser.username, createdAt: Date.now() });
+                        }
+                        // חברות ראשי מהנתונים הישנים - טרנזקציה חסינת כפילות
+                        await window.fb.runTransaction(window.fb.db, async (tr) => {
+                            const mRef = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_main`);
+                            const mSnap = await tr.get(mRef);
+                            if (mSnap.exists()) return;
+                            const uRef = window.fb.doc(window.fb.db, "users", dbUser.uid);
+                            const uSnap = await tr.get(uRef);
+                            if (!uSnap.exists()) return;
+                            const u = uSnap.data();
+                            tr.set(mRef, {
+                                uid: dbUser.uid, clubId: 'main', username: u.username || '', email: (u.email || '').toLowerCase(),
+                                photo: u.photo || '', avatarSeed: u.avatarSeed || '', playerId: u.playerId || genPlayerId(), isBot: !!u.isBot,
+                                role: u.role || ROLES.PLAYER, status: u.status || 'pending',
+                                balance: round2(u.balance || 0), clubProfits: round2(u.clubProfits || 0), agentProfits: round2(u.agentProfits || 0),
+                                agentUid: u.agentUid || '', agentPct: Number(u.agentPct) || 0, managedGames: u.managedGames || [],
+                                stats: u.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }, joinedAt: Date.now(), migrated: true
+                            });
+                            tr.update(uRef, { migratedToClubs: true });
+                        });
+                    } catch(e) {}
+                })();
+            }, [fbReady, dbUser?.uid]);
+
+            // החברות הפעילה - חי
+            useEffect(() => {
+                if (!fbReady || !dbUser?.uid || !activeClub) { setActiveMem(null); return; }
+                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${activeClub.id}`), (d) => {
+                    setActiveMem(d.exists() ? { id: d.id, ...d.data() } : null);
+                });
+                return () => unsub();
+            }, [fbReady, dbUser?.uid, activeClub?.id]);
+
+            // כניסה לקלאב
+            const enterClub = async (club) => {
+                try {
+                    const god = isGodUser(dbUser);
+                    const mRef = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${club.id}`);
+                    const mSnap = await window.fb.getDoc(mRef);
+                    if (!mSnap.exists()) {
+                        if (god) {
+                            await window.fb.setDoc(mRef, newMembership(dbUser.uid, dbUser, { clubId: club.id, role: ROLES.SUPER_ADMIN, status: 'approved' }));
+                        } else {
+                            showToast("שלח בקשת הצטרפות קודם", "error"); return;
+                        }
+                    } else if (mSnap.data().status !== 'approved' && !god) {
+                        showToast("הבקשה שלך ממתינה לאישור בעל הקלאב", "info"); return;
+                    }
+                    setActiveClub(club);
+                    setActiveClubState(club);
+                    changeView('lobby');
+                } catch(e) { showToast("שגיאה בכניסה לקלאב", "error"); }
+            };
+
+            const leaveToClubs = () => { setActiveClubState(null); setActiveMem(null); changeView('clubs'); };
+
             useEffect(() => {
                 if (!fbReady || !dbUser?.uid) return;
                 const unsubT = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (s) => {
@@ -966,8 +1086,7 @@
                         const data = d.data();
                         setDbUser({ uid: d.id, ...data });
                         if (!data.playerId) { try { window.fb.updateDoc(d.ref, { playerId: genPlayerId() }); } catch(e) {} }
-                        if(data.status !== 'approved') changeView('pending');
-                        else if (viewRef.current === 'auth' || viewRef.current === 'pending') changeView('lobby');
+                        if (viewRef.current === 'auth') changeView('clubs');
                     }
                 });
                 return () => { unsubT(); unsubTours(); unsubU(); };
@@ -982,19 +1101,26 @@
                 return () => clearInterval(iv);
             }, [fbReady, dbUser?.role, clubSettings?.rakePct]);
 
+            // שער: בלי קלאב פעיל - מסך הקלאבים; חברות ממתינה - מסך המתנה
+            useEffect(() => {
+                if (!dbUser) return;
+                if (!activeClub && !['auth', 'clubs'].includes(currentView)) changeView('clubs');
+                else if (activeClub && effUser && effUser.status !== 'approved' && !['auth', 'clubs', 'pending'].includes(currentView)) changeView('pending');
+            }, [dbUser, activeClub, effUser?.status, currentView]);
+
             if (!fbReady) return <div className="h-full w-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-circle-notch fa-spin text-4xl"></i></div>;
 
             const inTable = ['rummy-table', 'poker-table', 'durak-table', 'shesh-table'].includes(currentView);
 
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
-                    {dbUser && dbUser.status === 'approved' && !inTable && (
+                    {effUser && activeClub && effUser.status === 'approved' && !inTable && currentView !== 'clubs' && (
                         <nav className="bg-slate-900/80 backdrop-blur-xl px-4 py-3 z-40 shrink-0 border-b border-white/5 shadow-xl flex justify-between items-center">
                             <div className="flex items-center gap-2 sm:gap-3">
-                                <button onClick={() => window.fb.signOut(window.fb.auth)} className="w-10 h-10 rounded-xl bg-slate-800/80 text-slate-400 border border-white/5 hover:text-white hover:bg-rose-600 transition-colors flex items-center justify-center">
-                                    <i className="fa-solid fa-sign-out-alt"></i>
+                                <button onClick={leaveToClubs} title="החלף קלאב" className="w-10 h-10 rounded-xl bg-slate-800/80 text-emerald-400 border border-emerald-500/30 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center">
+                                    <i className="fa-solid fa-building-columns"></i>
                                 </button>
-                                {([ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(dbUser.role)) && (
+                                {([ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(effUser.role)) && (
                                     <button onClick={() => changeView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/80 text-blue-400 border-white/5 hover:text-white'}`} title="ניהול מועדון">
                                         <i className="fa-solid fa-chart-line"></i>
                                     </button>
@@ -1004,31 +1130,33 @@
                                 </button>
                                 <div className="flex-col items-start mr-1 hidden sm:flex">
                                     <span className="text-sm font-bold text-white flex items-center gap-1">
-                                        {dbUser.username}
-                                        {dbUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-crown text-amber-400 text-[10px]"></i>}
+                                        {effUser.username}
+                                        {effUser.role === ROLES.SUPER_ADMIN && <i className="fa-solid fa-crown text-amber-400 text-[10px]"></i>}
+                                        {effUser.role === ROLES.CLUB_OWNER && <i className="fa-solid fa-chess-king text-emerald-400 text-[10px]"></i>}
                                         {isGodUser(dbUser) && <i className="fa-solid fa-eye text-purple-400 text-[10px]"></i>}
                                     </span>
-                                    <Coin amount={dbUser.balance} className="text-xs" />
+                                    <Coin amount={effUser.balance} className="text-xs" />
                                 </div>
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
-                                <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.5</p>
+                                <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">{activeClub.name || 'RUMMIKUBE'}</h1>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Rummikube Clubs · V11</p>
                             </div>
                         </nav>
                     )}
 
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
-                        {currentView === 'pending' && <PendingView />}
-                        {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
-                        {currentView === 'profile' && <ProfileView user={dbUser} showToast={showToast} />}
-                        {currentView === 'backoffice' && <BackofficeView user={dbUser} clubSettings={clubSettings} showToast={showToast} />}
-                        {currentView === 'poker-create' && <PokerCreateView user={dbUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
-                        {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
-                        {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => { setLobbyTab('poker'); changeView('lobby'); }} showToast={showToast} />}
-                        {currentView === 'durak-table' && <DurakTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('durak'); changeView('lobby'); }} showToast={showToast} />}
-                        {currentView === 'shesh-table' && <SheshTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('shesh'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
+                        {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} />}
+                        {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
+                        {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
+                        {currentView === 'backoffice' && activeClub && <BackofficeView user={effUser} clubSettings={clubSettings} showToast={showToast} />}
+                        {currentView === 'poker-create' && <PokerCreateView user={effUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
+                        {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={effUser} onLeave={() => { setLobbyTab('poker'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'durak-table' && <DurakTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('durak'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'shesh-table' && <SheshTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('shesh'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
@@ -1048,7 +1176,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.5</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V11</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1057,12 +1185,131 @@
             );
         }
 
-        function PendingView() {
+        function PendingView({ clubName, onBack }) {
             return <div className="h-full w-full aurora-bg text-slate-300 flex justify-center items-center font-bold text-xl flex-col gap-4">
                 <i className="fa-solid fa-clock-rotate-left text-4xl text-amber-500 animate-spin"></i>
-                ממתין לאישור מנהל המועדון...
+                <div className="text-center">ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</div>
+                {onBack && <button onClick={onBack} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-sm font-bold px-6 py-2.5 rounded-xl">🏛️ חזרה לרשימת הקלאבים</button>}
                 <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-sm text-slate-500 underline font-normal">התנתק</button>
             </div>;
+        }
+
+        /* ================================================================
+           לובי הקלאבים - הבחירה, ההצטרפות וההקמה
+           ================================================================ */
+        function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
+            const [newName, setNewName] = useState('');
+            const [creating, setCreating] = useState(false);
+            const god = isGodUser(user);
+            const memOf = (cid) => myMems.find(m => m.clubId === cid);
+            const myClubs = clubs.filter(c => { const m = memOf(c.id); return (m && m.status === 'approved') || god; });
+            const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status !== 'approved' && !god; });
+            const otherClubs = clubs.filter(c => !memOf(c.id) && !god);
+
+            const requestJoin = async (club) => {
+                try {
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${club.id}`), { ...newMembership(user.uid, user), clubId: club.id });
+                    showToast(`בקשת הצטרפות ל"${club.name}" נשלחה! ממתין לאישור`, "success");
+                } catch(e) { showToast("שגיאה בשליחת הבקשה", "error"); }
+            };
+
+            const createClub = async () => {
+                const nm = newName.trim();
+                if (nm.length < 2 || nm.length > 30) return showToast("שם קלאב בין 2 ל-30 תווים", "error");
+                setCreating(true);
+                try {
+                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now() });
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved' });
+                    setNewName('');
+                    showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
+                    onEnter({ id: cRef.id, name: nm, ownerUid: user.uid });
+                } catch(e) { showToast("שגיאה בהקמת הקלאב", "error"); }
+                setCreating(false);
+            };
+
+            const ClubCard = ({ c, action }) => {
+                const m = memOf(c.id);
+                const isOwner = c.ownerUid === user.uid;
+                return (
+                    <div className="grad-card">
+                        <div className="grad-card-inner p-5 flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center shrink-0 shadow-lg">
+                                    <i className="fa-solid fa-building-columns text-white text-lg"></i>
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="font-black text-white text-lg truncate flex items-center gap-2">
+                                        {c.name}
+                                        {isOwner && <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 px-2 py-0.5 rounded-full font-black">👑 שלך</span>}
+                                        {c.id === 'main' && <span className="text-[9px] bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full font-black">ראשי</span>}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span className="text-emerald-400"> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
+                                </div>
+                            </div>
+                            {action}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="scrollable-content aurora-bg p-4 sm:p-8">
+                    <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
+                        <div className="text-center mb-8 mt-4">
+                            <div className="w-16 h-16 mx-auto mb-3 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-[0_0_35px_rgba(16,185,129,0.4)]">
+                                <i className="fa-solid fa-building-columns text-2xl text-white"></i>
+                            </div>
+                            <h2 className="text-3xl font-black text-white tracking-wide">הקלאבים</h2>
+                            <p className="text-slate-400 text-sm font-bold mt-1">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
+                            <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-xs text-slate-500 underline font-bold mt-2">התנתק</button>
+                        </div>
+
+                        {myClubs.length > 0 && (
+                            <div className="mb-8">
+                                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
+                                <div className="flex flex-col gap-3">
+                                    {myClubs.map(c => <ClubCard key={c.id} c={c} action={
+                                        <button onClick={() => onEnter(c)} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0">כניסה</button>
+                                    } />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {pendingClubs.length > 0 && (
+                            <div className="mb-8">
+                                <h3 className="text-sm font-black text-amber-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-hourglass-half ml-1"></i> ממתין לאישור</h3>
+                                <div className="flex flex-col gap-3">
+                                    {pendingClubs.map(c => <ClubCard key={c.id} c={c} action={
+                                        <span className="text-amber-400 text-xs font-black bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-xl shrink-0">⏳ בהמתנה</span>
+                                    } />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {otherClubs.length > 0 && (
+                            <div className="mb-8">
+                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-globe ml-1"></i> כל הקלאבים</h3>
+                                <div className="flex flex-col gap-3">
+                                    {otherClubs.map(c => <ClubCard key={c.id} c={c} action={
+                                        <button onClick={() => requestJoin(c)} className="bg-slate-800 hover:bg-emerald-800 border border-white/10 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">בקש להצטרף</button>
+                                    } />)}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="glass-panel rounded-3xl p-6 border border-emerald-500/20">
+                            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1 text-emerald-400"></i> הקם קלאב חדש</h3>
+                            <div className="flex gap-2">
+                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
+                                <button onClick={createClub} disabled={creating || !newName.trim()} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white px-6 py-3 rounded-xl font-black shadow-lg">
+                                    {creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם 👑'}
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מאשר חברים, קובע רייק, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
         function ProfileView({ user, showToast }) {
@@ -1072,10 +1319,10 @@
             const saveName = async () => {
                 const nm = nameDraft.trim();
                 if (nm.length < 2 || nm.length > 20) { showToast("שם בין 2 ל-20 תווים", "error"); return; }
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); try { await window.fb.updateDoc(memDoc(user.uid), { username: nm }); } catch(e2) {} setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
             };
             const setSeed = async (seed) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); showToast("האווטאר עודכן! ייכנס לתוקף בשולחנות בכניסה הבאה", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { avatarSeed: seed, photo: '' }); } catch(e2) {} showToast("האווטאר עודכן! ייכנס לתוקף בשולחנות בכניסה הבאה", "success"); } catch(e) {}
             };
             const onPhotoPick = (e) => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -1090,7 +1337,7 @@
                         ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
                         const data = c.toDataURL('image/jpeg', 0.82);
                         if (data.length > 70000) { showToast("התמונה מורכבת מדי - נסה תמונה אחרת", "error"); return; }
-                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); showToast("התמונה הועלתה!", "success"); } catch(err) {}
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { photo: data, avatarSeed: '' }); } catch(e2) {} showToast("התמונה הועלתה!", "success"); } catch(err) {}
                     };
                     img.src = rd.result;
                 };
@@ -1283,10 +1530,10 @@
             const [showCreateDurak, setShowCreateDurak] = useState(false);
             const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4, bluff: false });
 
-            const rummyTables = tables.filter(t => t.type === 'rummikub' && !t.tournamentId).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-            const pokerTables = tables.filter(t => t.type === 'poker' && !t.tournamentId).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-            const durakTables = tables.filter(t => t.type === 'durak' && !t.tournamentId).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-            const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const rummyTables = tables.filter(t => t.type === 'rummikub' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const pokerTables = tables.filter(t => t.type === 'poker' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const durakTables = tables.filter(t => t.type === 'durak' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
 
             const handleCreateShesh = async () => {
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), sheshTableDoc(user.uid, { buyIn: Number(sheshOpts.buyIn), turnTime: SHESH_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
@@ -1330,7 +1577,7 @@
                         const refunds = [];
                         for (const uid of Object.keys(players)) {
                             if (uid.startsWith('bot_')) continue;
-                            const uSnap = await tr.get(window.fb.doc(window.fb.db, "users", uid));
+                            const uSnap = await tr.get(memDoc(uid));
                             if (uSnap.exists()) refunds.push([uSnap.ref, round2((uSnap.data().balance || 0) + (players[uid].stack || 0) + (players[uid].bet || 0) + potShare)]);
                         }
                         refunds.forEach(([ref, bal]) => tr.update(ref, { balance: bal }));
@@ -1388,9 +1635,6 @@
 
                         {tab === 'rummikub' && (
                             <div className="animate-fade-in">
-                                <TournamentsTab game="rummikub" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinRummy} />
-                                <div className="border-t border-white/5 my-6"></div>
-                                
                                 <div className="flex justify-between items-center mb-5">
                                     <h2 className="text-xl font-black text-white">שולחנות רמיקוב</h2>
                                     {canManageGame(user, 'rummikub') && (
@@ -1449,14 +1693,13 @@
                                     ))}
                                     {rummyTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות רמיקוב פתוחים.</div>}
                                 </div>
+                                <div className="border-t border-white/5 my-8"></div>
+                                <TournamentsTab game="rummikub" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinRummy} />
                             </div>
                         )}
 
                         {tab === 'poker' && (
                             <div className="animate-fade-in">
-                                <TournamentsTab game="poker" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinPoker} />
-                                <div className="border-t border-white/5 my-6"></div>
-                                
                                 <div className="flex justify-between items-center mb-5">
                                     <h2 className="text-xl font-black text-white">שולחנות פוקר</h2>
                                     {canManageGame(user, 'poker') && (
@@ -1494,15 +1737,14 @@
                                     })}
                                     {pokerTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות פוקר פתוחים.</div>}
                                 </div>
+                                <div className="border-t border-white/5 my-8"></div>
+                                <TournamentsTab game="poker" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinPoker} />
                             </div>
                         )}
 
                         {/* ===== טאב דוראק ===== */}
                         {tab === 'durak' && (
                             <div className="animate-fade-in">
-                                <TournamentsTab game="durak" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinDurak} />
-                                <div className="border-t border-white/5 my-6"></div>
-                                
                                 <div className="flex justify-between items-center mb-5">
                                     <h2 className="text-xl font-black text-white">שולחנות דוראק</h2>
                                     {canManageGame(user, 'durak') && (
@@ -1583,15 +1825,14 @@
                                     })}
                                     {durakTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות דוראק פתוחים.</div>}
                                 </div>
+                                <div className="border-t border-white/5 my-8"></div>
+                                <TournamentsTab game="durak" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinDurak} />
                             </div>
                         )}
 
                         {/* ===== טאב שש-בש ===== */}
                         {tab === 'shesh' && (
                             <div className="animate-fade-in">
-                                <TournamentsTab game="shesh" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinShesh} />
-                                <div className="border-t border-white/5 my-6"></div>
-                                
                                 <div className="flex justify-between items-center mb-5">
                                     <h2 className="text-xl font-black text-white">שולחנות שש-בש</h2>
                                     {canManageGame(user, 'shesh') && (
@@ -1649,6 +1890,8 @@
                                     })}
                                     {sheshTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות שש-בש פתוחים.</div>}
                                 </div>
+                                <div className="border-t border-white/5 my-8"></div>
+                                <TournamentsTab game="shesh" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinShesh} />
                             </div>
                         )}
                     </div>
@@ -1696,7 +1939,8 @@
             useEffect(() => { setRakeDraft(clubSettings.rakePct); }, [clubSettings.rakePct]);
 
             useEffect(() => {
-                const unsub = window.fb.onSnapshot(window.fb.collection(window.fb.db, "users"), (snap) => {
+                const memQ = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
+                const unsub = window.fb.onSnapshot(memQ, (snap) => {
                     setUsersList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 });
                 return () => unsub();
@@ -1705,12 +1949,12 @@
             const isOwner = [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role);
 
             const handleApprove = async (uid) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", uid), { status: 'approved' }); showToast("שחקן אושר", "success"); }
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", uid), { status: 'approved' }); showToast("שחקן אושר", "success"); }
                 catch(e) { showToast("שגיאה באישור", "error"); }
             };
             const handleReject = async (u) => {
                 if (!window.confirm(`לדחות ולמחוק את ${u.username}?`)) return;
-                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "users", u.id)); showToast("הבקשה נדחתה", "info"); }
+                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "memberships", u.id)); showToast("הבקשה נדחתה", "info"); }
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
             };
 
@@ -1720,8 +1964,8 @@
                 if (!amount || isNaN(amount) || amount <= 0) return;
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const ownerRef = window.fb.doc(window.fb.db, "users", user.uid);
-                        const targetRef = window.fb.doc(window.fb.db, "users", target.id);
+                        const ownerRef = memDoc(user.uid);
+                        const targetRef = window.fb.doc(window.fb.db, "memberships", target.id);
                         const ownerSnap = await tr.get(ownerRef);
                         const targetSnap = await tr.get(targetRef);
                         let ownerBal = ownerSnap.data().balance || 0;
@@ -1744,7 +1988,7 @@
                 const pct = parseFloat(rakeDraft);
                 if (isNaN(pct) || pct < 0 || pct > 20) return showToast("אחוז רייק לא חוקי (0-20)", "error");
                 try {
-                    await window.fb.setDoc(window.fb.doc(window.fb.db, "club", "settings"), { rakePct: pct }, { merge: true });
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { rakePct: pct }, { merge: true });
                     showToast(`הרייק עודכן ל-${pct}%`, "success");
                 } catch(e) { showToast("שגיאה בשמירת הגדרות", "error"); }
             };
@@ -1755,7 +1999,11 @@
             };
             const censorPhoto = async (u) => {
                 if (!window.confirm(`לאפס את תמונת הפרופיל של ${u.username}?`)) return;
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", u.id), { photo: '', avatarSeed: '' }); showToast("התמונה אופסה", "success"); } catch(e) {}
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { photo: '', avatarSeed: '' });
+                    if (u.uid) await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", u.uid), { photo: '', avatarSeed: '' });
+                    showToast("התמונה אופסה", "success");
+                } catch(e) {}
             };
             const toggleGame = (gid) => {
                 setRoleDraft(prev => ({ ...prev, managedGames: prev.managedGames.includes(gid) ? prev.managedGames.filter(g => g !== gid) : [...prev.managedGames, gid] }));
@@ -1764,7 +2012,7 @@
                 try {
                     const managedGames = [ROLES.MANAGER, ROLES.AGENT].includes(roleDraft.role) ? roleDraft.managedGames : [];
                     const agentPct = Math.min(100, Math.max(0, Number(roleDraft.agentPct) || 0));
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", roleEditUser.id), { role: roleDraft.role, managedGames, agentUid: roleDraft.agentUid || '', agentPct: roleDraft.agentUid ? agentPct : 0 });
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", roleEditUser.id), { role: roleDraft.role, managedGames, agentUid: roleDraft.agentUid || '', agentPct: roleDraft.agentUid ? agentPct : 0 });
                     showToast(`${roleEditUser.username} עודכן ל${ROLE_LABELS[roleDraft.role]}`, "success");
                     setRoleEditUser(null);
                 } catch(e) { showToast("שגיאה בעדכון תפקיד", "error"); }
@@ -1796,7 +2044,7 @@
 
             const pendingUsers = usersList.filter(u => u.status !== 'approved' && !u.isBot);
             const realPlayers = usersList.filter(u => u.status === 'approved' && !u.isBot);
-            const players = usersList.filter(u => u.status === 'approved' && u.id !== user.uid)
+            const players = usersList.filter(u => u.status === 'approved' && u.uid !== user.uid)
                 .filter(u => !search || (u.username||'').toLowerCase().includes(search.toLowerCase()) || (u.email||'').toLowerCase().includes(search.toLowerCase()) || (u.playerId||'').toLowerCase().includes(search.toLowerCase()));
 
             const statTiles = [
@@ -1972,7 +2220,7 @@
                                         <select value={roleDraft.agentUid} onChange={e=>setRoleDraft({...roleDraft, agentUid: e.target.value})} className="flex-1 min-w-[140px] bg-slate-900 text-white border border-white/10 rounded-xl p-2.5 outline-none focus:border-amber-500/60 font-bold text-sm">
                                             <option value="">ללא סוכן (הכל לבית)</option>
                                             {usersList.filter(x => !x.isBot && x.id !== roleEditUser.id && [ROLES.AGENT, ROLES.MANAGER, ROLES.CLUB_OWNER, ROLES.SUPER_ADMIN].includes(x.role)).map(x => (
-                                                <option key={x.id} value={x.id}>{x.username} ({ROLE_LABELS[x.role]})</option>
+                                                <option key={x.id} value={x.uid}>{x.username} ({ROLE_LABELS[x.role]})</option>
                                             ))}
                                         </select>
                                         {roleDraft.agentUid && (
@@ -2478,7 +2726,7 @@
                     const buyInAmount = Number(tableState.minBuyIn);
                     let becameFull = false;
                     await window.fb.runTransaction(window.fb.db, async (t) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                         const uSnap = await t.get(uRef);
                         const tblSnap = await t.get(tblRef);
@@ -2561,21 +2809,13 @@
                         const userRefs = {}; const userSnaps = {};
                         for (const [uid, p] of Object.entries(tbl.players)) {
                             if (p.isBot) continue;
-                            userRefs[uid] = window.fb.doc(window.fb.db, "users", uid);
+                            userRefs[uid] = memDoc(uid);
                             userSnaps[uid] = await t.get(userRefs[uid]);
                         }
                         let adminRef = null, adminSnap = null;
-                        for (const [uid, s] of Object.entries(userSnaps)) {
-                            if (s.exists() && (s.data().email || '').toLowerCase() === SUPER_ADMIN_EMAIL) { adminRef = userRefs[uid]; adminSnap = s; }
-                        }
-                        if (!adminSnap) {
-                            const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
-                            const adminDocs = await window.fb.getDocs(adminQ);
-                            if (!adminDocs.empty) {
-                                adminRef = adminDocs.docs[0].ref;
-                                adminSnap = await t.get(adminRef);
-                            }
-                        }
+                        const ownerUid0 = (window.__club || {}).ownerUid;
+                        if (ownerUid0 && userRefs[ownerUid0]) { adminRef = userRefs[ownerUid0]; adminSnap = userSnaps[ownerUid0]; }
+                        else if (ownerUid0) { adminRef = memDoc(ownerUid0); adminSnap = await t.get(adminRef); }
 
                         const players = JSON.parse(JSON.stringify(tbl.players));
                         players[user.uid].cards = [];
@@ -2613,13 +2853,13 @@
                                 'stats.gamesWon': (st.gamesWon || 0) + (isWinner ? 1 : 0),
                                 'stats.totalProfit': round2((st.totalProfit || 0) + delta)
                             };
-                            if (adminRef && userRefs[uid].id === adminRef.id) {
+                            if (adminRef && userRefs[uid].path === adminRef.path) {
                                 upd.balance = round2((snap.data().balance || 0) + rake);
                                 upd.clubProfits = round2((snap.data().clubProfits || 0) + rake);
                             }
                             t.update(userRefs[uid], upd);
                         }
-                        if (adminRef && adminSnap && adminSnap.exists() && !userSnaps[adminRef.id]) {
+                        if (adminRef && adminSnap && adminSnap.exists() && !(ownerUid0 && userSnaps[ownerUid0])) {
                             t.update(adminRef, {
                                 balance: round2((adminSnap.data().balance || 0) + rake),
                                 clubProfits: round2((adminSnap.data().clubProfits || 0) + rake)
@@ -2704,7 +2944,7 @@
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const tblSnap = await t.get(tblRef);
                         const uSnap = await t.get(uRef);
                         if (!tblSnap.exists()) return;
@@ -2721,12 +2961,11 @@
                         if (lastManStanding) {
                             const winnerUid = remainingUids[0];
                             if (!newP[winnerUid].isBot) {
-                                winnerRef = window.fb.doc(window.fb.db, "users", winnerUid);
+                                winnerRef = memDoc(winnerUid);
                                 winnerSnap = await t.get(winnerRef);
                             }
-                            const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
-                            const adminDocs = await window.fb.getDocs(adminQ);
-                            if (!adminDocs.empty) { adminRef = adminDocs.docs[0].ref; adminSnap = await t.get(adminRef); }
+                            const ownerUidL = (window.__club || {}).ownerUid;
+                            if (ownerUidL) { adminRef = memDoc(ownerUidL); adminSnap = await t.get(adminRef); }
                         }
 
                         const updates = { players: newP };
@@ -2916,7 +3155,7 @@
                         </div>
 
                         {isSeated && isPlaying && (
-                            <div className="sm:hidden absolute left-2 bottom-[200px] z-40 flex flex-col items-center gap-2 pointer-events-none">
+                            <div className="sm:hidden fixed left-2 bottom-[252px] z-[150] flex flex-col items-center gap-2 pointer-events-none" style={{ bottom: 'calc(252px + env(safe-area-inset-bottom, 0px))' }}>
                                 <div className={`pointer-events-auto px-3 py-1 rounded-full font-black font-mono text-base border-2 bg-slate-950/95 shadow-xl ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-400 border-rose-500 animate-pulse' : 'text-white border-emerald-500') : 'text-slate-500 border-slate-700'}`}>
                                     {timeLeft.toString().padStart(2, '0')}
                                 </div>
@@ -3471,7 +3710,7 @@
                 try {
                     let becameFull = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
@@ -3501,7 +3740,7 @@
                 if (tableState?.tournament) return showToast("בטורניר אין Rebuy רגיל - יש ריביי/אדאון לפי חוקי הטורניר", "error");
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "err";
                         const t = tSnap.data();
@@ -3550,7 +3789,7 @@
             const rebuyAfterBust = async () => {
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "err";
                         const t = tSnap.data();
@@ -3614,7 +3853,7 @@
                 try {
                     let session = null;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) return;
                         const td = tSnap.data();
@@ -3799,7 +4038,7 @@
             const tourRebuyMe = async () => {
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const torRef = window.fb.doc(window.fb.db, "tournaments", tableState.tournamentId);
                         const [uSnap, tSnap, torSnap] = [await tr.get(uRef), await tr.get(tblRef()), await tr.get(torRef)];
                         if (!tSnap.exists() || !torSnap.exists()) throw "err";
@@ -3824,7 +4063,7 @@
             const tourAddon = async () => {
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const torRef = window.fb.doc(window.fb.db, "tournaments", tableState.tournamentId);
                         const [uSnap, tSnap, torSnap] = [await tr.get(uRef), await tr.get(tblRef()), await tr.get(torRef)];
                         if (!tSnap.exists() || !torSnap.exists()) throw "err";
@@ -4460,11 +4699,12 @@
                         // גביית Buy-in מכל השחקנים בטרנזקציה
                         const uSnaps = {};
                         for (const uid of uids) {
-                            const s = await tr.get(window.fb.doc(window.fb.db, "users", uid));
+                            if (pl[uid].isBot) continue;
+                            const s = await tr.get(memDoc(uid));
                             if (!s.exists() || (s.data().balance || 0) < buyIn) throw `ל${pl[uid].name} אין מספיק צ'יפים (${formatMoney(buyIn)})`;
                             uSnaps[uid] = s;
                         }
-                        for (const uid of uids) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
+                        for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
                         // חלוקה
                         const deck = durakDeck(Number(tbl.settings.deckSize) || 36);
                         for (let i = 0; i < 6; i++) for (const uid of uids) pl[uid].cards.push(deck.pop());
@@ -4506,9 +4746,9 @@
                     const share = winners.length ? Math.floor(((pot - rake) / winners.length) * 100) / 100 : 0;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const reads = {};
-                        for (const w of winners) { const s = await tr.get(window.fb.doc(window.fb.db, "users", w.uid)); if (s.exists()) reads[w.uid] = s; }
+                        for (const w of winners) { const s = await tr.get(memDoc(w.uid)); if (s.exists()) reads[w.uid] = s; }
                         let durakSnap = null;
-                        if (durakUid && pl[durakUid] && !pl[durakUid].left) { const s = await tr.get(window.fb.doc(window.fb.db, "users", durakUid)); if (s.exists()) durakSnap = s; }
+                        if (durakUid && pl[durakUid] && !pl[durakUid].left) { const s = await tr.get(memDoc(durakUid)); if (s.exists()) durakSnap = s; }
                         for (const w of winners) {
                             const s = reads[w.uid]; if (!s) continue;
                             const st = s.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
@@ -4717,7 +4957,7 @@
                 try {
                     let becameFull = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
@@ -4752,7 +4992,7 @@
                         delete pl[user.uid];
                         // סטטיסטיקת מפסיד לפורש (לא בטורניר - שם אין דמי כניסה לשולחן)
                         if (!t.tournamentId) try {
-                            const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                            const uRef = memDoc(user.uid);
                             const uSnap = await window.fb.getDoc(uRef);
                             if (uSnap.exists()) {
                                 const st = uSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
@@ -5365,10 +5605,10 @@
                     const buyIn = Number(setts.buyIn) || 0;
                     const mars = !byForfeit && upd && (upd.off[oppC(winnerColor)] || 0) === 0;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const wRef = window.fb.doc(window.fb.db, "users", winnerUid);
+                        const wRef = memDoc(winnerUid);
                         const wSnap = await tr.get(wRef);
                         let lSnap = null, lRef = null;
-                        if (loserUid) { lRef = window.fb.doc(window.fb.db, "users", loserUid); lSnap = await tr.get(lRef); }
+                        if (loserUid) { lRef = memDoc(loserUid); lSnap = await tr.get(lRef); }
                         if (wSnap.exists()) {
                             const st = wSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
                             tr.update(wRef, {
@@ -5416,11 +5656,12 @@
                         if (list.length < 2) throw "צריך 2 שחקנים";
                         const uSnaps = [];
                         for (const p of list) {
-                            const s = await tr.get(window.fb.doc(window.fb.db, "users", p.uid));
+                            if (p.isBot) { uSnaps.push(null); continue; }
+                            const s = await tr.get(memDoc(p.uid));
                             if (!s.exists() || (s.data().balance || 0) < buyIn) throw `ל${p.name} אין מספיק צ'יפים (${formatMoney(buyIn)})`;
                             uSnaps.push(s);
                         }
-                        uSnaps.forEach(s => tr.update(s.ref, { balance: round2((s.data().balance || 0) - buyIn) }));
+                        uSnaps.forEach(s => { if (s) tr.update(s.ref, { balance: round2((s.data().balance || 0) - buyIn) }); });
                         const pl = {};
                         pl[list[0].uid] = { ...list[0], color: 'w' };
                         pl[list[1].uid] = { ...list[1], color: 'b' };
@@ -5440,7 +5681,7 @@
                 try {
                     let becameFull = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const uRef = memDoc(user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
@@ -5783,7 +6024,7 @@
             if (!uid || !amt) return;
             try {
                 await window.fb.runTransaction(window.fb.db, async (tr) => {
-                    const r = window.fb.doc(window.fb.db, "users", uid);
+                    const r = memDoc(uid);
                     const sn = await tr.get(r);
                     if (!sn.exists()) return;
                     const upd = { balance: round2((sn.data().balance || 0) + amt) };
@@ -5802,7 +6043,7 @@
             const entry = tourEntryOf(tor);
             try {
                 await window.fb.runTransaction(window.fb.db, async (tr) => {
-                    const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                    const uRef = memDoc(user.uid);
                     const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tRef(tor.id))];
                     if (!tSnap.exists()) throw "הטורניר לא קיים";
                     const t = tSnap.data();
@@ -5824,7 +6065,7 @@
         const tourUnregister = async (tor, user, showToast) => {
             try {
                 await window.fb.runTransaction(window.fb.db, async (tr) => {
-                    const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                    const uRef = memDoc(user.uid);
                     const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tRef(tor.id))];
                     if (!tSnap.exists()) throw "err";
                     const t = tSnap.data();
@@ -5854,7 +6095,7 @@
                     groups[gi].forEach(uid => { const p = tor.players[uid] || {}; pm[uid] = { username: p.name || '', photo: p.photo || '', avatarSeed: p.avatarSeed || '', cards: [], hasDropped: false, stack: 1000, isBot: !!p.isBot }; });
                     const base = buildDeal(pm);
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                        type: 'rummikub', clubId: CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
+                        type: 'rummikub', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
                         tournament: tourMeta(gi), maxPlayers: groups[gi].length, minBuyIn: 0, stakes: 1, chat: [], ...base
                     });
                 }
@@ -5874,7 +6115,7 @@
                     const ai = Math.max(0, sorted2.findIndex(p => p.uid === attacker));
                     const defender = sorted2[(ai + 1) % sorted2.length].uid;
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                        type: 'durak', clubId: CLUB_ID, createdAt: Date.now(), tournamentId: tor.id, tournament: tourMeta(gi),
+                        type: 'durak', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id, tournament: tourMeta(gi),
                         hostUid: '', status: g.length < 2 ? 'showdown' : 'playing',
                         settings: { deckSize: 36, variant: 'podkidnoy', buyIn: 0, maxPlayers: Math.max(g.length, 2), rakePercent: 0, bluffEnabled: false },
                         players, pot: 0, deck, trumpCard, trumpSuit, attackerUid: attacker, defenderUid: defender,
@@ -5893,7 +6134,7 @@
                     const first = g.length > 1 ? (d1 > d2 ? players[g[0]] : players[g[1]]) : players[g[0]];
                     const doc0 = sheshTableDoc('', { deckSize: 0, buyIn: 0, rakePercent: 0, maxPlayers: 2 });
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                        ...doc0, clubId: CLUB_ID, tournamentId: tor.id, tournament: tourMeta(gi),
+                        ...doc0, clubId: tor.clubId || CLUB_ID, tournamentId: tor.id, tournament: tourMeta(gi),
                         status: g.length < 2 ? 'showdown' : 'playing', players, pot: 0,
                         settings: { ...doc0.settings, buyIn: 0, rakePercent: 0 },
                         dice: [{ v: d1, used: false }, { v: d2, used: false }],
@@ -5909,7 +6150,7 @@
                     players[uid] = { uid, name: p.name || '', photo: p.photo || '', avatarSeed: p.avatarSeed || '', seatIndex: si, stack: Number(tor.startStack) || 1000, bet: 0, status: 'active', cards: [], hasActed: false, actionText: '', isBot: !!p.isBot, buyTotal: 0 };
                 });
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                    type: 'poker', clubId: CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
+                    type: 'poker', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
                     tournament: { name: tor.name, startedAt: tor.startedAt, levelMins: tor.levelMins || 5, anteFromLevel: 4, rebuyUntil: tor.rebuys ? 1 : -1, addonAt: tor.addon ? 2 : -1, startStack: Number(tor.startStack) || 1000, bounty: Number(tor.bounty) || 0, round, finished: false, tableWinner: null },
                     settings: { baseGameType: tor.pokerType || 'NLH', isDealerChoice: false, maxPlayers: tblSize, blinds: 5, actionTime: 25, minBuyInBB: 0, maxBuyInBB: 0, rakePercent: 0, autoStart: 2, straddle: false, ante: 0 },
                     players, chat: [], leftStacks: {},
@@ -6034,7 +6275,7 @@
             const [tick, setTick] = useState(0);
             const [opts, setOpts] = useState({ name: '', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, addon: true, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
             const isPoker = game === 'poker';
-            const myTours = (tournaments || []).filter(t => t.game === game);
+            const myTours = (tournaments || []).filter(t => t.game === game && (t.clubId || 'main') === CLUB_ID);
             useEffect(() => { const iv = setInterval(() => setTick(x => x + 1), 1000); return () => clearInterval(iv); }, []);
 
             const bounty = round2(Number(opts.bounty) || 0);
@@ -6063,7 +6304,7 @@
                     if (addedPrize > 0) {
                         // מימון פרס מובטח: יורד מיוצר הטורניר לקופת הפרסים - עכשיו
                         await window.fb.runTransaction(window.fb.db, async (tr) => {
-                            const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                            const uRef = memDoc(user.uid);
                             const uSnap = await tr.get(uRef);
                             if (!uSnap.exists() || (uSnap.data().balance || 0) < addedPrize) throw `אין מספיק יתרה למימון הפרס המובטח (${formatMoney(addedPrize)})`;
                             tr.update(uRef, { balance: round2((uSnap.data().balance || 0) - addedPrize) });
