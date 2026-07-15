@@ -84,9 +84,17 @@
             .board-tile { width: calc(2.75rem * var(--board-scale, 1)); height: calc(4rem * var(--board-scale, 1)); font-size: calc(1.75rem * var(--board-scale, 1)); }
         }
         .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
-        .rack-grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; direction: ltr; }
-        .rack-slot { min-height: 52px; position: relative; }
-        @media (min-width: 640px) { .rack-slot { min-height: 64px; } }
+        .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
+        .rack-slot { min-height: 44px; position: relative; }
+        @media (min-width: 640px) {
+            .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
+            .rack-slot { min-height: 64px; }
+        }
+
+        /* בועות צ'אט ומתנות בין שחקנים */
+        .chat-bubble { position: absolute; top: -2.5rem; left: 50%; transform: translateX(-50%); background: rgba(2,6,23,0.94); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 11px; font-weight: 800; padding: 4px 11px; border-radius: 14px; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; z-index: 85; box-shadow: 0 6px 14px rgba(0,0,0,0.5); animation: popIn 0.25s ease-out; pointer-events: none; }
+        .gift-fx { position: absolute; top: -3rem; left: 50%; font-size: 36px; z-index: 95; animation: giftBoom 2s ease-out forwards; pointer-events: none; }
+        @keyframes giftBoom { 0% { transform: translateX(-50%) scale(0) rotate(-30deg); opacity: 0; } 20% { transform: translateX(-50%) scale(1.6) rotate(8deg); opacity: 1; } 45% { transform: translateX(-50%) scale(1.05) rotate(0deg); } 80% { opacity: 1; } 100% { transform: translateX(-50%) scale(1.2); opacity: 0; } }
         .action-btn { background: linear-gradient(to bottom, #1e293b, #0f172a); border: 2px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.1); transition: all 0.1s ease; }
         .action-btn:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
 
@@ -191,6 +199,7 @@
         /* ================================================================
            הגדרות קלאב
            ================================================================ */
+        const CLUB_ID = 'main'; // הכנה לריבוי קלאבים: כל נתון חדש מוחתם, ההפרדה תתבסס על זה
         const ROLES = { SUPER_ADMIN: 'super_admin', CLUB_OWNER: 'club_owner', MANAGER: 'manager', AGENT: 'agent', PLAYER: 'player' };
         const ROLE_LABELS = { super_admin: 'סופר-אדמין', club_owner: 'בעל מועדון', manager: 'מנהל', agent: 'סוכן', player: 'שחקן' };
 
@@ -234,7 +243,14 @@
             if (num >= 1000) return (num / 1000).toFixed(1).replace('.0','') + 'K';
             return round2(num).toString();
         };
-        const avatarUrl = (seed) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+        const avatarUrl = (x) => {
+            if (x && typeof x === 'object') {
+                if (x.photo) return x.photo;
+                return `https://api.dicebear.com/7.x/avataaars/svg?seed=${x.avatarSeed || x.uid || 'x'}`;
+            }
+            return `https://api.dicebear.com/7.x/avataaars/svg?seed=${x}`;
+        };
+        const AVATAR_SEEDS = ['Leo','Maya','Rocky','Ziv','Nova','Ace','Luna','Rex','Miko','Dana','Tigra','Boss'];
 
         /* ===== מנוע צלילים (Tone.js) ===== */
         const SND = {};
@@ -256,6 +272,7 @@
                     case 'win': ['C5','E5','G5','C6'].forEach((n, i) => SND.s.triggerAttackRelease(n, '16n', t + i * 0.09)); break;
                     case 'msg': SND.s.triggerAttackRelease('A5', '32n', t); break;
                     case 'tile': SND.m.triggerAttackRelease('E3', '32n', t); break;
+                    case 'dice': SND.m.triggerAttackRelease('C3', '32n', t); SND.m.triggerAttackRelease('E3', '32n', t + 0.08); SND.m.triggerAttackRelease('A3', '32n', t + 0.16); SND.s.triggerAttackRelease('B5', '32n', t + 0.22); break;
                 }
             } catch(e) {}
         };
@@ -281,13 +298,73 @@
 
         const GAME_LABEL = (g) => (GAMES.find(x => x.id === g) || {}).label || g;
 
+        // חלוקת רייק: חלקו של כל שחקן משויך-סוכן הולך לסוכן לפי האחוז, היתרה לבית
+        const computeAgentCuts = async (rake, uids) => {
+            const cuts = {}; let total = 0;
+            const list = (uids || []).filter(u => u && !u.startsWith('bot_'));
+            if (!rake || rake <= 0 || !list.length) return { cuts, total };
+            const share = rake / list.length;
+            for (const uid of list) {
+                try {
+                    const snap = await window.fb.getDoc(window.fb.doc(window.fb.db, "users", uid));
+                    if (!snap.exists()) continue;
+                    const d = snap.data();
+                    const pct = Math.min(100, Math.max(0, Number(d.agentPct) || 0));
+                    if (d.agentUid && pct > 0 && d.agentUid !== uid) {
+                        const cut = round2(share * pct / 100);
+                        if (cut > 0) { cuts[d.agentUid] = round2((cuts[d.agentUid] || 0) + cut); total = round2(total + cut); }
+                    }
+                } catch(e) {}
+            }
+            return { cuts, total };
+        };
+        const creditAgent = async (agentUid, amt) => {
+            try {
+                await window.fb.runTransaction(window.fb.db, async (tr) => {
+                    const r = window.fb.doc(window.fb.db, "users", agentUid);
+                    const sn = await tr.get(r);
+                    if (!sn.exists()) return;
+                    tr.update(r, { balance: round2((sn.data().balance || 0) + amt), agentProfits: round2((sn.data().agentProfits || 0) + amt) });
+                });
+            } catch(e) {}
+        };
+        const distributeRake = async (rake, uids) => {
+            if (!rake || rake <= 0) return;
+            try {
+                const { cuts, total } = await computeAgentCuts(rake, uids);
+                for (const [aUid, amt] of Object.entries(cuts)) await creditAgent(aUid, amt);
+                creditRakeToClub(round2(Math.max(rake - total, 0)));
+            } catch(e) { creditRakeToClub(rake); }
+        };
+        // לרמי: הרייק כבר נזקף לבית בטרנזקציה - מושכים ממנו את חלקי הסוכנים
+        const payAgentCutsFromHouse = async (rake, uids) => {
+            try {
+                const { cuts } = await computeAgentCuts(rake, uids);
+                for (const [aUid, amt] of Object.entries(cuts)) {
+                    try {
+                        const adminQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("role", "==", ROLES.SUPER_ADMIN));
+                        const adminDocs = await window.fb.getDocs(adminQ);
+                        if (adminDocs.empty) return;
+                        await window.fb.runTransaction(window.fb.db, async (tr) => {
+                            const aRef = adminDocs.docs[0].ref;
+                            const gRef = window.fb.doc(window.fb.db, "users", aUid);
+                            const [aSnap, gSnap] = [await tr.get(aRef), await tr.get(gRef)];
+                            if (!aSnap.exists() || !gSnap.exists()) return;
+                            tr.update(aRef, { balance: round2((aSnap.data().balance || 0) - amt), clubProfits: round2((aSnap.data().clubProfits || 0) - amt) });
+                            tr.update(gRef, { balance: round2((gSnap.data().balance || 0) + amt), agentProfits: round2((gSnap.data().agentProfits || 0) + amt) });
+                        });
+                    } catch(e) {}
+                }
+            } catch(e) {}
+        };
+
         // יומן משחקים - כל תוצאה נרשמת לדוחות ולשקיפות השחקן
         const logGameResult = async (entries, tableId) => {
             try {
                 for (const e of (entries || [])) {
                     if (!e.uid) continue;
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "gameLog"), {
-                        uid: e.uid, username: e.username || '', game: e.game,
+                        uid: e.uid, username: e.username || '', game: e.game, clubId: CLUB_ID,
                         profit: round2(e.profit || 0), tableId: tableId || '', at: Date.now()
                     });
                 }
@@ -310,17 +387,17 @@
                 const col = window.fb.collection(window.fb.db, "tables");
                 if (t.type === 'rummikub') {
                     await window.fb.addDoc(col, {
-                        type: 'rummikub', maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes,
+                        type: 'rummikub', clubId: CLUB_ID, maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes,
                         players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, chat: [], createdAt: Date.now()
                     });
                 } else if (t.type === 'poker') {
                     await window.fb.addDoc(col, {
-                        type: 'poker', createdAt: Date.now(), settings: { ...t.settings }, players: {}, chat: [], leftStacks: {},
+                        type: 'poker', clubId: CLUB_ID, createdAt: Date.now(), settings: { ...t.settings }, players: {}, chat: [], leftStacks: {},
                         gameState: { phase: 'waiting', deck: [], board: [], pots: [], highestBet: 0, minRaise: (Number(t.settings?.blinds) || 0.5) * 2, dealerUid: null, dcUid: null, dcAnchor: null, currentGameType: t.settings?.baseGameType || 'NLH', activeTurnUid: null, turnStartedAt: null, lastWinners: null, lastWinAmount: 0, allInReveal: false }
                     });
                 } else if (t.type === 'durak') {
                     await window.fb.addDoc(col, {
-                        type: 'durak', createdAt: Date.now(), hostUid: t.hostUid, status: 'setup',
+                        type: 'durak', clubId: CLUB_ID, createdAt: Date.now(), hostUid: t.hostUid, status: 'setup',
                         settings: { ...t.settings }, players: {}, pot: 0, deck: [], trumpCard: null, trumpSuit: null,
                         attackerUid: null, defenderUid: null, pairs: [], roundCap: 6, finishOrder: [], chat: [], lastResults: null, turnStartedAt: null
                     });
@@ -447,34 +524,128 @@
             </span>
         );
 
-        /* ===== צ'אט שולחן משותף (פוקר + רמי) ===== */
+        /* ===== צ'אט שולחן משותף: בועות, מתנות והשתקות - לכל המשחקים ===== */
         const QUICK_EMOJIS = ['😀','😂','😡','😭','👍','🔥','🎉','🤡','😱','🙏'];
-        function ChatPanel({ chat, meUid, onSend, onClose, className }) {
+        const GIFT_ITEMS = [
+            { id: 'champ', e: '🍾', fx: '🍾✨', label: 'שמפניה' },
+            { id: 'cup', e: '🏆', fx: '🏆', label: 'גביע' },
+            { id: 'crown', e: '👑', fx: '👑', label: 'כתר' },
+            { id: 'rose', e: '🌹', fx: '🌹', label: 'ורד' },
+            { id: 'coffee', e: '☕', fx: '☕', label: 'קפה' },
+            { id: 'cake', e: '🎂', fx: '🎂', label: 'עוגה' },
+            { id: 'slipper', e: '🩴', fx: '🩴💫', label: 'כפכף' },
+            { id: 'tomato', e: '🍅', fx: '🍅💥', label: 'עגבנייה' },
+            { id: 'bomb', e: '💣', fx: '💥', label: 'רימון' },
+            { id: 'gun', e: '🔫', fx: '🔫💥', label: 'ירייה' },
+        ];
+
+        // Hook משותף לצ'אט שולחני בכל המשחקים
+        function useTableChat(tableState, tableDocId, user, gameId, showToast) {
+            const rawChat = tableState?.chat || [];
+            const [chatOpen, setChatOpen] = useState(false);
+            const [tick, setTick] = useState(0);
+            const [mutedUids, setMutedUids] = useState(() => { try { return JSON.parse(localStorage.getItem('club_muted') || '[]'); } catch(e) { return []; } });
+            const toggleMuteUid = (uid) => setMutedUids(prev => {
+                const nx = prev.includes(uid) ? prev.filter(x => x !== uid) : [...prev, uid];
+                try { localStorage.setItem('club_muted', JSON.stringify(nx)); } catch(e) {}
+                return nx;
+            });
+            const chatArr = rawChat.filter(m => !mutedUids.includes(m.uid));
+            const chatMuted = !!tableState?.chatMuted;
+            const canModerate = canManageGame(user, gameId);
+            const bubbles = useMemo(() => {
+                const r = {}; const n = Date.now();
+                chatArr.forEach(m => { if (!m.gift && (m.emoji || m.text) && n - m.at < 5000) r[m.uid] = m.emoji || m.text; });
+                return r;
+            }, [rawChat.length, tick, mutedUids.length]);
+            const nowT = Date.now();
+            const gifts = chatArr.filter(m => m.gift && nowT - m.at < 2300);
+            const liveCount = Object.keys(bubbles).length + gifts.length;
+            useEffect(() => {
+                if (!liveCount) return;
+                const iv = setInterval(() => setTick(x => x + 1), 800);
+                return () => clearInterval(iv);
+            }, [liveCount]);
+            const ref = () => window.fb.doc(window.fb.db, "tables", tableDocId);
+            const sendChat = async (text, emoji, gift, toUid) => {
+                if (chatMuted && !canModerate) { showToast("הצ'אט הושתק על ידי המנהל", "error"); return; }
+                if (gift) {
+                    const lastGift = [...rawChat].reverse().find(m => m.uid === user.uid && m.gift);
+                    if (lastGift && Date.now() - lastGift.at < 60000) { showToast(`פריט אחד לדקה (עוד ${Math.ceil((60000 - (Date.now() - lastGift.at)) / 1000)} שנ')`, "error"); return; }
+                }
+                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', gift: gift ? gift.id : '', giftE: gift ? gift.fx : '', to: toUid || '', at: Date.now() };
+                try { await window.fb.updateDoc(ref(), { chat: [...rawChat, msg].slice(-40) }); } catch(e) {}
+                playSnd(gift ? 'chip' : 'msg');
+                setTimeout(() => setChatOpen(false), 1600);
+            };
+            const toggleTableMute = async () => { if (!canModerate) return; try { await window.fb.updateDoc(ref(), { chatMuted: !chatMuted }); } catch(e) {} };
+            return { chatArr, chatOpen, setChatOpen, bubbles, gifts, sendChat, mutedUids, toggleMuteUid, chatMuted, canModerate, toggleTableMute };
+        }
+
+        function ChatPanel({ chat, meUid, onSend, onClose, className, targets = [], mutedUids = [], onToggleMuteUid, canModerate, chatMuted, onToggleTableMute }) {
             const [text, setText] = useState('');
+            const [giftPick, setGiftPick] = useState(null);
             const listRef = useRef(null);
             useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [chat.length]);
-            const submit = () => { const t = text.trim(); if (!t) return; onSend(t, ''); setText(''); };
+            const submit = () => { const t = text.trim(); if (!t) return; onSend(t, '', null, null); setText(''); };
+            const fireGift = (item, toUid) => { onSend('', '', item, toUid); setGiftPick(null); };
+            const giftInfo = (m) => { const it = GIFT_ITEMS.find(g => g.id === m.gift); return it ? `${it.e} ${it.label}` : '🎁'; };
+            const targetName = (uid) => uid === meUid ? 'אליך' : `ל${(targets.find(t => t.uid === uid) || {}).name || 'שחקן'}`;
             return (
-                <div className={`absolute z-[300] w-72 max-w-[85vw] bg-slate-950/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur flex flex-col animate-pop-in ${className || 'bottom-[130px] left-3'}`} dir="rtl">
+                <div className={`absolute z-[300] w-80 max-w-[92vw] bg-slate-950/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur flex flex-col animate-pop-in ${className || 'bottom-[130px] left-3'}`} dir="rtl">
                     <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
-                        <span className="font-black text-white text-xs"><i className="fa-solid fa-comment-dots ml-1 text-emerald-400"></i>צ'אט שולחן</span>
-                        <button onClick={onClose} className="text-slate-500 hover:text-white w-6 h-6"><i className="fa-solid fa-xmark"></i></button>
+                        <span className="font-black text-white text-xs"><i className="fa-solid fa-comment-dots ml-1 text-emerald-400"></i>צ'אט שולחן {chatMuted && <span className="text-rose-400">· מושתק</span>}</span>
+                        <div className="flex items-center gap-1">
+                            {canModerate && (
+                                <button onClick={onToggleTableMute} title={chatMuted ? 'בטל השתקת שולחן' : 'השתק את כל השולחן (מנהל)'} className={`w-7 h-7 rounded-lg text-xs transition-colors ${chatMuted ? 'bg-rose-700 text-white' : 'text-slate-500 hover:text-rose-400'}`}><i className="fa-solid fa-volume-xmark"></i></button>
+                            )}
+                            <button onClick={onClose} className="text-slate-500 hover:text-white w-7 h-7 bg-slate-800/60 rounded-lg"><i className="fa-solid fa-xmark"></i></button>
+                        </div>
                     </div>
-                    <div ref={listRef} className="h-44 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
+                    <div ref={listRef} className="h-40 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
                         {chat.length === 0 && <div className="text-slate-600 text-[11px] font-bold text-center mt-6">אין הודעות עדיין. תגיד שלום 👋</div>}
                         {chat.map((m, i) => (
-                            <div key={i} className={`text-[11px] leading-snug ${m.uid === meUid ? 'text-emerald-300' : 'text-slate-200'}`}>
-                                <span className="font-black">{m.uid === meUid ? 'אתה' : m.name}:</span> {m.emoji ? <span className="text-lg align-middle">{m.emoji}</span> : m.text}
+                            <div key={i} className={`text-[11px] leading-snug flex items-start gap-1.5 ${m.uid === meUid ? 'text-emerald-300' : 'text-slate-200'}`}>
+                                {m.uid !== meUid && onToggleMuteUid && (
+                                    <button onClick={() => onToggleMuteUid(m.uid)} title="השתק שחקן זה (רק אצלך)" className="text-slate-700 hover:text-rose-400 text-[10px] shrink-0 mt-0.5"><i className="fa-solid fa-volume-xmark"></i></button>
+                                )}
+                                <span className="min-w-0">
+                                    <span className="font-black">{m.uid === meUid ? 'אתה' : m.name}:</span>{' '}
+                                    {m.gift ? <span className="text-amber-300">שלח {giftInfo(m)} {targetName(m.to)}</span> : m.emoji ? <span className="text-lg align-middle">{m.emoji}</span> : m.text}
+                                </span>
                             </div>
                         ))}
                     </div>
-                    <div className="flex gap-1 px-2 pb-1.5 flex-wrap">
-                        {QUICK_EMOJIS.map(e => <button key={e} onClick={() => onSend('', e)} className="text-lg hover:scale-125 transition-transform">{e}</button>)}
-                    </div>
-                    <div className="flex gap-1.5 p-2 border-t border-white/5">
-                        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{ if (e.key === 'Enter') submit(); }} placeholder="הודעה..." className="flex-1 bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500/50" />
-                        <button onClick={submit} className="bg-emerald-600 hover:bg-emerald-500 text-white w-8 rounded-lg shrink-0"><i className="fa-solid fa-paper-plane text-xs"></i></button>
-                    </div>
+                    {(!chatMuted || canModerate) ? (
+                        <React.Fragment>
+                            <div className="flex gap-1 px-2 pb-1 flex-wrap">
+                                {QUICK_EMOJIS.map(e => <button key={e} onClick={() => onSend('', e, null, null)} className="text-lg hover:scale-125 transition-transform">{e}</button>)}
+                            </div>
+                            {targets.length > 0 && (
+                                <div className="px-2 pb-1.5 border-t border-white/5 pt-1.5">
+                                    <div className="flex gap-1.5 flex-wrap items-center">
+                                        <span className="text-[9px] text-amber-400 font-black">🎁 שלח:</span>
+                                        {GIFT_ITEMS.map(g => (
+                                            <button key={g.id} onClick={() => targets.length === 1 ? fireGift(g, targets[0].uid) : setGiftPick(giftPick && giftPick.id === g.id ? null : g)} title={g.label}
+                                                    className={`text-base hover:scale-125 transition-transform ${giftPick && giftPick.id === g.id ? 'scale-125 drop-shadow-[0_0_6px_gold]' : ''}`}>{g.e}</button>
+                                        ))}
+                                    </div>
+                                    {giftPick && (
+                                        <div className="flex gap-1.5 flex-wrap mt-1.5 bg-slate-900/80 rounded-xl p-1.5 border border-amber-500/30 animate-pop-in">
+                                            <span className="text-[9px] text-amber-300 font-black self-center">{giftPick.e} אל:</span>
+                                            {targets.map(t => <button key={t.uid} onClick={() => fireGift(giftPick, t.uid)} className="text-[10px] bg-slate-800 hover:bg-amber-700 border border-white/10 rounded-full px-2.5 py-1 font-bold text-white">{t.name}</button>)}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            <div className="flex gap-1.5 p-2 border-t border-white/5">
+                                <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{ if (e.key === 'Enter') submit(); }} placeholder="הודעה..." className="flex-1 bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500/50" />
+                                <button onClick={submit} className="bg-emerald-600 hover:bg-emerald-500 text-white w-8 rounded-lg shrink-0"><i className="fa-solid fa-paper-plane text-xs"></i></button>
+                            </div>
+                        </React.Fragment>
+                    ) : (
+                        <div className="p-3 text-center text-[11px] text-rose-300 font-bold border-t border-white/5"><i className="fa-solid fa-volume-xmark ml-1"></i>המנהל השתיק את הצ'אט בשולחן זה</div>
+                    )}
                 </div>
             );
         }
@@ -781,7 +952,7 @@
                                     </button>
                                 )}
                                 <button onClick={() => changeView(currentView === 'profile' ? 'lobby' : 'profile')} className="w-10 h-10 rounded-xl overflow-hidden border border-emerald-500/40 hover:border-emerald-400 transition-colors" title="אזור אישי">
-                                    <img src={avatarUrl(dbUser.uid)} className="w-full h-full object-cover bg-slate-800" />
+                                    <img src={avatarUrl(dbUser)} className="w-full h-full object-cover bg-slate-800" />
                                 </button>
                                 <div className="flex-col items-start mr-1 hidden sm:flex">
                                     <span className="text-sm font-bold text-white flex items-center gap-1">
@@ -794,7 +965,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V7</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V9.1</p>
                             </div>
                         </nav>
                     )}
@@ -803,7 +974,7 @@
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
                         {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
-                        {currentView === 'profile' && <ProfileView user={dbUser} />}
+                        {currentView === 'profile' && <ProfileView user={dbUser} showToast={showToast} />}
                         {currentView === 'backoffice' && <BackofficeView user={dbUser} clubSettings={clubSettings} showToast={showToast} />}
                         {currentView === 'poker-create' && <PokerCreateView user={dbUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
                         {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
@@ -829,7 +1000,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V7</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V9.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -846,7 +1017,30 @@
             </div>;
         }
 
-        function ProfileView({ user }) {
+        function ProfileView({ user, showToast }) {
+            const [avatarOpen, setAvatarOpen] = useState(false);
+            const setSeed = async (seed) => {
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); showToast("האווטאר עודכן! ייכנס לתוקף בשולחנות בכניסה הבאה", "success"); } catch(e) {}
+            };
+            const onPhotoPick = (e) => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                const rd = new FileReader();
+                rd.onload = () => {
+                    const img = new Image();
+                    img.onload = async () => {
+                        const c = document.createElement('canvas'); const S = 96;
+                        c.width = S; c.height = S;
+                        const ctx = c.getContext('2d');
+                        const m = Math.min(img.width, img.height);
+                        ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
+                        const data = c.toDataURL('image/jpeg', 0.82);
+                        if (data.length > 70000) { showToast("התמונה מורכבת מדי - נסה תמונה אחרת", "error"); return; }
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); showToast("התמונה הועלתה!", "success"); } catch(err) {}
+                    };
+                    img.src = rd.result;
+                };
+                rd.readAsDataURL(f);
+            };
             const [logs, setLogs] = useState(null);
             const [logsLoading, setLogsLoading] = useState(false);
             const [fGame, setFGame] = useState('all');
@@ -898,7 +1092,25 @@
                 <div className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-4xl mx-auto animate-fade-in relative z-10">
                         <div className="glass-panel p-8 rounded-3xl text-center mb-6">
-                            <img src={avatarUrl(user.uid)} className="w-24 h-24 rounded-3xl mx-auto border-4 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.4)] mb-4 bg-slate-800" />
+                            <img src={avatarUrl(user)} className="w-24 h-24 rounded-3xl mx-auto border-4 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.4)] mb-4 bg-slate-800" />
+                            <button onClick={() => setAvatarOpen(!avatarOpen)} className="block mx-auto text-[10px] text-emerald-400 hover:text-emerald-300 font-bold mb-3 -mt-2 underline"><i className="fa-solid fa-camera ml-1"></i>החלף תמונה / אווטאר</button>
+                            {avatarOpen && (
+                                <div className="bg-slate-950/60 rounded-2xl border border-white/10 p-4 mb-4 animate-pop-in">
+                                    <div className="flex flex-wrap justify-center gap-2 mb-3">
+                                        {AVATAR_SEEDS.map(sd => (
+                                            <img key={sd} src={avatarUrl(sd)} onClick={() => setSeed(sd)} title={sd}
+                                                 className={`w-12 h-12 rounded-xl bg-slate-800 cursor-pointer border-2 transition-all hover:scale-110 ${user.avatarSeed === sd ? 'border-emerald-400 shadow-[0_0_10px_#10b981]' : 'border-transparent'}`} />
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-center gap-3 items-center">
+                                        <label className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-xs font-bold px-4 py-2 rounded-xl cursor-pointer">
+                                            <i className="fa-solid fa-upload ml-1"></i>העלה תמונה שלך
+                                            <input type="file" accept="image/*" onChange={onPhotoPick} className="hidden" />
+                                        </label>
+                                        {(user.photo || user.avatarSeed) && <button onClick={() => setSeed('')} className="text-slate-500 hover:text-white text-xs font-bold underline">אפס לברירת מחדל</button>}
+                                    </div>
+                                </div>
+                            )}
                             <h2 className="text-3xl font-black text-white">{user.username}</h2>
                             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">{ROLE_LABELS[user.role] || user.role}</p>
                             {user.role === ROLES.MANAGER && (user.managedGames||[]).length > 0 && (
@@ -916,6 +1128,12 @@
                                 </div>
                             ))}
                         </div>
+                        {(user.agentProfits || 0) > 0 && (
+                            <div className="stat-tile p-5 rounded-2xl text-center mt-4 border border-amber-500/30">
+                                <p className="text-amber-300 text-xs font-bold mb-1"><i className="fa-solid fa-handshake ml-1"></i> רווחי סוכן</p>
+                                <p className="text-2xl font-black text-amber-300" dir="ltr">{formatMoney(user.agentProfits || 0)}</p>
+                            </div>
+                        )}
                         {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role) && (
                             <div className="stat-tile p-5 rounded-2xl text-center mt-4 border border-amber-500/40">
                                 <p className="text-amber-400 text-xs font-bold mb-1"><i className="fa-solid fa-building-columns ml-1"></i> רווחי מועדון (Rake)</p>
@@ -995,7 +1213,7 @@
             const [sheshOpts, setSheshOpts] = useState({ buyIn: 500 });
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             const [showCreateDurak, setShowCreateDurak] = useState(false);
-            const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4 });
+            const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4, bluff: false });
 
             const rummyTables = tables.filter(t => t.type === 'rummikub').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const pokerTables = tables.filter(t => t.type === 'poker').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
@@ -1009,9 +1227,9 @@
 
             const handleCreateDurak = async () => {
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                    type: 'durak', createdAt: Date.now(), hostUid: user.uid, status: 'setup',
-                    settings: { ...durakOpts, buyIn: Number(durakOpts.buyIn), rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT, bluffEnabled: false },
-                    players: { [user.uid]: { uid: user.uid, name: user.username, seatIndex: 0, cards: [], isBot: false, out: false, left: false } },
+                    type: 'durak', clubId: CLUB_ID, createdAt: Date.now(), hostUid: user.uid, status: 'setup',
+                    settings: { ...durakOpts, buyIn: Number(durakOpts.buyIn), rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT, bluffEnabled: !!durakOpts.bluff },
+                    players: { [user.uid]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex: 0, cards: [], isBot: false, out: false, left: false } },
                     pot: 0, deck: [], trumpCard: null, trumpSuit: null,
                     attackerUid: null, defenderUid: null, pairs: [], roundCap: 6,
                     finishOrder: [], chat: [], lastResults: null, turnStartedAt: null
@@ -1022,7 +1240,7 @@
             const handleCreateRummy = async () => {
                 const calculatedBuyIn = round2(newTableOptions.stakes * 100);
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                    type: 'rummikub', maxPlayers: newTableOptions.maxPlayers,
+                    type: 'rummikub', clubId: CLUB_ID, maxPlayers: newTableOptions.maxPlayers,
                     minBuyIn: calculatedBuyIn, stakes: newTableOptions.stakes,
                     players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, createdAt: Date.now()
                 });
@@ -1059,7 +1277,7 @@
                 return (
                     <div className="flex -space-x-2 items-center h-8">
                         {arr.length > 0 ? arr.slice(0,6).map(([uid, p], i) => (
-                            <img key={i} src={avatarUrl(uid)} title={p.username || p.name} className={`w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-700 ${p.isBot || uid.startsWith('bot_') ? 'ring-1 ring-purple-500' : ''}`} />
+                            <img key={i} src={avatarUrl({ ...p, uid })} title={p.username || p.name} className={`w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-700 ${p.isBot || uid.startsWith('bot_') ? 'ring-1 ring-purple-500' : ''}`} />
                         )) : <span className="text-xs text-slate-500 font-bold">השולחן ריק</span>}
                         {arr.length > 6 && <span className="text-[10px] text-slate-400 font-bold pr-3">+{arr.length-6}</span>}
                     </div>
@@ -1245,6 +1463,11 @@
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                                            <label className="flex items-center gap-2 cursor-pointer bg-slate-900/70 border border-rose-500/30 rounded-xl px-3 py-2">
+                                                <input type="checkbox" checked={!!durakOpts.bluff} onChange={e=>setDurakOpts({...durakOpts, bluff: e.target.checked})} className="accent-rose-500 w-4 h-4" />
+                                                <span className="text-rose-300 text-xs font-black">🎭 מצב בלוף</span>
+                                                <span className="text-slate-500 text-[10px] font-bold hidden sm:inline">התקפה בקלף הפוך, המגן חושד או מקבל</span>
+                                            </label>
                                             <span className="text-xs text-slate-500 font-bold">רייק מועדון: {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}% · המפסיד (הדוראק) מממן את המנצחים</span>
                                             <div className="flex gap-3">
                                                 <button onClick={()=>setShowCreateDurak(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
@@ -1447,7 +1670,11 @@
 
             const openRoleEditor = (u) => {
                 setRoleEditUser(u);
-                setRoleDraft({ role: u.role || ROLES.PLAYER, managedGames: u.managedGames || [] });
+                setRoleDraft({ role: u.role || ROLES.PLAYER, managedGames: u.managedGames || [], agentUid: u.agentUid || '', agentPct: Number(u.agentPct) || 0 });
+            };
+            const censorPhoto = async (u) => {
+                if (!window.confirm(`לאפס את תמונת הפרופיל של ${u.username}?`)) return;
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", u.id), { photo: '', avatarSeed: '' }); showToast("התמונה אופסה", "success"); } catch(e) {}
             };
             const toggleGame = (gid) => {
                 setRoleDraft(prev => ({ ...prev, managedGames: prev.managedGames.includes(gid) ? prev.managedGames.filter(g => g !== gid) : [...prev.managedGames, gid] }));
@@ -1455,7 +1682,8 @@
             const saveRole = async () => {
                 try {
                     const managedGames = [ROLES.MANAGER, ROLES.AGENT].includes(roleDraft.role) ? roleDraft.managedGames : [];
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", roleEditUser.id), { role: roleDraft.role, managedGames });
+                    const agentPct = Math.min(100, Math.max(0, Number(roleDraft.agentPct) || 0));
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", roleEditUser.id), { role: roleDraft.role, managedGames, agentUid: roleDraft.agentUid || '', agentPct: roleDraft.agentUid ? agentPct : 0 });
                     showToast(`${roleEditUser.username} עודכן ל${ROLE_LABELS[roleDraft.role]}`, "success");
                     setRoleEditUser(null);
                 } catch(e) { showToast("שגיאה בעדכון תפקיד", "error"); }
@@ -1609,7 +1837,7 @@
                                 {players.map(u => (
                                     <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <img src={avatarUrl(u.id)} className={`w-10 h-10 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
+                                            <img src={avatarUrl({ ...u, uid: u.id })} className={`w-10 h-10 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
                                             <div className="min-w-0">
                                                 <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
                                                     {u.username}
@@ -1625,7 +1853,10 @@
                                             <button onClick={()=>adjustBalance(u, true)} className="w-9 h-9 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-800 hover:from-emerald-400 text-white font-black shadow-md" title="הפקד צ'יפים">+</button>
                                             <button onClick={()=>adjustBalance(u, false)} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-900 text-white font-black border border-white/10" title="משוך צ'יפים">−</button>
                                             {isOwner && !u.isBot && (
-                                                <button onClick={()=>openRoleEditor(u)} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד"><i className="fa-solid fa-user-gear text-xs"></i></button>
+                                                <button onClick={()=>openRoleEditor(u)} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
+                                            )}
+                                            {isOwner && (u.photo || u.avatarSeed) && (
+                                                <button onClick={()=>censorPhoto(u)} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
                                             )}
                                         </div>
                                     </div>
@@ -1639,7 +1870,7 @@
                         <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setRoleEditUser(null)}>
                             <div className="glass-panel rounded-3xl p-6 w-full max-w-sm animate-pop-in" onClick={e=>e.stopPropagation()}>
                                 <div className="flex items-center gap-3 mb-5">
-                                    <img src={avatarUrl(roleEditUser.id)} className="w-12 h-12 rounded-xl bg-slate-800" />
+                                    <img src={avatarUrl({ ...roleEditUser, uid: roleEditUser.id })} className="w-12 h-12 rounded-xl bg-slate-800" />
                                     <div>
                                         <div className="font-black text-white">{roleEditUser.username}</div>
                                         <div className="text-xs text-slate-400" dir="ltr">{roleEditUser.email}</div>
@@ -1653,6 +1884,24 @@
                                     <option value={ROLES.MANAGER}>מנהל</option>
                                     {user.role === ROLES.SUPER_ADMIN && <option value={ROLES.CLUB_OWNER}>בעל מועדון</option>}
                                 </select>
+
+                                <div className="bg-slate-900/60 rounded-2xl border border-amber-500/20 p-4 mb-4">
+                                    <label className="text-amber-300 text-xs font-black mb-2 block uppercase tracking-widest"><i className="fa-solid fa-handshake ml-1"></i>שיוך לסוכן</label>
+                                    <div className="flex gap-2 items-center flex-wrap">
+                                        <select value={roleDraft.agentUid} onChange={e=>setRoleDraft({...roleDraft, agentUid: e.target.value})} className="flex-1 min-w-[140px] bg-slate-900 text-white border border-white/10 rounded-xl p-2.5 outline-none focus:border-amber-500/60 font-bold text-sm">
+                                            <option value="">ללא סוכן (הכל לבית)</option>
+                                            {usersList.filter(x => !x.isBot && x.id !== roleEditUser.id && [ROLES.AGENT, ROLES.MANAGER, ROLES.CLUB_OWNER, ROLES.SUPER_ADMIN].includes(x.role)).map(x => (
+                                                <option key={x.id} value={x.id}>{x.username} ({ROLE_LABELS[x.role]})</option>
+                                            ))}
+                                        </select>
+                                        {roleDraft.agentUid && (
+                                            <div className="flex items-center gap-1.5">
+                                                <input type="number" min="0" max="100" value={roleDraft.agentPct} onChange={e=>setRoleDraft({...roleDraft, agentPct: e.target.value})} className="w-20 bg-slate-900 text-white border border-white/10 rounded-xl p-2.5 text-center font-bold text-sm outline-none focus:border-amber-500/60" />
+                                                <span className="text-slate-400 text-xs font-bold">% מהרייק לסוכן, היתרה לבית</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
 
                                 {[ROLES.MANAGER, ROLES.AGENT].includes(roleDraft.role) && (
                                     <div className="mb-4">
@@ -1706,6 +1955,8 @@
             const dragDataRef = useRef(null);
             const synthRef = useRef(null);
             const endingRef = useRef(false);
+            const liveRef = useRef(null);
+            useEffect(() => { liveRef.current = tableState; }, [tableState]);
 
             const isGod = isGodUser(user);
             const me = tableState?.players?.[user.uid];
@@ -2007,9 +2258,19 @@
                     if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
 
                     if (tableState?.id && isMyTurn) {
-                        try {
-                            await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard, [`players.${user.uid}.cards`]: newRack });
-                        } catch(err) {}
+                        const live = liveRef.current;
+                        const stillMyTurn = live && live.currentTurn === user.uid && live.phase === 'playing';
+                        if (stillMyTurn) {
+                            try {
+                                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard, [`players.${user.uid}.cards`]: newRack });
+                            } catch(err) {}
+                        } else {
+                            // התור הסתיים תוך כדי הגרירה - משחזרים מהשרת במקום לדרוס אותו
+                            const srvRack = (live && live.players && live.players[user.uid] && live.players[user.uid].cards) || startTurnRack;
+                            setRack(srvRack);
+                            setBoard((live && live.board) || startTurnBoard);
+                            showToast("הזמן נגמר - המהלך בוטל", "error");
+                        }
                     }
                 };
 
@@ -2143,7 +2404,7 @@
                         if ((uSnap.data().balance || 0) < buyInAmount) throw "אין לך מספיק יתרה לכניסה.";
 
                         t.update(uRef, { balance: round2(uSnap.data().balance - buyInAmount) });
-                        const players = { ...tbl.players, [user.uid]: { username: uSnap.data().username, cards: [], hasDropped: false, stack: buyInAmount, isBot: false } };
+                        const players = { ...tbl.players, [user.uid]: { username: uSnap.data().username, photo: uSnap.data().photo || '', avatarSeed: uSnap.data().avatarSeed || '', cards: [], hasDropped: false, stack: buyInAmount, isBot: false } };
                         if (Object.keys(players).length === Number(tbl.maxPlayers)) {
                             becameFull = true;
                             t.update(tblRef, buildDeal(players));
@@ -2158,18 +2419,28 @@
             /* ---------- משיכה מהקופה ---------- */
             const handleDraw = async (isTimeout = false) => {
                 if (tableState?.currentTurn !== user.uid || tableState.phase !== 'playing') return;
-                const newDeck = [...(tableState.deck || [])];
-                const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                const newRack = [...startTurnRack];
-                if (tile) {
-                    const emptyIdx = newRack.findIndex(t=>t===null);
-                    if (emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
-                } else if (!isTimeout) {
-                    showToast("הקופה ריקה - התור עובר", "info");
-                }
-                const uids = Object.keys(tableState.players).sort();
-                const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { deck: newDeck, board: startTurnBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                const snapRack = [...startTurnRack];
+                const snapBoard = startTurnBoard;
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const tblSnap = await t.get(tblRef);
+                        if (!tblSnap.exists()) return;
+                        const tbl = tblSnap.data();
+                        if (tbl.currentTurn !== user.uid || tbl.phase !== 'playing') return; // התור כבר לא שלי - לא נוגעים
+                        const newDeck = [...(tbl.deck || [])];
+                        const tile = newDeck.length > 0 ? newDeck.pop() : null;
+                        const newRack = [...snapRack];
+                        if (tile) {
+                            const emptyIdx = newRack.findIndex(x => x === null);
+                            if (emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                        }
+                        const uids = Object.keys(tbl.players).sort();
+                        const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
+                        t.update(tblRef, { deck: newDeck, board: snapBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                    });
+                    if (!isTimeout && (tableState.deck || []).length === 0) showToast("הקופה ריקה - התור עובר", "info");
+                } catch(e) {}
             };
 
             /* ---------- סיום משחק והתחשבנות ---------- */
@@ -2177,6 +2448,7 @@
                 if (endingRef.current) return;
                 endingRef.current = true;
                 let logEntries = null;
+                let rakeInfo = null;
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -2224,6 +2496,7 @@
                             ...(players[user.uid].isBot ? [] : [{ uid: user.uid, username: players[user.uid].username, game: 'rummikub', profit: winnerProfit }]),
                             ...Object.entries(details).filter(([duid]) => !players[duid]?.isBot).map(([duid, d]) => ({ uid: duid, username: d.username, game: 'rummikub', profit: -d.pay }))
                         ];
+                        rakeInfo = { rake, uids: Object.keys(players) };
 
                         t.update(tblRef, {
                             players, board: finalBoard, phase: 'showdown', winner: user.uid, currentTurn: null,
@@ -2254,6 +2527,7 @@
                         }
                     });
                     if (logEntries) logGameResult(logEntries, tableState.id);
+                    if (rakeInfo) payAgentCutsFromHouse(rakeInfo.rake, rakeInfo.uids);
                 } catch(e) {
                 } finally { endingRef.current = false; }
             };
@@ -2393,26 +2667,8 @@
                 } catch(e) { showToast("שגיאה ביציאה מהשולחן", "error"); }
             };
 
-            /* ---------- צ'אט, ריאקציות וצלילים ---------- */
-            const chatArr = tableState?.chat || [];
-            const [chatOpen, setChatOpen] = useState(false);
-            const [emoTick, setEmoTick] = useState(0);
-            const reactions = useMemo(() => {
-                const now = Date.now(); const r = {};
-                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
-                return r;
-            }, [chatArr.length, emoTick]);
-            const reactCount = Object.keys(reactions).length;
-            useEffect(() => {
-                if (!reactCount) return;
-                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
-                return () => clearInterval(iv);
-            }, [reactCount]);
-            const sendChat = async (text, emoji) => {
-                if (!tableState) return;
-                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chat: [ ...(tableState.chat || []), msg ].slice(-30) }); } catch(e) {}
-            };
+            /* ---------- צ'אט ---------- */
+            const ch = useTableChat(tableState, tableDocId, user, 'rummikub', showToast);
             const prevRSnd = useRef({ phase: '', chatLen: 0 });
             useEffect(() => {
                 if (!tableState) return;
@@ -2445,7 +2701,7 @@
                                         const entry = entries[i];
                                         return entry ? (
                                             <div key={i} className="flex flex-col items-center">
-                                                <img src={avatarUrl(entry[0])} className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-emerald-500 mb-2 shadow-[0_0_15px_#10b981]" />
+                                                <img src={avatarUrl({ ...entry[1], uid: entry[0] })} className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-emerald-500 mb-2 shadow-[0_0_15px_#10b981]" />
                                                 <span className="text-white font-bold text-sm">{entry[1].username}</span>
                                             </div>
                                         ) : (
@@ -2495,8 +2751,9 @@
                             const isTurn = tableState.currentTurn === uid;
                             return (
                                 <div key={uid} className={`flex flex-col items-center transition-all p-2 rounded-xl shrink-0 w-auto min-w-[76px] sm:w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
-                                    {reactions[uid] && <div className="absolute -top-2 left-1 text-xl animate-pop-in z-50 drop-shadow-lg">{reactions[uid]}</div>}
-                                    <img src={avatarUrl(uid)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
+                                    {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
+                                    {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
+                                    <img src={avatarUrl({ ...p, uid })} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
                                     <span className="text-xs font-bold text-white mb-1 truncate w-full text-center">{pData.username}</span>
                                     <span className="text-[10px] bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-full text-amber-400 font-bold whitespace-nowrap mb-1">📦 {tileCount}</span>
                                     <span className="text-[10px] text-gold-400 font-bold" dir="ltr">{formatMoney(pData.stack)}</span>
@@ -2540,13 +2797,13 @@
                         </div>
 
                         {isSeated && isPlaying && (
-                            <div className="h-44 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="h-64 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
                                 </div>
-                                <div className="w-full flex-1 max-h-[150px] overflow-x-auto sm:overflow-x-visible">
-                                    <div className="rack-grid h-full min-w-[560px] sm:min-w-0">
+                                <div className="w-full flex-1 max-h-[210px] sm:max-h-[150px]">
+                                    <div className="rack-grid h-full">
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
                                         return (
@@ -2578,7 +2835,7 @@
                             </button>
                         )}
 
-                        <button onClick={()=>setChatOpen(!chatOpen)} className={`w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 transition-all shrink-0 whitespace-nowrap ${chatOpen ? 'bg-emerald-700 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white'}`}>
+                        <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className={`w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 transition-all shrink-0 whitespace-nowrap ${ch.chatOpen ? 'bg-emerald-700 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white'}`}>
                             <i className="fa-solid fa-comment-dots ml-1"></i> צ'אט
                         </button>
 
@@ -2619,7 +2876,8 @@
                     )}
 
                     {/* פאנל צ'אט */}
-                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={()=>setChatOpen(false)} className="bottom-24 sm:bottom-4 left-2 sm:left-36" />}
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-24 sm:bottom-4 left-2 sm:left-36" targets={Object.entries(tableState?.players || {}).filter(([u]) => u !== user.uid).map(([u, p]) => ({ uid: u, name: p.username }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                    {ch.gifts.filter(g => g.to === user.uid).map((g, gi) => <div key={'sg'+gi} className="fixed left-1/2 top-1/3 -translate-x-1/2 text-6xl z-[500] pointer-events-none" style={{ animation: 'giftBoom 2s ease-out forwards' }}>{g.giftE}</div>)}
 
                     {/* רוחות רפאים */}
                     {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>}
@@ -2641,7 +2899,7 @@
 
             const handleCreate = async () => {
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                    type: 'poker', createdAt: Date.now(),
+                    type: 'poker', clubId: CLUB_ID, createdAt: Date.now(),
                     settings: { ...s, blinds: Number(s.blinds), rakePercent: Number(s.rakePercent) },
                     players: {}, chat: [], leftStacks: {},
                     gameState: { phase: 'waiting', deck: [], board: [], pots: [], highestBet: 0, minRaise: Number(s.blinds) * 2, dealerUid: null, dcUid: null, dcAnchor: null, currentGameType: s.baseGameType, activeTurnUid: null, turnStartedAt: null, lastWinners: null, lastWinAmount: 0, allInReveal: false }
@@ -2803,7 +3061,7 @@
                     ps: Object.values(pl).filter(q => (q.cards || []).length).map(q => ({ n: q.name, c: q.cards, w: q.uid === winnerUid, f: q.status === 'folded' }))
                 };
                 await saveGame(g, pl, { history: [...((histT && histT.history) || []), histEntry].slice(-100) });
-                creditRakeToClub(rake);
+                distributeRake(rake, Object.values(pl).filter(q => (q.cards || []).length).map(q => q.uid));
                 clearTimeout(nextHandRef.current);
                 nextHandRef.current = setTimeout(() => startHand(), 3500);
             };
@@ -2845,7 +3103,7 @@
                     ps: Object.values(pl).filter(q => (q.cards || []).length).map(q => ({ n: q.name, c: q.cards, w: winnerNames.has(q.name), f: q.status === 'folded' }))
                 };
                 await saveGame(g, pl, { history: [...((histT && histT.history) || []), histEntry].slice(-100) });
-                creditRakeToClub(rakeTotal);
+                distributeRake(rakeTotal, Object.values(pl).filter(q => (q.cards || []).length).map(q => q.uid));
                 clearTimeout(nextHandRef.current);
                 nextHandRef.current = setTimeout(() => startHand(), 5000);
             };
@@ -3052,7 +3310,7 @@
                         const midHand = !['waiting','showdown'].includes(t.gameState.phase);
                         tr.update(uRef, { balance: round2(uSnap.data().balance - buyAmt) });
                         tr.update(tblRef(), { [`leftStacks.${user.uid}`]: null, [`players.${user.uid}`]: {
-                            uid: user.uid, name: user.username, seatIndex, stack: round2(buyAmt), bet: 0, buyTotal: round2(buyAmt),
+                            uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, stack: round2(buyAmt), bet: 0, buyTotal: round2(buyAmt),
                             status: midHand ? 'waiting' : 'active', cards: [], hasActed: false, actionText: '', isBot: false
                         }});
                         if (Object.keys(pl).length + 1 >= (t.settings.maxPlayers || 6)) becameFull = true;
@@ -3256,28 +3514,10 @@
                 return () => clearInterval(interval);
             }, [gs.turnStartedAt, gs.activeTurnUid, gs.phase]);
 
-            /* ---------- צ'אט וריאקציות ---------- */
-            const chatArr = tableState?.chat || [];
-            const [chatOpen, setChatOpen] = useState(false);
+            /* ---------- צ'אט ---------- */
             const [historyOpen, setHistoryOpen] = useState(false);
             const [histExpand, setHistExpand] = useState(null);
-            const [emoTick, setEmoTick] = useState(0);
-            const reactions = useMemo(() => {
-                const now = Date.now(); const r = {};
-                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
-                return r;
-            }, [chatArr.length, emoTick]);
-            const reactCount = Object.keys(reactions).length;
-            useEffect(() => {
-                if (!reactCount) return;
-                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
-                return () => clearInterval(iv);
-            }, [reactCount]);
-            const sendChat = async (text, emoji) => {
-                const t = tableRef.current; if (!t) return;
-                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
-                try { await window.fb.updateDoc(tblRef(), { chat: [ ...(t.chat || []), msg ].slice(-30) }); } catch(e) {}
-            };
+            const ch = useTableChat(tableState, tableDocId, user, 'poker', showToast);
 
             /* ---------- עוצמת יד + אחוזי זכייה ---------- */
             const activesOppCount = Object.values(players).filter(p => p.status === 'active' && p.uid !== user.uid).length;
@@ -3457,7 +3697,8 @@
                                     <div key={p.uid} className="absolute z-20" style={{ ...seatPos(i), transform: 'translate(-50%, -50%)' }}>
                                         {isTurn && <div className="player-spotlight"></div>}
                                         <div className={`relative flex flex-col items-center ${folded ? 'opacity-40 grayscale' : ''}`}>
-                                            {reactions[p.uid] && <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-2xl animate-pop-in z-[70] drop-shadow-lg pointer-events-none">{reactions[p.uid]}</div>}
+                                            {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                                            {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
                                             {p.actionText && <div className={`action-badge ${p.actionText === 'Fold' ? 'badge-fold' : p.actionText === 'Raise' || p.actionText === 'All-in' ? 'badge-raise' : p.actionText === 'WINNER' ? 'badge-win' : ['SB','BB'].includes(p.actionText) ? 'badge-blind' : 'badge-call'}`}>{p.actionText}</div>}
 
                                             {/* קלפים מעל הפוד - שלי מוגדלים; במושב עליון עוברים מתחת לפוד כדי שלא ייחתכו */}
@@ -3471,7 +3712,7 @@
                                                 </div>
                                             )}
 
-                                            <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p.uid)})` }}>
+                                            <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p)})` }}>
                                                 {isTurn && (
                                                     <svg className="absolute inset-0 w-full h-full timer-ring" viewBox="0 0 40 40">
                                                         <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(250,204,21,0.9)" strokeWidth="3"
@@ -3632,10 +3873,10 @@
                     )}
 
                     {/* צ'אט */}
-                    <button onClick={()=>setChatOpen(!chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
-                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={()=>setChatOpen(false)} className="bottom-[128px] left-3" />}
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-[128px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
 
                     {/* Buy-in */}
                     {(canShowBuyIn || needRebuy) && (
@@ -3680,6 +3921,7 @@
             const [loading, setLoading] = useState(true);
             const [godView, setGodView] = useState(false);
             const [timeLeft, setTimeLeft] = useState(DURAK_TIME);
+            const [bluffMode, setBluffMode] = useState(false);
 
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
@@ -3727,26 +3969,8 @@
                 return () => unsub();
             }, [tableDocId]);
 
-            /* ---------- צ'אט, ריאקציות, צלילים ---------- */
-            const chatArr = tableState?.chat || [];
-            const [chatOpen, setChatOpen] = useState(false);
-            const [emoTick, setEmoTick] = useState(0);
-            const reactions = useMemo(() => {
-                const now = Date.now(); const r = {};
-                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
-                return r;
-            }, [chatArr.length, emoTick]);
-            const reactCount = Object.keys(reactions).length;
-            useEffect(() => {
-                if (!reactCount) return;
-                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
-                return () => clearInterval(iv);
-            }, [reactCount]);
-            const sendChat = async (text, emoji) => {
-                const t = tableRef.current; if (!t) return;
-                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
-                try { await window.fb.updateDoc(tblRef(), { chat: [...(t.chat || []), msg].slice(-30) }); } catch(e) {}
-            };
+            /* ---------- צ'אט ---------- */
+            const ch = useTableChat(tableState, tableDocId, user, 'durak', showToast);
             const prevDSnd = useRef({ status: '', chatLen: 0, pairsN: 0, turnMine: false });
             useEffect(() => {
                 if (!tableState) return;
@@ -3843,7 +4067,7 @@
                             lastResults: { durakName: durakUid ? pl[durakUid].name : null, winners: winners.map(w => w.name), share, rake, pot, solo: !!soloWinnerUid }
                         });
                     });
-                    creditRakeToClub(rake);
+                    distributeRake(rake, Object.keys(pl));
                     logGameResult([
                         ...winners.filter(w => !w.isBot).map(w => ({ uid: w.uid, username: w.name, game: 'durak', profit: round2(share - (Number(setts.buyIn) || 0)) })),
                         ...(durakUid && pl[durakUid] && !pl[durakUid].left && !pl[durakUid].isBot ? [{ uid: durakUid, username: pl[durakUid].name, game: 'durak', profit: -(Number(setts.buyIn) || 0) }] : [])
@@ -3852,10 +4076,13 @@
             };
 
             /* ---------- סיום סיבוב: ביטה או לקיחה ---------- */
-            const finishRound = async (t, pl, prs, kind) => {
+            const finishRound = async (t, pl, prs, kind, bustedUid) => {
                 let discard = t.discard || 0;
                 if (kind === 'bita') {
                     discard += prs.reduce((s, x) => s + 1 + (x.d ? 1 : 0), 0);
+                } else if (kind === 'busted' && bustedUid && pl[bustedUid]) {
+                    const buster = pl[bustedUid];
+                    prs.forEach(x => { buster.cards.push(x.a); if (x.d) buster.cards.push(x.d); });
                 } else {
                     const def = pl[t.defenderUid];
                     prs.forEach(x => { def.cards.push(x.a); if (x.d) def.cards.push(x.d); });
@@ -3881,7 +4108,7 @@
                 if (remain.length <= 1) { await settle(pl, remain[0]?.uid || null, null, deck, discard, fo); return; }
                 // תפקידים לסיבוב הבא
                 let newAtt;
-                if (kind === 'bita') newAtt = attackerFor(pl, t.defenderUid, null);
+                if (kind === 'bita' || kind === 'busted') newAtt = attackerFor(pl, t.defenderUid, null);
                 else newAtt = attackerFor(pl, nextActive(pl, t.defenderUid), null);
                 const newDef = nextActive(pl, newAtt);
                 await window.fb.updateDoc(tblRef(), {
@@ -3893,7 +4120,7 @@
             };
 
             /* ---------- פעולות משחק ---------- */
-            const playCard = async (uid, cardId) => {
+            const playCard = async (uid, cardId, blind = false) => {
                 const t = tableRef.current; if (!t || t.status !== 'playing') return;
                 const pl = clonePlayers(t.players);
                 const p = pl[uid]; if (!p || p.out || p.left) return;
@@ -3905,6 +4132,7 @@
                 if (uid === t.defenderUid) {
                     if (t.turnUid !== uid) return;
                     if (undef.length === 0) return toastErr("אין קלף לענות עליו");
+                    if (undef.some(x => x.blind)) return toastErr("יש קלף הפוך על השולחן - חשוד או קבל אותו קודם");
                     // העברה (Perevodnoy): לפני כל הגנה, עם קלף באותה דרגה
                     const noDef = prs.every(x => !x.d);
                     if (setts.variant === 'perevodnoy' && noDef && prs.every(x => x.a.v === card.v)) {
@@ -3939,19 +4167,49 @@
 
                 // תוקף
                 if (undef.length > 0) return toastErr("ממתינים לתגובת המגן");
+                if (blind && (!setts.bluffEnabled || prs.length === 0)) blind = false;
                 if (prs.length === 0) {
                     if (uid !== t.attackerUid) return toastErr("התוקף הראשי פותח את הסיבוב");
                 } else {
                     if (t.turnUid !== uid) return toastErr("המתן לתורך להוסיף");
-                    if (!pairRanks(prs).has(card.v)) return toastErr("אפשר להוסיף רק דרגות שכבר על השולחן");
+                    if (!blind && !pairRanks(prs).has(card.v)) return toastErr("אפשר להוסיף רק דרגות שכבר על השולחן");
                 }
                 if (prs.length >= (t.roundCap || 6)) return toastErr("הגעת למקסימום התקפות בסיבוב");
                 if ((pl[t.defenderUid]?.cards.length || 0) < 1) return toastErr("למגן אין קלפים");
                 p.cards = p.cards.filter(c => c.id !== cardId);
-                prs.push({ a: card, d: null, by: uid });
+                prs.push({ a: card, d: null, by: uid, blind: !!blind });
                 const fo = [...(t.finishOrder || [])];
                 if (t.deck.length === 0 && p.cards.length === 0) { p.out = true; if (!fo.includes(uid)) fo.push(uid); }
                 await window.fb.updateDoc(tblRef(), { players: pl, pairs: prs, passed: [], turnUid: t.defenderUid, turnStartedAt: Date.now(), finishOrder: fo });
+            };
+
+            const acceptBlind = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || uid !== t.defenderUid || t.turnUid !== uid) return;
+                const prs = (t.pairs || []).map(x => ({ ...x }));
+                const bp = prs.find(x => !x.d && x.blind);
+                if (!bp) return;
+                bp.blind = false;
+                playSnd('tile');
+                await window.fb.updateDoc(tblRef(), { pairs: prs, turnStartedAt: Date.now() });
+            };
+
+            const challengeBlind = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || uid !== t.defenderUid || t.turnUid !== uid) return;
+                const prs = (t.pairs || []).map(x => ({ ...x }));
+                const bp = prs.find(x => !x.d && x.blind);
+                if (!bp) return;
+                bp.blind = false;
+                const otherRanks = new Set();
+                prs.forEach(x => { if (x !== bp) { otherRanks.add(x.a.v); if (x.d) otherRanks.add(x.d.v); } });
+                const legal = otherRanks.has(bp.a.v);
+                const pl = clonePlayers(t.players);
+                if (legal) {
+                    showToast(`😬 הקלף היה כשר (${bp.a.val}${bp.a.suit}) - אתה לוקח הכל!`, "error");
+                    await finishRound({ ...t, pairs: prs }, pl, prs, 'take');
+                } else {
+                    showToast(`🎭 בלוף נחשף! (${bp.a.val}${bp.a.suit}) - ${(pl[bp.by] || {}).name || 'הבלופר'} לוקח הכל`, "success");
+                    await finishRound({ ...t, pairs: prs }, pl, prs, 'busted', bp.by);
+                }
             };
 
             const takeCards = async (uid) => {
@@ -4005,7 +4263,7 @@
                         let seatIndex = 0;
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, seatIndex, cards: [], isBot: false, out: false, left: false } });
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, out: false, left: false } });
                         if (Object.keys(t.players).length + 1 >= (t.settings.maxPlayers || 6)) becameFull = true;
                     });
                     if (becameFull) spawnTwinTable(tableRef.current);
@@ -4076,7 +4334,7 @@
                     let seatIndex = 0;
                     const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                     while (taken.has(seatIndex)) seatIndex++;
-                    await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: { uid: bot.id, name: bot.username, seatIndex, cards: [], isBot: true, out: false, left: false } });
+                    await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: { uid: bot.id, name: bot.username, photo: bot.photo || '', avatarSeed: bot.avatarSeed || '', seatIndex, cards: [], isBot: true, out: false, left: false } });
                 } catch(e) {}
             };
 
@@ -4094,6 +4352,7 @@
                         if (uid === t.defenderUid) {
                             const undef = prs.filter(x => !x.d);
                             if (!undef.length) return;
+                            if (undef.some(x => x.blind)) { if (Math.random() < 0.5) await challengeBlind(uid); else await acceptBlind(uid); return; }
                             const noDef = prs.every(x => !x.d);
                             if (setts.variant === 'perevodnoy' && noDef && Math.random() < 0.5) {
                                 const tCard = b.cards.find(c => prs.every(x => x.a.v === c.v));
@@ -4112,6 +4371,7 @@
                         const ranks = pairRanks(prs);
                         const adds = sortHand(b.cards).filter(c => ranks.has(c.v));
                         if (adds.length && prs.length < (t.roundCap || 6) && Math.random() < 0.7) await playCard(uid, adds[0].id);
+                        else if (t.settings.bluffEnabled && prs.length > 0 && prs.length < (t.roundCap || 6) && b.cards.length > 1 && Math.random() < 0.35) await playCard(uid, sortHand(b.cards)[0].id, true);
                         else await passAttack(uid);
                     }, 1900);
                     return () => clearTimeout(tm);
@@ -4178,6 +4438,8 @@
             const allDefended = pairs.length > 0 && undefPairs.length === 0;
             const canIAdd = isSeated && !iAmDefender && !me?.out && T.status === 'playing' && ((pairs.length === 0 && iAmAttackerMain) || (pairs.length > 0 && allDefended && myTurn));
             const canTransfer = canIDefend && setts.variant === 'perevodnoy' && pairs.every(x => !x.d) && (me?.cards || []).some(c => pairs.every(x => x.a.v === c.v));
+            const blindPending = iAmDefender && myTurn && undefPairs.some(x => x.blind);
+            const canBluff = setts.bluffEnabled && isSeated && !iAmDefender && !me?.out && T.status === 'playing' && pairs.length > 0 && allDefended && myTurn;
             const res = T.lastResults;
 
             return (
@@ -4253,7 +4515,15 @@
                                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-wrap justify-center items-center gap-x-5 gap-y-4 w-[62%] z-10" dir="ltr">
                                     {pairs.map((x, i) => (
                                         <div key={i} className="relative animate-pop-in" style={{ width: '3rem', height: '4.6rem' }}>
-                                            <div className="absolute inset-0"><PCard card={x.a} size="md" /></div>
+                                            {x.blind && !godView ? (
+                                                <div className="absolute inset-0 w-12 card-back rounded-lg flex items-center justify-center ring-2 ring-rose-500/70 shadow-[0_0_12px_rgba(244,63,94,0.5)]" style={{ height: '4.4rem' }}>
+                                                    <span className="text-white font-black text-2xl drop-shadow">?</span>
+                                                </div>
+                                            ) : x.blind && godView ? (
+                                                <div className="absolute inset-0 ring-2 ring-purple-500 rounded-lg"><PCard card={x.a} size="md" /></div>
+                                            ) : (
+                                                <div className="absolute inset-0"><PCard card={x.a} size="md" /></div>
+                                            )}
                                             {x.d && <div className="absolute left-3 top-3 rotate-[12deg] drop-shadow-xl"><PCard card={x.d} size="md" /></div>}
                                         </div>
                                     ))}
@@ -4275,7 +4545,8 @@
                                     <div key={p.uid} className="absolute z-20" style={{ ...seatPos(i), transform: 'translate(-50%, -50%)' }}>
                                         {isTurn && <div className="player-spotlight"></div>}
                                         <div className={`relative flex flex-col items-center ${p.out || p.left ? 'opacity-45' : ''}`}>
-                                            {reactions[p.uid] && <div className="absolute -top-9 left-1/2 -translate-x-1/2 text-2xl animate-pop-in z-[70] drop-shadow-lg pointer-events-none">{reactions[p.uid]}</div>}
+                                            {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                                            {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
                                             {isAtt && !p.out && <div className="action-badge badge-blind">⚔ תוקף</div>}
                                             {isDef && !p.out && <div className="action-badge badge-fold">🛡 מגן</div>}
                                             {p.out && <div className="action-badge badge-call">✓ סיים</div>}
@@ -4288,7 +4559,7 @@
                                                 </div>
                                             )}
 
-                                            <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p.uid)})` }}>
+                                            <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p)})` }}>
                                                 {isTurn && (
                                                     <svg className="absolute inset-0 w-full h-full timer-ring" viewBox="0 0 40 40">
                                                         <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(250,204,21,0.9)" strokeWidth="3" strokeDasharray={`${113 * timerPct} 113`} strokeLinecap="round" />
@@ -4321,7 +4592,7 @@
                                     <div className="flex justify-center gap-3 mb-5 flex-wrap">
                                         {list.map(p => (
                                             <div key={p.uid} className="flex flex-col items-center">
-                                                <img src={avatarUrl(p.uid)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-blue-500'}`} />
+                                                <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-blue-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[60px] truncate">{p.name}</span>
                                             </div>
                                         ))}
@@ -4377,8 +4648,8 @@
                                 {[...(me.cards || [])].sort((a, b) => ((a.suit === T.trumpSuit ? 100 : 0) + a.v) - ((b.suit === T.trumpSuit ? 100 : 0) + b.v)).map((c, ci) => {
                                     const clickable = canIDefend || canIAdd || canTransfer;
                                     return (
-                                        <div key={c.id} onClick={() => clickable ? playCard(user.uid, c.id) : null}
-                                             className={`transition-transform ${clickable ? 'cursor-pointer hover:-translate-y-3' : 'opacity-80'} ${c.suit === T.trumpSuit ? 'ring-1 ring-amber-400/50 rounded-lg' : ''}`}
+                                        <div key={c.id} onClick={() => { if (!clickable) return; playCard(user.uid, c.id, bluffMode && canBluff); setBluffMode(false); }}
+                                             className={`transition-transform ${clickable ? 'cursor-pointer hover:-translate-y-3' : 'opacity-80'} ${c.suit === T.trumpSuit ? 'ring-1 ring-amber-400/50 rounded-lg' : ''} ${bluffMode && canBluff ? 'ring-2 ring-rose-500 rounded-lg' : ''}`}
                                              style={{ marginLeft: ci > 0 ? ((me.cards.length > 9) ? '-26px' : '-14px') : 0, zIndex: ci }}>
                                             <PCard card={c} size="lg" />
                                         </div>
@@ -4389,9 +4660,24 @@
                         <div className="flex justify-center items-center gap-2.5 min-h-[44px]">
                             {T.status === 'playing' && !me?.out && isSeated ? (
                                 <React.Fragment>
-                                    {iAmDefender && pairs.length > 0 && (
+                                    {blindPending && (
+                                        <React.Fragment>
+                                            <button onClick={() => challengeBlind(user.uid)} className="bg-gradient-to-b from-rose-500 to-rose-700 hover:from-rose-400 text-white px-6 py-3 rounded-xl font-black text-sm shadow-[0_0_15px_rgba(244,63,94,0.4)] active:scale-95 transition-transform">
+                                                🔍 חשוד!
+                                            </button>
+                                            <button onClick={() => acceptBlind(user.uid)} className="btn-call text-white px-6 py-3 font-black text-sm shadow-lg active:scale-95 transition-transform">
+                                                👌 קבל
+                                            </button>
+                                        </React.Fragment>
+                                    )}
+                                    {iAmDefender && pairs.length > 0 && !blindPending && (
                                         <button onClick={() => takeCards(user.uid)} disabled={!myTurn || undefPairs.length === 0} className="btn-fold text-white px-8 py-3 font-black text-sm shadow-lg active:scale-95 transition-transform disabled:opacity-40">
                                             לקחת 🃏
+                                        </button>
+                                    )}
+                                    {canBluff && (
+                                        <button onClick={() => setBluffMode(!bluffMode)} className={`px-5 py-3 rounded-xl font-black text-sm border-2 transition-all active:scale-95 ${bluffMode ? 'bg-rose-700 border-rose-400 text-white shadow-[0_0_15px_rgba(244,63,94,0.5)]' : 'bg-slate-800 border-rose-800 text-rose-300'}`}>
+                                            🎭 בלוף
                                         </button>
                                     )}
                                     {!iAmDefender && myTurn && allDefended && (
@@ -4400,7 +4686,9 @@
                                         </button>
                                     )}
                                     <span className="text-[11px] font-bold text-slate-400 text-center">
-                                        {canIDefend ? (canTransfer ? 'הגן על הקלפים, העבר עם קלף באותה דרגה, או קח' : 'לחץ על קלף שמנצח את ההתקפה, או קח')
+                                        {blindPending ? '🎭 הונח קלף הפוך! חשוד (ותהפוך אותו) או קבל אותו'
+                                        : bluffMode && canBluff ? '🎭 מצב בלוף פעיל - לחץ על כל קלף להנחה הפוכה'
+                                        : canIDefend ? (canTransfer ? 'הגן על הקלפים, העבר עם קלף באותה דרגה, או קח' : 'לחץ על קלף שמנצח את ההתקפה, או קח')
                                         : canIAdd ? (pairs.length === 0 ? '⚔ אתה פותח - לחץ על קלף לתקוף' : 'אפשר להוסיף קלף בדרגה שעל השולחן')
                                         : T.turnUid ? `ממתין ל${players[T.turnUid]?.name || '...'}` : ''}
                                     </span>
@@ -4414,10 +4702,10 @@
                     </div>
 
                     {/* צ'אט */}
-                    <button onClick={() => setChatOpen(!chatOpen)} className="absolute bottom-[150px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[150px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
-                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={() => setChatOpen(false)} className="bottom-[150px] left-3" />}
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-[150px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                 </div>
             );
         }
@@ -4434,7 +4722,7 @@
             return b;
         };
         const sheshTableDoc = (hostUid, settings) => ({
-            type: 'shesh', createdAt: Date.now(), hostUid, status: 'setup',
+            type: 'shesh', clubId: CLUB_ID, createdAt: Date.now(), hostUid, status: 'setup',
             settings: { ...settings }, players: {}, pot: 0,
             board: sheshInitBoard(), bar: { w: 0, b: 0 }, off: { w: 0, b: 0 },
             dice: [], turn: null, turnStartedAt: null, lastResults: null, chat: []
@@ -4520,32 +4808,14 @@
                 return () => unsub();
             }, [tableDocId]);
 
-            /* ---------- צ'אט, ריאקציות, צלילים ---------- */
-            const chatArr = tableState?.chat || [];
-            const [chatOpen, setChatOpen] = useState(false);
-            const [emoTick, setEmoTick] = useState(0);
-            const reactions = useMemo(() => {
-                const now = Date.now(); const r = {};
-                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
-                return r;
-            }, [chatArr.length, emoTick]);
-            const reactCount = Object.keys(reactions).length;
-            useEffect(() => {
-                if (!reactCount) return;
-                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
-                return () => clearInterval(iv);
-            }, [reactCount]);
-            const sendChat = async (text, emoji) => {
-                const t = tableRef.current; if (!t) return;
-                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
-                try { await window.fb.updateDoc(tblRef(), { chat: [...(t.chat || []), msg].slice(-30) }); } catch(e) {}
-            };
+            /* ---------- צ'אט ---------- */
+            const ch = useTableChat(tableState, tableDocId, user, 'shesh', showToast);
             const prevS = useRef({ status: '', chatLen: 0, ts: 0, off: 0, turnMine: false });
             useEffect(() => {
                 if (!tableState) return;
                 const ps = prevS.current;
                 if (T.status === 'showdown' && ps.status !== 'showdown') playSnd('win');
-                if (T.status === 'playing' && T.turnStartedAt && T.turnStartedAt !== ps.ts) { playSnd('deal'); setRolling(true); setTimeout(() => setRolling(false), 500); setSelected(null); }
+                if (T.status === 'playing' && T.turnStartedAt && T.turnStartedAt !== ps.ts) { playSnd('dice'); setRolling(true); setTimeout(() => setRolling(false), 500); setSelected(null); }
                 const offTot = (T.off?.w || 0) + (T.off?.b || 0);
                 if (offTot > ps.off) playSnd('chip');
                 const mine = T.status === 'playing' && T.turn === myColor && !!myColor;
@@ -4647,7 +4917,7 @@
                             lastResults: { winnerName: (players[winnerUid] || {}).name || '', amount, rake, mars, byForfeit: !!byForfeit }
                         });
                     });
-                    creditRakeToClub(rake);
+                    distributeRake(rake, [winnerUid, loserUid].filter(Boolean));
                     logGameResult([
                         ...(!players[winnerUid]?.isBot ? [{ uid: winnerUid, username: players[winnerUid]?.name, game: 'shesh', profit: round2(amount - buyIn) }] : []),
                         ...(loserUid && !players[loserUid]?.isBot ? [{ uid: loserUid, username: players[loserUid]?.name, game: 'shesh', profit: -buyIn }] : [])
@@ -4704,7 +4974,7 @@
                         if (t.players[user.uid]) throw "אתה כבר בשולחן";
                         if (Object.keys(t.players).length >= 2) throw "השולחן מלא";
                         if ((uSnap.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק יתרה לדמי הכניסה";
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, isBot: false, joinedAt: Date.now(), color: null } });
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', isBot: false, joinedAt: Date.now(), color: null } });
                         if (Object.keys(t.players).length + 1 >= 2) becameFull = true;
                     });
                     if (becameFull) spawnTwinTable(tableRef.current);
@@ -4740,7 +5010,7 @@
                     const bots = botSnaps.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !t.players[b.id]);
                     if (!bots.length) return toastErr("אין בוטים - צור בדשבורד");
                     const bot = bots[Math.floor(Math.random() * bots.length)];
-                    await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: { uid: bot.id, name: bot.username, isBot: true, joinedAt: Date.now(), color: null } });
+                    await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: { uid: bot.id, name: bot.username, photo: bot.photo || '', avatarSeed: bot.avatarSeed || '', isBot: true, joinedAt: Date.now(), color: null } });
                 } catch(e) {}
             };
 
@@ -4826,6 +5096,11 @@
             const oppPlayer = list.find(p => p.uid !== user.uid);
             const heroP = me || list[0];
 
+            // כל שחקן רואה את הבית שלו למטה-ימין ליד מגש ההוצאה
+            const rows = myColor === 'w'
+                ? { lt: [11,10,9,8,7,6], lb: [12,13,14,15,16,17], rt: [5,4,3,2,1,0], rb: [18,19,20,21,22,23] }
+                : { lt: [12,13,14,15,16,17], lb: [11,10,9,8,7,6], rt: [18,19,20,21,22,23], rb: [5,4,3,2,1,0] };
+
             const clickPoint = (i) => {
                 if (!isMyTurn) return;
                 if (selected !== null && targetSet.has(i)) {
@@ -4852,11 +5127,11 @@
                 const shown = Math.min(pt.n, 5);
                 return (
                     <div onClick={() => clickPoint(idx)} className="flex-1 relative cursor-pointer h-full">
-                        <div className={`absolute inset-x-0 ${isTop ? 'top-0 pt-down' : 'bottom-0 pt-up'} ${shade} h-[88%] ${isSel ? 'ring-2 ring-amber-400' : ''}`}></div>
+                        <div className={`absolute inset-x-0 ${isTop ? 'top-0 pt-down' : 'bottom-0 pt-up'} ${shade} h-[88%] transition-all ${isSel ? 'ring-2 ring-amber-400 brightness-125' : ''} ${isTarget ? 'brightness-[1.9] saturate-150' : ''}`}></div>
                         {isTarget && <div className={`absolute left-1/2 -translate-x-1/2 ${isTop ? 'top-1' : 'bottom-1'} w-4 h-4 rounded-full bg-emerald-400/90 shadow-[0_0_10px_#10b981] animate-pulse z-30`}></div>}
                         <div className={`absolute inset-x-0 ${isTop ? 'top-0 flex-col' : 'bottom-0 flex-col-reverse'} flex items-center py-0.5 z-20 h-[92%] ${isSource ? '' : ''}`}>
                             {Array(shown).fill(0).map((_, ci) => (
-                                <div key={ci} className={`checker checker-${pt.c} w-6 h-6 sm:w-8 sm:h-8 ${isSource && ci === shown - 1 ? 'ring-2 ring-amber-300/80' : ''}`} style={{ [isTop ? 'marginTop' : 'marginBottom']: ci > 0 ? '-6px' : 0 }}></div>
+                                <div key={ci} className={`checker checker-${pt.c} w-6 h-6 sm:w-8 sm:h-8 animate-pop-in transition-transform ${isSource && ci === shown - 1 ? 'ring-2 ring-amber-300 scale-110 shadow-[0_0_10px_rgba(250,204,21,0.6)]' : ''}`} style={{ [isTop ? 'marginTop' : 'marginBottom']: ci > 0 ? '-6px' : 0 }}></div>
                             ))}
                             {pt.n > 5 && <span className="text-[9px] font-black text-white bg-black/70 rounded-full px-1.5 mt-0.5 z-30">{pt.n}</span>}
                         </div>
@@ -4873,8 +5148,9 @@
                 const isTurnP = T.status === 'playing' && T.turn === p.color;
                 return (
                     <div className={`flex items-center gap-2.5 bg-slate-900/85 px-3 py-2 rounded-2xl border relative ${isTurnP ? 'border-amber-400/70 shadow-[0_0_15px_rgba(250,204,21,0.25)]' : 'border-white/8'}`}>
-                        {reactions[p.uid] && <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-2xl animate-pop-in z-50">{reactions[p.uid]}</div>}
-                        <img src={avatarUrl(p.uid)} className="w-10 h-10 rounded-xl bg-slate-800 border border-white/10" />
+                        {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                        {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
+                        <img src={avatarUrl(p)} className="w-10 h-10 rounded-xl bg-slate-800 border border-white/10" />
                         <div>
                             <div className="text-xs font-black text-white flex items-center gap-1.5">
                                 {p.uid === user.uid ? 'אתה' : p.name}
@@ -4916,23 +5192,12 @@
 
                     {/* הלוח */}
                     <div className="flex-1 flex items-center justify-center p-2 sm:p-4 min-h-0 relative">
-                        <div className="shesh-frame w-full max-w-3xl h-full max-h-[58vh] flex gap-1.5 sm:gap-2 p-2 sm:p-3">
+                        <div className="shesh-frame w-full max-w-3xl h-full max-h-[58vh] flex gap-1.5 sm:gap-2 p-2 sm:p-3" dir="ltr">
 
-                            {/* מגש הוצאה */}
-                            <div onClick={clickOff} className={`w-9 sm:w-14 shesh-bar rounded-lg flex flex-col justify-between p-1 py-2 cursor-pointer ${canOffNow ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_#10b981] animate-pulse' : ''}`}>
-                                <div className="flex-1 flex flex-col items-center justify-start gap-0.5 overflow-hidden">
-                                    {oppPlayer?.color && Array(T.off?.[oppPlayer.color] || 0).fill(0).map((_, i) => <div key={i} className={`w-full h-2 rounded-sm ${oppPlayer.color === 'w' ? 'bg-slate-200' : 'bg-slate-600'}`}></div>)}
-                                </div>
-                                <span className="text-[8px] text-slate-500 font-black text-center py-1">OFF</span>
-                                <div className="flex-1 flex flex-col items-center justify-end gap-0.5 overflow-hidden">
-                                    {myColor && Array(T.off?.[myColor] || 0).fill(0).map((_, i) => <div key={i} className={`w-full h-2 rounded-sm ${myColor === 'w' ? 'bg-slate-200' : 'bg-slate-600'}`}></div>)}
-                                </div>
-                            </div>
-
-                            {/* חצי ימני: 18-23 למעלה, 5-0 למטה */}
+                            {/* החצי הרחוק מהבית */}
                             <div className="flex-1 shesh-half flex flex-col justify-between p-1">
-                                <Quad idxs={[18,19,20,21,22,23]} isTop={true} />
-                                <Quad idxs={[5,4,3,2,1,0]} isTop={false} />
+                                <Quad idxs={rows.lt} isTop={true} />
+                                <Quad idxs={rows.lb} isTop={false} />
                             </div>
 
                             {/* הבר */}
@@ -4947,10 +5212,21 @@
                                 </div>
                             </div>
 
-                            {/* חצי שמאלי: 12-17 למעלה, 11-6 למטה */}
+                            {/* החצי של הבית שלך - למטה-ימין */}
                             <div className="flex-1 shesh-half flex flex-col justify-between p-1">
-                                <Quad idxs={[12,13,14,15,16,17]} isTop={true} />
-                                <Quad idxs={[11,10,9,8,7,6]} isTop={false} />
+                                <Quad idxs={rows.rt} isTop={true} />
+                                <Quad idxs={rows.rb} isTop={false} />
+                            </div>
+
+                            {/* מגש הוצאה - צמוד לפינת הבית */}
+                            <div onClick={clickOff} className={`w-9 sm:w-14 shesh-bar rounded-lg flex flex-col justify-between p-1 py-2 cursor-pointer ${canOffNow ? 'ring-2 ring-emerald-400 shadow-[0_0_15px_#10b981] animate-pulse' : ''}`}>
+                                <div className="flex-1 flex flex-col items-center justify-start gap-0.5 overflow-hidden">
+                                    {oppPlayer?.color && Array(T.off?.[oppPlayer.color] || 0).fill(0).map((_, i) => <div key={i} className={`w-full h-2 rounded-sm ${oppPlayer.color === 'w' ? 'bg-slate-200' : 'bg-slate-600'}`}></div>)}
+                                </div>
+                                <span className="text-[8px] text-slate-500 font-black text-center py-1">OFF</span>
+                                <div className="flex-1 flex flex-col items-center justify-end gap-0.5 overflow-hidden">
+                                    {myColor && Array(T.off?.[myColor] || 0).fill(0).map((_, i) => <div key={i} className={`w-full h-2 rounded-sm ${myColor === 'w' ? 'bg-slate-200' : 'bg-slate-600'}`}></div>)}
+                                </div>
                             </div>
                         </div>
 
@@ -4964,7 +5240,7 @@
                                     <div className="flex justify-center gap-4 mb-5">
                                         {list.map(p => (
                                             <div key={p.uid} className="flex flex-col items-center">
-                                                <img src={avatarUrl(p.uid)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-amber-500'}`} />
+                                                <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-amber-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[70px] truncate">{p.name}</span>
                                             </div>
                                         ))}
@@ -5012,10 +5288,10 @@
                     </div>
 
                     {/* צ'אט */}
-                    <button onClick={() => setChatOpen(!chatOpen)} className="absolute bottom-[86px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[86px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
-                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={() => setChatOpen(false)} className="bottom-[86px] left-3" />}
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-[86px] left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                 </div>
             );
         }
