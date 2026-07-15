@@ -177,19 +177,21 @@
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
 
         /* ===== שש-בש - עיצוב הקלאב ===== */
-        .shesh-frame { background: linear-gradient(160deg, #1c2431, #0e131b 70%); border: 8px solid #0d1117; border-radius: 16px; box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 18px 45px rgba(0,0,0,0.85); }
-        .shesh-half { background: radial-gradient(ellipse at 50% 50%, #17372d 0%, #0d241d 85%); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; box-shadow: inset 0 0 25px rgba(0,0,0,0.6); }
-        .shesh-bar { background: #0b0f16; box-shadow: inset 0 0 14px rgba(0,0,0,0.9); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; }
+        .shesh-frame { background: linear-gradient(160deg, #8a5a2e, #6b4423 45%, #4e3016); border: 8px solid #3b2410; border-radius: 18px; box-shadow: inset 0 0 30px rgba(0,0,0,0.45), 0 18px 45px rgba(0,0,0,0.7); }
+        .shesh-half { background: radial-gradient(ellipse at 50% 50%, #eed9ae 0%, #d9bd8a 85%); border: 1px solid rgba(59,36,16,0.5); border-radius: 10px; box-shadow: inset 0 0 22px rgba(90,60,25,0.45); }
+        .shesh-bar { background: linear-gradient(180deg, #5d3a1a, #452910); box-shadow: inset 0 0 14px rgba(0,0,0,0.55); border: 1px solid rgba(0,0,0,0.35); border-radius: 8px; }
         .pt-down { clip-path: polygon(8% 0, 92% 0, 50% 97%); }
         .pt-up { clip-path: polygon(50% 3%, 92% 100%, 8% 100%); }
-        .pt-a { background: linear-gradient(to bottom, #2b8a6a, #1a4f3c); }
-        .pt-b { background: linear-gradient(to bottom, #32405c, #1e2836); }
+        .pt-a { background: linear-gradient(to bottom, #b3532c, #7c2d12); }
+        .pt-up, .pt-down { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+        .pt-b { background: linear-gradient(to bottom, #f7ead0, #e2c795); }
         .checker { border-radius: 50%; box-shadow: 0 4px 7px rgba(0,0,0,0.6), inset 0 -3px 5px rgba(0,0,0,0.5), inset 0 3px 5px rgba(255,255,255,0.35); border: 2px solid rgba(0,0,0,0.35); }
         .checker-w { background: radial-gradient(circle at 30% 30%, #ffffff, #cbd5e1 60%, #94a3b8); }
         .checker-b { background: radial-gradient(circle at 30% 30%, #475569, #1e293b 60%, #0b1120); border-color: #000; }
         .dice { width: 40px; height: 40px; background: radial-gradient(circle at center, #ffffff, #eef1f5); border-radius: 9px; box-shadow: inset 0 0 8px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.45); display: grid; grid-template-areas: "a . c" "e g f" "d . b"; padding: 6px; gap: 2px; }
         .dot { width: 7px; height: 7px; border-radius: 50%; background-color: #111827; box-shadow: inset 0 2px 3px rgba(0,0,0,0.6); }
-        .dice[data-val="1"] { justify-content: center; align-content: center; display: flex; }
+        .dice[data-val="1"] { justify-content: center; align-content: center; align-items: center; display: flex; }
+        @media (max-width: 640px) { .dice { width: 33px !important; height: 33px !important; } }
         .dice[data-val="2"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="2"] .dot:nth-child(2) { grid-area: b; }
         .dice[data-val="3"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="3"] .dot:nth-child(2) { grid-area: g; align-self: center; justify-self: center; } .dice[data-val="3"] .dot:nth-child(3) { grid-area: b; }
         .dice[data-val="4"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="4"] .dot:nth-child(2) { grid-area: c; } .dice[data-val="4"] .dot:nth-child(3) { grid-area: d; } .dice[data-val="4"] .dot:nth-child(4) { grid-area: b; }
@@ -363,6 +365,15 @@
             transition: background-position 0.7s ease;
         }
         .grad-card:hover::after { background-position: -130% 0; }
+
+        /* אייפון: התוכן מתחיל מתחת ל-notch ולשורת הסטטוס, ונגמר מעל פס הבית */
+        #root {
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
+            box-sizing: border-box;
+        }
 
         /* טקסטורת פרימיום עדינה מעל הכל */
         body::after {
@@ -1452,7 +1463,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V16.2</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V17.1</span></p>
                             </div>
                         </nav>
                     )}
@@ -1502,7 +1513,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V16.2</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V17.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -6281,11 +6292,21 @@
             return res;
         };
 
+        const SHESH_PIPS = {
+            1: [[50, 50]],
+            2: [[27, 27], [73, 73]],
+            3: [[25, 25], [50, 50], [75, 75]],
+            4: [[27, 27], [73, 27], [27, 73], [73, 73]],
+            5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
+            6: [[27, 24], [73, 24], [27, 50], [73, 50], [27, 76], [73, 76]]
+        };
         const SheshDie = ({ v, used, rolling }) => {
             if (!v) return null;
             return (
-                <div className={`dice ${rolling ? 'rolling' : ''} ${used ? 'opacity-30' : ''}`} data-val={v}>
-                    {v === 1 ? <div className="dot"></div> : Array(v).fill(0).map((_, i) => <div key={i} className="dot"></div>)}
+                <div className={`dice ${rolling ? 'rolling' : ''} ${used ? 'opacity-30' : ''}`} style={{ display: 'block', position: 'relative', padding: 0 }}>
+                    {(SHESH_PIPS[v] || []).map(([x, y], i) => (
+                        <div key={i} className="dot" style={{ position: 'absolute', left: x + '%', top: y + '%', transform: 'translate(-50%, -50%)' }}></div>
+                    ))}
                 </div>
             );
         };
@@ -6296,6 +6317,12 @@
             const [timeLeft, setTimeLeft] = useState(SHESH_TIME);
             const [selected, setSelected] = useState(null);
             const [rolling, setRolling] = useState(false);
+            const [land, setLand] = useState(window.innerWidth > window.innerHeight && window.innerHeight < 620);
+            useEffect(() => {
+                const h = () => setLand(window.innerWidth > window.innerHeight && window.innerHeight < 620);
+                window.addEventListener('resize', h);
+                return () => window.removeEventListener('resize', h);
+            }, []);
 
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
@@ -6675,13 +6702,13 @@
                 if (!p) return <div className="flex-1"></div>;
                 const isTurnP = T.status === 'playing' && T.turn === p.color;
                 return (
-                    <div className={`flex items-center gap-2.5 bg-slate-900/85 px-3 py-2 rounded-2xl border relative ${isTurnP ? 'border-amber-400/70 shadow-[0_0_15px_rgba(250,204,21,0.25)]' : 'border-white/8'}`}>
+                    <div className={`flex items-center gap-2 bg-slate-900/85 px-2.5 py-1.5 rounded-2xl border relative min-w-0 ${isTurnP ? 'border-amber-400/70 shadow-[0_0_15px_rgba(250,204,21,0.25)]' : 'border-white/8'}`}>
                         {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
                         {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
-                        <img src={avatarUrl(p)} className="w-10 h-10 rounded-xl bg-slate-800 border border-white/10" />
-                        <div>
+                        <img src={avatarUrl(p)} className="w-9 h-9 rounded-xl bg-slate-800 border border-white/10 shrink-0" />
+                        <div className="min-w-0">
                             <div className="text-xs font-black text-white flex items-center gap-1.5">
-                                {p.uid === user.uid ? 'אתה' : p.name}
+                                <span className="truncate max-w-[74px]">{p.uid === user.uid ? 'אתה' : p.name}</span>
                                 {p.color && <span className={`checker checker-${p.color} w-3.5 h-3.5 inline-block`}></span>}
                             </div>
                             <div className="text-[10px] text-slate-400 font-bold">בחוץ: {p.color ? (T.off?.[p.color] || 0) : 0}/15 {T.bar?.[p.color] > 0 && <span className="text-rose-400">· בר: {T.bar[p.color]}</span>}</div>
@@ -6692,6 +6719,8 @@
             };
 
             const barMine = T.bar?.[myColor] > 0;
+            const topBarC = myColor === 'b' ? 'w' : 'b';   // האבנים המוכות של הצד השני - למעלה
+            const botBarC = myColor === 'b' ? 'b' : 'w';   // שלי (או לבן לצופה) - למטה
             const canOffNow = targetSet.has('off');
 
             return (
@@ -6718,9 +6747,11 @@
                         </div>
                     </div>
 
-                    {/* הלוח */}
+                    {/* לוח + פס - שורה ברוחב, טור לאורך */}
+                    <div className={`flex-1 min-h-0 flex ${land ? 'flex-row' : 'flex-col'}`}>
                     <div className="flex-1 flex items-center justify-center p-2 sm:p-4 min-h-0 relative">
-                        <div className="shesh-frame w-full max-w-3xl h-full max-h-[58vh] flex gap-1.5 sm:gap-2 p-2 sm:p-3" dir="ltr">
+                        {!land && <div className="sm:hidden absolute top-0.5 left-1/2 -translate-x-1/2 z-30 text-[10px] text-amber-300/90 font-black bg-slate-950/75 border border-amber-500/30 rounded-full px-3 py-1 pointer-events-none">🔄 סובב לרוחב לחוויה מלאה</div>}
+                        <div className={`shesh-frame w-full max-w-3xl h-full ${land ? 'max-h-full' : 'max-h-[58vh]'} flex gap-1.5 sm:gap-2 p-2 sm:p-3`} dir="ltr">
 
                             {/* החצי הרחוק מהבית */}
                             <div className="flex-1 shesh-half flex flex-col justify-between p-1">
@@ -6731,12 +6762,12 @@
                             {/* הבר */}
                             <div onClick={() => { if (barMine && sources.has('bar')) setSelected(selected === 'bar' ? null : 'bar'); }}
                                  className={`w-8 sm:w-12 shesh-bar flex flex-col justify-between items-center py-3 cursor-pointer ${selected === 'bar' ? 'ring-2 ring-amber-400' : ''} ${barMine && sources.has('bar') ? 'shadow-[0_0_12px_rgba(250,204,21,0.4)]' : ''}`}>
-                                <div className="flex flex-col gap-0.5">
-                                    {oppPlayer?.color && Array(T.bar?.[oppPlayer.color] || 0).fill(0).map((_, i) => <Checker key={i} c={oppPlayer.color} small />)}
+                                <div className="flex flex-col gap-0.5 relative z-20">
+                                    {Array(T.bar?.[topBarC] || 0).fill(0).map((_, i) => <Checker key={i} c={topBarC} small />)}
                                 </div>
-                                <span className="text-[8px] text-slate-600 font-black rotate-90">BAR</span>
-                                <div className="flex flex-col gap-0.5">
-                                    {myColor && Array(T.bar?.[myColor] || 0).fill(0).map((_, i) => <Checker key={i} c={myColor} small />)}
+                                <span className="text-[8px] font-black rotate-90" style={{ color: '#c9a874' }}>BAR</span>
+                                <div className="flex flex-col gap-0.5 relative z-20">
+                                    {Array(T.bar?.[botBarC] || 0).fill(0).map((_, i) => <Checker key={i} c={botBarC} small />)}
                                 </div>
                             </div>
 
@@ -6801,18 +6832,21 @@
                         )}
                     </div>
 
-                    {/* פס תחתון: שחקנים + קוביות */}
-                    <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-3 py-2.5 z-40 flex items-center justify-between gap-2">
+                    {/* פס שחקנים + קוביות: תחתון לאורך, צדדי ברוחב */}
+                    <div className={land
+                        ? 'shrink-0 w-44 bg-slate-900/95 border-r border-white/5 px-2 py-3 z-40 flex flex-col items-center justify-center gap-3 overflow-y-auto'
+                        : 'shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-2 py-2 z-40 flex items-center justify-between gap-1.5'}>
                         <PlayerPlate p={oppPlayer} />
-                        <div className="flex flex-col items-center gap-1">
-                            <div className="flex gap-2">
+                        <div className="flex flex-col items-center gap-1 shrink-0">
+                            <div className="flex gap-1.5 sm:gap-2 flex-wrap justify-center max-w-[160px]">
                                 {(T.dice || []).map((d, i) => <SheshDie key={i} v={d.v} used={d.used} rolling={rolling} />)}
                                 {T.status === 'playing' && (T.dice || []).length === 0 && <span className="text-slate-500 text-xs font-bold">...</span>}
                             </div>
-                            {isMyTurn && <span className="text-[10px] font-black text-amber-300 animate-pulse">{barMine ? 'חובה להיכנס מהבר!' : selected !== null ? 'בחר יעד ירוק' : 'התור שלך - בחר חייל'}</span>}
+                            {isMyTurn && <span className="text-[10px] font-black text-amber-300 animate-pulse text-center">{barMine ? 'חובה להיכנס מהבר!' : selected !== null ? 'בחר יעד ירוק' : 'התור שלך - בחר חייל'}</span>}
                             {T.status === 'playing' && !isMyTurn && <span className="text-[10px] font-bold text-slate-500">תור היריב...</span>}
                         </div>
                         <PlayerPlate p={heroP} />
+                    </div>
                     </div>
 
                     {/* צ'אט */}
