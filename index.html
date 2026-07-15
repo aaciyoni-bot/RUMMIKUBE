@@ -1605,6 +1605,7 @@
                     setBoard(newBoard);
                     setDragData(null);
                     setHoverTarget(null);
+                    if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
 
                     if (tableState?.id && isMyTurn) {
                         try {
@@ -1983,6 +1984,35 @@
                 } catch(e) { showToast("שגיאה ביציאה מהשולחן", "error"); }
             };
 
+            /* ---------- צ'אט, ריאקציות וצלילים ---------- */
+            const chatArr = tableState?.chat || [];
+            const [chatOpen, setChatOpen] = useState(false);
+            const [emoTick, setEmoTick] = useState(0);
+            const reactions = useMemo(() => {
+                const now = Date.now(); const r = {};
+                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
+                return r;
+            }, [chatArr.length, emoTick]);
+            const reactCount = Object.keys(reactions).length;
+            useEffect(() => {
+                if (!reactCount) return;
+                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
+                return () => clearInterval(iv);
+            }, [reactCount]);
+            const sendChat = async (text, emoji) => {
+                if (!tableState) return;
+                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { chat: [ ...(tableState.chat || []), msg ].slice(-30) }); } catch(e) {}
+            };
+            const prevRSnd = useRef({ phase: '', chatLen: 0 });
+            useEffect(() => {
+                if (!tableState) return;
+                if (tableState.phase === 'showdown' && prevRSnd.current.phase !== 'showdown') playSnd('win');
+                const cl = (tableState.chat || []).length;
+                if (prevRSnd.current.chatLen && cl > prevRSnd.current.chatLen) playSnd('msg');
+                prevRSnd.current = { phase: tableState.phase, chatLen: cl };
+            }, [tableState]);
+
             if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
 
             const isSeated = tableState?.players?.[user.uid] !== undefined;
@@ -2055,7 +2085,8 @@
                             const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
                             const isTurn = tableState.currentTurn === uid;
                             return (
-                                <div key={uid} className={`flex flex-col items-center transition-all p-2 rounded-xl shrink-0 w-full ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
+                                <div key={uid} className={`flex flex-col items-center transition-all p-2 rounded-xl shrink-0 w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
+                                    {reactions[uid] && <div className="absolute -top-2 left-1 text-xl animate-pop-in z-50 drop-shadow-lg">{reactions[uid]}</div>}
                                     <img src={avatarUrl(uid)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
                                     <span className="text-xs font-bold text-white mb-1 truncate w-full text-center">{pData.username}</span>
                                     <span className="text-[10px] bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-full text-amber-400 font-bold whitespace-nowrap mb-1">📦 {tileCount}</span>
@@ -2136,6 +2167,10 @@
                             </button>
                         )}
 
+                        <button onClick={()=>setChatOpen(!chatOpen)} className={`w-full py-2 rounded-lg font-black text-[10px] border-2 transition-all ${chatOpen ? 'bg-emerald-700 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white'}`}>
+                            <i className="fa-solid fa-comment-dots ml-1"></i> צ'אט
+                        </button>
+
                         {isSeated && isPlaying && (
                             <div className="flex-1 flex flex-col w-full gap-2 overflow-y-auto">
                                 <button onClick={handleSort789} className="w-full py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs"><span className="text-blue-400">789</span> סדרות</button>
@@ -2171,6 +2206,9 @@
                             ))}
                         </div>
                     )}
+
+                    {/* פאנל צ'אט */}
+                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={()=>setChatOpen(false)} className="bottom-4 left-28 sm:left-36" />}
 
                     {/* רוחות רפאים */}
                     {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>}
@@ -2936,15 +2974,20 @@
                             </div>
 
                             <div className="absolute left-1/2 top-[64%] -translate-x-1/2 text-center z-10 pointer-events-none w-[80%]">
-                                {gs.phase === 'showdown' && gs.lastWinners && (
-                                    <div className="animate-pop-in">
-                                        <i className="fa-solid fa-trophy text-2xl text-amber-400 drop-shadow-[0_0_12px_#f59e0b]"></i>
-                                        <div className="text-amber-300 font-black text-sm mt-1">{gs.lastWinners} לוקח את הקופה!</div>
-                                    </div>
-                                )}
-                                {gs.phase === 'waiting' && <div className="text-emerald-200/30 font-black text-xs tracking-[0.3em] uppercase">Rummikube Elite</div>}
+                                {gs.phase === 'waiting' && <div className="text-emerald-200/25 font-black text-xs tracking-[0.3em] uppercase">Rummikube Elite</div>}
                                 {gs.phase === 'discard' && <div className="text-amber-300 font-black text-xs animate-pulse">🍍 Pineapple - זורקים קלף אחד...</div>}
                             </div>
+
+                            {/* כרזת מנצח - שכבה עליונה, מעל קלפי הקהילה */}
+                            {gs.phase === 'showdown' && gs.lastWinners && (
+                                <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-slate-950/90 backdrop-blur-md border border-amber-500/50 rounded-2xl px-8 py-4 text-center animate-pop-in shadow-[0_10px_50px_rgba(0,0,0,0.8)]">
+                                        <i className="fa-solid fa-trophy text-3xl text-amber-400 drop-shadow-[0_0_12px_#f59e0b]"></i>
+                                        <div className="text-white font-black text-base mt-1.5">{gs.lastWinners}</div>
+                                        {(gs.lastWinAmount || 0) > 0 && <div className="text-amber-400 font-black text-lg" dir="ltr">+{formatMoney(gs.lastWinAmount)}</div>}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* שחקנים */}
                             {displayList.map((p, i) => {
@@ -3076,6 +3119,12 @@
                         )}
                     </div>
 
+                    {/* צ'אט */}
+                    <button onClick={()=>setChatOpen(!chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                        <i className="fa-solid fa-comment-dots"></i>
+                    </button>
+                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={()=>setChatOpen(false)} className="bottom-[128px] left-3" />}
+
                     {/* Buy-in */}
                     {(canShowBuyIn || needRebuy) && (
                         <div className="absolute inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -3085,7 +3134,8 @@
                                 <p className="text-slate-400 text-xs font-bold mb-4" dir="ltr">Blinds {formatShort(setts.blinds)}/{formatShort(BB)} · יתרה: {formatMoney(user.balance)}</p>
                                 <div className="text-3xl font-black text-gold-400 mb-2" dir="ltr">{formatMoney(buyAmt)}</div>
                                 <input type="range" min={minBuy} max={maxBuy} step={BB} value={Math.min(Math.max(buyAmt, minBuy), maxBuy)} onChange={e=>setBuyAmt(parseFloat(e.target.value))} className="w-full accent-amber-500 mb-1" dir="ltr" />
-                                <div className="flex justify-between text-[10px] text-slate-500 font-bold mb-5" dir="ltr"><span>Min {formatMoney(minBuy)}</span><span>Max {formatMoney(maxBuy)}</span></div>
+                                <div className="flex justify-between text-[10px] text-slate-500 font-bold mb-2" dir="ltr"><span>Min {formatMoney(minBuy)}</span><span>Max {formatMoney(maxBuy)}</span></div>
+                                {lockActive && !needRebuy && <div className="text-[10px] text-amber-400 font-bold mb-3">🔒 קמת מכאן עם {formatMoney(leftLock.amount)} - חובה לחזור עם סכום זה לפחות</div>}
                                 <button onClick={needRebuy ? handleRebuy : handleSit} className="w-full bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">
                                     {needRebuy ? 'בצע Rebuy' : 'שב לשולחן'}
                                 </button>
