@@ -313,6 +313,9 @@
         .cube-amber { --cubeA:#f59e0b; --cubeA2:#b45309; --cubeGlow:rgba(245,158,11,0.35); --cubeGlowSoft:rgba(245,158,11,0.14); --cubeB:rgba(245,158,11,0.22); --cubeB2:rgba(245,158,11,0.55); --cubeBg1:#1a1408; --cubeBg2:#070d18; }
         .cube-cyan { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171b; --cubeBg2:#070d18; }
         .cube-purple { --cubeA:#a855f7; --cubeA2:#6b21a8; --cubeGlow:rgba(168,85,247,0.35); --cubeGlowSoft:rgba(168,85,247,0.14); --cubeB:rgba(168,85,247,0.22); --cubeB2:rgba(168,85,247,0.55); --cubeBg1:#150b1f; --cubeBg2:#070d18; }
+        .cube-indigo { --cubeA:#6366f1; --cubeA2:#3730a3; --cubeGlow:rgba(99,102,241,0.35); --cubeGlowSoft:rgba(99,102,241,0.14); --cubeB:rgba(99,102,241,0.22); --cubeB2:rgba(99,102,241,0.55); --cubeBg1:#0e0f24; --cubeBg2:#070d18; }
+        .cube-orange { --cubeA:#f97316; --cubeA2:#9a3412; --cubeGlow:rgba(249,115,22,0.35); --cubeGlowSoft:rgba(249,115,22,0.14); --cubeB:rgba(249,115,22,0.22); --cubeB2:rgba(249,115,22,0.55); --cubeBg1:#1a1008; --cubeBg2:#070d18; }
+        .cube-lime { --cubeA:#84cc16; --cubeA2:#3f6212; --cubeGlow:rgba(132,204,22,0.35); --cubeGlowSoft:rgba(132,204,22,0.14); --cubeB:rgba(132,204,22,0.22); --cubeB2:rgba(132,204,22,0.55); --cubeBg1:#131a08; --cubeBg2:#070d18; }
         .cube-gold { --cubeA:#eab308; --cubeA2:#a16207; --cubeGlow:rgba(234,179,8,0.35); --cubeGlowSoft:rgba(234,179,8,0.14); --cubeB:rgba(234,179,8,0.28); --cubeB2:rgba(234,179,8,0.6); --cubeBg1:#1a1608; --cubeBg2:#070d18; }
 
         /* רקע חי: גריד סייבר עדין + הילות צבע */
@@ -456,6 +459,9 @@
             { id: 'poker', label: 'פוקר', live: true },
             { id: 'durak', label: 'דוראק', live: true },
             { id: 'yaniv', label: 'יניב', live: true },
+            { id: 'bridge', label: "ברידג'", live: true },
+            { id: 'gin', label: "ג'ין רמי", live: true },
+            { id: 'twist', label: 'טוויסט', live: true },
             { id: 'president', label: 'פרזידנט', live: true },
             { id: 'shesh', label: 'שש-בש', live: true },
         ];
@@ -734,6 +740,12 @@
                     await window.fb.addDoc(col, presTableDoc(t.hostUid, { ...t.settings }));
                 } else if (t.type === 'yaniv') {
                     await window.fb.addDoc(col, yanivTableDoc(t.hostUid, { ...t.settings }));
+                } else if (t.type === 'bridge') {
+                    await window.fb.addDoc(col, bridgeTableDoc(t.hostUid, { ...t.settings }));
+                } else if (t.type === 'gin') {
+                    await window.fb.addDoc(col, ginTableDoc(t.hostUid, { ...t.settings }));
+                } else if (t.type === 'twist') {
+                    await window.fb.addDoc(col, twistTableDoc(t.hostUid, { ...t.settings }));
                 }
             } catch(e) {}
         };
@@ -1484,7 +1496,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V18.1</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V21</span></p>
                             </div>
                         </nav>
                     )}
@@ -1493,7 +1505,7 @@
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
                         {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} />}
-                        {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
+                        {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onJoinBridge={(t) => changeView('bridge-table', t)} onJoinGin={(t) => changeView('gin-table', t)} onJoinTwist={(t) => changeView('twist-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
                         {currentView === 'leaders' && activeClub && <LeadersView user={effUser} showToast={showToast} />}
                         {currentView === 'backoffice' && activeClub && <BackofficeView user={effUser} clubSettings={clubSettings} showToast={showToast} />}
@@ -1504,6 +1516,9 @@
                         {currentView === 'shesh-table' && <SheshTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('shesh'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'president-table' && <PresidentTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('president'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'yaniv-table' && <YanivTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('yaniv'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'bridge-table' && <BridgeTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('bridge'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'gin-table' && <GinTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('gin'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'twist-table' && <TwistTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('twist'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
@@ -1534,7 +1549,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V18.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V21</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1615,7 +1630,7 @@
                             ))}
                         </div>
                         <div className="flex justify-center gap-1.5 mb-7 flex-wrap">
-                            {[['all', 'הכל 🏆'], ['rummikub', 'רמיקוב'], ['poker', 'פוקר'], ['durak', 'דוראק'], ['shesh', 'שש-בש'], ['president', 'פרזידנט'], ['yaniv', 'יניב']].map(([k, l]) => (
+                            {[['all', 'הכל 🏆'], ['rummikub', 'רמיקוב'], ['poker', 'פוקר'], ['durak', 'דוראק'], ['shesh', 'שש-בש'], ['president', 'פרזידנט'], ['yaniv', 'יניב'], ['bridge', "ברידג'"], ['gin', "ג'ין"], ['twist', 'טוויסט']].map(([k, l]) => (
                                 <button key={k} onClick={() => setGtab(k)} className={`px-3 py-1.5 rounded-full font-bold text-xs border transition-colors ${gtab === k ? 'bg-amber-500/20 border-amber-400/60 text-amber-300' : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
@@ -1695,7 +1710,7 @@
                 ['30 יום אחרונים', periodStats(Date.now() - 30 * 24 * 3600 * 1000, null)],
             ];
             const lifetime = mem.stats || {};
-            const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', tournament: 'טורניר' };
+            const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', bridge: "ברידג'", gin: "ג'ין רמי", twist: 'טוויסט', tournament: 'טורניר' };
             return ReactDOM.createPortal(
                 <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
                     <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-emerald-500/50 rounded-3xl p-5 max-w-lg w-full max-h-[88vh] overflow-y-auto">
@@ -2212,7 +2227,7 @@
         /* ================================================================
            לובי - טאבים לרמיקוב ולפוקר
            ================================================================ */
-        function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onCreatePoker, showToast }) {
+        function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onJoinBridge, onJoinGin, onJoinTwist, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
             const [showCreateShesh, setShowCreateShesh] = useState(false);
             const [sheshOpts, setSheshOpts] = useState({ buyIn: 5 });
@@ -2226,6 +2241,36 @@
             const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const presTables = tables.filter(t => t.type === 'president' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const yanivTables = tables.filter(t => t.type === 'yaniv' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const bridgeTables = tables.filter(t => t.type === 'bridge' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const ginTables = tables.filter(t => t.type === 'gin' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const twistTables = tables.filter(t => t.type === 'twist' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const [showCreateTw, setShowCreateTw] = useState(false);
+            const [twOpts, setTwOpts] = useState({ buyIn: 5, maxPlayers: 4 });
+            const createTwist = async () => {
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), twistTableDoc(user.uid, { buyIn: Math.max(5, Number(twOpts.buyIn) || 5), maxPlayers: Math.min(6, Math.max(2, Number(twOpts.maxPlayers) || 4)), rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                    setShowCreateTw(false);
+                    showToast("שולחן טוויסט נפתח! 🌀", "success");
+                } catch(e) { showToast("שגיאה", "error"); }
+            };
+            const [showCreateGin, setShowCreateGin] = useState(false);
+            const [ginOpts, setGinOpts] = useState({ buyIn: 5, target: 100 });
+            const createGin = async () => {
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), ginTableDoc(user.uid, { buyIn: Math.max(5, Number(ginOpts.buyIn) || 5), target: Number(ginOpts.target) || 100, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                    setShowCreateGin(false);
+                    showToast("שולחן ג'ין רמי נפתח! 🍸", "success");
+                } catch(e) { showToast("שגיאה", "error"); }
+            };
+            const [showCreateBr, setShowCreateBr] = useState(false);
+            const [brOpts, setBrOpts] = useState({ buyIn: 5 });
+            const createBridge = async () => {
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), bridgeTableDoc(user.uid, { buyIn: Math.max(5, Number(brOpts.buyIn) || 5), rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                    setShowCreateBr(false);
+                    showToast("שולחן ברידג' נפתח! 🃏", "success");
+                } catch(e) { showToast("שגיאה", "error"); }
+            };
             // בונוס יומי - גלגל מזל (הסכומים בשליטת בעל הקלאב, ההסתברויות קבועות)
             const bwConf = clubSettings?.bonusWheel || {};
             const bonusEnabled = bwConf.enabled !== false;
@@ -2374,7 +2419,7 @@
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 mb-8 w-full">
+                        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-10 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
                                 { id: 'poker', label: 'פוקר', icon: 'fa-diamond', c: 'rose', n: pokerTables.length },
@@ -2382,6 +2427,9 @@
                                 { id: 'shesh', label: 'שש-בש', icon: 'fa-dice', c: 'amber', n: sheshTables.length },
                                 { id: 'yaniv', label: 'יניב', icon: 'fa-bolt', c: 'cyan', n: yanivTables.length },
                                 { id: 'president', label: 'פרזידנט', icon: 'fa-chess-king', c: 'purple', n: presTables.length },
+                                { id: 'bridge', label: "ברידג'", icon: 'fa-diamond', c: 'indigo', n: bridgeTables.length },
+                                { id: 'gin', label: "ג'ין רמי", icon: 'fa-layer-group', c: 'lime', n: ginTables.length },
+                                { id: 'twist', label: 'טוויסט', icon: 'fa-arrows-spin', c: 'orange', n: twistTables.length },
                                 { id: 'tours', label: 'טורנירים', icon: 'fa-trophy', c: 'gold', n: (tournaments || []).filter(t => (t.clubId || 'main') === CLUB_ID && ['reg', 'running'].includes(t.status)).length },
                             ].map(g => (
                                 <button key={g.id} onClick={() => setTab(g.id)} className={`game-cube cube-${g.c} ${tab === g.id ? 'cube-active' : ''}`}>
@@ -2423,6 +2471,147 @@
                         , document.body)}
 
                         {/* ===== טאב יניב ===== */}
+                        {tab === 'twist' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-5">
+                                    <h2 className="text-xl font-black text-white">שולחנות טוויסט</h2>
+                                    {canManageGame(user, 'twist') && (
+                                        <button onClick={()=>setShowCreateTw(!showCreateTw)} className="bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_6px_20px_rgba(249,115,22,0.3)] text-sm">
+                                            <i className="fa-solid fa-plus ml-2"></i>שולחן חדש
+                                        </button>
+                                    )}
+                                </div>
+                                {showCreateTw && (
+                                    <div className="glass-panel rounded-3xl p-5 mb-6 border border-orange-500/30 animate-fade-in">
+                                        <div className="flex items-end gap-3 flex-wrap">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block">כניסה לשחקן (₪)</label>
+                                                <input type="number" min="5" step="5" value={twOpts.buyIn} onChange={e=>setTwOpts({ ...twOpts, buyIn: e.target.value })} className="w-32 bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-orange-500 font-bold" dir="ltr" />
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block">שחקנים</label>
+                                                <select value={twOpts.maxPlayers} onChange={e=>setTwOpts({ ...twOpts, maxPlayers: parseInt(e.target.value) })} className="w-28 bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-orange-500 font-bold">
+                                                    {[2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+                                                </select>
+                                            </div>
+                                            <button onClick={createTwist} className="bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 text-white px-8 py-3 rounded-xl font-black shadow-lg">פתח שולחן</button>
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-bold mt-2">התאמה בצורה או במספר · 2 = קח שתיים (משורשר!) · 8 = עצור · נסיך מחליף צבע · אס הופך כיוון · אסור לסיים בנסיך · המרוקן ראשון לוקח את הקופה</p>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {twistTables.map(t => (
+                                        <div key={t.id} className="grad-card rounded-3xl p-5 cursor-pointer" onClick={()=>onJoinTwist({ docId: t.id })}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h3 className="font-black text-white">טוויסט 🌀</h3>
+                                                    <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney((t.settings||{}).buyIn)}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${t.status === 'playing' ? 'text-amber-300 border-amber-500/50 bg-amber-500/10' : 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10'}`}>{t.status === 'playing' ? 'במשחק' : 'ממתין'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <AvatarsRow players={t.players} />
+                                                <span className="text-slate-400 text-xs font-bold">{Object.keys(t.players||{}).length}/{(t.settings||{}).maxPlayers || 4}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {twistTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold glass-panel rounded-3xl">אין שולחנות טוויסט פתוחים.</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {tab === 'gin' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-5">
+                                    <h2 className="text-xl font-black text-white">שולחנות ג'ין רמי</h2>
+                                    {canManageGame(user, 'gin') && (
+                                        <button onClick={()=>setShowCreateGin(!showCreateGin)} className="bg-gradient-to-b from-lime-500 to-lime-700 hover:from-lime-400 text-slate-900 px-5 py-2.5 rounded-xl font-bold shadow-[0_6px_20px_rgba(132,204,22,0.3)] text-sm">
+                                            <i className="fa-solid fa-plus ml-2"></i>שולחן חדש
+                                        </button>
+                                    )}
+                                </div>
+                                {showCreateGin && (
+                                    <div className="glass-panel rounded-3xl p-5 mb-6 border border-lime-500/30 animate-fade-in">
+                                        <div className="flex items-end gap-3 flex-wrap">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block">כניסה לשחקן (₪)</label>
+                                                <input type="number" min="5" step="5" value={ginOpts.buyIn} onChange={e=>setGinOpts({ ...ginOpts, buyIn: e.target.value })} className="w-32 bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-lime-500 font-bold" dir="ltr" />
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block">משחק עד</label>
+                                                <select value={ginOpts.target} onChange={e=>setGinOpts({ ...ginOpts, target: parseInt(e.target.value) })} className="w-32 bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-lime-500 font-bold">
+                                                    {[50, 100, 150, 250].map(n => <option key={n} value={n}>{n} נקודות</option>)}
+                                                </select>
+                                            </div>
+                                            <button onClick={createGin} className="bg-gradient-to-b from-lime-500 to-lime-700 hover:from-lime-400 text-slate-900 px-8 py-3 rounded-xl font-black shadow-lg">פתח שולחן</button>
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-bold mt-2">ראש בראש · מלדים (שלשות ורצפים) · Knock עד 10 עודף · ג'ין +25 · אנדרקאט +25 · המנצח לוקח את הקופה</p>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {ginTables.map(t => (
+                                        <div key={t.id} className="grad-card rounded-3xl p-5 cursor-pointer" onClick={()=>onJoinGin({ docId: t.id })}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h3 className="font-black text-white">ג'ין רמי 🍸</h3>
+                                                    <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney((t.settings||{}).buyIn)} · עד {(t.settings||{}).target || 100}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${['playing','hand_end'].includes(t.status) ? 'text-amber-300 border-amber-500/50 bg-amber-500/10' : 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10'}`}>{['playing','hand_end'].includes(t.status) ? 'במשחק' : 'ממתין'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <AvatarsRow players={t.players} />
+                                                <span className="text-slate-400 text-xs font-bold">{Object.keys(t.players||{}).length}/2</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {ginTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold glass-panel rounded-3xl">אין שולחנות ג'ין פתוחים.</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {tab === 'bridge' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-5">
+                                    <h2 className="text-xl font-black text-white">שולחנות ברידג'</h2>
+                                    {canManageGame(user, 'bridge') && (
+                                        <button onClick={()=>setShowCreateBr(!showCreateBr)} className="bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-400 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_6px_20px_rgba(99,102,241,0.3)] text-sm">
+                                            <i className="fa-solid fa-plus ml-2"></i>שולחן חדש
+                                        </button>
+                                    )}
+                                </div>
+                                {showCreateBr && (
+                                    <div className="glass-panel rounded-3xl p-5 mb-6 border border-indigo-500/30 animate-fade-in">
+                                        <div className="flex items-end gap-3 flex-wrap">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block">כניסה לשחקן (₪)</label>
+                                                <input type="number" min="5" step="5" value={brOpts.buyIn} onChange={e=>setBrOpts({ buyIn: e.target.value })} className="w-36 bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-indigo-500 font-bold" dir="ltr" />
+                                            </div>
+                                            <button onClick={createBridge} className="bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-400 text-white px-8 py-3 rounded-xl font-black shadow-lg">פתח שולחן</button>
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-bold mt-2">4 שחקנים בדיוק · צפון-דרום נגד מזרח-מערב · מכרז, כרוז ודומם, 13 לקיחות · הצמד המנצח מתחלק בקופה</p>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {bridgeTables.map(t => (
+                                        <div key={t.id} className="grad-card rounded-3xl p-5 cursor-pointer" onClick={()=>onJoinBridge({ docId: t.id })}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h3 className="font-black text-white">ברידג' 🃏</h3>
+                                                    <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney((t.settings||{}).buyIn)}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${t.status === 'playing' ? 'text-amber-300 border-amber-500/50 bg-amber-500/10' : 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10'}`}>{t.status === 'playing' ? 'במשחק' : 'ממתין'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <AvatarsRow players={t.players} />
+                                                <span className="text-slate-400 text-xs font-bold">{Object.keys(t.players||{}).length}/4</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {bridgeTables.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 font-bold glass-panel rounded-3xl">אין שולחנות ברידג' פתוחים.</div>}
+                                </div>
+                            </div>
+                        )}
+
                         {tab === 'yaniv' && (
                             <div className="animate-fade-in">
                                 <div className="flex justify-between items-center mb-5">
@@ -7190,8 +7379,1613 @@
         /* ================================================================
            טורנירים - פוקר (נוק-אאוט רב-שולחני, רמות עולות, ריביי/אדאון/באונטי)
            ================================================================ */
+
+
+
+        /* ================================================================
+           טוויסט - התאמה לפי צורה/מספר, 2 לוקח, 8 עצור, נסיך מחליף, אס הופך
+           ================================================================ */
+        const TW_TIME = 25;
+        const twName = (v) => v === 1 ? 'A' : v === 11 ? 'J' : v === 12 ? 'Q' : v === 13 ? 'K' : String(v);
+        const twDeck = () => {
+            const suits = ['♠', '♥', '♦', '♣'];
+            let d = [], i = 0;
+            for (const suit of suits) for (let v = 1; v <= 13; v++) d.push({ id: `t${i++}`, suit, v });
+            for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
+            return d;
+        };
+        const twistTableDoc = (hostUid, settings) => ({
+            type: 'twist', clubId: CLUB_ID, createdAt: Date.now(), hostUid, status: 'setup',
+            settings: { ...settings }, players: {}, pot: 0,
+            deck: [], pile: [], curSuit: null, drawStack: 0, dir: 1, turnUid: null,
+            chat: [], lastResults: null, turnStartedAt: null, showdownAt: null
+        });
+
+        function TwistTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
+            const [tableState, setTableState] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [timeLeft, setTimeLeft] = useState(TW_TIME);
+            const [resHide, setResHide] = useState(false);
+            const [selected, setSelected] = useState([]);
+            const [jPick, setJPick] = useState(null); // בחירת צבע לנסיך
+            const [errMsg, setErrMsg] = useState('');
+            const [godView, setGodView] = useState(false);
+            const tableRef = useRef(null);
+            const settlingRef = useRef(false);
+            const tblRef = () => window.fb.doc(window.fb.db, "tables", tableDocId);
+            const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(''), 3200); };
+            const clonePl = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v, cards: [...(v.cards || [])] }); return o; };
+
+            useEffect(() => {
+                if (!tableDocId) return;
+                const unsub = window.fb.onSnapshot(tblRef(), (snap) => {
+                    if (!snap.exists()) { showToast("השולחן נסגר", "info"); onLeave(); return; }
+                    const d = { id: snap.id, docId: snap.id, ...snap.data() };
+                    tableRef.current = d; setTableState(d); setLoading(false);
+                });
+                return () => unsub();
+            }, [tableDocId]);
+
+            const T = tableState || {};
+            const setts = T.settings || {};
+            const players = T.players || {};
+            const list = Object.values(players).sort((a, b) => (a.seatIndex || 0) - (b.seatIndex || 0));
+            const me = players[user.uid];
+            const isSeated = !!me;
+            const isHost = T.hostUid === user.uid;
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const isGod = isGodUser(user);
+            const isMyTurn = T.status === 'playing' && T.turnUid === user.uid;
+            const maxP = Number(setts.maxPlayers) || 4;
+            const ch = useTableChat(tableState, tableDocId, user, 'twist', showToast);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), maxP, null);
+            const top = (T.pile || [])[(T.pile || []).length - 1];
+            const effSuit = T.curSuit || (top ? top.suit : null);
+
+            const nextUid = (fromUid, pl, dir, skip) => {
+                const arr = Object.values(pl).filter(p => !p.left).sort((a, b) => (a.seatIndex || 0) - (b.seatIndex || 0));
+                if (!arr.length) return null;
+                let i = arr.findIndex(p => p.uid === fromUid);
+                if (i === -1) i = 0;
+                let steps = 1 + (skip || 0);
+                while (steps-- > 0) i = (i + dir + arr.length) % arr.length;
+                return arr[i].uid;
+            };
+            const canPlayCard = (c) => {
+                if (!top) return true;
+                if ((T.drawStack || 0) > 0) return c.v === 2; // חובה לשרשר 2 או לקחת
+                if (c.v === 11) return true;                  // נסיך על הכל
+                return c.v === top.v || c.suit === effSuit;
+            };
+
+            /* ---------- הצטרפות / התחלה / עזיבה ---------- */
+            const handleJoin = async () => {
+                try {
+                    let becameFull = false;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const t = snap.data();
+                        if (t.players[user.uid]) return;
+                        const mx = Number(t.settings.maxPlayers) || 4;
+                        if (Object.keys(t.players).length >= mx) throw "השולחן מלא";
+                        const ms = await tr.get(memDoc(user.uid));
+                        if (!ms.exists() || (ms.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק צ'יפים";
+                        const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
+                        let seatIndex = 0; while (taken.has(seatIndex)) seatIndex++;
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, left: false } });
+                        becameFull = Object.keys(t.players).length + 1 >= mx;
+                    });
+                    playSnd('chip');
+                    if (becameFull) spawnTwinTable(tableRef.current);
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const handleAddBot = async () => {
+                try {
+                    if (list.length >= maxP) return;
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const bs = await window.fb.getDocs(botQ);
+                    const used = new Set(Object.keys(players));
+                    const bots = bs.docs.filter(d => !used.has(d.id));
+                    if (!bots.length) return showToast("אין בוטים פנויים", "error");
+                    const b = bots[Math.floor(Math.random() * bots.length)];
+                    const taken = new Set(list.map(p => p.seatIndex));
+                    let seatIndex = 0; while (taken.has(seatIndex)) seatIndex++;
+                    await window.fb.updateDoc(tblRef(), { [`players.${b.id}`]: { uid: b.id, name: b.data().username, photo: '', avatarSeed: b.data().avatarSeed || b.id, seatIndex, cards: [], isBot: true, left: false } });
+                } catch(e) {}
+            };
+            const startGame = async () => {
+                const t = tableRef.current; if (!t) return;
+                if (!(t.hostUid === user.uid || isSuperAdmin)) return;
+                if (!['setup', 'showdown'].includes(t.status)) return;
+                if (Object.keys(t.players).length < 2) return showToast("צריך לפחות 2 שחקנים", "error");
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const tbl = snap.data();
+                        if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
+                        const buyIn = Number(tbl.settings.buyIn) || 0;
+                        const base = {};
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], left: false, twist: false });
+                        const humans = Object.keys(base).filter(u => !base[u].isBot);
+                        const reads = {};
+                        for (const u of humans) {
+                            const ms = await tr.get(memDoc(u));
+                            if (!ms.exists() || (ms.data().balance || 0) < buyIn) throw `ל${base[u].name} אין מספיק צ'יפים`;
+                            reads[u] = ms;
+                        }
+                        for (const u of humans) tr.update(reads[u].ref, { balance: round2((reads[u].data().balance || 0) - buyIn) });
+                        const d = twDeck();
+                        const uids = Object.values(base).sort((a, b) => a.seatIndex - b.seatIndex).map(p => p.uid);
+                        for (let i = 0; i < 8; i++) for (const u of uids) base[u].cards.push(d.pop());
+                        // קלף פתיחה - לא מיוחד
+                        let open = d.pop();
+                        while ([1, 2, 8, 11].includes(open.v) && d.length) { d.unshift(open); open = d.pop(); }
+                        tr.update(tblRef(), {
+                            status: 'playing', players: base, pot: round2(buyIn * humans.length),
+                            deck: d, pile: [open], curSuit: null, drawStack: 0, dir: 1,
+                            turnUid: uids[0], lastResults: null, showdownAt: null, turnStartedAt: Date.now()
+                        });
+                    });
+                    playSnd('deal');
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const handleLeave = async () => {
+                const t = tableRef.current;
+                if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'playing') {
+                    if (!window.confirm("⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
+                    try {
+                        const pl = clonePl(t.players);
+                        pl[user.uid].left = true; pl[user.uid].cards = [];
+                        const remain = Object.values(pl).filter(p => !p.left);
+                        if (remain.length <= 1) {
+                            if (remain.length === 1) { await window.fb.updateDoc(tblRef(), { players: pl }); await settleTwist(remain[0].uid, true); }
+                            else await window.fb.deleteDoc(tblRef());
+                        } else {
+                            const upd = { players: pl };
+                            if (t.turnUid === user.uid) { upd.turnUid = nextUid(user.uid, pl, t.dir || 1, 0); upd.turnStartedAt = Date.now(); }
+                            await window.fb.updateDoc(tblRef(), upd);
+                        }
+                    } catch(e) {}
+                    onLeave(); return;
+                }
+                try {
+                    const pl = { ...t.players }; delete pl[user.uid];
+                    if (Object.keys(pl).length === 0) await window.fb.deleteDoc(tblRef());
+                    else await window.fb.updateDoc(tblRef(), { players: pl });
+                } catch(e) {}
+                onLeave();
+            };
+
+            /* ---------- מהלכים ---------- */
+            const doPlay = async (uid, cardIds, chosenSuit) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.turnUid !== uid) return;
+                const pl = clonePl(t.players);
+                const p = pl[uid]; if (!p) return;
+                const cards = p.cards.filter(c => cardIds.includes(c.id));
+                if (!cards.length) return;
+                const v0 = cards[0].v;
+                if (!cards.every(c => c.v === v0)) { if (uid === user.uid) flashErr("אפשר להניח יחד רק קלפים באותו מספר"); return; }
+                const tp = (t.pile || [])[(t.pile || []).length - 1];
+                const eff = t.curSuit || (tp ? tp.suit : null);
+                if ((t.drawStack || 0) > 0 && v0 !== 2) { if (uid === user.uid) flashErr(`יש עליך +${t.drawStack} - שרשר 2 או קח`); return; }
+                if (tp && v0 !== 11 && !(v0 === tp.v || cards[0].suit === eff || cards.some(c => c.suit === eff))) {
+                    if (uid === user.uid) flashErr("חייב להתאים בצורה או במספר (או נסיך)"); return;
+                }
+                // אסור לסיים בנסיך
+                if (v0 === 11 && cards.length === p.cards.length) { if (uid === user.uid) flashErr("אסור לסיים את היד בנסיך!"); return; }
+                p.cards = p.cards.filter(c => !cardIds.includes(c.id));
+                p.twist = p.cards.length === 1;
+                const upd = {
+                    players: pl, pile: [...(t.pile || []), ...cards], turnStartedAt: Date.now(),
+                    curSuit: v0 === 11 ? (chosenSuit || '♠') : cards[cards.length - 1].suit,
+                    drawStack: v0 === 2 ? (t.drawStack || 0) + 2 * cards.length : (t.drawStack || 0),
+                    dir: v0 === 1 && cards.length % 2 === 1 ? -(t.dir || 1) : (t.dir || 1)
+                };
+                if (p.cards.length === 0) {
+                    upd.turnUid = null;
+                    await window.fb.updateDoc(tblRef(), upd);
+                    await settleTwist(uid, false);
+                    return;
+                }
+                const skip = v0 === 8 ? cards.length : 0;
+                upd.turnUid = nextUid(uid, pl, upd.dir, skip);
+                await window.fb.updateDoc(tblRef(), upd);
+                playSnd(v0 === 2 ? 'chip' : v0 === 8 ? 'fold' : 'tile');
+                if (p.cards.length === 1) playSnd('msg'); // טוויסט!
+                if (uid === user.uid) { setSelected([]); setJPick(null); }
+            };
+            const doDraw = async (uid) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.turnUid !== uid) return;
+                const pl = clonePl(t.players);
+                const p = pl[uid]; if (!p) return;
+                let deck = [...(t.deck || [])], pile = [...(t.pile || [])];
+                const n = (t.drawStack || 0) > 0 ? t.drawStack : 1;
+                for (let i = 0; i < n; i++) {
+                    if (!deck.length) {
+                        if (pile.length > 1) { const tp2 = pile.pop(); deck = pile.sort(() => Math.random() - 0.5); pile = [tp2]; }
+                        else break;
+                    }
+                    if (deck.length) p.cards.push(deck.pop());
+                }
+                p.twist = p.cards.length === 1;
+                await window.fb.updateDoc(tblRef(), {
+                    players: pl, deck, pile, drawStack: 0,
+                    turnUid: nextUid(uid, pl, t.dir || 1, 0), turnStartedAt: Date.now()
+                });
+                playSnd('chip');
+                if (uid === user.uid) setSelected([]);
+            };
+
+            /* ---------- סליקה ---------- */
+            const settleTwist = async (winnerUid, byForfeit) => {
+                if (settlingRef.current) return;
+                settlingRef.current = true;
+                try {
+                    const t = tableRef.current; if (!t) return;
+                    const pl = clonePl(t.players);
+                    const pot = t.pot || 0;
+                    const rake = round2(pot * ((Number(setts.rakePercent) || 0) / 100));
+                    const net = round2(pot - rake);
+                    const winner = pl[winnerUid];
+                    const buyIn = Number(setts.buyIn) || 0;
+                    const logEntries = [];
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const reads = {};
+                        for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
+                        for (const p of Object.values(pl)) {
+                            const sm = reads[p.uid]; if (!sm) continue;
+                            const won = p.uid === winnerUid;
+                            const prize = won && !winner.isBot ? net : 0;
+                            const st = sm.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            const profit = round2(prize - buyIn);
+                            tr.update(sm.ref, {
+                                balance: round2((sm.data().balance || 0) + prize),
+                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
+                                'stats.gamesWon': (st.gamesWon || 0) + (won ? 1 : 0),
+                                'stats.totalProfit': round2((st.totalProfit || 0) + profit)
+                            });
+                            logEntries.push({ uid: p.uid, username: p.name, game: 'twist', profit });
+                        }
+                        tr.update(tblRef(), {
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, drawStack: 0,
+                            lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, endedAt: Date.now() }
+                        });
+                    });
+                    if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
+                    playSnd('win');
+                    if (logEntries.length) logGameResult(logEntries, tableDocId);
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot).map(p => p.uid));
+                } catch(e) {} finally { settlingRef.current = false; }
+            };
+
+            /* ---------- אוטומט ובוטים ---------- */
+            const autoAct = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || t.turnUid !== uid) return;
+                const p = t.players[uid]; if (!p) return;
+                const tp = (t.pile || [])[(t.pile || []).length - 1];
+                const eff = t.curSuit || (tp ? tp.suit : null);
+                const hand = p.cards || [];
+                if ((t.drawStack || 0) > 0) {
+                    const two = hand.find(c => c.v === 2);
+                    if (two) { await doPlay(uid, [two.id]); return; }
+                    await doDraw(uid); return;
+                }
+                // קודם רגילים תואמים, אחר כך מיוחדים, נסיך אחרון
+                const groups = {};
+                hand.forEach(c => { (groups[c.v] = groups[c.v] || []).push(c); });
+                const playable = Object.values(groups).filter(g => g[0].v !== 11 && (g[0].v === (tp || {}).v || g.some(c => c.suit === eff)));
+                const normal = playable.filter(g => ![1, 2, 8].includes(g[0].v));
+                let pick = (normal[0] || playable[0]);
+                if (pick) {
+                    const grp = pick.filter(c => c.suit === eff || c.v === (tp || {}).v).length ? pick : pick;
+                    if (grp.length === hand.length && grp[0].v === 11) pick = null;
+                    else { await doPlay(uid, grp.map(c => c.id)); return; }
+                }
+                const jk = hand.find(c => c.v === 11);
+                if (jk && hand.length > 1) {
+                    const cnt = {}; hand.filter(c => c.id !== jk.id).forEach(c => cnt[c.suit] = (cnt[c.suit] || 0) + 1);
+                    const bestSuit = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+                    await doPlay(uid, [jk.id], bestSuit ? bestSuit[0] : '♠'); return;
+                }
+                await doDraw(uid);
+            };
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState || T.status !== 'playing') return;
+                const p = players[T.turnUid];
+                if (p && p.isBot) {
+                    const tm = setTimeout(() => autoAct(T.turnUid), 900);
+                    return () => clearTimeout(tm);
+                }
+            }, [T.turnUid, T.status, isSuperAdmin, tableState && (T.pile || []).length]);
+            useEffect(() => {
+                let iv;
+                if (T.status === 'playing' && T.turnStartedAt) {
+                    iv = setInterval(() => {
+                        const rem = Math.max(0, TW_TIME - Math.floor((Date.now() - T.turnStartedAt) / 1000));
+                        setTimeLeft(rem);
+                        if (rem === 0 && T.turnUid === user.uid) { clearInterval(iv); doDraw(user.uid); }
+                    }, 1000);
+                }
+                return () => clearInterval(iv);
+            }, [T.status, T.turnStartedAt, T.turnUid]);
+            useEffect(() => { if (isMyTurn) playSnd('turn'); }, [T.turnUid]);
+
+            /* ---------- רינדור ---------- */
+            const TCard = ({ c, sel, onClick, small }) => (
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg bg-gradient-to-b from-white to-slate-200 border shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : 'border-slate-400'} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'} ${[1, 2, 8, 11].includes(c.v) ? 'ring-1 ring-orange-400/70' : ''}`}>
+                    <span className="leading-none">{twName(c.v)}</span>
+                    <span className="leading-none">{c.suit}</span>
+                </div>
+            );
+            const selRank = selected.length ? ((me?.cards || []).find(c => c.id === selected[0]) || {}).v : null;
+            const res = T.lastResults;
+
+            if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
+
+            return (
+                <div className="h-full w-full flex flex-col bg-slate-950 font-sans overflow-hidden select-none" dir="rtl"
+                     style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a2436 0%, #020617 60%)' }}>
+                    <div className="min-h-[3.5rem] bg-slate-900/80 backdrop-blur-md border-b border-white/5 flex justify-between items-center gap-1.5 px-2 sm:px-3 py-1.5 shrink-0 z-40">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                            <button onClick={handleLeave} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-700 hover:text-white text-xs font-bold border border-white/10"><i className="fa-solid fa-door-open ml-1"></i>{isSeated ? 'קום' : 'יציאה'}</button>
+                            {isSuperAdmin && ['setup', 'showdown'].includes(T.status) && <button onClick={handleAddBot} className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-purple-300 text-[10px] font-black border border-white/10"><i className="fa-solid fa-robot"></i></button>}
+                            {isGod && <button onClick={() => setGodView(!godView)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${godView ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800 text-purple-400 border-white/10'}`}><i className="fa-solid fa-eye ml-1"></i>GOD</button>}
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col items-center px-1">
+                            <span className="text-orange-300 font-black text-xs sm:text-sm tracking-wider truncate max-w-full">טוויסט</span>
+                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold truncate max-w-full" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</span>
+                        </div>
+                        <div className="bg-slate-950/80 border border-orange-500/30 rounded-xl px-2.5 sm:px-3 py-1 text-center shrink-0">
+                            <span className="text-[9px] text-orange-300 font-bold block leading-none mb-0.5">POT</span>
+                            <span className="text-orange-300 font-black text-sm leading-none" dir="ltr">{formatShort(T.status === 'showdown' ? (res?.amount || 0) : (T.pot || 0))}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 relative min-h-0 flex flex-col p-3 gap-2">
+                        {/* יריבים */}
+                        <div className="flex items-center justify-center gap-2.5 flex-wrap">
+                            {list.filter(p => p.uid !== user.uid).map(p => (
+                                <div key={p.uid} className={`flex items-center gap-2 bg-slate-900/85 px-2.5 py-1.5 rounded-2xl border relative ${T.turnUid === p.uid && T.status === 'playing' ? 'border-amber-400/70 shadow-[0_0_14px_rgba(250,204,21,0.3)]' : 'border-white/8'} ${p.left ? 'opacity-40' : ''}`}>
+                                    {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                                    <img src={avatarUrl(p)} className="w-9 h-9 rounded-xl bg-slate-800 shrink-0" />
+                                    <div className="min-w-0">
+                                        <div className="text-[11px] font-black text-white truncate max-w-[70px]">{p.name}</div>
+                                        <div className="text-[9px] text-slate-400 font-bold">{(p.cards || []).length} קלפים {p.twist && !p.left && <span className="text-orange-300 font-black animate-pulse">· טוויסט!</span>}</div>
+                                    </div>
+                                    {T.turnUid === p.uid && T.status === 'playing' && <span className="text-amber-300 font-mono font-black text-xs">{timeLeft}</span>}
+                                    {godView && <div className="absolute -bottom-9 right-0 flex" dir="ltr">{(p.cards || []).slice(0, 10).map(c => <div key={c.id} className="-ml-4 first:ml-0"><TCard c={c} small /></div>)}</div>}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* מרכז */}
+                        <div className="flex-1 flex items-center justify-center gap-6 sm:gap-10">
+                            <div className="flex flex-col items-center gap-1.5">
+                                <div onClick={() => isMyTurn && doDraw(user.uid)}
+                                     className={`w-14 h-20 rounded-xl bg-gradient-to-b from-orange-800 to-orange-950 border-2 border-orange-400/40 shadow-xl flex items-center justify-center ${isMyTurn ? 'cursor-pointer ring-2 ring-emerald-400' : ''} ${(T.drawStack || 0) > 0 && isMyTurn ? 'animate-pulse ring-rose-500' : ''}`}>
+                                    <span className="text-white/40 font-black">{(T.deck || []).length}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-bold">{(T.drawStack || 0) > 0 ? <span className="text-rose-400 font-black">קח +{T.drawStack}!</span> : 'קח קלף'}</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <div className="relative w-14 h-20">
+                                    {(T.pile || []).slice(-3).map((c, i, arr) => (
+                                        <div key={c.id} className="absolute" style={{ transform: `translate(${i * 3}px, ${-i * 3}px) rotate(${(i - 1) * 4}deg)`, zIndex: i }}>
+                                            <TCard c={c} />
+                                        </div>
+                                    ))}
+                                    {!(T.pile || []).length && <div className="w-full h-full border-2 border-dashed border-white/15 rounded-xl"></div>}
+                                </div>
+                                <span className="text-[10px] font-bold flex items-center gap-1.5">
+                                    <span className="text-slate-500">צבע:</span>
+                                    <span className={`text-base font-black ${effSuit === '♥' || effSuit === '♦' ? 'text-rose-400' : 'text-slate-200'}`}>{effSuit || '-'}</span>
+                                    <span className="text-slate-500" dir="ltr">{(T.dir || 1) === 1 ? '⟳' : '⟲'}</span>
+                                </span>
+                            </div>
+                        </div>
+                        {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
+
+                        {/* Setup */}
+                        {T.status === 'setup' && (
+                            <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-orange-500/40">
+                                    <i className="fa-solid fa-arrows-spin text-4xl text-orange-400 mb-2"></i>
+                                    <h3 className="text-xl font-black text-white mb-1">טוויסט - ממתין לשחקנים</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-1" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {list.length}/{maxP}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold mb-4">2 = קח שתיים (משורשר) · 8 = עצור · נסיך מחליף צבע · אס הופך כיוון · אסור לסיים בנסיך</p>
+                                    <div className="flex justify-center gap-3 mb-5 flex-wrap">
+                                        {list.map(p => (
+                                            <div key={p.uid} className="flex flex-col items-center">
+                                                <img src={avatarUrl(p)} className={`w-11 h-11 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-orange-500'}`} />
+                                                <span className="text-[10px] text-white font-bold mt-1 max-w-[64px] truncate">{p.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!isSeated && list.length < maxP && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
+                                    {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק ({list.length})</button>}
+                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Showdown */}
+                        {T.status === 'showdown' && res && !resHide && (
+                            <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-orange-500/40">
+                                    <i className="fa-solid fa-trophy text-4xl text-orange-300 mb-2 trophy-pop inline-block"></i>
+                                    <h3 className="text-2xl font-black text-white mb-1">{res.winnerName} ניצח!</h3>
+                                    {res.byForfeit && <div className="text-slate-400 font-bold text-xs mb-1">(כולם פרשו)</div>}
+                                    <div className="text-emerald-400 font-black text-xl mb-3" dir="ltr">+{formatMoney(res.amount)}</div>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש ({formatMoney(setts.buyIn)})</button>}
+                                        {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                        {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום 🚪</button>}
+                                        {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">👁 המשך לצפות</button>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* בחירת צבע לנסיך */}
+                        {jPick && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJPick(null)}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-orange-500/60 rounded-3xl p-6 text-center">
+                                    <h3 className="text-lg font-black text-white mb-4">נסיך! לאיזה צבע להחליף?</h3>
+                                    <div className="flex gap-3">
+                                        {['♠', '♥', '♦', '♣'].map(su => (
+                                            <button key={su} onClick={() => doPlay(user.uid, jPick, su)} className={`w-14 h-14 rounded-2xl bg-white text-3xl font-black shadow-lg hover:scale-110 transition-transform ${su === '♥' || su === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>{su}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        , document.body)}
+                    </div>
+
+                    {/* היד שלי */}
+                    <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-2 py-2 z-40">
+                        {isSeated && T.status === 'playing' && (
+                            <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
+                                {isMyTurn ? (
+                                    <React.Fragment>
+                                        <button onClick={() => {
+                                            if (!selected.length) return flashErr("בחר קלפים");
+                                            const c0 = (me.cards || []).find(c => c.id === selected[0]);
+                                            if (c0 && c0.v === 11) { setJPick([...selected]); return; }
+                                            doPlay(user.uid, selected);
+                                        }} className={`px-6 py-2.5 rounded-full font-black text-sm border-2 ${selected.length ? 'bg-gradient-to-b from-orange-500 to-orange-700 text-white border-orange-300 shadow-lg' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>שחק {selected.length > 1 ? `(${selected.length})` : ''}</button>
+                                        <button onClick={() => doDraw(user.uid)} className={`px-5 py-2.5 rounded-full font-black text-sm border-2 ${(T.drawStack || 0) > 0 ? 'bg-gradient-to-b from-rose-500 to-rose-700 text-white border-rose-300 animate-pulse' : 'bg-slate-800 text-slate-300 border-slate-600'}`}>{(T.drawStack || 0) > 0 ? `קח +${T.drawStack} 😬` : 'קח קלף'}</button>
+                                        <span className="text-[10px] text-amber-300 font-black">{timeLeft}s</span>
+                                    </React.Fragment>
+                                ) : <span className="text-[11px] font-bold text-slate-500">ממתין ל{(players[T.turnUid] || {}).name || ''}...</span>}
+                                {me && (me.cards || []).length === 1 && <span className="text-orange-300 font-black text-sm animate-pulse">🌀 טוויסט!</span>}
+                            </div>
+                        )}
+                        <div className="flex justify-center flex-wrap gap-1 min-h-[4.6rem] items-end px-1" dir="ltr">
+                            {isSeated && T.status === 'playing' && [...(me.cards || [])].sort((a, b) => (['♠', '♥', '♦', '♣'].indexOf(a.suit) - ['♠', '♥', '♦', '♣'].indexOf(b.suit)) || a.v - b.v).map(c => (
+                                <TCard key={c.id} c={c} sel={selected.includes(c.id)}
+                                       onClick={isMyTurn ? () => {
+                                           if (selected.includes(c.id)) setSelected(selected.filter(x => x !== c.id));
+                                           else if (selected.length && selRank !== c.v) setSelected([c.id]);
+                                           else setSelected([...selected, c.id]);
+                                       } : null} />
+                            ))}
+                            {(!isSeated || T.status !== 'playing') && <span className="text-slate-600 text-xs font-bold py-5">{isSeated ? 'ממתין לחלוקה...' : '👁️ מצב צפייה'}</span>}
+                        </div>
+                        {isSeated && T.status === 'playing' && <div className="text-center text-[9px] text-slate-600 font-bold mt-1">קלפים עם מסגרת כתומה = מיוחדים · אפשר להניח כמה קלפים באותו מספר יחד</div>}
+                    </div>
+
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-28 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                </div>
+            );
+        }
+
+        /* ================================================================
+           ג'ין רמי - מלדים, Knock, ג'ין, אנדרקאט והנחות. משחק ראשים עד יעד
+           ================================================================ */
+        const GIN_TIME = 30;
+        const ginVal = (c) => Math.min(c.v, 10);          // A=1, תמונות=10
+        const ginName = (v) => v === 1 ? 'A' : v === 11 ? 'J' : v === 12 ? 'Q' : v === 13 ? 'K' : String(v);
+        const ginDeck = () => {
+            const suits = ['♠', '♥', '♦', '♣'];
+            let d = [], i = 0;
+            for (const suit of suits) for (let v = 1; v <= 13; v++) d.push({ id: `g${i++}`, suit, v });
+            for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
+            return d;
+        };
+        // האופטימייזר: פירוק היד למלדים כך שה-Deadwood מינימלי
+        const ginBest = (cards) => {
+            const melds = [];
+            const byRank = {}, bySuit = {};
+            cards.forEach(c => { (byRank[c.v] = byRank[c.v] || []).push(c); (bySuit[c.suit] = bySuit[c.suit] || []).push(c); });
+            Object.values(byRank).forEach(g => {
+                if (g.length === 3) melds.push([...g]);
+                else if (g.length === 4) { melds.push([...g]); for (let i = 0; i < 4; i++) melds.push(g.filter((_, j) => j !== i)); }
+            });
+            Object.values(bySuit).forEach(g => {
+                const so = [...g].sort((a, b) => a.v - b.v);
+                for (let i = 0; i < so.length; i++) {
+                    let run = [so[i]];
+                    for (let j = i + 1; j < so.length; j++) {
+                        if (so[j].v === run[run.length - 1].v + 1) { run = [...run, so[j]]; if (run.length >= 3) melds.push([...run]); }
+                        else break;
+                    }
+                }
+            });
+            let best = { dw: cards.reduce((a, c) => a + ginVal(c), 0), melds: [] };
+            const search = (idx, used, chosen) => {
+                const rem = cards.filter(c => !used.has(c.id)).reduce((a, c) => a + ginVal(c), 0);
+                if (rem < best.dw) best = { dw: rem, melds: chosen.map(m => [...m]) };
+                for (let i = idx; i < melds.length; i++) {
+                    const m = melds[i];
+                    if (m.some(c => used.has(c.id))) continue;
+                    const u2 = new Set(used); m.forEach(c => u2.add(c.id));
+                    search(i + 1, u2, [...chosen, m]);
+                }
+            };
+            search(0, new Set(), []);
+            const meldIds = new Set(best.melds.flat().map(c => c.id));
+            return { dw: best.dw, melds: best.melds, dead: cards.filter(c => !meldIds.has(c.id)) };
+        };
+        // הנחות: המגן מוסיף קלפים על המלדים של הדופק
+        const ginLayoff = (deadCards, knockMelds) => {
+            let dead = [...deadCards], laid = [];
+            const melds = knockMelds.map(m => [...m]);
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (const m of melds) {
+                    const isSet = m.every(c => c.v === m[0].v);
+                    if (isSet) {
+                        if (m.length === 3) {
+                            const f = dead.find(c => c.v === m[0].v);
+                            if (f) { m.push(f); laid.push(f); dead = dead.filter(c => c.id !== f.id); changed = true; }
+                        }
+                    } else {
+                        const suit = m[0].suit, vs = m.map(c => c.v);
+                        const lo = Math.min(...vs), hi = Math.max(...vs);
+                        const fLo = dead.find(c => c.suit === suit && c.v === lo - 1);
+                        if (fLo) { m.push(fLo); laid.push(fLo); dead = dead.filter(c => c.id !== fLo.id); changed = true; continue; }
+                        const fHi = dead.find(c => c.suit === suit && c.v === hi + 1);
+                        if (fHi) { m.push(fHi); laid.push(fHi); dead = dead.filter(c => c.id !== fHi.id); changed = true; }
+                    }
+                }
+            }
+            return { laid, deadAfter: dead };
+        };
+        const ginTableDoc = (hostUid, settings) => ({
+            type: 'gin', clubId: CLUB_ID, createdAt: Date.now(), hostUid, status: 'setup',
+            settings: { ...settings }, players: {}, pot: 0, round: 0,
+            deck: [], discard: [], turnUid: null, phase: 'draw', dealerUid: null,
+            lastHand: null, nextHandAt: null, chat: [], lastResults: null, turnStartedAt: null, showdownAt: null
+        });
+
+        function GinTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
+            const [tableState, setTableState] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [timeLeft, setTimeLeft] = useState(GIN_TIME);
+            const [resHide, setResHide] = useState(false);
+            const [selected, setSelected] = useState(null);
+            const [errMsg, setErrMsg] = useState('');
+            const [godView, setGodView] = useState(false);
+            const tableRef = useRef(null);
+            const settlingRef = useRef(false);
+            const tblRef = () => window.fb.doc(window.fb.db, "tables", tableDocId);
+            const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(''), 3500); };
+            const clonePl = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v, cards: [...(v.cards || [])] }); return o; };
+
+            useEffect(() => {
+                if (!tableDocId) return;
+                const unsub = window.fb.onSnapshot(tblRef(), (snap) => {
+                    if (!snap.exists()) { showToast("השולחן נסגר", "info"); onLeave(); return; }
+                    const d = { id: snap.id, docId: snap.id, ...snap.data() };
+                    tableRef.current = d; setTableState(d); setLoading(false);
+                });
+                return () => unsub();
+            }, [tableDocId]);
+
+            const T = tableState || {};
+            const setts = T.settings || {};
+            const players = T.players || {};
+            const list = Object.values(players);
+            const me = players[user.uid];
+            const opp = list.find(p => p.uid !== user.uid) || null;
+            const isSeated = !!me;
+            const isHost = T.hostUid === user.uid;
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const isGod = isGodUser(user);
+            const isMyTurn = T.status === 'playing' && T.turnUid === user.uid;
+            const ch = useTableChat(tableState, tableDocId, user, 'gin', showToast);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), 2, null);
+            const target = Number(setts.target) || 100;
+            const myBest = useMemo(() => me && T.status === 'playing' ? ginBest(me.cards || []) : { dw: 0, melds: [], dead: [] }, [me && JSON.stringify((me.cards || []).map(c => c.id)), T.status]);
+            // האם מותר לדפוק עם ההשלכה שנבחרה
+            const knockInfo = useMemo(() => {
+                if (!me || !isMyTurn || T.phase !== 'discard' || !selected) return null;
+                const after = (me.cards || []).filter(c => c.id !== selected);
+                if (after.length !== 10) return null;
+                const b = ginBest(after);
+                return b.dw <= 10 ? { dw: b.dw, gin: b.dw === 0 } : null;
+            }, [selected, isMyTurn, T.phase, me && JSON.stringify((me.cards || []).map(c => c.id))]);
+
+            /* ---------- הצטרפות / התחלה / עזיבה ---------- */
+            const handleJoin = async () => {
+                try {
+                    let becameFull = false;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const t = snap.data();
+                        if (t.players[user.uid]) return;
+                        if (Object.keys(t.players).length >= 2) throw "השולחן מלא";
+                        const ms = await tr.get(memDoc(user.uid));
+                        if (!ms.exists() || (ms.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק צ'יפים";
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', cards: [], score: 0, isBot: false, left: false } });
+                        becameFull = Object.keys(t.players).length + 1 >= 2;
+                    });
+                    playSnd('chip');
+                    if (becameFull) spawnTwinTable(tableRef.current);
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const handleAddBot = async () => {
+                try {
+                    if (list.length >= 2) return;
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const bs = await window.fb.getDocs(botQ);
+                    const used = new Set(Object.keys(players));
+                    const bots = bs.docs.filter(d => !used.has(d.id));
+                    if (!bots.length) return showToast("אין בוטים פנויים", "error");
+                    const b = bots[Math.floor(Math.random() * bots.length)];
+                    await window.fb.updateDoc(tblRef(), { [`players.${b.id}`]: { uid: b.id, name: b.data().username, photo: '', avatarSeed: b.data().avatarSeed || b.id, cards: [], score: 0, isBot: true, left: false } });
+                } catch(e) {}
+            };
+            const dealHand = (pl, dealerUid) => {
+                const d = ginDeck();
+                const uids = Object.keys(pl);
+                const nonDealer = uids.find(u => u !== dealerUid) || uids[0];
+                uids.forEach(u => { pl[u].cards = []; });
+                for (let i = 0; i < 10; i++) for (const u of uids) pl[u].cards.push(d.pop());
+                const open = d.pop();
+                return { players: pl, deck: d, discard: [open], turnUid: nonDealer, phase: 'draw', lastHand: null, nextHandAt: null, turnStartedAt: Date.now() };
+            };
+            const startGame = async () => {
+                const t = tableRef.current; if (!t) return;
+                if (!(t.hostUid === user.uid || isSuperAdmin)) return;
+                if (!['setup', 'showdown'].includes(t.status)) return;
+                if (Object.keys(t.players).length < 2) return showToast("צריך 2 שחקנים", "error");
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const tbl = snap.data();
+                        if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
+                        const buyIn = Number(tbl.settings.buyIn) || 0;
+                        const base = {};
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], score: 0, left: false });
+                        const humans = Object.keys(base).filter(u => !base[u].isBot);
+                        const reads = {};
+                        for (const u of humans) {
+                            const ms = await tr.get(memDoc(u));
+                            if (!ms.exists() || (ms.data().balance || 0) < buyIn) throw `ל${base[u].name} אין מספיק צ'יפים`;
+                            reads[u] = ms;
+                        }
+                        for (const u of humans) tr.update(reads[u].ref, { balance: round2((reads[u].data().balance || 0) - buyIn) });
+                        const dealer = Object.keys(base)[Math.floor(Math.random() * Object.keys(base).length)];
+                        const deal = dealHand(base, dealer);
+                        tr.update(tblRef(), {
+                            status: 'playing', pot: round2(buyIn * humans.length), round: 1, dealerUid: dealer,
+                            ...deal, lastResults: null, showdownAt: null
+                        });
+                    });
+                    playSnd('deal');
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const handleLeave = async () => {
+                const t = tableRef.current;
+                if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (['playing', 'hand_end'].includes(t.status)) {
+                    if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני וויתור על דמי הכניסה. בטוח?")) return;
+                    const oppP = Object.values(t.players).find(p => p.uid !== user.uid);
+                    if (oppP) await settleGin(oppP.uid, true);
+                    onLeave(); return;
+                }
+                try {
+                    const pl = { ...t.players }; delete pl[user.uid];
+                    if (Object.keys(pl).length === 0) await window.fb.deleteDoc(tblRef());
+                    else await window.fb.updateDoc(tblRef(), { players: pl });
+                } catch(e) {}
+                onLeave();
+            };
+
+            /* ---------- מהלכי משחק ---------- */
+            const doDraw = async (uid, fromDeck) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.turnUid !== uid || t.phase !== 'draw') return;
+                const pl = clonePl(t.players);
+                const p = pl[uid]; if (!p) return;
+                let deck = [...(t.deck || [])], disc = [...(t.discard || [])];
+                if (fromDeck) {
+                    if (deck.length <= 2) {
+                        // הקופה אזלה - יד בטלה, מחלקים מחדש
+                        const deal = dealHand(pl, t.dealerUid);
+                        await window.fb.updateDoc(tblRef(), { ...deal, lastHand: { type: 'void' }, round: (t.round || 1) + 1 });
+                        if (uid === user.uid) showToast("הקופה אזלה - יד בטלה, מחלקים מחדש 🔄", "info");
+                        return;
+                    }
+                    p.cards.push(deck.pop());
+                } else {
+                    if (!disc.length) { if (uid === user.uid) flashErr("אין קלף גלוי"); return; }
+                    p.cards.push(disc.pop());
+                }
+                await window.fb.updateDoc(tblRef(), { players: pl, deck, discard: disc, phase: 'discard', turnStartedAt: Date.now() });
+                playSnd('chip');
+            };
+            const doDiscard = async (uid, cardId, knock) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.turnUid !== uid || t.phase !== 'discard') return;
+                const pl = clonePl(t.players);
+                const p = pl[uid]; if (!p) return;
+                const idx = p.cards.findIndex(c => c.id === cardId);
+                if (idx === -1) return;
+                const card = p.cards.splice(idx, 1)[0];
+                const disc = [...(t.discard || []), card];
+                if (knock) {
+                    const kb = ginBest(p.cards);
+                    if (kb.dw > 10) { p.cards.push(card); if (uid === user.uid) flashErr("Knock מותר רק עם עד 10 נקודות עודף"); return; }
+                    const oppUid = Object.keys(pl).find(u => u !== uid);
+                    const ob = ginBest(pl[oppUid].cards);
+                    let entry;
+                    if (kb.dw === 0) {
+                        entry = { type: 'gin', by: uid, byName: p.name, pts: 25 + ob.dw, kdw: 0, ddw: ob.dw };
+                        p.score = (p.score || 0) + entry.pts;
+                    } else {
+                        const lay = ginLayoff(ob.dead, kb.melds);
+                        const ddw = lay.deadAfter.reduce((a, c) => a + ginVal(c), 0);
+                        if (ddw <= kb.dw) {
+                            entry = { type: 'undercut', by: oppUid, byName: pl[oppUid].name, pts: 25 + (kb.dw - ddw), kdw: kb.dw, ddw, laid: lay.laid.length };
+                            pl[oppUid].score = (pl[oppUid].score || 0) + entry.pts;
+                        } else {
+                            entry = { type: 'knock', by: uid, byName: p.name, pts: ddw - kb.dw, kdw: kb.dw, ddw, laid: lay.laid.length };
+                            p.score = (p.score || 0) + entry.pts;
+                        }
+                    }
+                    const winnerNow = Object.values(pl).find(q => (q.score || 0) >= target);
+                    await window.fb.updateDoc(tblRef(), {
+                        players: pl, discard: disc, turnUid: null, phase: 'draw',
+                        status: 'hand_end', lastHand: entry, dealerUid: entry.by === uid ? Object.keys(pl).find(u => u !== uid) : uid,
+                        nextHandAt: winnerNow ? null : Date.now() + 7000
+                    });
+                    playSnd(entry.type === 'undercut' ? 'fold' : 'win');
+                    if (winnerNow) setTimeout(() => settleGin(winnerNow.uid, false), 1800);
+                    if (uid === user.uid) setSelected(null);
+                    return;
+                }
+                const nxt = Object.keys(pl).find(u => u !== uid);
+                await window.fb.updateDoc(tblRef(), { players: pl, discard: disc, turnUid: nxt, phase: 'draw', turnStartedAt: Date.now() });
+                playSnd('tile');
+                if (uid === user.uid) setSelected(null);
+            };
+            // מעבר ליד הבאה (מריץ המארח/אדמין)
+            useEffect(() => {
+                if (!tableState || T.status !== 'hand_end' || !T.nextHandAt) return;
+                if (!(isHost || isSuperAdmin)) return;
+                const tm = setTimeout(async () => {
+                    const t = tableRef.current;
+                    if (!t || t.status !== 'hand_end' || !t.nextHandAt) return;
+                    const pl = clonePl(t.players);
+                    const deal = dealHand(pl, t.dealerUid);
+                    try { await window.fb.updateDoc(tblRef(), { ...deal, status: 'playing', round: (t.round || 1) + 1 }); playSnd('deal'); } catch(e) {}
+                }, Math.max(300, T.nextHandAt - Date.now()));
+                return () => clearTimeout(tm);
+            }, [T.status, T.nextHandAt, isHost, isSuperAdmin]);
+
+            /* ---------- סליקה ---------- */
+            const settleGin = async (winnerUid, byForfeit) => {
+                if (settlingRef.current) return;
+                settlingRef.current = true;
+                try {
+                    const t = tableRef.current; if (!t) return;
+                    const pl = clonePl(t.players);
+                    const pot = t.pot || 0;
+                    const rake = round2(pot * ((Number(setts.rakePercent) || 0) / 100));
+                    const net = round2(pot - rake);
+                    const winner = pl[winnerUid];
+                    const logEntries = [];
+                    const buyIn = Number(setts.buyIn) || 0;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const reads = {};
+                        for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
+                        for (const p of Object.values(pl)) {
+                            const sm = reads[p.uid]; if (!sm) continue;
+                            const won = p.uid === winnerUid;
+                            const prize = won && !winner.isBot ? net : 0;
+                            const st = sm.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            const profit = round2(prize - buyIn);
+                            tr.update(sm.ref, {
+                                balance: round2((sm.data().balance || 0) + prize),
+                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
+                                'stats.gamesWon': (st.gamesWon || 0) + (won ? 1 : 0),
+                                'stats.totalProfit': round2((st.totalProfit || 0) + profit)
+                            });
+                            logEntries.push({ uid: p.uid, username: p.name, game: 'gin', profit });
+                        }
+                        tr.update(tblRef(), {
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, nextHandAt: null,
+                            lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, scores: Object.values(pl).map(p => ({ name: p.name, score: p.score || 0 })), endedAt: Date.now() }
+                        });
+                    });
+                    if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
+                    playSnd('win');
+                    if (logEntries.length) logGameResult(logEntries, tableDocId);
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot).map(p => p.uid));
+                } catch(e) {} finally { settlingRef.current = false; }
+            };
+
+            /* ---------- אוטומט ובוטים ---------- */
+            const autoAct = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || t.turnUid !== uid) return;
+                const p = t.players[uid]; if (!p) return;
+                if (t.phase === 'draw') {
+                    const top = (t.discard || [])[(t.discard || []).length - 1];
+                    let take = false;
+                    if (top) {
+                        const withTop = ginBest([...p.cards, top]);
+                        take = withTop.dw + ginVal(top) < ginBest(p.cards).dw || withTop.melds.some(m => m.some(c => c.id === top.id));
+                    }
+                    await doDraw(uid, !take);
+                    return;
+                }
+                // בחירת ההשלכה הטובה ביותר
+                let bestId = null, bestDw = 999;
+                for (const c of p.cards) {
+                    const b = ginBest(p.cards.filter(x => x.id !== c.id));
+                    if (b.dw < bestDw) { bestDw = b.dw; bestId = c.id; }
+                }
+                await doDiscard(uid, bestId, bestDw <= 10 && p.isBot);
+            };
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState || T.status !== 'playing') return;
+                const p = players[T.turnUid];
+                if (p && p.isBot) {
+                    const tm = setTimeout(() => autoAct(T.turnUid), 1000);
+                    return () => clearTimeout(tm);
+                }
+            }, [T.turnUid, T.phase, T.status, isSuperAdmin]);
+            useEffect(() => {
+                let iv;
+                if (T.status === 'playing' && T.turnStartedAt) {
+                    iv = setInterval(() => {
+                        const rem = Math.max(0, GIN_TIME - Math.floor((Date.now() - T.turnStartedAt) / 1000));
+                        setTimeLeft(rem);
+                        if (rem === 0 && T.turnUid === user.uid) { clearInterval(iv); autoAct(user.uid); }
+                    }, 1000);
+                }
+                return () => clearInterval(iv);
+            }, [T.status, T.turnStartedAt, T.turnUid, T.phase]);
+            useEffect(() => { if (isMyTurn && T.phase === 'draw') playSnd('turn'); }, [T.turnUid]);
+
+            /* ---------- רינדור ---------- */
+            const GCard = ({ c, sel, meld, onClick, small }) => (
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-15 sm:w-13 sm:h-[4.5rem] text-sm'} w-11 h-16 sm:w-12 sm:h-[4.4rem] rounded-lg bg-gradient-to-b from-white to-slate-200 shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
+                    <span className="leading-none">{ginName(c.v)}</span>
+                    <span className="leading-none">{c.suit}</span>
+                </div>
+            );
+            const res = T.lastResults;
+            const topDisc = (T.discard || [])[(T.discard || []).length - 1];
+            const meldIds = new Set(myBest.melds.flat().map(c => c.id));
+            const sortedHand = me ? [...myBest.melds.flat(), ...myBest.dead.sort((a, b) => b.v - a.v)] : [];
+
+            if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
+
+            return (
+                <div className="h-full w-full flex flex-col bg-slate-950 font-sans overflow-hidden select-none" dir="rtl"
+                     style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a2436 0%, #020617 60%)' }}>
+                    <div className="min-h-[3.5rem] bg-slate-900/80 backdrop-blur-md border-b border-white/5 flex justify-between items-center gap-1.5 px-2 sm:px-3 py-1.5 shrink-0 z-40">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                            <button onClick={handleLeave} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-700 hover:text-white text-xs font-bold border border-white/10"><i className="fa-solid fa-door-open ml-1"></i>{isSeated ? 'קום' : 'יציאה'}</button>
+                            {isSuperAdmin && ['setup', 'showdown'].includes(T.status) && <button onClick={handleAddBot} className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-purple-300 text-[10px] font-black border border-white/10"><i className="fa-solid fa-robot"></i></button>}
+                            {isGod && <button onClick={() => setGodView(!godView)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${godView ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800 text-purple-400 border-white/10'}`}><i className="fa-solid fa-eye ml-1"></i>GOD</button>}
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col items-center px-1">
+                            <span className="text-lime-300 font-black text-xs sm:text-sm tracking-wider truncate max-w-full">ג'ין רמי · עד {target}</span>
+                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold truncate max-w-full" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</span>
+                        </div>
+                        <div className="bg-slate-950/80 border border-lime-500/30 rounded-xl px-2.5 sm:px-3 py-1 text-center shrink-0">
+                            <span className="text-[9px] text-lime-300 font-bold block leading-none mb-0.5">POT</span>
+                            <span className="text-lime-300 font-black text-sm leading-none" dir="ltr">{formatShort(T.status === 'showdown' ? (res?.amount || 0) : (T.pot || 0))}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 relative min-h-0 flex flex-col p-3 gap-2">
+                        {/* היריב */}
+                        <div className="flex items-center justify-center gap-3">
+                            {opp && (
+                                <div className="flex items-center gap-2.5 bg-slate-900/85 px-3 py-2 rounded-2xl border border-white/8 relative">
+                                    {ch.bubbles[opp.uid] && <div className="chat-bubble">{ch.bubbles[opp.uid]}</div>}
+                                    <img src={avatarUrl(opp)} className="w-10 h-10 rounded-xl bg-slate-800" />
+                                    <div>
+                                        <div className="text-xs font-black text-white truncate max-w-[90px]">{opp.name}</div>
+                                        <div className="text-[10px] text-lime-300 font-black">{opp.score || 0} נק'</div>
+                                    </div>
+                                    {T.status === 'playing' && T.turnUid === opp.uid && <span className="text-amber-300 font-mono font-black text-sm">{timeLeft}</span>}
+                                </div>
+                            )}
+                            {T.status === 'playing' && opp && (
+                                <div className="flex" dir="ltr">
+                                    {godView
+                                        ? [...(opp.cards || [])].sort((a, b) => a.suit.localeCompare(b.suit) || a.v - b.v).map(c => <div key={c.id} className="-ml-4 first:ml-0"><GCard c={c} small /></div>)
+                                        : Array((opp.cards || []).length).fill(0).map((_, i) => <div key={i} className="w-5 h-8 rounded bg-gradient-to-b from-rose-800 to-rose-950 border border-rose-400/40 -ml-3 first:ml-0 shadow"></div>)}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* מרכז: קופה סגורה + גלויה */}
+                        <div className="flex-1 flex items-center justify-center gap-8">
+                            <div className="flex flex-col items-center gap-1.5">
+                                <div onClick={() => isMyTurn && T.phase === 'draw' && doDraw(user.uid, true)}
+                                     className={`w-14 h-20 rounded-xl bg-gradient-to-b from-rose-800 to-rose-950 border-2 border-rose-400/40 shadow-xl flex items-center justify-center relative ${isMyTurn && T.phase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400 animate-pulse' : ''}`}>
+                                    <span className="text-white/40 font-black">{(T.deck || []).length}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-bold">קופה סגורה</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <div onClick={() => isMyTurn && T.phase === 'draw' && doDraw(user.uid, false)}
+                                     className={`w-14 h-20 rounded-xl ${isMyTurn && T.phase === 'draw' && topDisc ? 'cursor-pointer ring-2 ring-emerald-400' : ''} flex items-center justify-center`}>
+                                    {topDisc ? <GCard c={topDisc} /> : <div className="w-full h-full border-2 border-dashed border-white/15 rounded-xl"></div>}
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-bold">קופה גלויה</span>
+                            </div>
+                        </div>
+                        {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
+
+                        {/* Setup */}
+                        {T.status === 'setup' && (
+                            <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-lime-500/40">
+                                    <i className="fa-solid fa-layer-group text-4xl text-lime-400 mb-2"></i>
+                                    <h3 className="text-xl font-black text-white mb-1">ג'ין רמי - ממתין ליריב</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-1" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {list.length}/2 · עד {target} נק'</p>
+                                    <p className="text-[10px] text-slate-500 font-bold mb-4">מלדים: שלשות/רביעיות או רצפים · Knock עד 10 עודף · ג'ין = בונוס 25 · אנדרקאט = 25 למגן</p>
+                                    <div className="flex justify-center gap-4 mb-5">
+                                        {list.map(p => (
+                                            <div key={p.uid} className="flex flex-col items-center">
+                                                <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-lime-500'}`} />
+                                                <span className="text-[10px] text-white font-bold mt-1 max-w-[70px] truncate">{p.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!isSeated && list.length < 2 && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-lime-500 to-lime-700 hover:from-lime-400 text-slate-900 py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
+                                    {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>}
+                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* סוף יד */}
+                        {T.status === 'hand_end' && T.lastHand && T.lastHand.type !== 'void' && (
+                            <div className="absolute inset-0 z-[90] bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-5 w-full max-w-xs text-center animate-pop-in border border-lime-500/40">
+                                    <div className="text-3xl mb-1">{T.lastHand.type === 'gin' ? '✨' : T.lastHand.type === 'undercut' ? '🔪' : '🚪'}</div>
+                                    <h3 className="text-lg font-black text-white mb-0.5">{T.lastHand.type === 'gin' ? "ג'ין!" : T.lastHand.type === 'undercut' ? 'אנדרקאט!' : 'Knock'}</h3>
+                                    <p className="text-lime-300 font-black text-sm mb-1">{T.lastHand.byName} +{T.lastHand.pts} נק'</p>
+                                    <p className="text-[10px] text-slate-400 font-bold mb-2" dir="ltr">עודף דופק: {T.lastHand.kdw} · עודף מגן: {T.lastHand.ddw}{T.lastHand.laid ? ` · הונחו ${T.lastHand.laid}` : ''}</p>
+                                    <div className="flex justify-center gap-4 text-xs font-black">
+                                        {list.map(p => <span key={p.uid} className="text-white">{p.name}: <span className="text-lime-300">{p.score || 0}</span></span>)}
+                                    </div>
+                                    {T.nextHandAt && <p className="text-[10px] text-slate-500 font-bold mt-2 animate-pulse">יד חדשה עוד רגע...</p>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Showdown */}
+                        {T.status === 'showdown' && res && !resHide && (
+                            <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-lime-500/40">
+                                    <i className="fa-solid fa-trophy text-4xl text-lime-300 mb-2 trophy-pop inline-block"></i>
+                                    <h3 className="text-2xl font-black text-white mb-1">{res.winnerName} ניצח!</h3>
+                                    {res.byForfeit && <div className="text-slate-400 font-bold text-xs mb-1">(היריב פרש)</div>}
+                                    <div className="text-emerald-400 font-black text-xl mb-1" dir="ltr">+{formatMoney(res.amount)}</div>
+                                    <div className="text-[11px] text-slate-400 font-bold mb-3">{(res.scores || []).map(x => `${x.name}: ${x.score}`).join(' · ')}</div>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש ({formatMoney(setts.buyIn)})</button>}
+                                        {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                        {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום 🚪</button>}
+                                        {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">👁 המשך לצפות</button>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* היד שלי + פעולות */}
+                    <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-2 py-2 z-40">
+                        {isSeated && T.status === 'playing' && (
+                            <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
+                                {isMyTurn && T.phase === 'draw' && <span className="text-[11px] font-black text-amber-300 animate-pulse">תורך - משוך מהקופה הסגורה או הגלויה · {timeLeft}s</span>}
+                                {isMyTurn && T.phase === 'discard' && (
+                                    <React.Fragment>
+                                        <button onClick={() => selected ? doDiscard(user.uid, selected, false) : flashErr("בחר קלף להשלכה")} className={`px-5 py-2.5 rounded-full font-black text-sm border-2 ${selected ? 'bg-gradient-to-b from-sky-500 to-sky-700 text-white border-sky-300' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>השלך</button>
+                                        {knockInfo && <button onClick={() => doDiscard(user.uid, selected, true)} className="px-5 py-2.5 rounded-full font-black text-sm border-2 bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.7)] animate-pulse">{knockInfo.gin ? "✨ ג'ין!" : `🚪 Knock (${knockInfo.dw})`}</button>}
+                                        <span className="text-[10px] text-slate-500 font-bold">{timeLeft}s</span>
+                                    </React.Fragment>
+                                )}
+                                {!isMyTurn && <span className="text-[11px] font-bold text-slate-500">תור היריב...</span>}
+                                <span className={`px-3 py-1 rounded-full text-xs font-black border ${myBest.dw <= 10 ? 'text-lime-300 border-lime-500/60 bg-lime-500/10' : 'text-slate-300 border-slate-700 bg-slate-900'}`}>עודף: {myBest.dw}</span>
+                                <span className="text-[10px] text-lime-300 font-black">אתה: {(me || {}).score || 0} נק'</span>
+                            </div>
+                        )}
+                        <div className="flex justify-center flex-wrap gap-1 min-h-[4.6rem] items-end px-1" dir="ltr">
+                            {isSeated && ['playing', 'hand_end'].includes(T.status) && sortedHand.map(c => (
+                                <GCard key={c.id} c={c} meld={meldIds.has(c.id)} sel={selected === c.id}
+                                       onClick={isMyTurn && T.phase === 'discard' ? () => setSelected(selected === c.id ? null : c.id) : null} />
+                            ))}
+                            {(!isSeated || T.status === 'setup' || T.status === 'showdown') && <span className="text-slate-600 text-xs font-bold py-5">{isSeated ? 'ממתין לחלוקה...' : '👁️ מצב צפייה'}</span>}
+                        </div>
+                        {isSeated && T.status === 'playing' && <div className="text-center text-[9px] text-slate-600 font-bold mt-1">קלפים במסגרת ירוקה = מלדים · השאר = עודף (Deadwood)</div>}
+                    </div>
+
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-28 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                </div>
+            );
+        }
+
+        /* ================================================================
+           ברידג' - מכרז, כרוז ודומם, 13 לקיחות, ניקוד חוזה
+           ================================================================ */
+        const BR_TIME = 30;
+        const BR_DENOMS = ['♣', '♦', '♥', '♠', 'NT'];
+        const BR_SEATS = ['צפון', 'מזרח', 'דרום', 'מערב'];
+        const brDeck = () => {
+            const suits = ['♠', '♥', '♦', '♣'];
+            let d = [], i = 0;
+            for (const suit of suits) for (let v = 2; v <= 14; v++) d.push({ id: `b${i++}`, suit, v });
+            for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
+            return d;
+        };
+        const brRankName = (v) => v === 14 ? 'A' : v === 13 ? 'K' : v === 12 ? 'Q' : v === 11 ? 'J' : String(v);
+        const brBidRank = (b) => b.level * 5 + BR_DENOMS.indexOf(b.denom);
+        const brSide = (seat) => seat % 2 === 0 ? 'NS' : 'EW';
+        const brHCP = (cards) => cards.reduce((a, c) => a + (c.v === 14 ? 4 : c.v === 13 ? 3 : c.v === 12 ? 2 : c.v === 11 ? 1 : 0), 0);
+        const bridgeTableDoc = (hostUid, settings) => ({
+            type: 'bridge', clubId: CLUB_ID, createdAt: Date.now(), hostUid, status: 'setup',
+            settings: { ...settings }, players: {}, pot: 0,
+            phase: 'auction', dealerSeat: 0, turnSeat: 0, bids: [], contract: null,
+            hands: { 0: [], 1: [], 2: [], 3: [] }, trick: [], lastTrick: null, tricksNS: 0, tricksEW: 0, dummyOpen: false,
+            chat: [], lastResults: null, turnStartedAt: null, showdownAt: null
+        });
+
+        function BridgeTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
+            const [tableState, setTableState] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [timeLeft, setTimeLeft] = useState(BR_TIME);
+            const [resHide, setResHide] = useState(false);
+            const [bidSel, setBidSel] = useState({ lv: 0, dn: '' });
+            const [errMsg, setErrMsg] = useState('');
+            const [godView, setGodView] = useState(false);
+            const tableRef = useRef(null);
+            const settlingRef = useRef(false);
+            const tblRef = () => window.fb.doc(window.fb.db, "tables", tableDocId);
+            const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(''), 3500); };
+            const clonePl = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v }); return o; };
+            const cloneHands = (h) => { const o = {}; [0, 1, 2, 3].forEach(i => o[i] = [...((h || {})[i] || [])]); return o; };
+
+            useEffect(() => {
+                if (!tableDocId) return;
+                const unsub = window.fb.onSnapshot(tblRef(), (snap) => {
+                    if (!snap.exists()) { showToast("השולחן נסגר", "info"); onLeave(); return; }
+                    const d = { id: snap.id, docId: snap.id, ...snap.data() };
+                    tableRef.current = d; setTableState(d); setLoading(false);
+                });
+                return () => unsub();
+            }, [tableDocId]);
+
+            const T = tableState || {};
+            const setts = T.settings || {};
+            const players = T.players || {};
+            const list = Object.values(players).sort((a, b) => a.seat - b.seat);
+            const me = players[user.uid];
+            const isSeated = !!me;
+            const isHost = T.hostUid === user.uid;
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const isGod = isGodUser(user);
+            const ch = useTableChat(tableState, tableDocId, user, 'bridge', showToast);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), 4, null);
+
+            const seatOwner = (seat) => list.find(p => p.seat === seat) || null;
+            const dummySeat = T.contract ? (T.contract.declarer + 2) % 4 : -1;
+            const declSeat = T.contract ? T.contract.declarer : -1;
+            // מי מפעיל את המושב: הדומם נשלט ע"י הכרוז
+            const actorOf = (seat) => {
+                if (T.phase === 'play' && T.contract && seat === dummySeat) return seatOwner(declSeat);
+                return seatOwner(seat);
+            };
+            const iControlTurn = T.status === 'playing' && actorOf(T.turnSeat) && actorOf(T.turnSeat).uid === user.uid;
+
+            /* ---------- הצטרפות / עזיבה / התחלה ---------- */
+            const handleJoin = async () => {
+                try {
+                    let becameFull = false;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const t = snap.data();
+                        if (t.players[user.uid]) return;
+                        const taken = new Set(Object.values(t.players).map(p => p.seat));
+                        if (taken.size >= 4) throw "השולחן מלא";
+                        let seat = 0; while (taken.has(seat)) seat++;
+                        const ms = await tr.get(memDoc(user.uid));
+                        if (!ms.exists() || (ms.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק צ'יפים לדמי הכניסה";
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seat, isBot: false, left: false } });
+                        becameFull = taken.size + 1 >= 4;
+                    });
+                    playSnd('chip');
+                    if (becameFull) spawnTwinTable(tableRef.current);
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const handleAddBot = async () => {
+                try {
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const bs = await window.fb.getDocs(botQ);
+                    const used = new Set(Object.keys(players));
+                    const bots = bs.docs.filter(d => !used.has(d.id));
+                    if (!bots.length) return showToast("אין בוטים פנויים - צור בוטים בדשבורד", "error");
+                    const b = bots[Math.floor(Math.random() * bots.length)];
+                    const taken = new Set(list.map(p => p.seat));
+                    if (taken.size >= 4) return;
+                    let seat = 0; while (taken.has(seat)) seat++;
+                    await window.fb.updateDoc(tblRef(), { [`players.${b.id}`]: { uid: b.id, name: b.data().username, photo: '', avatarSeed: b.data().avatarSeed || b.id, seat, isBot: true, left: false } });
+                } catch(e) {}
+            };
+            const handleLeave = async () => {
+                const t = tableRef.current;
+                if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'playing') {
+                    if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני לצמד שלך וויתור על דמי הכניסה. בטוח?")) return;
+                    await settleBridge(null, brSide(t.players[user.uid].seat) === 'NS' ? 'EW' : 'NS', true);
+                    onLeave(); return;
+                }
+                try {
+                    const pl = { ...t.players }; delete pl[user.uid];
+                    if (Object.keys(pl).length === 0) await window.fb.deleteDoc(tblRef());
+                    else await window.fb.updateDoc(tblRef(), { players: pl });
+                } catch(e) {}
+                onLeave();
+            };
+            const startGame = async () => {
+                const t = tableRef.current; if (!t) return;
+                if (!(t.hostUid === user.uid || isSuperAdmin)) return;
+                if (!['setup', 'showdown'].includes(t.status)) return;
+                if (Object.keys(t.players).length < 4) return showToast("ברידג' דורש בדיוק 4 שחקנים", "error");
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "err";
+                        const tbl = snap.data();
+                        if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
+                        const buyIn = Number(tbl.settings.buyIn) || 0;
+                        const base = {};
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, left: false });
+                        const uids = Object.keys(base);
+                        if (uids.length < 4) throw "צריך 4 שחקנים";
+                        const humans = uids.filter(u => !base[u].isBot);
+                        const reads = {};
+                        for (const u of humans) {
+                            const ms = await tr.get(memDoc(u));
+                            if (!ms.exists() || (ms.data().balance || 0) < buyIn) throw `ל${base[u].name} אין מספיק צ'יפים`;
+                            reads[u] = ms;
+                        }
+                        for (const u of humans) tr.update(reads[u].ref, { balance: round2((reads[u].data().balance || 0) - buyIn) });
+                        const d = brDeck();
+                        const hands = { 0: [], 1: [], 2: [], 3: [] };
+                        for (let i = 0; i < 52; i++) hands[i % 4].push(d[i]);
+                        const dealer = ((Number(tbl.dealerSeat) || 0) + 1) % 4;
+                        tr.update(tblRef(), {
+                            status: 'playing', players: base, pot: round2(buyIn * humans.length),
+                            phase: 'auction', dealerSeat: dealer, turnSeat: dealer, bids: [], contract: null,
+                            hands, trick: [], lastTrick: null, tricksNS: 0, tricksEW: 0, dummyOpen: false,
+                            lastResults: null, showdownAt: null, turnStartedAt: Date.now()
+                        });
+                    });
+                    playSnd('deal');
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
+            };
+
+            /* ---------- מכרז ---------- */
+            const lastRealBid = (bids) => [...(bids || [])].reverse().find(b => b.type === 'bid') || null;
+            const doBid = async (seat, action) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.phase !== 'auction' || t.turnSeat !== seat) return;
+                const bids = [...(t.bids || [])];
+                const last = lastRealBid(bids);
+                if (action.type === 'bid') {
+                    if (last && brBidRank(action) <= brBidRank(last)) { flashErr("ההכרזה חייבת להיות גבוהה מהקודמת"); return; }
+                } else if (action.type === 'dbl') {
+                    if (!last) return flashErr("אין מה להכפיל");
+                    const after = bids.slice(bids.findIndex(b => b === last) + 1);
+                    if (after.some(b => b.type === 'dbl' || b.type === 'rdbl')) return flashErr("כבר הוכפל");
+                    if (brSide(last.seat) === brSide(seat)) return flashErr("מכפילים רק הכרזה של היריבים");
+                } else if (action.type === 'rdbl') {
+                    if (!last) return;
+                    const after = bids.slice(bids.findIndex(b => b === last) + 1);
+                    const dbl = after.find(b => b.type === 'dbl');
+                    if (!dbl || after.some(b => b.type === 'rdbl')) return flashErr("ריכפול רק אחרי כפול של היריבים");
+                    if (brSide(seat) !== brSide(last.seat)) return flashErr("רק הצד המוכרז מרכפל");
+                }
+                bids.push({ seat, ...action });
+                const upd = { bids, turnSeat: (seat + 1) % 4, turnStartedAt: Date.now() };
+                // סיום המכרז
+                const n = bids.length;
+                if (n >= 4 && bids.slice(-3).every(b => b.type === 'pass') && bids.some(b => b.type === 'bid')) {
+                    const win = lastRealBid(bids);
+                    const side = brSide(win.seat);
+                    const decl = bids.find(b => b.type === 'bid' && b.denom === win.denom && brSide(b.seat) === side).seat;
+                    const afterWin = bids.slice(bids.findIndex(b => b === win) + 1);
+                    const dblLvl = afterWin.some(b => b.type === 'rdbl') ? 2 : afterWin.some(b => b.type === 'dbl') ? 1 : 0;
+                    upd.contract = { level: win.level, denom: win.denom, declarer: decl, dbl: dblLvl };
+                    upd.phase = 'play';
+                    upd.turnSeat = (decl + 1) % 4;
+                    upd.dummyOpen = false;
+                    playSnd('win');
+                } else if (n === 4 && bids.every(b => b.type === 'pass')) {
+                    // ארבעה פאסים - חלוקה מחדש
+                    const d = brDeck();
+                    const hands = { 0: [], 1: [], 2: [], 3: [] };
+                    for (let i = 0; i < 52; i++) hands[i % 4].push(d[i]);
+                    const dealer = (t.dealerSeat + 1) % 4;
+                    Object.assign(upd, { bids: [], hands, dealerSeat: dealer, turnSeat: dealer });
+                    if (user.uid === (seatOwner(seat) || {}).uid) showToast("כולם עברו - מחלקים מחדש 🔄", "info");
+                }
+                await window.fb.updateDoc(tblRef(), upd);
+                playSnd(action.type === 'pass' ? 'fold' : 'chip');
+                setBidSel({ lv: 0, dn: '' });
+            };
+
+            /* ---------- משחק הלקיחות ---------- */
+            const legalCards = (t, seat) => {
+                const hand = (t.hands || {})[seat] || [];
+                if (!t.trick || !t.trick.length) return hand;
+                const lead = t.trick[0].card.suit;
+                const follow = hand.filter(c => c.suit === lead);
+                return follow.length ? follow : hand;
+            };
+            const doPlayCard = async (seat, cardId) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || t.phase !== 'play' || t.turnSeat !== seat) return;
+                const legal = legalCards(t, seat);
+                const card = legal.find(c => c.id === cardId);
+                if (!card) { flashErr("חובה לשרת את הצבע המוביל"); return; }
+                const hands = cloneHands(t.hands);
+                hands[seat] = hands[seat].filter(c => c.id !== cardId);
+                const trick = [...(t.trick || []), { seat, card }];
+                const upd = { hands, trick, dummyOpen: true, turnStartedAt: Date.now() };
+                if (trick.length < 4) {
+                    upd.turnSeat = (seat + 1) % 4;
+                } else {
+                    // סגירת לקיחה
+                    const trump = t.contract.denom !== 'NT' ? t.contract.denom : null;
+                    const lead = trick[0].card.suit;
+                    let win = trick[0];
+                    for (const p of trick) {
+                        const better = (trump && p.card.suit === trump && (win.card.suit !== trump || p.card.v > win.card.v))
+                            || (p.card.suit === win.card.suit && p.card.v > win.card.v && !(trump && win.card.suit === trump && p.card.suit !== trump));
+                        if (better && (p.card.suit === lead || (trump && p.card.suit === trump))) win = p;
+                    }
+                    const ns = t.tricksNS + (brSide(win.seat) === 'NS' ? 1 : 0);
+                    const ew = t.tricksEW + (brSide(win.seat) === 'EW' ? 1 : 0);
+                    Object.assign(upd, { trick: [], lastTrick: { cards: trick, winner: win.seat }, tricksNS: ns, tricksEW: ew, turnSeat: win.seat });
+                    if (ns + ew >= 13) {
+                        await window.fb.updateDoc(tblRef(), upd);
+                        await settleBridge({ ns, ew }, null, false);
+                        return;
+                    }
+                }
+                await window.fb.updateDoc(tblRef(), upd);
+                playSnd('tile');
+            };
+
+            /* ---------- סליקה ---------- */
+            const settleBridge = async (tricks, forfeitWinSide, byForfeit) => {
+                if (settlingRef.current) return;
+                settlingRef.current = true;
+                try {
+                    const t = tableRef.current; if (!t) return;
+                    const pl = clonePl(t.players);
+                    const c = t.contract;
+                    let winSide, made = false, score = 0, declTricks = 0, need = 0;
+                    if (byForfeit || !c) {
+                        winSide = forfeitWinSide;
+                    } else {
+                        declTricks = brSide(c.declarer) === 'NS' ? tricks.ns : tricks.ew;
+                        need = 6 + c.level;
+                        made = declTricks >= need;
+                        const mult = [1, 2, 4][c.dbl || 0];
+                        const perTrick = c.denom === 'NT' || c.denom === '♥' || c.denom === '♠' ? 30 : 20;
+                        if (made) {
+                            const base = (c.denom === 'NT' ? 40 + 30 * (c.level - 1) : perTrick * c.level) * mult;
+                            score = base + (declTricks - need) * perTrick * mult + (base >= 100 ? 300 : 50) + (c.level === 6 ? 500 : c.level === 7 ? 1000 : 0) + (c.dbl ? 50 : 0);
+                            winSide = brSide(c.declarer);
+                        } else {
+                            score = (need - declTricks) * 50 * mult;
+                            winSide = brSide(c.declarer) === 'NS' ? 'EW' : 'NS';
+                        }
+                    }
+                    const winners = Object.values(pl).filter(p => brSide(p.seat) === winSide);
+                    const humanWinners = winners.filter(p => !p.isBot);
+                    const pot = t.pot || 0;
+                    const rake = round2(pot * ((Number(setts.rakePercent) || 0) / 100));
+                    const net = round2(pot - rake);
+                    const share = humanWinners.length ? round2(Math.floor(net / humanWinners.length * 100) / 100) : 0;
+                    const logEntries = [];
+                    const buyIn = Number(setts.buyIn) || 0;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const reads = {};
+                        for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
+                        for (const p of Object.values(pl)) {
+                            const sm = reads[p.uid]; if (!sm) continue;
+                            const won = brSide(p.seat) === winSide;
+                            const prize = won ? share : 0;
+                            const st = sm.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            const profit = round2(prize - buyIn);
+                            tr.update(sm.ref, {
+                                balance: round2((sm.data().balance || 0) + prize),
+                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
+                                'stats.gamesWon': (st.gamesWon || 0) + (won ? 1 : 0),
+                                'stats.totalProfit': round2((st.totalProfit || 0) + profit)
+                            });
+                            logEntries.push({ uid: p.uid, username: p.name, game: 'bridge', profit });
+                        }
+                        tr.update(tblRef(), {
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, trick: [], turnSeat: null, players: pl,
+                            lastResults: { contract: c, made, declTricks, need, score, winSide, byForfeit: !!byForfeit, pot, rake, winners: winners.map(w => ({ uid: w.uid, name: w.name, prize: w.isBot ? 0 : share })), endedAt: Date.now() }
+                        });
+                    });
+                    if (!humanWinners.length && net > 0) creditRakeToClub(net, CLUB_ID);
+                    playSnd('win');
+                    if (logEntries.length) logGameResult(logEntries, tableDocId);
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot).map(p => p.uid));
+                } catch(e) {} finally { settlingRef.current = false; }
+            };
+
+            /* ---------- אוטומט: פקיעת זמן ובוטים ---------- */
+            const autoAct = async (seat) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || t.turnSeat !== seat) return;
+                if (t.phase === 'auction') {
+                    const hand = (t.hands || {})[seat] || [];
+                    const owner = seatOwner(seat);
+                    if (owner && owner.isBot && !(t.bids || []).some(b => b.type === 'bid') && brHCP(hand) >= 13) {
+                        const bySuit = {}; hand.forEach(cd => { bySuit[cd.suit] = (bySuit[cd.suit] || 0) + 1; });
+                        const best = Object.entries(bySuit).sort((a, b) => b[1] - a[1])[0][0];
+                        await doBid(seat, { type: 'bid', level: 1, denom: best });
+                        return;
+                    }
+                    await doBid(seat, { type: 'pass' });
+                } else {
+                    const legal = legalCards(t, seat);
+                    if (!legal.length) return;
+                    const low = [...legal].sort((a, b) => a.v - b.v)[0];
+                    await doPlayCard(seat, low.id);
+                }
+            };
+            // בוטים אצל האדמין (כולל דומם בשליטת כרוז-בוט)
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState || T.status !== 'playing') return;
+                const actor = actorOf(T.turnSeat);
+                if (actor && actor.isBot) {
+                    const tm = setTimeout(() => autoAct(T.turnSeat), 900);
+                    return () => clearTimeout(tm);
+                }
+            }, [T.turnSeat, T.phase, T.status, isSuperAdmin, tableState && (T.bids || []).length, tableState && (T.trick || []).length]);
+            // טיימר
+            useEffect(() => {
+                let iv;
+                if (T.status === 'playing' && T.turnStartedAt) {
+                    iv = setInterval(() => {
+                        const rem = Math.max(0, BR_TIME - Math.floor((Date.now() - T.turnStartedAt) / 1000));
+                        setTimeLeft(rem);
+                        if (rem === 0 && iControlTurn) { clearInterval(iv); autoAct(T.turnSeat); }
+                    }, 1000);
+                }
+                return () => clearInterval(iv);
+            }, [T.status, T.turnStartedAt, T.turnSeat, T.phase, iControlTurn]);
+            useEffect(() => { if (iControlTurn && T.status === 'playing') playSnd('turn'); }, [T.turnSeat, T.phase]);
+
+            /* ---------- רינדור ---------- */
+            const BCard = ({ c, onClick, dim, small }) => (
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-10 h-14 sm:w-12 sm:h-16 text-sm sm:text-base'} rounded-lg bg-gradient-to-b from-white to-slate-200 border border-slate-400 shadow-md flex flex-col items-center justify-center font-black shrink-0 ${onClick ? 'cursor-pointer hover:-translate-y-1.5 transition-transform' : ''} ${dim ? 'opacity-40' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
+                    <span className="leading-none">{brRankName(c.v)}</span>
+                    <span className="leading-none">{c.suit}</span>
+                </div>
+            );
+            const CardBacks = ({ n }) => (
+                <div className="flex" dir="ltr">{Array(Math.min(n, 13)).fill(0).map((_, i) => <div key={i} className="w-4 h-7 rounded-[3px] bg-gradient-to-b from-rose-800 to-rose-950 border border-rose-400/40 -ml-2.5 first:ml-0 shadow"></div>)}</div>
+            );
+            const mySeat = me ? me.seat : 2;
+            const relPos = (seat) => (seat - mySeat + 2 + 4) % 4; // אני תמיד למטה
+            const sortHand = (h) => [...h].sort((a, b) => (['♠', '♥', '♦', '♣'].indexOf(a.suit) - ['♠', '♥', '♦', '♣'].indexOf(b.suit)) || b.v - a.v);
+            const showFace = (seat) => godView || (isSeated && seat === mySeat) || (T.phase === 'play' && T.dummyOpen && seat === dummySeat);
+            const res = T.lastResults;
+            const last = lastRealBid(T.bids);
+
+            if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
+
+            const SeatBox = ({ seat }) => {
+                const p = seatOwner(seat);
+                const pos = relPos(seat);
+                const isTurnSeat = T.status === 'playing' && T.turnSeat === seat;
+                const posCls = pos === 0 ? 'top-1 left-1/2 -translate-x-1/2 flex-col' : pos === 1 ? 'right-1 top-1/2 -translate-y-1/2 flex-col' : pos === 3 ? 'left-1 top-1/2 -translate-y-1/2 flex-col' : 'hidden';
+                if (pos === 2) return null;
+                const hand = (T.hands || {})[seat] || [];
+                return (
+                    <div className={`absolute z-20 flex items-center gap-1 ${posCls}`}>
+                        {T.status === 'playing' && (showFace(seat)
+                            ? <div className="flex flex-wrap gap-0.5 max-w-[150px] justify-center" dir="ltr">{sortHand(hand).map(c => <BCard key={c.id} c={c} small onClick={iControlTurn && T.turnSeat === seat && seat === dummySeat ? () => doPlayCard(seat, c.id) : null} />)}</div>
+                            : <CardBacks n={hand.length} />)}
+                        <div className={`bg-slate-900/90 px-2.5 py-1.5 rounded-xl border text-center relative ${isTurnSeat ? 'border-amber-400/80 shadow-[0_0_14px_rgba(250,204,21,0.35)]' : 'border-white/10'}`}>
+                            {p && ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                            <div className="text-[10px] font-black text-white truncate max-w-[90px]">{p ? p.name : '- פנוי -'}</div>
+                            <div className="text-[9px] text-slate-400 font-bold">{BR_SEATS[seat]}{seat === declSeat ? ' · כרוז' : seat === dummySeat && T.phase === 'play' ? ' · דומם' : ''}</div>
+                            {isTurnSeat && <div className="text-amber-300 font-mono font-black text-[10px]">{timeLeft}</div>}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="h-full w-full flex flex-col bg-slate-950 font-sans overflow-hidden select-none" dir="rtl"
+                     style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a2436 0%, #020617 60%)' }}>
+                    <div className="min-h-[3.5rem] bg-slate-900/80 backdrop-blur-md border-b border-white/5 flex justify-between items-center gap-1.5 px-2 sm:px-3 py-1.5 shrink-0 z-40">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                            <button onClick={handleLeave} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-700 hover:text-white text-xs font-bold border border-white/10"><i className="fa-solid fa-door-open ml-1"></i>{isSeated ? 'קום' : 'יציאה'}</button>
+                            {isSuperAdmin && ['setup', 'showdown'].includes(T.status) && <button onClick={handleAddBot} className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-purple-300 text-[10px] font-black border border-white/10"><i className="fa-solid fa-robot"></i></button>}
+                            {isGod && <button onClick={() => setGodView(!godView)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border ${godView ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800 text-purple-400 border-white/10'}`}><i className="fa-solid fa-eye ml-1"></i>GOD</button>}
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col items-center px-1">
+                            <span className="text-indigo-300 font-black text-xs sm:text-sm tracking-wider truncate max-w-full">ברידג'</span>
+                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold truncate max-w-full" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</span>
+                        </div>
+                        <div className="bg-slate-950/80 border border-indigo-500/30 rounded-xl px-2.5 sm:px-3 py-1 text-center shrink-0">
+                            <span className="text-[9px] text-indigo-300 font-bold block leading-none mb-0.5">POT</span>
+                            <span className="text-indigo-300 font-black text-sm leading-none" dir="ltr">{formatShort(T.status === 'showdown' ? (res?.pot || 0) : (T.pot || 0))}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 relative min-h-0 p-2">
+                        <div className="absolute inset-2 rounded-[40px] border-[10px] border-slate-900 shadow-[inset_0_0_60px_rgba(0,0,0,0.8)]" style={{ background: 'radial-gradient(ellipse at center, #1e3a5f 0%, #0c1a2e 100%)' }}></div>
+                        {[0, 1, 2, 3].map(seat => <SeatBox key={seat} seat={seat} />)}
+
+                        {/* מרכז: חוזה + לקיחות + הלקיחה הנוכחית */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 gap-2 pointer-events-none">
+                            {T.contract && (
+                                <div className="bg-slate-950/85 border border-indigo-500/50 rounded-2xl px-4 py-1.5 text-center">
+                                    <span className="text-white font-black text-sm" dir="ltr">{T.contract.level}{T.contract.denom}{T.contract.dbl === 1 ? ' X' : T.contract.dbl === 2 ? ' XX' : ''}</span>
+                                    <span className="text-slate-400 text-[10px] font-bold block">כרוז: {BR_SEATS[T.contract.declarer]} · צריך {6 + T.contract.level}</span>
+                                </div>
+                            )}
+                            {T.phase === 'play' && T.status === 'playing' && (
+                                <div className="flex gap-4 items-center">
+                                    <span className="text-[11px] font-black text-emerald-300">צפון-דרום: {T.tricksNS}</span>
+                                    <div className="relative w-32 h-24">
+                                        {(T.trick && T.trick.length ? T.trick : (T.lastTrick ? T.lastTrick.cards : [])).map((pc, i) => {
+                                            const rp = relPos(pc.seat);
+                                            const st = rp === 0 ? { top: 0, left: '50%', transform: 'translateX(-50%)' } : rp === 1 ? { right: 0, top: '50%', transform: 'translateY(-50%)' } : rp === 3 ? { left: 0, top: '50%', transform: 'translateY(-50%)' } : { bottom: 0, left: '50%', transform: 'translateX(-50%)' };
+                                            return <div key={i} className={`absolute ${!T.trick.length ? 'opacity-45' : ''}`} style={st}><BCard c={pc.card} small /></div>;
+                                        })}
+                                    </div>
+                                    <span className="text-[11px] font-black text-rose-300">מזרח-מערב: {T.tricksEW}</span>
+                                </div>
+                            )}
+                            {T.status === 'playing' && T.phase === 'auction' && (
+                                <div className="flex flex-wrap gap-1 justify-center max-w-[240px]">
+                                    {(T.bids || []).slice(-8).map((b, i) => (
+                                        <span key={i} className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${b.type === 'bid' ? 'border-indigo-400/60 text-indigo-200 bg-indigo-500/10' : 'border-white/10 text-slate-400 bg-slate-900/70'}`} dir="ltr">{BR_SEATS[b.seat][0]}: {b.type === 'bid' ? `${b.level}${b.denom}` : b.type === 'dbl' ? 'X' : b.type === 'rdbl' ? 'XX' : 'Pass'}</span>
+                                    ))}
+                                    {!(T.bids || []).length && <span className="text-slate-500 text-xs font-bold">המכרז נפתח - {BR_SEATS[T.dealerSeat]} מתחיל</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        {errMsg && <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
+
+                        {/* Setup */}
+                        {T.status === 'setup' && (
+                            <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-indigo-500/40">
+                                    <i className="fa-solid fa-diamond text-4xl text-indigo-400 mb-2"></i>
+                                    <h3 className="text-xl font-black text-white mb-1">ברידג' - ממתין לשולחן מלא</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-1" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {list.length}/4</p>
+                                    <p className="text-[10px] text-slate-500 font-bold mb-4">צפון+דרום נגד מזרח+מערב · הצמד המנצח מתחלק בקופה</p>
+                                    <div className="flex justify-center gap-3 mb-5 flex-wrap">
+                                        {list.map(p => (
+                                            <div key={p.uid} className="flex flex-col items-center">
+                                                <img src={avatarUrl(p)} className={`w-11 h-11 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-indigo-500'}`} />
+                                                <span className="text-[10px] text-white font-bold mt-1 max-w-[64px] truncate">{p.name}</span>
+                                                <span className="text-[9px] text-slate-500 font-bold">{BR_SEATS[p.seat]}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!isSeated && list.length < 4 && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
+                                    {(isHost || isSuperAdmin) && list.length >= 4 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>}
+                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Showdown */}
+                        {T.status === 'showdown' && res && !resHide && (
+                            <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-indigo-500/40">
+                                    <i className="fa-solid fa-trophy text-4xl text-indigo-300 mb-2 trophy-pop inline-block"></i>
+                                    <h3 className="text-xl font-black text-white mb-1">{res.winSide === 'NS' ? 'צפון-דרום' : 'מזרח-מערב'} ניצחו!</h3>
+                                    {res.contract && !res.byForfeit && (
+                                        <p className="text-slate-300 text-sm font-bold mb-1" dir="ltr">{res.contract.level}{res.contract.denom}{res.contract.dbl === 1 ? ' X' : res.contract.dbl === 2 ? ' XX' : ''} · {res.made ? `בוצע (${res.declTricks}/${res.need}) ✓` : `נפל ב-${res.need - res.declTricks} ↓`} · {res.score} נק'</p>
+                                    )}
+                                    {res.byForfeit && <p className="text-slate-400 text-xs font-bold mb-1">(ניצחון טכני - פרישה)</p>}
+                                    <div className="my-3 space-y-1">
+                                        {(res.winners || []).map(w => (
+                                            <div key={w.uid} className="flex justify-between items-center bg-slate-950/50 rounded-xl px-4 py-1.5 text-sm">
+                                                <span className="text-white font-bold">{w.name}</span>
+                                                <span className="text-emerald-400 font-black" dir="ltr">+{formatMoney(w.prize)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {(isHost || isSuperAdmin) && list.length >= 4 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש ({formatMoney(setts.buyIn)})</button>}
+                                        {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                        {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום 🚪</button>}
+                                        {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">👁 המשך לצפות</button>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* אזור תחתון: היד שלי + פעולות */}
+                    <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-2 py-2 z-40">
+                        {T.status === 'playing' && T.phase === 'auction' && isSeated && T.turnSeat === mySeat && (
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 mb-2">
+                                {[1, 2, 3, 4, 5, 6, 7].map(lv => <button key={lv} onClick={() => setBidSel({ ...bidSel, lv })} className={`w-8 h-8 rounded-lg font-black text-xs border ${bidSel.lv === lv ? 'bg-indigo-600 border-indigo-300 text-white' : 'bg-slate-800 border-white/10 text-slate-300'}`}>{lv}</button>)}
+                                {BR_DENOMS.map(dn => <button key={dn} onClick={() => setBidSel({ ...bidSel, dn })} className={`w-9 h-8 rounded-lg font-black text-xs border ${bidSel.dn === dn ? 'bg-indigo-600 border-indigo-300 text-white' : 'bg-slate-800 border-white/10'} ${dn === '♥' || dn === '♦' ? 'text-rose-400' : 'text-slate-200'}`} dir="ltr">{dn}</button>)}
+                                <button onClick={() => bidSel.lv && bidSel.dn ? doBid(mySeat, { type: 'bid', level: bidSel.lv, denom: bidSel.dn }) : flashErr("בחר גובה וסדרה")} className="px-4 h-8 rounded-lg font-black text-xs bg-gradient-to-b from-indigo-500 to-indigo-700 text-white border border-indigo-300">הכרז {bidSel.lv || ''}{bidSel.dn || ''}</button>
+                                <button onClick={() => doBid(mySeat, { type: 'pass' })} className="px-4 h-8 rounded-lg font-black text-xs bg-slate-800 text-slate-300 border border-white/10">Pass</button>
+                                {last && brSide(last.seat) !== brSide(mySeat) && <button onClick={() => doBid(mySeat, { type: 'dbl' })} className="px-3 h-8 rounded-lg font-black text-xs bg-rose-900/60 text-rose-300 border border-rose-500/40">X</button>}
+                                {last && brSide(last.seat) === brSide(mySeat) && <button onClick={() => doBid(mySeat, { type: 'rdbl' })} className="px-3 h-8 rounded-lg font-black text-xs bg-rose-900/60 text-rose-300 border border-rose-500/40">XX</button>}
+                            </div>
+                        )}
+                        {T.status === 'playing' && isSeated && (
+                            <div className="text-center mb-1.5">
+                                {iControlTurn
+                                    ? <span className="text-[11px] font-black text-amber-300 animate-pulse">{T.phase === 'auction' ? 'תורך להכריז' : T.turnSeat === dummySeat ? 'אתה משחק מהדומם' : 'תורך - בחר קלף'} · {timeLeft}s</span>
+                                    : <span className="text-[11px] font-bold text-slate-500">ממתין ל{BR_SEATS[T.turnSeat] || ''}...</span>}
+                            </div>
+                        )}
+                        <div className="flex justify-center flex-wrap gap-1 min-h-[3.5rem] items-end px-1" dir="ltr">
+                            {isSeated && T.status === 'playing' && sortHand((T.hands || {})[mySeat] || []).map(c => {
+                                const canPlay = iControlTurn && T.phase === 'play' && T.turnSeat === mySeat;
+                                const isLegal = !canPlay || legalCards(T, mySeat).some(x => x.id === c.id);
+                                return <BCard key={c.id} c={c} dim={canPlay && !isLegal} onClick={canPlay && isLegal ? () => doPlayCard(mySeat, c.id) : null} />;
+                            })}
+                            {(!isSeated || T.status !== 'playing') && <span className="text-slate-600 text-xs font-bold py-4">{isSeated ? 'ממתין לחלוקה...' : '👁️ מצב צפייה'}</span>}
+                        </div>
+                    </div>
+
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-24 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-24 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                </div>
+            );
+        }
+
         const TOUR_SIZE = 6;
-        const TOUR_SIZES = { poker: 6, rummikub: 4, durak: 5, shesh: 2, president: 4, yaniv: 4 };
+        const TOUR_SIZES = { poker: 6, rummikub: 4, durak: 5, shesh: 2, president: 4, yaniv: 4, bridge: 4, gin: 2, twist: 4 };
         const tourEntryOf = (tor) => round2((Number(tor.buyIn) || 0) + (Number(tor.fee) || 0) + (Number(tor.bounty) || 0));
         /* ================================================================
            יניב - זריקה, משיכה, יניב! ואסף
