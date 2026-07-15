@@ -1016,7 +1016,9 @@
                         const mainRef = window.fb.doc(window.fb.db, "clubs", "main");
                         const mainSnap = await window.fb.getDoc(mainRef);
                         if (!mainSnap.exists() && (dbUser.email || '').toLowerCase() === SUPER_ADMIN_EMAIL) {
-                            await window.fb.setDoc(mainRef, { name: 'הקלאב הראשי', ownerUid: dbUser.uid, ownerName: dbUser.username, createdAt: Date.now() });
+                            await window.fb.setDoc(mainRef, { name: 'Rummikube Club', ownerUid: dbUser.uid, ownerName: dbUser.username, createdAt: Date.now() });
+                        } else if (mainSnap.exists() && mainSnap.data().name === 'הקלאב הראשי' && (dbUser.email || '').toLowerCase() === SUPER_ADMIN_EMAIL) {
+                            await window.fb.updateDoc(mainRef, { name: 'Rummikube Club' });
                         }
                         // חברות ראשי מהנתונים הישנים - טרנזקציה חסינת כפילות
                         await window.fb.runTransaction(window.fb.db, async (tr) => {
@@ -1101,12 +1103,16 @@
                 return () => clearInterval(iv);
             }, [fbReady, dbUser?.role, clubSettings?.rakePct]);
 
-            // שער: בלי קלאב פעיל - מסך הקלאבים; חברות ממתינה - מסך המתנה
+            // שער: בלי קלאב פעיל - מסך הקלאבים. ממתינים שהחברות תיטען לפני שקובעים "בהמתנה"!
             useEffect(() => {
                 if (!dbUser) return;
-                if (!activeClub && !['auth', 'clubs'].includes(currentView)) changeView('clubs');
-                else if (activeClub && effUser && effUser.status !== 'approved' && !['auth', 'clubs', 'pending'].includes(currentView)) changeView('pending');
-            }, [dbUser, activeClub, effUser?.status, currentView]);
+                const god = isGodUser(dbUser);
+                if (!activeClub && !['auth', 'clubs'].includes(currentView)) { changeView('clubs'); return; }
+                if (!activeClub || god) { if (activeClub && currentView === 'pending') changeView('lobby'); return; }
+                if (activeMem === null) return; // החברות עוד נטענת - לא שופטים
+                if (activeMem.status !== 'approved' && !['auth', 'clubs', 'pending'].includes(currentView)) changeView('pending');
+                else if (activeMem.status === 'approved' && currentView === 'pending') changeView('lobby');
+            }, [dbUser, activeClub, activeMem, currentView]);
 
             if (!fbReady) return <div className="h-full w-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-circle-notch fa-spin text-4xl"></i></div>;
 
@@ -1139,8 +1145,8 @@
                                 </div>
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
-                                <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">{activeClub.name || 'RUMMIKUBE'}</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Rummikube Clubs · V11</p>
+                                <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V11.1</span></p>
                             </div>
                         </nav>
                     )}
@@ -1176,7 +1182,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V11</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V11.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1219,7 +1225,7 @@
                 setCreating(true);
                 try {
                     const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now() });
-                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved' });
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved', balance: 100000000 });
                     setNewName('');
                     showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
                     onEnter({ id: cRef.id, name: nm, ownerUid: user.uid });
@@ -1241,7 +1247,6 @@
                                     <div className="font-black text-white text-lg truncate flex items-center gap-2">
                                         {c.name}
                                         {isOwner && <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 px-2 py-0.5 rounded-full font-black">👑 שלך</span>}
-                                        {c.id === 'main' && <span className="text-[9px] bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full font-black">ראשי</span>}
                                     </div>
                                     <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span className="text-emerald-400"> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
                                 </div>
@@ -1300,12 +1305,12 @@
                         <div className="glass-panel rounded-3xl p-6 border border-emerald-500/20">
                             <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1 text-emerald-400"></i> הקם קלאב חדש</h3>
                             <div className="flex gap-2">
-                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
+                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." maxLength={30} className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
                                 <button onClick={createClub} disabled={creating || !newName.trim()} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white px-6 py-3 rounded-xl font-black shadow-lg">
                                     {creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם 👑'}
                                 </button>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מאשר חברים, קובע רייק, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
+                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מתחיל עם 100,000,000 צ'יפים לחלוקה, מאשר חברים, קובע רייק, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
                         </div>
                     </div>
                 </div>
@@ -1630,8 +1635,27 @@
                             <button onClick={()=>setTab('shesh')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='shesh' ? 'active' : 'hover:text-white'}`}>
                                 <i className="fa-solid fa-dice ml-2"></i>שש-בש <span className="text-[10px] opacity-80">({sheshTables.length})</span>
                             </button>
-
+                            <button onClick={()=>showToast("יניב - בקרוב! 🚧", "info")} className="pill-tab px-4 py-2.5 rounded-xl font-black text-sm text-slate-600 opacity-70">
+                                <i className="fa-solid fa-hand-sparkles ml-2"></i>יניב
+                            </button>
+                            <button onClick={()=>showToast("פרזידנט - בקרוב! 🚧", "info")} className="pill-tab px-4 py-2.5 rounded-xl font-black text-sm text-slate-600 opacity-70">
+                                <i className="fa-solid fa-user-tie ml-2"></i>פרזידנט
+                            </button>
+                            <button onClick={()=>showToast("משחקים בין חברים - בקרוב! 🚧", "info")} className="pill-tab px-4 py-2.5 rounded-xl font-black text-sm text-slate-600 opacity-70">
+                                <i className="fa-solid fa-user-group ml-2"></i>בין חברים
+                            </button>
+                            <button onClick={()=>setTab('tours')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='tours' ? 'active' : 'hover:text-white'}`}>
+                                <i className="fa-solid fa-trophy ml-2"></i>טורנירים <span className="text-[10px] opacity-80">({(tournaments||[]).filter(t=>(t.clubId||'main')===CLUB_ID && ['reg','running'].includes(t.status)).length})</span>
+                            </button>
                         </div>
+
+                        {/* ===== טאב טורנירים מרכזי - כל המשחקים ===== */}
+                        {tab === 'tours' && (
+                            <div className="animate-fade-in">
+                                <TournamentsTab game="all" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast}
+                                    onJoinTable={(t) => { if (t.type === 'poker') onJoinPoker(t); else if (t.type === 'durak') onJoinDurak(t); else if (t.type === 'shesh') onJoinShesh(t); else onJoinRummy(t); }} />
+                            </div>
+                        )}
 
                         {tab === 'rummikub' && (
                             <div className="animate-fade-in">
@@ -1908,6 +1932,7 @@
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
             const [rakeDraft, setRakeDraft] = useState(clubSettings.rakePct);
+            const [clubNameDraft, setClubNameDraft] = useState('');
             const [expFrom, setExpFrom] = useState('');
             const [expTo, setExpTo] = useState('');
             const [exporting, setExporting] = useState(false);
@@ -2089,6 +2114,13 @@
                                     <span className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center"><i className="fa-solid fa-sliders text-amber-400 text-sm"></i></span>
                                     הגדרות מועדון
                                 </h3>
+                                <div className="flex items-end gap-4 flex-wrap mb-4 pb-4 border-b border-white/5">
+                                    <div>
+                                        <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שם הקלאב</label>
+                                        <input value={clubNameDraft} onChange={e=>setClubNameDraft(e.target.value)} maxLength={30} placeholder={clubSettings?.name || ''} className="bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-black w-56 outline-none focus:border-emerald-500/60" />
+                                    </div>
+                                    <button onClick={async () => { const nm = clubNameDraft.trim(); if (nm.length < 2) return showToast("שם בין 2 ל-30 תווים", "error"); try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { name: nm }); setClubNameDraft(''); showToast("שם הקלאב עודכן!", "success"); } catch(e) { showToast("שגיאה", "error"); } }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-3 rounded-xl font-bold shadow-lg">שנה שם</button>
+                                </div>
                                 <div className="flex items-end gap-4 flex-wrap">
                                     <div>
                                         <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">רייק גלובלי (%) - לכל המשחקים</label>
@@ -6273,9 +6305,11 @@
         function TournamentsTab({ user, game, tournaments, tables, clubSettings, showToast, onJoinTable }) {
             const [showCreate, setShowCreate] = useState(false);
             const [tick, setTick] = useState(0);
-            const [opts, setOpts] = useState({ name: '', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, addon: true, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
-            const isPoker = game === 'poker';
-            const myTours = (tournaments || []).filter(t => t.game === game && (t.clubId || 'main') === CLUB_ID);
+            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, addon: true, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
+            const isAll = game === 'all';
+            const effGame = isAll ? (opts.gameSel || 'poker') : game;
+            const isPoker = effGame === 'poker';
+            const myTours = (tournaments || []).filter(t => (isAll || t.game === game) && (t.clubId || 'main') === CLUB_ID);
             useEffect(() => { const iv = setInterval(() => setTick(x => x + 1), 1000); return () => clearInterval(iv); }, []);
 
             const bounty = round2(Number(opts.bounty) || 0);
@@ -6289,7 +6323,7 @@
                 if (Math.abs(paySum - 100) > 0.01) return showToast(`אחוזי הפרסים חייבים להסתכם ב-100% (כרגע ${paySum}%)`, "error");
                 const addedPrize = round2(Number(opts.addedPrize) || 0);
                 const docData = {
-                    clubId: CLUB_ID, game, name: opts.name.trim(),
+                    clubId: CLUB_ID, game: effGame, name: opts.name.trim(),
                     buyIn: round2(Number(opts.buyIn) || 0), fee: round2(Number(opts.fee) || 0), addedPrize,
                     bounty: isPoker ? bounty : 0,
                     pokerType: isPoker ? opts.pokerType : null,
@@ -6342,6 +6376,14 @@
                                     <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שם הטורניר</label>
                                     <input value={opts.name} onChange={e=>setOpts({...opts, name: e.target.value})} placeholder="למשל: טורניר ערב שישי" className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-purple-500 font-bold" />
                                 </div>
+                                {isAll && (
+                                    <div>
+                                        <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">משחק</label>
+                                        <select value={opts.gameSel} onChange={e=>setOpts({...opts, gameSel: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-purple-500 font-bold">
+                                            {GAMES.filter(g => g.live).map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+                                        </select>
+                                    </div>
+                                )}
                                 {isPoker && (
                                     <div>
                                         <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סוג פוקר</label>
@@ -6437,7 +6479,7 @@
                                             <div>
                                                 <h3 className="text-lg font-black text-white leading-tight">🏆 {tor.name}</h3>
                                                 <p className="text-slate-400 text-xs font-bold mt-0.5" dir="ltr">
-                                                    {tourEntryOf(tor) === 0 && <span className="text-amber-400 font-black">🎁 FREEROLL · </span>}{isPoker ? (tor.pokerType || 'NLH') : GAME_LABEL(game)} · Buy-in {formatMoney(tor.buyIn)}{(Number(tor.fee) || 0) > 0 ? ` + ${formatMoney(tor.fee)} עמלה` : ''}{tor.bounty > 0 ? ` + ${formatMoney(tor.bounty)} bounty` : ''}{isPoker ? ` · סטאק ${Number(tor.startStack) || 1000}` : ' · נוק-אאוט'} · פרסים {(tor.payouts && tor.payouts.length ? tor.payouts : [50,30,20]).join('/')}%
+                                                    {tourEntryOf(tor) === 0 && <span className="text-amber-400 font-black">🎁 FREEROLL · </span>}{tor.game === 'poker' ? (tor.pokerType || 'NLH') : GAME_LABEL(tor.game)} · Buy-in {formatMoney(tor.buyIn)}{(Number(tor.fee) || 0) > 0 ? ` + ${formatMoney(tor.fee)} עמלה` : ''}{tor.bounty > 0 ? ` + ${formatMoney(tor.bounty)} bounty` : ''}{tor.game === 'poker' ? ` · סטאק ${Number(tor.startStack) || 1000}` : ' · נוק-אאוט'} · פרסים {(tor.payouts && tor.payouts.length ? tor.payouts : [50,30,20]).join('/')}%
                                                 </p>
                                                 <p className="text-slate-500 text-[10px] font-bold mt-0.5">{tor.rebuys ? 'ריביי ✓ ' : ''}{tor.addon ? 'אדאון ✓ ' : ''}{tor.bounty > 0 ? 'באונטי ✓' : ''}</p>
                                             </div>
