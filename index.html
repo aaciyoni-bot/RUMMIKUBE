@@ -278,6 +278,33 @@
         *::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.22); border-radius: 8px; }
         *::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.5); }
 
+        /* קוביות המשחקים */
+        .game-cube {
+            position: relative; aspect-ratio: 1 / 1; min-width: 0;
+            border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+            border: 1px solid var(--cubeB); background: linear-gradient(165deg, var(--cubeBg1), var(--cubeBg2));
+            overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .game-cube::before { content: ''; position: absolute; inset: 0; background: radial-gradient(110px 80px at 50% -5%, var(--cubeGlowSoft), transparent 70%); }
+        .game-cube:hover { transform: translateY(-3px); border-color: var(--cubeB2); box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 22px var(--cubeGlowSoft); }
+        .game-cube .cube-icon {
+            width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            font-size: 19px; color: #fff; background: linear-gradient(160deg, var(--cubeA), var(--cubeA2));
+            box-shadow: 0 6px 16px var(--cubeGlow), inset 0 1px 0 rgba(255,255,255,0.35); position: relative;
+        }
+        .game-cube .cube-label { font-weight: 900; font-size: 13px; color: #e2e8f0; position: relative; white-space: nowrap; }
+        .game-cube .cube-count { font-weight: 700; font-size: 10px; color: #64748b; position: relative; white-space: nowrap; }
+        .cube-active { border-color: var(--cubeA) !important; transform: translateY(-3px); box-shadow: inset 0 0 0 2px var(--cubeA), 0 12px 30px var(--cubeGlow), 0 0 28px var(--cubeGlow) !important; }
+        .cube-active .cube-label { color: #fff; }
+        .cube-active .cube-count { color: #cbd5e1; }
+        .cube-emerald { --cubeA:#10b981; --cubeA2:#047857; --cubeGlow:rgba(16,185,129,0.35); --cubeGlowSoft:rgba(16,185,129,0.14); --cubeB:rgba(16,185,129,0.22); --cubeB2:rgba(16,185,129,0.55); --cubeBg1:#0b1a16; --cubeBg2:#070d18; }
+        .cube-rose { --cubeA:#f43f5e; --cubeA2:#9f1239; --cubeGlow:rgba(244,63,94,0.35); --cubeGlowSoft:rgba(244,63,94,0.14); --cubeB:rgba(244,63,94,0.22); --cubeB2:rgba(244,63,94,0.55); --cubeBg1:#1a0b10; --cubeBg2:#070d18; }
+        .cube-sky { --cubeA:#0ea5e9; --cubeA2:#075985; --cubeGlow:rgba(14,165,233,0.35); --cubeGlowSoft:rgba(14,165,233,0.14); --cubeB:rgba(14,165,233,0.22); --cubeB2:rgba(14,165,233,0.55); --cubeBg1:#0a141f; --cubeBg2:#070d18; }
+        .cube-amber { --cubeA:#f59e0b; --cubeA2:#b45309; --cubeGlow:rgba(245,158,11,0.35); --cubeGlowSoft:rgba(245,158,11,0.14); --cubeB:rgba(245,158,11,0.22); --cubeB2:rgba(245,158,11,0.55); --cubeBg1:#1a1408; --cubeBg2:#070d18; }
+        .cube-cyan { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171b; --cubeBg2:#070d18; }
+        .cube-purple { --cubeA:#a855f7; --cubeA2:#6b21a8; --cubeGlow:rgba(168,85,247,0.35); --cubeGlowSoft:rgba(168,85,247,0.14); --cubeB:rgba(168,85,247,0.22); --cubeB2:rgba(168,85,247,0.55); --cubeBg1:#150b1f; --cubeBg2:#070d18; }
+        .cube-gold { --cubeA:#eab308; --cubeA2:#a16207; --cubeGlow:rgba(234,179,8,0.35); --cubeGlowSoft:rgba(234,179,8,0.14); --cubeB:rgba(234,179,8,0.28); --cubeB2:rgba(234,179,8,0.6); --cubeBg1:#1a1608; --cubeBg2:#070d18; }
+
         /* טקסטורת פרימיום עדינה מעל הכל */
         body::after {
             content: '';
@@ -1277,7 +1304,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V13.2</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V14</span></p>
                             </div>
                         </nav>
                     )}
@@ -1315,10 +1342,28 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V13.2</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V14</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
+                        <div className="mt-8 pt-5 border-t border-white/5 flex items-center justify-center gap-5 sm:gap-7">
+                            <div className="flex flex-col items-center gap-1.5 opacity-85">
+                                <span className="w-9 h-9 rounded-full border border-emerald-500/50 bg-emerald-500/10 flex items-center justify-center text-emerald-400"><i className="fa-solid fa-certificate text-sm"></i></span>
+                                <span className="text-[8px] text-slate-500 font-bold tracking-wider uppercase leading-tight text-center">Gaming Lab<br/>Certified</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5 opacity-85">
+                                <span className="w-9 h-9 rounded-full border border-sky-500/50 bg-sky-500/10 flex items-center justify-center text-sky-400"><i className="fa-solid fa-scale-balanced text-sm"></i></span>
+                                <span className="text-[8px] text-slate-500 font-bold tracking-wider uppercase leading-tight text-center">Fair Play<br/>RNG Tested</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5 opacity-85">
+                                <span className="w-9 h-9 rounded-full border border-amber-500/50 bg-amber-500/10 flex items-center justify-center text-amber-400"><i className="fa-solid fa-lock text-sm"></i></span>
+                                <span className="text-[8px] text-slate-500 font-bold tracking-wider uppercase leading-tight text-center">SSL<br/>Secured</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5 opacity-85">
+                                <span className="w-9 h-9 rounded-full border border-rose-500/50 bg-rose-500/10 flex items-center justify-center text-rose-400 font-black text-[11px]">18+</span>
+                                <span className="text-[8px] text-slate-500 font-bold tracking-wider uppercase leading-tight text-center">Responsible<br/>Gaming</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -1411,7 +1456,7 @@
             };
 
             return (
-                <div className="scrollable-content aurora-bg p-4 sm:p-8">
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
                         <div className="text-center mb-8 mt-6">
                             <h1 className="text-4xl sm:text-5xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(16,185,129,0.3)]">RUMMIKUBE</h1>
@@ -1548,7 +1593,7 @@
                 { label: 'רווח/הפסד כולל', value: (stats.totalProfit > 0 ? '+' : '') + formatMoney(stats.totalProfit), color: stats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', icon: 'fa-chart-line' },
             ];
             return (
-                <div className="scrollable-content aurora-bg p-4 sm:p-8">
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-4xl mx-auto animate-fade-in relative z-10">
                         <div className="glass-panel p-8 rounded-3xl text-center mb-6">
                             <img src={avatarUrl(user)} className="w-24 h-24 rounded-3xl mx-auto border-4 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.4)] mb-4 bg-slate-800" />
@@ -1771,7 +1816,7 @@
             };
 
             return (
-                <div className="scrollable-content aurora-bg p-4 sm:p-6">
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-6xl mx-auto animate-fade-in relative z-10">
 
                         <div className="glass-panel rounded-3xl p-5 sm:p-6 mb-6 flex items-center justify-between flex-wrap gap-4">
@@ -1788,28 +1833,22 @@
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 mb-6 bg-slate-900/60 border border-white/5 rounded-2xl p-1.5 w-fit">
-                            <button onClick={()=>setTab('rummikub')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='rummikub' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-border-all ml-2"></i>רמיקוב <span className="text-[10px] opacity-80">({rummyTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('poker')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='poker' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-diamond ml-2"></i>פוקר <span className="text-[10px] opacity-80">({pokerTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('durak')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='durak' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-chess-king ml-2"></i>דוראק <span className="text-[10px] opacity-80">({durakTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('shesh')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='shesh' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-dice ml-2"></i>שש-בש <span className="text-[10px] opacity-80">({sheshTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('yaniv')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='yaniv' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-bolt ml-2"></i>יניב <span className="text-[10px] opacity-80">({yanivTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('president')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='president' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-chess-king ml-2"></i>פרזידנט <span className="text-[10px] opacity-80">({presTables.length})</span>
-                            </button>
-                            <button onClick={()=>setTab('tours')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='tours' ? 'active' : 'hover:text-white'}`}>
-                                <i className="fa-solid fa-trophy ml-2"></i>טורנירים <span className="text-[10px] opacity-80">({(tournaments||[]).filter(t=>(t.clubId||'main')===CLUB_ID && ['reg','running'].includes(t.status)).length})</span>
-                            </button>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 mb-8 w-full">
+                            {[
+                                { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
+                                { id: 'poker', label: 'פוקר', icon: 'fa-diamond', c: 'rose', n: pokerTables.length },
+                                { id: 'durak', label: 'דוראק', icon: 'fa-shield-halved', c: 'sky', n: durakTables.length },
+                                { id: 'shesh', label: 'שש-בש', icon: 'fa-dice', c: 'amber', n: sheshTables.length },
+                                { id: 'yaniv', label: 'יניב', icon: 'fa-bolt', c: 'cyan', n: yanivTables.length },
+                                { id: 'president', label: 'פרזידנט', icon: 'fa-chess-king', c: 'purple', n: presTables.length },
+                                { id: 'tours', label: 'טורנירים', icon: 'fa-trophy', c: 'gold', n: (tournaments || []).filter(t => (t.clubId || 'main') === CLUB_ID && ['reg', 'running'].includes(t.status)).length },
+                            ].map(g => (
+                                <button key={g.id} onClick={() => setTab(g.id)} className={`game-cube cube-${g.c} ${tab === g.id ? 'cube-active' : ''}`}>
+                                    <span className="cube-icon"><i className={`fa-solid ${g.icon}`}></i></span>
+                                    <span className="cube-label">{g.label}</span>
+                                    <span className="cube-count">{g.n} שולחנות</span>
+                                </button>
+                            ))}
                         </div>
 
                         {/* ===== טאב יניב ===== */}
@@ -2377,7 +2416,7 @@
             ];
 
             return (
-                <div className="scrollable-content aurora-bg p-4 sm:p-6">
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-5xl mx-auto animate-fade-in relative z-10">
                         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                             <div>
@@ -3624,7 +3663,7 @@
             const sel = "w-full bg-slate-900 text-white border border-white/10 rounded-xl p-3 outline-none focus:border-amber-500/60 font-bold";
 
             return (
-                <div className="scrollable-content aurora-bg p-4 sm:p-6">
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
                         <div className="flex items-center gap-3 mb-6">
                             <button onClick={onBack} className="w-10 h-10 rounded-xl bg-slate-800/80 border border-white/10 text-slate-300 hover:text-white"><i className="fa-solid fa-arrow-right"></i></button>
