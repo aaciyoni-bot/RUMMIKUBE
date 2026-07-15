@@ -1411,7 +1411,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15.2</span></p>
                             </div>
                         </nav>
                     )}
@@ -1461,7 +1461,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1944,9 +1944,12 @@
             const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const presTables = tables.filter(t => t.type === 'president' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const yanivTables = tables.filter(t => t.type === 'yaniv' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-            // בונוס יומי - גלגל מזל
-            const BONUS_SEGS = [100, 150, 200, 300, 500, 750, 1000, 2500];
-            const BONUS_W = [26, 20, 16, 12, 10, 8, 6, 2];
+            // בונוס יומי - גלגל מזל (הסכומים בשליטת בעל הקלאב, ההסתברויות קבועות)
+            const bwConf = clubSettings?.bonusWheel || {};
+            const bonusEnabled = bwConf.enabled !== false;
+            const BONUS_SEGS = (Array.isArray(bwConf.prizes) && bwConf.prizes.length === 8) ? bwConf.prizes.map(x => Number(x) || 0) : [5, 10, 20, 30, 50, 75, 100, 200];
+            // 80% ראשון · 10% שני · מדורג · האחרון 1 ל-200 סיבובים
+            const BONUS_W = [800, 100, 35, 25, 18, 12, 5, 5];
             const [bonusOpen, setBonusOpen] = useState(false);
             const [bonusSpin, setBonusSpin] = useState(null); // {deg, prize, done}
             const bonusReady = !user.lastBonusAt || (Date.now() - user.lastBonusAt) >= 22 * 3600 * 1000;
@@ -1954,7 +1957,9 @@
             const spinBonus = async () => {
                 if (bonusSpin && !bonusSpin.done) return;
                 try {
-                    let prize = 0;
+                    if (!bonusEnabled) throw "בעל הקלאב כיבה את הגלגל";
+                    let prize = 0, fromBank = false;
+                    const ownerUid = (window.__club || {}).ownerUid;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const mRef = memDoc(user.uid);
                         const mSnap = await tr.get(mRef);
@@ -1966,14 +1971,25 @@
                         let r = Math.random() * total, idx = 0;
                         for (let i = 0; i < BONUS_W.length; i++) { r -= BONUS_W[i]; if (r <= 0) { idx = i; break; } }
                         prize = BONUS_SEGS[idx];
-                        tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastBonusAt: Date.now() });
+                        // שימור צ'יפים: הפרס עובר מקופת בעל הקלאב לשחקן - לא נוצר כסף חדש
+                        if (ownerUid && ownerUid !== user.uid) {
+                            const oRef = memDoc(ownerUid);
+                            const oSnap = await tr.get(oRef);
+                            if (!oSnap.exists() || (oSnap.data().balance || 0) < prize) throw "קופת הקלאב ריקה כרגע - נסה מאוחר יותר";
+                            tr.update(oRef, { balance: round2((oSnap.data().balance || 0) - prize), bonusPaid: round2(((oSnap.data().bonusPaid || 0)) + prize) });
+                            tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastBonusAt: Date.now() });
+                            fromBank = true;
+                        } else {
+                            // הבעלים מסובב: הפרס מהקופה שלו אל עצמו = נשאר במקום
+                            tr.update(mRef, { lastBonusAt: Date.now() });
+                        }
                     });
                     const idx = BONUS_SEGS.indexOf(prize);
                     const segDeg = 360 / BONUS_SEGS.length;
                     const target = 360 * 6 - (idx * segDeg + segDeg / 2);
                     setBonusSpin({ deg: target, prize, done: false });
                     playSnd('dice');
-                    setTimeout(() => { setBonusSpin(sp => sp ? { ...sp, done: true } : sp); playSnd('win'); showToast(`זכית ב-${formatMoney(prize)}! 🎁`, "success"); }, 4200);
+                    setTimeout(() => { setBonusSpin(sp => sp ? { ...sp, done: true } : sp); playSnd('win'); showToast(fromBank ? `זכית ב-${formatMoney(prize)} מקופת הקלאב! 🎁` : `יצא ${formatMoney(prize)} - אתה הבית, הכסף נשאר בקופה שלך 😉`, "success"); }, 4200);
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בבונוס", "error"); }
             };
             const [showCreateYnv, setShowCreateYnv] = useState(false);
@@ -2065,17 +2081,17 @@
                                     <div className="text-xs text-slate-400 font-bold">מוכן לסיבוב?</div>
                                 </div>
                             </div>
+                            {bonusEnabled && (
+                                <button onClick={() => { setBonusOpen(true); setBonusSpin(null); }} className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-sm border-2 transition-all ${bonusReady ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.5)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
+                                    🎁 בונוס יומי{bonusReady ? '' : ` · ${bonusHoursLeft} שע'`}
+                                </button>
+                            )}
                             <div className="bg-gradient-to-l from-emerald-600/20 to-transparent border border-emerald-500/30 rounded-2xl px-5 py-3 text-left">
                                 <div className="text-[10px] text-emerald-300 font-bold uppercase tracking-widest">הארנק שלי</div>
                                 <div className="text-2xl font-black text-white" dir="ltr"><Coin amount={user.balance} /></div>
                             </div>
                         </div>
 
-                        <div className="flex justify-center mb-4">
-                            <button onClick={() => { setBonusOpen(true); setBonusSpin(null); }} className={`px-6 py-2.5 rounded-full font-black text-sm border-2 transition-all ${bonusReady ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.5)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
-                                🎁 בונוס יומי {bonusReady ? '· מוכן!' : `· בעוד ${bonusHoursLeft} שע'`}
-                            </button>
-                        </div>
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
@@ -2094,11 +2110,11 @@
                             ))}
                         </div>
 
-                        {bonusOpen && (
+                        {bonusOpen && bonusEnabled && (
                             <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!bonusSpin || bonusSpin.done) && setBonusOpen(false)}>
                                 <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl p-7 text-center max-w-sm w-full shadow-[0_0_60px_rgba(245,158,11,0.2)]">
                                     <h3 className="text-2xl font-black text-amber-400 mb-1">🎁 גלגל הבונוס היומי</h3>
-                                    <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הזכייה ישר ליתרה</p>
+                                    <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הפרס משולם מקופת הקלאב ישר ליתרה</p>
                                     <div className="relative w-64 h-64 mx-auto mb-6">
                                         <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 text-amber-400 text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">▼</div>
                                         <div className="w-full h-full rounded-full border-4 border-amber-500/70 shadow-[0_0_40px_rgba(245,158,11,0.25),inset_0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden"
@@ -2107,9 +2123,9 @@
                                                  transform: `rotate(${bonusSpin ? bonusSpin.deg : 0}deg)`,
                                                  transition: bonusSpin ? 'transform 4s cubic-bezier(0.15, 0.9, 0.25, 1)' : 'none'
                                              }}>
-                                            {[100, 150, 200, 300, 500, 750, 1000, 2500].map((v, i) => (
+                                            {BONUS_SEGS.map((v, i) => (
                                                 <div key={i} className="absolute left-1/2 top-1/2 origin-top-left" style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
-                                                    <span className={`absolute font-black text-xs ${v >= 2500 ? 'text-amber-300' : 'text-slate-200'}`} style={{ transform: 'translate(-50%, -104px) rotate(0deg)' }} dir="ltr">{v >= 1000 ? (v/1000) + 'K' : v}</span>
+                                                    <span className={`absolute font-black text-xs ${i === 7 ? 'text-amber-300' : 'text-slate-200'}`} style={{ transform: 'translate(-50%, -104px) rotate(0deg)' }} dir="ltr">{v >= 1000 ? (v/1000) + 'K' : v}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -2539,6 +2555,20 @@
             const [usersList, setUsersList] = useState([]);
             const [botsList, setBotsList] = useState([]);
             const [bcText, setBcText] = useState('');
+            const [bwDraft, setBwDraft] = useState(null);
+            const bwCur = bwDraft || {
+                enabled: (clubSettings?.bonusWheel?.enabled) !== false,
+                prizes: (Array.isArray(clubSettings?.bonusWheel?.prizes) && clubSettings.bonusWheel.prizes.length === 8) ? [...clubSettings.bonusWheel.prizes] : [5, 10, 20, 30, 50, 75, 100, 200]
+            };
+            const BW_PROB = ['80%', '10%', '3.5%', '2.5%', '1.8%', '1.2%', '0.5%', '1:200'];
+            const saveBonusWheel = async () => {
+                try {
+                    const prizes = bwCur.prizes.map(x => Math.max(0, round2(Number(x) || 0)));
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { bonusWheel: { enabled: !!bwCur.enabled, prizes } });
+                    setBwDraft(null);
+                    showToast(bwCur.enabled ? "גלגל המזל הופעל ועודכן! 🎰" : "גלגל המזל כובה", "success");
+                } catch(e) { showToast("שגיאה בשמירה", "error"); }
+            };
             const sendBroadcast = async () => {
                 const txt = bcText.trim();
                 if (txt.length < 2) return showToast("כתוב הודעה", "error");
@@ -2753,6 +2783,24 @@
                                         <button onClick={sendBroadcast} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-6 py-3 rounded-xl font-black shadow-lg">שגר 📣</button>
                                     </div>
                                     <p className="text-[10px] text-slate-500 font-bold mt-1.5">ההודעה קופצת מיידית על המסך אצל כל מי שמחובר, עם צליל. מי שאישר התראות דפדפן יקבל אותה גם כשהאתר ברקע.</p>
+                                </div>
+                                <div className="mb-4 pb-4 border-b border-white/5">
+                                    <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                        <label className="text-slate-400 text-xs font-bold uppercase tracking-widest">🎰 גלגל המזל היומי</label>
+                                        <button onClick={() => setBwDraft({ ...bwCur, enabled: !bwCur.enabled })} className={`px-5 py-2 rounded-xl font-black text-xs border-2 transition-all ${bwCur.enabled ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-800 text-slate-400 border-slate-600'}`}>
+                                            {bwCur.enabled ? '✓ מופעל' : '✗ כבוי'}
+                                        </button>
+                                        <button onClick={saveBonusWheel} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-6 py-2 rounded-xl font-black text-xs shadow-lg">שמור</button>
+                                    </div>
+                                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                                        {bwCur.prizes.map((p, i) => (
+                                            <div key={i}>
+                                                <input type="number" min="0" value={p} onChange={e => { const arr = [...bwCur.prizes]; arr[i] = e.target.value; setBwDraft({ ...bwCur, prizes: arr }); }} className="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-2 text-white font-bold text-center text-sm outline-none focus:border-amber-500/60" dir="ltr" />
+                                                <div className={`text-[9px] text-center font-black mt-0.5 ${i === 0 ? 'text-emerald-400' : i === 7 ? 'text-amber-400' : 'text-slate-500'}`}>{BW_PROB[i]}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-bold mt-1.5">הסכומים בשליטתך; ההסתברויות קבועות: 80% לנמוך, 10% לשני, מדורג באמצע, והפרס האחרון נופל אחת ל-200 סיבובים.</p>
                                 </div>
                                 <div className="flex items-end gap-4 flex-wrap">
                                     <div>
@@ -5379,7 +5427,7 @@
                         uids.forEach(uid => pl[uid].cards.forEach(c => { if (c.suit === trumpSuit && c.v < low) { low = c.v; attacker = uid; } }));
                         const defender = nextActive(pl, attacker);
                         tr.update(tblRef(), {
-                            status: 'playing', pot: round2(buyIn * uids.length), deck, trumpCard, trumpSuit,
+                            status: 'playing', pot: round2(buyIn * uids.filter(u => !pl[u].isBot).length), deck, trumpCard, trumpSuit,
                             players: pl, pairs: [], attackerUid: attacker, defenderUid: defender,
                             turnUid: attacker, roundCap: 6, passed: [], discard: 0, finishOrder: [],
                             lastResults: null, turnStartedAt: Date.now()
@@ -6333,7 +6381,7 @@
                         let a = 0, b = 0;
                         while (a === b) { a = 1 + Math.floor(Math.random() * 6); b = 1 + Math.floor(Math.random() * 6); }
                         tr.update(tblRef(), {
-                            status: 'playing', players: pl, pot: round2(buyIn * 2),
+                            status: 'playing', players: pl, pot: round2(buyIn * list.filter(q => !q.isBot).length),
                             board: sheshInitBoard(), bar: { w: 0, b: 0 }, off: { w: 0, b: 0 },
                             dice: [{ v: a, used: false }, { v: b, used: false }],
                             turn: a > b ? 'w' : 'b', turnStartedAt: Date.now(), lastResults: null
@@ -6899,7 +6947,7 @@
                         for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
                         const deal = ynvDealRound(base, null);
                         tr.update(tblRef(), {
-                            status: 'playing', pot: round2(buyIn * uids.length), round: 1, waitlist: stillWaiting,
+                            status: 'playing', pot: round2(buyIn * uids.filter(u => !base[u].isBot).length), round: 1, waitlist: stillWaiting,
                             ...deal, nextRoundAt: null, lastRound: null, lastResults: null
                         });
                     });
@@ -7583,7 +7631,7 @@
                         for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
                         const deal = presDealAll(base);
                         tr.update(tblRef(), {
-                            status: 'playing', players: deal.players, pot: round2(buyIn * uids.length),
+                            status: 'playing', players: deal.players, pot: round2(buyIn * uids.filter(u => !base[u].isBot).length),
                             pile: [], turnUid: deal.leader, lastPlayedUid: null, finishOrder: [],
                             turnStartedAt: Date.now(), lastResults: null
                         });
