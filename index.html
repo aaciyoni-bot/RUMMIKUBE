@@ -1031,6 +1031,9 @@
                             const uSnap = await tr.get(uRef);
                             if (!uSnap.exists()) return;
                             const u = uSnap.data();
+                            // רק ותיקי האתר (מלפני הקלאבים) מוגרים אוטומטית; חדשים בוחרים קלאב ומבקשים בעצמם
+                            const isLegacy = !u.migratedToClubs && (u.status === 'approved' || (u.balance || 0) > 0 || (u.role && u.role !== ROLES.PLAYER));
+                            if (!isLegacy) { tr.update(uRef, { migratedToClubs: true }); return; }
                             tr.set(mRef, {
                                 uid: dbUser.uid, clubId: 'main', username: u.username || '', email: (u.email || '').toLowerCase(),
                                 photo: u.photo || '', avatarSeed: u.avatarSeed || '', playerId: u.playerId || genPlayerId(), isBot: !!u.isBot,
@@ -1172,7 +1175,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V12</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V12.1</span></p>
                             </div>
                         </nav>
                     )}
@@ -1209,7 +1212,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V12</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V12.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1307,12 +1310,11 @@
             return (
                 <div className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
-                        <div className="text-center mb-8 mt-4">
-                            <div className="w-16 h-16 mx-auto mb-3 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-[0_0_35px_rgba(16,185,129,0.4)]">
-                                <i className="fa-solid fa-building-columns text-2xl text-white"></i>
-                            </div>
-                            <h2 className="text-3xl font-black text-white tracking-wide">הקלאבים</h2>
-                            <p className="text-slate-400 text-sm font-bold mt-1">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
+                        <div className="text-center mb-8 mt-6">
+                            <h1 className="text-4xl sm:text-5xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(16,185,129,0.3)]">RUMMIKUBE</h1>
+                            <p className="text-slate-300 text-[11px] sm:text-xs font-bold tracking-[0.2em] mt-2">רמיקוב · פוקר · דוראק · שש-בש · פרזידנט · יניב</p>
+                            <p className="text-emerald-400/80 text-[10px] sm:text-[11px] font-black tracking-[0.3em] uppercase mt-1">משחקים בין חברים וטורנירים</p>
+                            <p className="text-slate-400 text-sm font-bold mt-5">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
                             <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-xs text-slate-500 underline font-bold mt-2">התנתק</button>
                         </div>
 
@@ -1694,9 +1696,6 @@
                             </button>
                             <button onClick={()=>setTab('president')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='president' ? 'active' : 'hover:text-white'}`}>
                                 <i className="fa-solid fa-chess-king ml-2"></i>פרזידנט <span className="text-[10px] opacity-80">({presTables.length})</span>
-                            </button>
-                            <button onClick={()=>showToast("משחקים בין חברים - בקרוב! 🚧", "info")} className="pill-tab px-4 py-2.5 rounded-xl font-black text-sm text-slate-600 opacity-70">
-                                <i className="fa-solid fa-user-group ml-2"></i>בין חברים
                             </button>
                             <button onClick={()=>setTab('tours')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='tours' ? 'active' : 'hover:text-white'}`}>
                                 <i className="fa-solid fa-trophy ml-2"></i>טורנירים <span className="text-[10px] opacity-80">({(tournaments||[]).filter(t=>(t.clubId||'main')===CLUB_ID && ['reg','running'].includes(t.status)).length})</span>
