@@ -1279,6 +1279,32 @@
                 })();
             }, [fbReady, dbUser?.uid, clubsList.length]);
 
+            // הודעות קלאב קופצות (broadcast)
+            const [clubMsg, setClubMsg] = useState(null);
+            useEffect(() => {
+                if (!fbReady || !activeClub) { setClubMsg(null); return; }
+                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "broadcasts", activeClub.id), (d) => {
+                    if (!d.exists()) return;
+                    const data = d.data();
+                    const seen = Number(localStorage.getItem('bcSeen_' + activeClub.id) || 0);
+                    if ((data.at || 0) > seen) {
+                        setClubMsg(data);
+                        playSnd('msg');
+                        try {
+                            if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+                                new Notification('📣 ' + (data.clubName || 'הקלאב'), { body: data.text });
+                            }
+                        } catch(e) {}
+                    }
+                });
+                return () => unsub();
+            }, [fbReady, activeClub?.id]);
+            const dismissClubMsg = () => {
+                if (activeClub && clubMsg) localStorage.setItem('bcSeen_' + activeClub.id, String(clubMsg.at || Date.now()));
+                setClubMsg(null);
+                try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch(e) {}
+            };
+
             // החברות הפעילה - חי
             useEffect(() => {
                 if (!fbReady || !dbUser?.uid || !activeClub) { setActiveMem(null); return; }
@@ -1367,6 +1393,9 @@
                                         <i className="fa-solid fa-chart-line"></i>
                                     </button>
                                 )}
+                                <button onClick={() => changeView(currentView === 'leaders' ? 'lobby' : 'leaders')} className={`w-10 h-10 rounded-xl border transition-colors flex items-center justify-center ${currentView === 'leaders' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800/80 text-amber-400 border-white/5 hover:bg-amber-700 hover:text-white'}`} title="לוח המובילים">
+                                    <i className="fa-solid fa-ranking-star"></i>
+                                </button>
                                 <button onClick={() => changeView(currentView === 'profile' ? 'lobby' : 'profile')} className="w-10 h-10 rounded-xl overflow-hidden border border-emerald-500/40 hover:border-emerald-400 transition-colors" title="אזור אישי">
                                     <img src={avatarUrl(dbUser)} className="w-full h-full object-cover bg-slate-800" />
                                 </button>
@@ -1382,7 +1411,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V14.3</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15</span></p>
                             </div>
                         </nav>
                     )}
@@ -1393,6 +1422,7 @@
                         {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} />}
                         {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
+                        {currentView === 'leaders' && activeClub && <LeadersView user={effUser} showToast={showToast} />}
                         {currentView === 'backoffice' && activeClub && <BackofficeView user={effUser} clubSettings={clubSettings} showToast={showToast} />}
                         {currentView === 'poker-create' && <PokerCreateView user={effUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
                         {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
@@ -1404,6 +1434,17 @@
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
+                        {clubMsg && !inTable && (
+                            <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={dismissClubMsg}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-500/60 rounded-3xl p-7 max-w-md w-full text-center shadow-[0_0_60px_rgba(245,158,11,0.25)] animate-pop-in">
+                                    <div className="text-4xl mb-2">📣</div>
+                                    <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
+                                    <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap">{clubMsg.text}</div>
+                                    <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
+                                    {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
+                                </div>
+                            </div>
+                        )}
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>{t.msg}</div>
                         ))}
@@ -1420,7 +1461,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V14.3</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1428,6 +1469,107 @@
                     <div className="absolute bottom-4 right-4 z-20 flex flex-col items-center gap-1">
                         <img src="data:image/jpeg;base64,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" alt="Provably Fair Labs - Gaming Integrity Certified" className="h-16 sm:h-20 w-auto rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] border border-white/20" />
                         <span className="text-[8px] text-slate-500 font-bold tracking-wider uppercase">Certified · אישור תקינות</span>
+                    </div>
+                </div>
+            );
+        }
+
+        /* ================================================================
+           לוח המובילים - פודיום ודירוג פר-קלאב
+           ================================================================ */
+        function LeadersView({ user, showToast }) {
+            const [mems, setMems] = useState(null);
+            const [weekly, setWeekly] = useState(null);
+            const [ltab, setLtab] = useState('profit');
+            useEffect(() => {
+                (async () => {
+                    try {
+                        const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
+                        const snap = await window.fb.getDocs(q);
+                        setMems(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.status === 'approved' && !m.isBot));
+                    } catch(e) { setMems([]); }
+                })();
+            }, []);
+            useEffect(() => {
+                if (ltab !== 'week' || weekly !== null) return;
+                (async () => {
+                    try {
+                        const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID));
+                        const snap = await window.fb.getDocs(q);
+                        const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+                        const agg = {};
+                        snap.docs.forEach(d => {
+                            const e = d.data();
+                            if ((e.at || 0) < cutoff || !e.uid) return;
+                            if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', profit: 0, games: 0 };
+                            agg[e.uid].profit = round2(agg[e.uid].profit + (Number(e.profit) || 0));
+                            agg[e.uid].games++;
+                        });
+                        setWeekly(Object.values(agg));
+                    } catch(e) { setWeekly([]); }
+                })();
+            }, [ltab]);
+
+            const rows = (() => {
+                if (ltab === 'week') return (weekly || []).map(w => ({ ...w, metric: w.profit, sub: `${w.games} משחקים` })).sort((a, b) => b.metric - a.metric);
+                const list = (mems || []).map(m => ({
+                    uid: m.uid, username: m.username, photo: m.photo, avatarSeed: m.avatarSeed,
+                    metric: ltab === 'profit' ? round2((m.stats || {}).totalProfit || 0) : ((m.stats || {}).gamesWon || 0),
+                    sub: `${(m.stats || {}).gamesPlayed || 0} משחקים · ${(m.stats || {}).gamesWon || 0} ניצחונות`
+                }));
+                return list.sort((a, b) => b.metric - a.metric);
+            })();
+            const top3 = rows.slice(0, 3);
+            const rest = rows.slice(3, 25);
+            const medal = ['🥇', '🥈', '🥉'];
+            const fmtM = (v) => ltab === 'wins' ? `${v} 🏆` : formatMoney(v);
+
+            return (
+                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
+                    <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
+                        <div className="text-center mb-6 mt-2">
+                            <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-yellow-200 to-amber-400 tracking-wide"><i className="fa-solid fa-ranking-star ml-2 text-amber-400"></i>לוח המובילים</h2>
+                            <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
+                        </div>
+                        <div className="flex justify-center gap-2 mb-7">
+                            {[['profit', 'רווח כולל'], ['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
+                                <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
+                            ))}
+                        </div>
+                        {(mems === null || (ltab === 'week' && weekly === null)) ? (
+                            <div className="text-center py-16 text-amber-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>
+                        ) : rows.length === 0 ? (
+                            <div className="text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl">עדיין אין נתונים - שחקו כמה משחקים! 🎲</div>
+                        ) : (
+                            <React.Fragment>
+                                <div className="flex justify-center items-end gap-3 mb-8">
+                                    {[1, 0, 2].map(i => top3[i] && (
+                                        <div key={i} className={`flex flex-col items-center ${i === 0 ? 'order-2' : i === 1 ? 'order-1' : 'order-3'}`}>
+                                            <div className="text-3xl mb-1">{medal[i]}</div>
+                                            <div className={`rounded-2xl overflow-hidden border-2 ${i === 0 ? 'w-20 h-20 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]' : 'w-14 h-14 border-slate-600'}`}>
+                                                <img src={avatarUrl(top3[i])} className="w-full h-full object-cover bg-slate-800" />
+                                            </div>
+                                            <span className={`font-black mt-1.5 ${i === 0 ? 'text-white text-sm' : 'text-slate-300 text-xs'}`}>{top3[i].username}</span>
+                                            <span className={`font-black text-xs ${top3[i].metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(top3[i].metric)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="glass-panel rounded-3xl divide-y divide-white/5 overflow-hidden">
+                                    {rest.map((r, i) => (
+                                        <div key={r.uid} className={`flex items-center gap-3 px-4 py-3 ${r.uid === user.uid ? 'bg-emerald-500/10' : ''}`}>
+                                            <span className="text-slate-500 font-black w-6 text-center">{i + 4}</span>
+                                            <img src={avatarUrl(r)} className="w-9 h-9 rounded-xl bg-slate-800" />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-white font-bold text-sm truncate">{r.username}{r.uid === user.uid ? ' (אתה)' : ''}</div>
+                                                <div className="text-slate-500 text-[10px] font-bold">{r.sub || ''}</div>
+                                            </div>
+                                            <span className={`font-black text-sm ${r.metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(r.metric)}</span>
+                                        </div>
+                                    ))}
+                                    {rest.length === 0 && <div className="text-center py-6 text-slate-600 font-bold text-sm">רק שלושה על הפודיום בינתיים 🏆</div>}
+                                </div>
+                            </React.Fragment>
+                        )}
                     </div>
                 </div>
             );
@@ -1802,6 +1944,38 @@
             const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const presTables = tables.filter(t => t.type === 'president' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const yanivTables = tables.filter(t => t.type === 'yaniv' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            // בונוס יומי - גלגל מזל
+            const BONUS_SEGS = [100, 150, 200, 300, 500, 750, 1000, 2500];
+            const BONUS_W = [26, 20, 16, 12, 10, 8, 6, 2];
+            const [bonusOpen, setBonusOpen] = useState(false);
+            const [bonusSpin, setBonusSpin] = useState(null); // {deg, prize, done}
+            const bonusReady = !user.lastBonusAt || (Date.now() - user.lastBonusAt) >= 22 * 3600 * 1000;
+            const bonusHoursLeft = user.lastBonusAt ? Math.max(0, Math.ceil((22 * 3600 * 1000 - (Date.now() - user.lastBonusAt)) / 3600000)) : 0;
+            const spinBonus = async () => {
+                if (bonusSpin && !bonusSpin.done) return;
+                try {
+                    let prize = 0;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const mRef = memDoc(user.uid);
+                        const mSnap = await tr.get(mRef);
+                        if (!mSnap.exists()) throw "אין חברות";
+                        const last = mSnap.data().lastBonusAt || 0;
+                        if (Date.now() - last < 22 * 3600 * 1000) throw `הבונוס הבא בעוד ${Math.ceil((22 * 3600 * 1000 - (Date.now() - last)) / 3600000)} שעות`;
+                        // הגרלה משוקללת
+                        const total = BONUS_W.reduce((a, b) => a + b, 0);
+                        let r = Math.random() * total, idx = 0;
+                        for (let i = 0; i < BONUS_W.length; i++) { r -= BONUS_W[i]; if (r <= 0) { idx = i; break; } }
+                        prize = BONUS_SEGS[idx];
+                        tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastBonusAt: Date.now() });
+                    });
+                    const idx = BONUS_SEGS.indexOf(prize);
+                    const segDeg = 360 / BONUS_SEGS.length;
+                    const target = 360 * 6 - (idx * segDeg + segDeg / 2);
+                    setBonusSpin({ deg: target, prize, done: false });
+                    playSnd('dice');
+                    setTimeout(() => { setBonusSpin(sp => sp ? { ...sp, done: true } : sp); playSnd('win'); showToast(`זכית ב-${formatMoney(prize)}! 🎁`, "success"); }, 4200);
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בבונוס", "error"); }
+            };
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreateYnv = async () => {
@@ -1897,6 +2071,11 @@
                             </div>
                         </div>
 
+                        <div className="flex justify-center mb-4">
+                            <button onClick={() => { setBonusOpen(true); setBonusSpin(null); }} className={`px-6 py-2.5 rounded-full font-black text-sm border-2 transition-all ${bonusReady ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.5)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
+                                🎁 בונוס יומי {bonusReady ? '· מוכן!' : `· בעוד ${bonusHoursLeft} שע'`}
+                            </button>
+                        </div>
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
@@ -1914,6 +2093,36 @@
                                 </button>
                             ))}
                         </div>
+
+                        {bonusOpen && (
+                            <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!bonusSpin || bonusSpin.done) && setBonusOpen(false)}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl p-7 text-center max-w-sm w-full shadow-[0_0_60px_rgba(245,158,11,0.2)]">
+                                    <h3 className="text-2xl font-black text-amber-400 mb-1">🎁 גלגל הבונוס היומי</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הזכייה ישר ליתרה</p>
+                                    <div className="relative w-64 h-64 mx-auto mb-6">
+                                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 text-amber-400 text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">▼</div>
+                                        <div className="w-full h-full rounded-full border-4 border-amber-500/70 shadow-[0_0_40px_rgba(245,158,11,0.25),inset_0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                                             style={{
+                                                 background: 'conic-gradient(#1e293b 0deg 45deg, #0f172a 45deg 90deg, #1e293b 90deg 135deg, #0f172a 135deg 180deg, #1e293b 180deg 225deg, #0f172a 225deg 270deg, #1e293b 270deg 315deg, #713f12 315deg 360deg)',
+                                                 transform: `rotate(${bonusSpin ? bonusSpin.deg : 0}deg)`,
+                                                 transition: bonusSpin ? 'transform 4s cubic-bezier(0.15, 0.9, 0.25, 1)' : 'none'
+                                             }}>
+                                            {[100, 150, 200, 300, 500, 750, 1000, 2500].map((v, i) => (
+                                                <div key={i} className="absolute left-1/2 top-1/2 origin-top-left" style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
+                                                    <span className={`absolute font-black text-xs ${v >= 2500 ? 'text-amber-300' : 'text-slate-200'}`} style={{ transform: 'translate(-50%, -104px) rotate(0deg)' }} dir="ltr">{v >= 1000 ? (v/1000) + 'K' : v}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 border-2 border-amber-200 flex items-center justify-center text-2xl shadow-lg z-10">🎁</div>
+                                    </div>
+                                    {bonusSpin && bonusSpin.done && <div className="text-emerald-400 font-black text-2xl mb-3 animate-pop-in">+{formatMoney(bonusSpin.prize)} 🎉</div>}
+                                    {bonusReady && !bonusSpin && <button onClick={spinBonus} className="w-full bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 text-slate-900 py-3.5 rounded-xl font-black text-lg shadow-lg">סובב! 🎰</button>}
+                                    {!bonusReady && !bonusSpin && <div className="text-slate-400 font-bold text-sm">כבר סובבת היום · הבונוס הבא בעוד {bonusHoursLeft} שעות ⏳</div>}
+                                    {bonusSpin && !bonusSpin.done && <div className="text-amber-300 font-black text-sm animate-pulse">מסתובב... 🤞</div>}
+                                    {(!bonusSpin || bonusSpin.done) && <button onClick={() => setBonusOpen(false)} className="mt-3 text-slate-500 hover:text-white underline text-sm font-bold">סגור</button>}
+                                </div>
+                            </div>
+                        )}
 
                         {/* ===== טאב יניב ===== */}
                         {tab === 'yaniv' && (
@@ -2328,6 +2537,17 @@
            ================================================================ */
         function BackofficeView({ user, clubSettings, showToast }) {
             const [usersList, setUsersList] = useState([]);
+            const [botsList, setBotsList] = useState([]);
+            const [bcText, setBcText] = useState('');
+            const sendBroadcast = async () => {
+                const txt = bcText.trim();
+                if (txt.length < 2) return showToast("כתוב הודעה", "error");
+                try {
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "broadcasts", CLUB_ID), { text: txt.slice(0, 300), at: Date.now(), by: user.username, clubName: (window.__club || {}).name || '' });
+                    setBcText('');
+                    showToast("ההודעה שוגרה לכל חברי הקלאב! 📣", "success");
+                } catch(e) { showToast("שגיאה בשיגור", "error"); }
+            };
             const [search, setSearch] = useState('');
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
@@ -2368,7 +2588,11 @@
                 const unsub = window.fb.onSnapshot(memQ, (snap) => {
                     setUsersList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 });
-                return () => unsub();
+                const botQ2 = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                const unsubB = window.fb.onSnapshot(botQ2, (snap) => {
+                    setBotsList(snap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() })));
+                });
+                return () => { unsub(); unsubB(); };
             }, []);
 
             const isOwner = [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role);
@@ -2490,6 +2714,7 @@
                             {user.role === ROLES.SUPER_ADMIN && (
                                 <div className="flex gap-2">
                                     <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
+                                    <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת (משרתים את כל הקלאבים)</span>
                                     <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
                                 </div>
                             )}
@@ -2520,6 +2745,14 @@
                                         <input value={clubNameDraft} onChange={e=>setClubNameDraft(e.target.value)} maxLength={30} placeholder={clubSettings?.name || ''} className="bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-black w-56 outline-none focus:border-emerald-500/60" />
                                     </div>
                                     <button onClick={async () => { const nm = clubNameDraft.trim(); if (nm.length < 2) return showToast("שם בין 2 ל-30 תווים", "error"); try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { name: nm }); setClubNameDraft(''); showToast("שם הקלאב עודכן!", "success"); } catch(e) { showToast("שגיאה", "error"); } }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-3 rounded-xl font-bold shadow-lg">שנה שם</button>
+                                </div>
+                                <div className="mb-4 pb-4 border-b border-white/5">
+                                    <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">📣 הודעה קופצת לכל חברי הקלאב</label>
+                                    <div className="flex gap-2 items-start flex-wrap">
+                                        <textarea value={bcText} onChange={e=>setBcText(e.target.value)} rows={2} maxLength={300} placeholder="למשל: טורניר ערב שבת ב-21:00! פרס ראשון 5,000 🏆" className="flex-1 min-w-[240px] bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-amber-500/60 resize-none" />
+                                        <button onClick={sendBroadcast} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-6 py-3 rounded-xl font-black shadow-lg">שגר 📣</button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-bold mt-1.5">ההודעה קופצת מיידית על המסך אצל כל מי שמחובר, עם צליל. מי שאישר התראות דפדפן יקבל אותה גם כשהאתר ברקע.</p>
                                 </div>
                                 <div className="flex items-end gap-4 flex-wrap">
                                     <div>
