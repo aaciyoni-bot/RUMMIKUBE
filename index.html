@@ -1043,6 +1043,30 @@
                 })();
             }, [fbReady, dbUser?.uid]);
 
+            // הזרמה חד-פעמית לקלאבים שנפתחו לפני עדכון ההון: השלמת יתרת הבעלים ל-10,000,000
+            useEffect(() => {
+                if (!fbReady || !dbUser || !isGodUser(dbUser) || !clubsList.length) return;
+                (async () => {
+                    for (const c of clubsList) {
+                        if (c.ownerSeeded || !c.ownerUid) continue;
+                        try {
+                            await window.fb.runTransaction(window.fb.db, async (tr) => {
+                                const cRef = window.fb.doc(window.fb.db, "clubs", c.id);
+                                const cSnap = await tr.get(cRef);
+                                if (!cSnap.exists() || cSnap.data().ownerSeeded) return;
+                                const mRef = window.fb.doc(window.fb.db, "memberships", `${c.ownerUid}_${c.id}`);
+                                const mSnap = await tr.get(mRef);
+                                if (mSnap.exists()) {
+                                    const bal = mSnap.data().balance || 0;
+                                    if (bal < 10000000) tr.update(mRef, { balance: 10000000 });
+                                }
+                                tr.update(cRef, { ownerSeeded: true });
+                            });
+                        } catch(e) {}
+                    }
+                })();
+            }, [fbReady, dbUser?.uid, clubsList.length]);
+
             // החברות הפעילה - חי
             useEffect(() => {
                 if (!fbReady || !dbUser?.uid || !activeClub) { setActiveMem(null); return; }
@@ -1146,7 +1170,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V11.1</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V11.2</span></p>
                             </div>
                         </nav>
                     )}
@@ -1182,7 +1206,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V11.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V11.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1219,6 +1243,21 @@
                 } catch(e) { showToast("שגיאה בשליחת הבקשה", "error"); }
             };
 
+            const deleteClub = async (c) => {
+                if (c.id === 'main') return showToast("את הקלאב המקורי אי אפשר למחוק - אפשר לשנות לו שם", "error");
+                if (!window.confirm(`⚠️ מחיקת הקלאב "${c.name}" לצמיתות!\n\nכל החברויות והיתרות בו, כל השולחנות וכל הטורנירים שלו - יימחקו ללא שחזור.\n\nבטוח שאתה רוצה למחוק?`)) return;
+                if (!window.confirm(`אישור אחרון: למחוק את "${c.name}" סופית?`)) return;
+                try {
+                    for (const col of ["memberships", "tables", "tournaments"]) {
+                        const q = window.fb.query(window.fb.collection(window.fb.db, col), window.fb.where("clubId", "==", c.id));
+                        const snap = await window.fb.getDocs(q);
+                        for (const d of snap.docs) { try { await window.fb.deleteDoc(d.ref); } catch(e2) {} }
+                    }
+                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, "clubs", c.id));
+                    showToast(`הקלאב "${c.name}" נמחק`, "info");
+                } catch(e) { showToast("שגיאה במחיקת הקלאב", "error"); }
+            };
+
             const createClub = async () => {
                 const nm = newName.trim();
                 if (nm.length < 2 || nm.length > 30) return showToast("שם קלאב בין 2 ל-30 תווים", "error");
@@ -1240,6 +1279,11 @@
                     <div className="grad-card">
                         <div className="grad-card-inner p-5 flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3 min-w-0">
+                                {(isOwner || god) && c.id !== 'main' && (
+                                    <button onClick={(e) => { e.stopPropagation(); deleteClub(c); }} title="מחק קלאב" className="w-9 h-9 rounded-xl bg-slate-800/80 text-slate-500 hover:text-white hover:bg-rose-700 border border-white/5 flex items-center justify-center shrink-0 transition-colors">
+                                        <i className="fa-solid fa-trash text-xs"></i>
+                                    </button>
+                                )}
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center shrink-0 shadow-lg">
                                     <i className="fa-solid fa-building-columns text-white text-lg"></i>
                                 </div>
