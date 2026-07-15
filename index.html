@@ -1496,7 +1496,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V21</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V21.1</span></p>
                             </div>
                         </nav>
                     )}
@@ -1549,7 +1549,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V21</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V21.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -2278,6 +2278,72 @@
             // 80% ראשון · 10% שני · מדורג · האחרון 1 ל-200 סיבובים
             const BONUS_W = [800, 100, 35, 25, 18, 12, 5, 5];
             const [bonusOpen, setBonusOpen] = useState(false);
+            // כרטיס גירוד שבועי
+            const SCR_HOURS = 7 * 24;
+            const [scrOpen, setScrOpen] = useState(false);
+            const [scr, setScr] = useState(null); // {prize, grid, revealed}
+            const scratchReady = bonusEnabled && (!user.lastScratchAt || (Date.now() - user.lastScratchAt) >= SCR_HOURS * 3600 * 1000);
+            const SCR_SYM = { 10: '🍀', 15: '💎', 200: '👑', 400: '💰' };
+            const buildGrid = (prize) => {
+                const fillers = ['🎲', '🃏', '🎰', '⭐', '🔔', '7️⃣'].filter(f => f !== SCR_SYM[prize]);
+                const cells = [SCR_SYM[prize], SCR_SYM[prize], SCR_SYM[prize]];
+                const cnt = {};
+                while (cells.length < 9) {
+                    const f = fillers[Math.floor(Math.random() * fillers.length)];
+                    if ((cnt[f] || 0) >= 2) continue;
+                    cnt[f] = (cnt[f] || 0) + 1;
+                    cells.push(f);
+                }
+                for (let k = cells.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [cells[k], cells[j]] = [cells[j], cells[k]]; }
+                return cells;
+            };
+            const claimScratch = async () => {
+                try {
+                    if (!scratchReady) throw "עוד לא הגיע הזמן";
+                    let prize = 0, fromBank = false;
+                    const ownerUid = (window.__club || {}).ownerUid;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const mRef = memDoc(user.uid);
+                        const mSnap = await tr.get(mRef);
+                        if (!mSnap.exists()) throw "אין חברות";
+                        const lastS = mSnap.data().lastScratchAt || 0;
+                        if (Date.now() - lastS < SCR_HOURS * 3600 * 1000) throw "כבר גירדת השבוע";
+                        const cRef = window.fb.doc(window.fb.db, "clubs", CLUB_ID);
+                        const cSnap = await tr.get(cRef);
+                        const cycleKey = String(cycleStartIL(0));
+                        let sc = (cSnap.exists() && cSnap.data().scratch) || {};
+                        if (sc.key !== cycleKey) sc = { key: cycleKey, won400: false, won200: false };
+                        // הגרלה: 80% עשרה · 15% חמש-עשרה · 0.5% ארבע מאות (אחד בשבוע) · 1% מאתיים (אחד בשבוע) · השאר עשרה
+                        const r = Math.random() * 1000;
+                        if (r < 800) prize = 10;
+                        else if (r < 950) prize = 15;
+                        else if (r < 955) prize = !sc.won400 ? 400 : 10;
+                        else if (r < 965) prize = !sc.won200 ? 200 : 10;
+                        else prize = 10;
+                        if (prize === 400) sc = { ...sc, won400: true };
+                        if (prize === 200) sc = { ...sc, won200: true };
+                        if (ownerUid && ownerUid !== user.uid) {
+                            const oRef = memDoc(ownerUid);
+                            const oSnap = await tr.get(oRef);
+                            if (!oSnap.exists() || (oSnap.data().balance || 0) < prize) throw "קופת הקלאב ריקה כרגע - נסה מאוחר יותר";
+                            tr.update(oRef, { balance: round2((oSnap.data().balance || 0) - prize), bonusPaid: round2((oSnap.data().bonusPaid || 0) + prize) });
+                            tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastScratchAt: Date.now() });
+                            fromBank = true;
+                        } else {
+                            tr.update(mRef, { lastScratchAt: Date.now() });
+                        }
+                        tr.update(cRef, { scratch: sc });
+                    });
+                    setScr({ prize, grid: buildGrid(prize), revealed: false, fromBank });
+                    playSnd('deal');
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const revealScratch = () => {
+                setScr(sc => sc ? { ...sc, revealed: true } : sc);
+                playSnd('win');
+                const sc2 = scr;
+                setTimeout(() => showToast(sc2 && !sc2.fromBank ? `יצא ${formatMoney((scr || {}).prize || 0)} - אתה הבית, נשאר בקופה 😉` : `גירדת וזכית ב-${formatMoney((scr || {}).prize || 0)}! 🎫✨`, "success"), 300);
+            };
             const [bonusSpin, setBonusSpin] = useState(null); // {deg, prize, done}
             const bonusReady = !user.lastBonusAt || (Date.now() - user.lastBonusAt) >= 22 * 3600 * 1000;
             const bonusHoursLeft = user.lastBonusAt ? Math.max(0, Math.ceil((22 * 3600 * 1000 - (Date.now() - user.lastBonusAt)) / 3600000)) : 0;
@@ -2409,6 +2475,11 @@
                                 </div>
                             </div>
                             {bonusEnabled && (
+                                <button onClick={() => { setScrOpen(true); setScr(null); }} className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-sm border-2 transition-all ${scratchReady ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-600 text-slate-900 border-yellow-200 shadow-[0_0_22px_rgba(234,179,8,0.55)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
+                                    🎫 גירוד שבועי{scratchReady ? ' · גרד! ✨' : ''}{!scratchReady && <React.Fragment> · <BonusCountdown lastAt={user.lastScratchAt} hours={SCR_HOURS} /></React.Fragment>}
+                                </button>
+                            )}
+                            {bonusEnabled && (
                                 <button onClick={() => { setBonusOpen(true); setBonusSpin(null); }} className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-sm border-2 transition-all ${bonusReady ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.5)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
                                     🎁 בונוס יומי{!bonusReady && <React.Fragment> · <BonusCountdown lastAt={user.lastBonusAt} /></React.Fragment>}
                                 </button>
@@ -2439,6 +2510,45 @@
                                 </button>
                             ))}
                         </div>
+
+                        {scrOpen && bonusEnabled && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!scr || scr.revealed) && setScrOpen(false)}>
+                                <div onClick={e=>e.stopPropagation()} className="rounded-3xl p-[3px] max-w-sm w-full shadow-[0_0_70px_rgba(234,179,8,0.3)]" style={{ background: 'linear-gradient(135deg, #f5e7b8, #b8912f 30%, #f7edc9 50%, #a07d24 70%, #eadaa4)' }}>
+                                    <div className="bg-gradient-to-b from-slate-900 to-slate-950 rounded-[21px] p-5 text-center">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[9px] font-black text-amber-300/80 tracking-[0.25em] uppercase">Rummikube</span>
+                                            <span className="text-[9px] font-black text-amber-300/80 tracking-[0.25em] uppercase">Lucky 3</span>
+                                        </div>
+                                        <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-300 to-yellow-500 mb-0.5">🎫 הגירוד השבועי</h3>
+                                        <p className="text-slate-400 text-[11px] font-bold mb-4">3 סמלים זהים = זכייה · הפרס מקופת הקלאב ישר ליתרה</p>
+                                        {!scr && (
+                                            scratchReady
+                                                ? <button onClick={claimScratch} className="w-full bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-600 hover:from-yellow-200 text-slate-900 py-3.5 rounded-xl font-black text-lg shadow-lg mb-2">קבל כרטיס ✨</button>
+                                                : <div className="text-slate-400 font-bold text-sm py-4">הכרטיס הבא בעוד <span className="text-amber-300 font-black"><BonusCountdown lastAt={user.lastScratchAt} hours={SCR_HOURS} /></span> ⏳</div>
+                                        )}
+                                        {scr && (
+                                            <div className="relative mx-auto rounded-xl overflow-hidden border-2 border-amber-500/40" style={{ width: '100%', maxWidth: 290 }}>
+                                                <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-950" style={{ minHeight: 190 }}>
+                                                    {scr.grid.map((sym, i) => {
+                                                        const winSym = { 10: '🍀', 15: '💎', 200: '👑', 400: '💰' }[scr.prize];
+                                                        return (
+                                                            <div key={i} className={`aspect-square rounded-lg flex items-center justify-center text-3xl bg-gradient-to-b from-slate-800 to-slate-900 border ${scr.revealed && sym === winSym ? 'border-amber-400 ring-2 ring-amber-400/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse' : 'border-white/10'}`}>{sym}</div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {!scr.revealed && <ScratchFoil onDone={revealScratch} />}
+                                            </div>
+                                        )}
+                                        {scr && scr.revealed && (
+                                            <div className="text-emerald-400 font-black text-2xl mt-3 animate-pop-in">+{formatMoney(scr.prize)} 🎉</div>
+                                        )}
+                                        {scr && !scr.revealed && <p className="text-amber-300/90 text-[11px] font-black mt-2 animate-pulse">👆 גרד את הציפוי באצבע או בעכבר!</p>}
+                                        <div className="text-[9px] text-slate-600 font-bold mt-3">80% · ₪10 &nbsp;|&nbsp; 15% · ₪15 &nbsp;|&nbsp; 👑 ₪200 ו-💰 ₪400 - אחד מכל אחד בשבוע, לזריז!</div>
+                                        {(!scr || scr.revealed) && <button onClick={() => setScrOpen(false)} className="mt-2 text-slate-500 hover:text-white underline text-sm font-bold">סגור</button>}
+                                    </div>
+                                </div>
+                            </div>
+                        , document.body)}
 
                         {bonusOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!bonusSpin || bonusSpin.done) && setBonusOpen(false)}>
@@ -6806,12 +6916,67 @@
         }
 
         /* שעון רץ אחורה עד הבונוס הבא */
-        function BonusCountdown({ lastAt }) {
+        function BonusCountdown({ lastAt, hours }) {
             const [, setTick] = useState(0);
             useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);
-            const remMs = Math.max(0, 22 * 3600 * 1000 - (Date.now() - (lastAt || 0)));
+            const remMs = Math.max(0, (hours || 22) * 3600 * 1000 - (Date.now() - (lastAt || 0)));
             const pad = (x) => String(x).padStart(2, '0');
-            return <span dir="ltr" className="font-mono">{pad(Math.floor(remMs / 3600000))}:{pad(Math.floor((remMs % 3600000) / 60000))}:{pad(Math.floor((remMs % 60000) / 1000))}</span>;
+            const h = Math.floor(remMs / 3600000);
+            return <span dir="ltr" className="font-mono">{h >= 24 ? Math.floor(h / 24) + 'd ' : ''}{pad(h % 24)}:{pad(Math.floor((remMs % 3600000) / 60000))}:{pad(Math.floor((remMs % 60000) / 1000))}</span>;
+        }
+
+        /* ציפוי גירוד: קנבס זהב-כסף שנמחק באצבע */
+        function ScratchFoil({ onDone }) {
+            const cvRef = useRef(null);
+            const doneRef = useRef(false);
+            const drawingRef = useRef(false);
+            useEffect(() => {
+                const cv = cvRef.current; if (!cv) return;
+                const dpr = window.devicePixelRatio || 1;
+                const w = cv.offsetWidth, h = cv.offsetHeight;
+                cv.width = w * dpr; cv.height = h * dpr;
+                const ctx = cv.getContext('2d');
+                ctx.scale(dpr, dpr);
+                const g = ctx.createLinearGradient(0, 0, w, h);
+                g.addColorStop(0, '#e8e2d0'); g.addColorStop(0.25, '#c9b26a'); g.addColorStop(0.5, '#f5ecd2'); g.addColorStop(0.75, '#b8a15a'); g.addColorStop(1, '#ddd3b8');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+                // נצנצים
+                for (let i = 0; i < 60; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.55)' : 'rgba(146,113,32,0.35)';
+                    ctx.beginPath(); ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 1.6 + 0.4, 0, 7); ctx.fill();
+                }
+                ctx.fillStyle = 'rgba(90,66,20,0.85)';
+                ctx.font = '900 17px Heebo, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('✨ גרד כאן ✨', w / 2, h / 2 + 6);
+                ctx.globalCompositeOperation = 'destination-out';
+            }, []);
+            const scratch = (e) => {
+                const cv = cvRef.current; if (!cv || doneRef.current) return;
+                const r = cv.getBoundingClientRect();
+                const x = (e.clientX - r.left), y = (e.clientY - r.top);
+                const ctx = cv.getContext('2d');
+                ctx.beginPath(); ctx.arc(x, y, 20, 0, 7); ctx.fill();
+            };
+            const checkDone = () => {
+                const cv = cvRef.current; if (!cv || doneRef.current) return;
+                try {
+                    const ctx = cv.getContext('2d');
+                    const data = ctx.getImageData(0, 0, cv.width, cv.height).data;
+                    let clear = 0;
+                    for (let i = 3; i < data.length; i += 64) if (data[i] === 0) clear++;
+                    if (clear / (data.length / 64) > 0.5) {
+                        doneRef.current = true;
+                        cv.style.transition = 'opacity 0.5s';
+                        cv.style.opacity = '0';
+                        setTimeout(onDone, 450);
+                    }
+                } catch(err) {}
+            };
+            return <canvas ref={cvRef} className="absolute inset-0 w-full h-full rounded-xl touch-none cursor-crosshair z-10"
+                           onPointerDown={(e) => { drawingRef.current = true; e.target.setPointerCapture(e.pointerId); scratch(e); }}
+                           onPointerMove={(e) => drawingRef.current && scratch(e)}
+                           onPointerUp={() => { drawingRef.current = false; checkDone(); }} />;
         }
 
         const SheshDie = ({ v, used, rolling }) => {
