@@ -1452,7 +1452,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V16.1</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V16.2</span></p>
                             </div>
                         </nav>
                     )}
@@ -1502,7 +1502,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V16.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V16.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1632,6 +1632,11 @@
             const [newName, setNewName] = useState('');
             const [creating, setCreating] = useState(false);
             const [canInstall, setCanInstall] = useState(!!window.__installEvt);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+            const isIOSSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+            const [iosGuide, setIosGuide] = useState(false);
+            const copySiteLink = async () => { try { await navigator.clipboard.writeText('https://rummikube.com'); showToast("הקישור הועתק - הדבק בספארי", "success"); } catch(e) { showToast("העתק ידנית: rummikube.com", "info"); } };
             useEffect(() => {
                 const h = () => setCanInstall(true);
                 window.addEventListener('pwa-installable', h);
@@ -1723,13 +1728,48 @@
                             <p className="text-emerald-400/80 text-[10px] sm:text-[11px] font-black tracking-[0.3em] uppercase mt-1">משחקים בין חברים וטורנירים</p>
                             <p className="text-slate-400 text-sm font-bold mt-5">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
                             <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-xs text-slate-500 underline font-bold mt-2">התנתק</button>
-                            {canInstall && (
+                            {(canInstall || (isIOS && !isStandalone)) && (
                                 <div className="mt-4">
-                                    <button onClick={doInstall} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
+                                    <button onClick={() => { if (canInstall) doInstall(); else setIosGuide(true); }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
                                         📲 התקן כאפליקציה
                                     </button>
                                 </div>
                             )}
+                            {iosGuide && ReactDOM.createPortal(
+                                <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIosGuide(false)}>
+                                    <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 max-w-sm w-full text-center shadow-[0_0_60px_rgba(16,185,129,0.2)]">
+                                        <div className="text-4xl mb-2">📲</div>
+                                        <h3 className="text-xl font-black text-white mb-4">התקנה באייפון</h3>
+                                        {!isIOSSafari && (
+                                            <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 mb-4">
+                                                <div className="text-amber-300 font-black text-sm mb-2">קודם עוברים לספארי:</div>
+                                                <a href="x-safari-https://rummikube.com" className="block bg-gradient-to-b from-sky-500 to-sky-700 text-white py-3 rounded-xl font-black shadow-lg mb-2">🧭 פתח בספארי</a>
+                                                <button onClick={copySiteLink} className="text-[11px] text-slate-400 underline font-bold">לא נפתח? העתק קישור והדבק בספארי</button>
+                                            </div>
+                                        )}
+                                        <div className="text-right space-y-3 mb-4">
+                                            <div className="flex items-center gap-3 bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                                <span className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center text-white shrink-0"><i className="fa-solid fa-arrow-up-from-bracket"></i></span>
+                                                <span className="text-slate-200 font-bold text-sm">1. לחץ על כפתור <b>השיתוף</b> — הריבוע עם החץ, במרכז הסרגל התחתון</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                                <span className="w-9 h-9 rounded-xl bg-slate-700 flex items-center justify-center text-white shrink-0 font-black">➕</span>
+                                                <span className="text-slate-200 font-bold text-sm">2. גלול מטה ובחר <b>"הוסף למסך הבית"</b></span>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                                <span className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0"><i className="fa-solid fa-check"></i></span>
+                                                <span className="text-slate-200 font-bold text-sm">3. לחץ <b>הוסף</b> — והאייקון שלנו על מסך הבית 🎉</span>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setIosGuide(false)} className="text-slate-500 hover:text-white underline text-sm font-bold">סגור</button>
+                                    </div>
+                                    {isIOSSafari && (
+                                        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 text-5xl pointer-events-none" style={{ animation: 'bounce 1s infinite' }}>
+                                            <span className="drop-shadow-[0_0_15px_rgba(56,189,248,0.9)]">⬇️</span>
+                                        </div>
+                                    )}
+                                </div>
+                            , document.body)}
                         </div>
 
                         {myClubs.length > 0 && (
