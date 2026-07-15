@@ -1002,7 +1002,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.1</p>
                             </div>
                         </nav>
                     )}
@@ -1037,7 +1037,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -2816,7 +2816,7 @@
                                 <div key={uid} className={`flex flex-col items-center transition-all p-2 rounded-xl shrink-0 w-auto min-w-[76px] sm:w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
                                     {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
                                     {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
-                                    <img src={avatarUrl({ ...p, uid })} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
+                                    <img src={avatarUrl({ ...pData, uid })} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
                                     <span className="text-xs font-bold text-white mb-1 truncate w-full text-center">{pData.username}</span>
                                     <span className="text-[10px] bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-full text-amber-400 font-bold whitespace-nowrap mb-1">📦 {tileCount}</span>
                                     <span className="text-[10px] text-gold-400 font-bold" dir="ltr">{formatMoney(pData.stack)}</span>
