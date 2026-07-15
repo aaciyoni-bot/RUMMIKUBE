@@ -493,7 +493,7 @@
                 while (hand.length < 28) hand.push(null);
                 np[uid] = { ...players[uid], cards: hand, hasDropped: false };
             });
-            return { players: np, deck: d, board: [], phase: 'playing', currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null };
+            return { players: np, deck: d, board: [], phase: 'playing', currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null, turnSnapBoard: [], turnSnapRack: [...np[uids[0]].cards] };
         };
 
         const groupBox = (g, scale) => ({ w: g.tiles.length * 3.0 * scale + 5, h: 15 * scale + 3 });
@@ -1002,7 +1002,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.1</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V10.2</p>
                             </div>
                         </nav>
                     )}
@@ -1037,7 +1037,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V10.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -2093,7 +2093,7 @@
                                 }
                                 const uids = Object.keys(currentTbl.players).sort();
                                 const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
-                                await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                                await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: currentTbl.board || [], turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])] });
                             } catch(e) {}
                         }, 4000);
                         return () => clearTimeout(botTimer);
@@ -2321,18 +2321,23 @@
                     if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
 
                     if (tableState?.id && isMyTurn) {
-                        const live = liveRef.current;
-                        const stillMyTurn = live && live.currentTurn === user.uid && live.phase === 'playing';
-                        if (stillMyTurn) {
-                            try {
-                                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: newBoard, [`players.${user.uid}.cards`]: newRack });
-                            } catch(err) {}
-                        } else {
-                            // התור הסתיים תוך כדי הגרירה - משחזרים מהשרת במקום לדרוס אותו
-                            const srvRack = (live && live.players && live.players[user.uid] && live.players[user.uid].cards) || startTurnRack;
-                            setRack(srvRack);
-                            setBoard((live && live.board) || startTurnBoard);
-                            showToast("הזמן נגמר - המהלך בוטל", "error");
+                        try {
+                            await window.fb.runTransaction(window.fb.db, async (t) => {
+                                const ref = window.fb.doc(window.fb.db, "tables", tableState.id);
+                                const snap = await t.get(ref);
+                                if (!snap.exists()) return;
+                                const tbl = snap.data();
+                                if (tbl.currentTurn !== user.uid || tbl.phase !== 'playing') throw 'TURN_OVER';
+                                t.update(ref, { board: newBoard, [`players.${user.uid}.cards`]: newRack });
+                            });
+                        } catch(err) {
+                            if (err === 'TURN_OVER') {
+                                const live = liveRef.current;
+                                const srvRack = (live && live.players && live.players[user.uid] && live.players[user.uid].cards) || startTurnRack;
+                                setRack(srvRack);
+                                setBoard((live && live.board) || startTurnBoard);
+                                showToast("הזמן נגמר - המהלך בוטל", "error");
+                            }
                         }
                     }
                 };
@@ -2491,16 +2496,19 @@
                         if (!tblSnap.exists()) return;
                         const tbl = tblSnap.data();
                         if (tbl.currentTurn !== user.uid || tbl.phase !== 'playing') return; // התור כבר לא שלי - לא נוגעים
+                        // מקור האמת: הסנאפשוט השמור על השולחן (חסין רענון וקריסת טאב במובייל)
+                        const srvSnapRack = Array.isArray(tbl.turnSnapRack) && tbl.turnSnapRack.filter(x => x !== null).length > 0 ? tbl.turnSnapRack : snapRack;
+                        const srvSnapBoard = Array.isArray(tbl.turnSnapBoard) ? tbl.turnSnapBoard : snapBoard;
                         const newDeck = [...(tbl.deck || [])];
                         const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                        const newRack = [...snapRack];
+                        const newRack = [...srvSnapRack];
                         if (tile) {
                             const emptyIdx = newRack.findIndex(x => x === null);
                             if (emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
                         }
                         const uids = Object.keys(tbl.players).sort();
                         const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                        t.update(tblRef, { deck: newDeck, board: snapBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                        t.update(tblRef, { deck: newDeck, board: srvSnapBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: srvSnapBoard, turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])] });
                     });
                     if (!isTimeout && (tableState.deck || []).length === 0) showToast("הקופה ריקה - התור עובר", "info");
                 } catch(e) {}
@@ -2621,7 +2629,7 @@
 
                 const uids = Object.keys(tableState.players).sort();
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now() });
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: JSON.parse(JSON.stringify(board)), turnSnapRack: [...((tableState.players?.[nextTurn] || {}).cards || [])] });
             };
 
             const handleNewRound = async () => {
@@ -2807,16 +2815,16 @@
                     )}
 
                     {/* יריבים */}
-                    <div className="w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-2 sm:px-0 sm:py-4 gap-2 sm:gap-4 z-20 shrink-0 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
+                    <div className="w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:px-0 sm:py-4 gap-1.5 sm:gap-4 z-20 shrink-0 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
                         <button onClick={handleLeave} className="px-3 py-1 bg-slate-800 rounded-lg text-slate-400 font-bold border border-slate-700 text-xs hover:bg-rose-900 hover:text-white transition-colors">יציאה</button>
                         {(isPlaying || isShowdown) && Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
                             const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
                             const isTurn = tableState.currentTurn === uid;
                             return (
-                                <div key={uid} className={`flex flex-col items-center transition-all p-2 rounded-xl shrink-0 w-auto min-w-[76px] sm:w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
+                                <div key={uid} className={`flex flex-col items-center transition-all p-1 sm:p-2 rounded-xl shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'opacity-70'}`}>
                                     {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
                                     {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
-                                    <img src={avatarUrl({ ...pData, uid })} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
+                                    <img src={avatarUrl({ ...pData, uid })} className={`w-8 h-8 sm:w-12 sm:h-12 rounded-xl bg-slate-800 border-2 mb-0.5 sm:mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
                                     <span className="text-xs font-bold text-white mb-1 truncate w-full text-center">{pData.username}</span>
                                     <span className="text-[10px] bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-full text-amber-400 font-bold whitespace-nowrap mb-1">📦 {tileCount}</span>
                                     <span className="text-[10px] text-gold-400 font-bold" dir="ltr">{formatMoney(pData.stack)}</span>
@@ -2884,11 +2892,11 @@
                     </div>
 
                     {/* פעולות וטיימר */}
-                    <div className="w-full sm:w-24 md:w-32 bg-slate-900 border-t sm:border-t-0 sm:border-r border-slate-800 flex flex-row sm:flex-col items-center p-2 sm:p-3 gap-2 sm:gap-3 z-20 shrink-0 overflow-x-auto sm:overflow-visible">
+                    <div className="w-full sm:w-24 md:w-32 bg-slate-900 border-t sm:border-t-0 sm:border-r border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:p-3 gap-1.5 sm:gap-3 z-20 shrink-0 overflow-x-auto sm:overflow-visible">
                         {isPlaying && (
-                            <div className={`flex flex-col items-center p-2 rounded-xl border-2 w-auto px-3 sm:px-2 sm:w-full bg-slate-950 shadow-lg shrink-0 ${isMyTurn ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'border-slate-800'}`}>
+                            <div className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 w-auto px-2.5 sm:px-2 sm:w-full bg-slate-950 shadow-lg shrink-0 ${isMyTurn ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'border-slate-800'}`}>
                                 <span className={`text-[10px] font-bold mb-1 whitespace-nowrap ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>{isMyTurn ? 'התור שלך!' : 'תור יריב'}</span>
-                                <span className={`text-2xl sm:text-3xl font-black font-mono ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-white') : 'text-slate-500'}`}>{timeLeft.toString().padStart(2, '0')}</span>
+                                <span className={`text-lg sm:text-3xl font-black font-mono leading-none ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-white') : 'text-slate-500'}`}>{timeLeft.toString().padStart(2, '0')}</span>
                             </div>
                         )}
 
@@ -2904,14 +2912,14 @@
 
                         {isSeated && isPlaying && (
                             <div className="flex-1 flex flex-row sm:flex-col w-auto sm:w-full gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto items-center sm:items-stretch">
-                                <button onClick={handleSort789} className="w-auto sm:w-full px-3 py-2.5 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-blue-400">789</span> סדרות</button>
-                                <button onClick={handleSort777} className="w-auto sm:w-full px-3 py-2.5 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-rose-400">777</span> שלישיות</button>
-                                <button onClick={handleArrangeBoard} className="w-auto sm:w-full px-3 py-2.5 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><i className="fa-solid fa-table-cells ml-1 text-emerald-400"></i> סדר שולחן</button>
-                                {isMyTurn && <button onClick={handleUndo} className="w-auto sm:w-full px-3 py-2.5 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"><i className="fa-solid fa-undo"></i> בטל</button>}
+                                <button onClick={handleSort789} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-blue-400">789</span> סדרות</button>
+                                <button onClick={handleSort777} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-rose-400">777</span> שלישיות</button>
+                                <button onClick={handleArrangeBoard} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><i className="fa-solid fa-table-cells ml-1 text-emerald-400"></i> סדר שולחן</button>
+                                {isMyTurn && <button onClick={handleUndo} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"><i className="fa-solid fa-undo"></i> בטל</button>}
                                 <div className="hidden sm:block w-full h-px bg-slate-800 my-1"></div>
                                 <div className="sm:mt-auto flex flex-row sm:flex-col gap-2 shrink-0">
-                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="w-14 sm:w-full py-3 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="w-14 sm:w-full py-3 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
+                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
+                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
                                 </div>
                             </div>
                         )}
