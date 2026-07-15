@@ -257,6 +257,30 @@
             } catch(e) {}
         };
 
+        const GAME_LABEL = (g) => (GAMES.find(x => x.id === g) || {}).label || g;
+
+        // יומן משחקים - כל תוצאה נרשמת לדוחות ולשקיפות השחקן
+        const logGameResult = async (entries, tableId) => {
+            try {
+                for (const e of (entries || [])) {
+                    if (!e.uid) continue;
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "gameLog"), {
+                        uid: e.uid, username: e.username || '', game: e.game,
+                        profit: round2(e.profit || 0), tableId: tableId || '', at: Date.now()
+                    });
+                }
+            } catch(err) {}
+        };
+
+        // ייצוא CSV (עם BOM לעברית תקינה באקסל)
+        const downloadCSV = (rows, filename) => {
+            const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        };
+
         /* ================================================================
            לוגיקת רמיקוב
            ================================================================ */
@@ -721,7 +745,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V4</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V5</p>
                             </div>
                         </nav>
                     )}
@@ -755,7 +779,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V4</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V5</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -773,6 +797,45 @@
         }
 
         function ProfileView({ user }) {
+            const [logs, setLogs] = useState(null);
+            const [logsLoading, setLogsLoading] = useState(false);
+            const [fGame, setFGame] = useState('all');
+            const [fFrom, setFFrom] = useState('');
+            const [fTo, setFTo] = useState('');
+
+            const loadLogs = async () => {
+                setLogsLoading(true);
+                try {
+                    const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("uid", "==", user.uid));
+                    const s = await window.fb.getDocs(q);
+                    setLogs(s.docs.map(d => d.data()).sort((a, b) => (b.at || 0) - (a.at || 0)));
+                } catch(e) { setLogs([]); }
+                setLogsLoading(false);
+            };
+
+            const filtered = (logs || []).filter(l => {
+                if (fGame !== 'all' && l.game !== fGame) return false;
+                if (fFrom && l.at < new Date(fFrom).getTime()) return false;
+                if (fTo && l.at > new Date(fTo).getTime() + 24 * 3600 * 1000) return false;
+                return true;
+            });
+            const totalsByGame = {};
+            filtered.forEach(l => {
+                if (!totalsByGame[l.game]) totalsByGame[l.game] = { count: 0, profit: 0 };
+                totalsByGame[l.game].count++;
+                totalsByGame[l.game].profit = round2(totalsByGame[l.game].profit + (l.profit || 0));
+            });
+
+            const exportMyCSV = () => {
+                const rows = [['תאריך', 'שעה', 'משחק', 'רווח/הפסד']];
+                filtered.forEach(l => {
+                    const d = new Date(l.at);
+                    rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), GAME_LABEL(l.game), l.profit]);
+                });
+                rows.push([]); rows.push(['סה"כ', '', filtered.length + ' משחקים', round2(filtered.reduce((s, l) => s + (l.profit || 0), 0))]);
+                downloadCSV(rows, `my-report-${new Date().toISOString().slice(0,10)}.csv`);
+            };
+
             const stats = user.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
             const winRate = stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
             const tiles = [
@@ -809,6 +872,65 @@
                                 <p className="text-2xl font-black text-amber-400" dir="ltr">{formatMoney(user.clubProfits || 0)}</p>
                             </div>
                         )}
+
+                        {/* דוח משחקים אישי - שקיפות מלאה */}
+                        <div className="glass-panel p-6 rounded-3xl mt-6">
+                            <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center"><i className="fa-solid fa-file-lines text-blue-400 text-sm"></i></span>
+                                דוח המשחקים שלי
+                            </h3>
+                            <div className="flex flex-wrap items-end gap-3 mb-4">
+                                <div>
+                                    <label className="text-slate-400 text-[10px] font-bold mb-1 block uppercase">משחק</label>
+                                    <select value={fGame} onChange={e=>setFGame(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none">
+                                        <option value="all">הכל</option>
+                                        {GAMES.filter(g => g.live).map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-slate-400 text-[10px] font-bold mb-1 block uppercase">מתאריך</label>
+                                    <input type="date" value={fFrom} onChange={e=>setFFrom(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-slate-400 text-[10px] font-bold mb-1 block uppercase">עד תאריך</label>
+                                    <input type="date" value={fTo} onChange={e=>setFTo(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none" />
+                                </div>
+                                <button onClick={loadLogs} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
+                                    {logsLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : logs === null ? 'טען דוח' : 'רענן'}
+                                </button>
+                                {logs !== null && filtered.length > 0 && (
+                                    <button onClick={exportMyCSV} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
+                                        <i className="fa-solid fa-file-csv ml-1"></i>ייצוא קובץ
+                                    </button>
+                                )}
+                            </div>
+
+                            {logs !== null && (
+                                <React.Fragment>
+                                    <div className="flex flex-wrap gap-3 mb-4">
+                                        {Object.entries(totalsByGame).map(([g, t]) => (
+                                            <div key={g} className="bg-slate-900/70 border border-white/5 rounded-2xl px-4 py-2.5">
+                                                <div className="text-[10px] text-slate-400 font-bold">{GAME_LABEL(g)} · {t.count} משחקים</div>
+                                                <div className={`text-base font-black ${t.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{t.profit >= 0 ? '+' : ''}{formatMoney(t.profit)}</div>
+                                            </div>
+                                        ))}
+                                        {filtered.length === 0 && <div className="text-slate-500 text-sm font-bold py-4">אין תוצאות בטווח שנבחר.</div>}
+                                    </div>
+                                    <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pl-1">
+                                        {filtered.slice(0, 200).map((l, i) => (
+                                            <div key={i} className="flex items-center justify-between bg-slate-900/60 rounded-xl px-4 py-2 border border-white/5 text-sm">
+                                                <span className="font-bold text-slate-300">
+                                                    <span className="text-slate-500 text-xs ml-2">{new Date(l.at).toLocaleDateString('he-IL')} {new Date(l.at).toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}</span>
+                                                    {GAME_LABEL(l.game)}
+                                                </span>
+                                                <span className={`font-black ${(l.profit||0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(l.profit||0) >= 0 ? '+' : ''}{formatMoney(l.profit)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </React.Fragment>
+                            )}
+                            {logs === null && <p className="text-slate-500 text-xs font-bold">לחץ "טען דוח" לצפייה בכל תוצאות המשחקים שלך.</p>}
+                        </div>
                     </div>
                 </div>
             );
@@ -1115,6 +1237,33 @@
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
             const [rakeDraft, setRakeDraft] = useState(clubSettings.rakePct);
+            const [expFrom, setExpFrom] = useState('');
+            const [expTo, setExpTo] = useState('');
+            const [exporting, setExporting] = useState(false);
+
+            const exportClubCSV = async () => {
+                setExporting(true);
+                try {
+                    const s = await window.fb.getDocs(window.fb.collection(window.fb.db, "gameLog"));
+                    let all = s.docs.map(d => d.data());
+                    if (expFrom) all = all.filter(l => l.at >= new Date(expFrom).getTime());
+                    if (expTo) all = all.filter(l => l.at <= new Date(expTo).getTime() + 24 * 3600 * 1000);
+                    all.sort((a, b) => (a.at || 0) - (b.at || 0));
+                    const rows = [['תאריך', 'שעה', 'שחקן', 'משחק', 'רווח/הפסד']];
+                    all.forEach(l => {
+                        const d = new Date(l.at);
+                        rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), l.username || l.uid, GAME_LABEL(l.game), l.profit]);
+                    });
+                    rows.push([]);
+                    rows.push(['סיכום לפי שחקן', '', '', '', '']);
+                    const byUser = {};
+                    all.forEach(l => { const k = l.username || l.uid; if (!byUser[k]) byUser[k] = { count: 0, profit: 0 }; byUser[k].count++; byUser[k].profit = round2(byUser[k].profit + (l.profit || 0)); });
+                    Object.entries(byUser).forEach(([name, t]) => rows.push(['', '', name, t.count + ' משחקים', t.profit]));
+                    downloadCSV(rows, `club-report-${new Date().toISOString().slice(0,10)}.csv`);
+                    showToast(`יוצאו ${all.length} רשומות`, "success");
+                } catch(e) { showToast("שגיאה בייצוא", "error"); }
+                setExporting(false);
+            };
 
             useEffect(() => { setRakeDraft(clubSettings.rakePct); }, [clubSettings.rakePct]);
 
@@ -1266,6 +1415,30 @@
                                     </div>
                                     <button onClick={saveClubSettings} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-6 py-3 rounded-xl font-bold shadow-lg">שמור</button>
                                     <p className="text-xs text-slate-500 font-bold basis-full">הרייק חל על רמיקוב, פוקר וכל המשחקים העתידיים. שולחנות פוקר קיימים שומרים על הרייק שנקבע בפתיחתם.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ייצוא דוח מועדון (Owner) */}
+                        {isOwner && (
+                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-blue-500/20">
+                                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center"><i className="fa-solid fa-file-export text-blue-400 text-sm"></i></span>
+                                    ייצוא דוח מועדון מלא
+                                </h3>
+                                <div className="flex flex-wrap items-end gap-3">
+                                    <div>
+                                        <label className="text-slate-400 text-[10px] font-bold mb-1 block uppercase">מתאריך</label>
+                                        <input type="date" value={expFrom} onChange={e=>setExpFrom(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-slate-400 text-[10px] font-bold mb-1 block uppercase">עד תאריך</label>
+                                        <input type="date" value={expTo} onChange={e=>setExpTo(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none" />
+                                    </div>
+                                    <button onClick={exportClubCSV} disabled={exporting} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg disabled:opacity-50">
+                                        {exporting ? <i className="fa-solid fa-spinner fa-spin"></i> : <span><i className="fa-solid fa-file-csv ml-1"></i>ייצא CSV</span>}
+                                    </button>
+                                    <p className="text-xs text-slate-500 font-bold basis-full">כל תוצאה של כל שחקן, בכל המשחקים - שורה לכל משחק, עם סה"כ לכל שחקן בסוף הקובץ.</p>
                                 </div>
                             </div>
                         )}
@@ -1876,6 +2049,7 @@
             const endGame = async (finalBoard) => {
                 if (endingRef.current) return;
                 endingRef.current = true;
+                let logEntries = null;
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -1919,6 +2093,10 @@
                         const rake = round2(totalPot * rakeFrac);
                         const winnerProfit = round2(totalPot - rake);
                         players[user.uid].stack = round2((players[user.uid].stack || 0) + winnerProfit);
+                        logEntries = [
+                            ...(players[user.uid].isBot ? [] : [{ uid: user.uid, username: players[user.uid].username, game: 'rummikub', profit: winnerProfit }]),
+                            ...Object.entries(details).filter(([duid]) => !players[duid]?.isBot).map(([duid, d]) => ({ uid: duid, username: d.username, game: 'rummikub', profit: -d.pay }))
+                        ];
 
                         t.update(tblRef, {
                             players, board: finalBoard, phase: 'showdown', winner: user.uid, currentTurn: null,
@@ -1948,6 +2126,7 @@
                             });
                         }
                     });
+                    if (logEntries) logGameResult(logEntries, tableState.id);
                 } catch(e) {
                 } finally { endingRef.current = false; }
             };
@@ -2081,6 +2260,7 @@
                         }
                         t.update(tblRef, updates);
                     });
+                    if (isPlayingNow) logGameResult([{ uid: user.uid, username: user.username, game: 'rummikub', profit: -round2(tableState.players?.[user.uid]?.stack || 0) }], tableState.id);
                     showToast(isPlayingNow ? "נכנעת ויצאת מהמשחק." : "קמת מהשולחן והצ'יפים חזרו לארנק.", "info");
                     onLeave();
                 } catch(e) { showToast("שגיאה ביציאה מהשולחן", "error"); }
@@ -2488,7 +2668,12 @@
                 g.pots = []; g.phase = 'showdown'; g.activeTurnUid = null;
                 g.lastWinAmount = round2(pot - rake);
                 g.lastWinners = pl[winnerUid].name;
-                await saveGame(g, pl);
+                const histT = tableRef.current;
+                const histEntry = {
+                    at: Date.now(), game: g.currentGameType, board: g.board || [], rake, amount: round2(pot - rake), winners: pl[winnerUid].name,
+                    ps: Object.values(pl).filter(q => (q.cards || []).length).map(q => ({ n: q.name, c: q.cards, w: q.uid === winnerUid, f: q.status === 'folded' }))
+                };
+                await saveGame(g, pl, { history: [...((histT && histT.history) || []), histEntry].slice(-100) });
                 creditRakeToClub(rake);
                 clearTimeout(nextHandRef.current);
                 nextHandRef.current = setTimeout(() => startHand(), 3500);
@@ -2525,7 +2710,12 @@
                 g.pots = []; g.phase = 'showdown'; g.activeTurnUid = null;
                 g.lastWinAmount = winTotal;
                 g.lastWinners = [...winnerNames].join(', ');
-                await saveGame(g, pl);
+                const histT = tableRef.current;
+                const histEntry = {
+                    at: Date.now(), game: g.currentGameType, board: g.board || [], rake: rakeTotal, amount: winTotal, winners: g.lastWinners,
+                    ps: Object.values(pl).filter(q => (q.cards || []).length).map(q => ({ n: q.name, c: q.cards, w: winnerNames.has(q.name), f: q.status === 'folded' }))
+                };
+                await saveGame(g, pl, { history: [...((histT && histT.history) || []), histEntry].slice(-100) });
                 creditRakeToClub(rakeTotal);
                 clearTimeout(nextHandRef.current);
                 nextHandRef.current = setTimeout(() => startHand(), 5000);
@@ -2732,7 +2922,7 @@
                         const midHand = !['waiting','showdown'].includes(t.gameState.phase);
                         tr.update(uRef, { balance: round2(uSnap.data().balance - buyAmt) });
                         tr.update(tblRef(), { [`leftStacks.${user.uid}`]: null, [`players.${user.uid}`]: {
-                            uid: user.uid, name: user.username, seatIndex, stack: round2(buyAmt), bet: 0,
+                            uid: user.uid, name: user.username, seatIndex, stack: round2(buyAmt), bet: 0, buyTotal: round2(buyAmt),
                             status: midHand ? 'waiting' : 'active', cards: [], hasActed: false, actionText: '', isBot: false
                         }});
                     });
@@ -2752,6 +2942,7 @@
                         tr.update(uRef, { balance: round2(uSnap.data().balance - buyAmt) });
                         tr.update(tblRef(), {
                             [`players.${user.uid}.stack`]: round2((t.players[user.uid].stack || 0) + buyAmt),
+                            [`players.${user.uid}.buyTotal`]: round2((t.players[user.uid].buyTotal || 0) + buyAmt),
                             [`players.${user.uid}.status`]: ['waiting','showdown'].includes(t.gameState.phase) ? 'active' : t.players[user.uid].status
                         });
                     });
@@ -2777,12 +2968,14 @@
                     await new Promise(r => setTimeout(r, 500));
                 }
                 try {
+                    let session = null;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const uRef = window.fb.doc(window.fb.db, "users", user.uid);
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) return;
                         const td = tSnap.data();
                         const me = td.players[user.uid]; if (!me) return;
+                        session = { stack: me.stack || 0, buy: me.buyTotal || me.stack || 0 };
                         const pl = { ...td.players }; delete pl[user.uid];
                         // ההימור התלוי של העוזב נכנס לקופה - הכסף לא נעלם
                         const pots = [...(td.gameState.pots || [])];
@@ -2795,6 +2988,7 @@
                         if ((me.stack || 0) > 0) upd[`leftStacks.${user.uid}`] = { amount: round2(me.stack), at: Date.now() }; // נעילת חזרה - 12 שעות
                         tr.update(tblRef(), upd);
                     });
+                    if (session) logGameResult([{ uid: user.uid, username: user.username, game: 'poker', profit: round2(session.stack - session.buy) }], tableDocId);
                 } catch(e) {}
                 onLeave();
             };
@@ -2933,6 +3127,8 @@
             /* ---------- צ'אט וריאקציות ---------- */
             const chatArr = tableState?.chat || [];
             const [chatOpen, setChatOpen] = useState(false);
+            const [historyOpen, setHistoryOpen] = useState(false);
+            const [histExpand, setHistExpand] = useState(null);
             const [emoTick, setEmoTick] = useState(0);
             const reactions = useMemo(() => {
                 const now = Date.now(); const r = {};
@@ -3034,6 +3230,9 @@
                         <div className="flex items-center gap-2">
                             <button onClick={isSeated ? handleStandUp : onLeave} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-700 hover:text-white text-xs font-bold border border-white/10">
                                 <i className="fa-solid fa-door-open ml-1"></i>{isSeated ? 'קום' : 'יציאה'}
+                            </button>
+                            <button onClick={() => { setHistoryOpen(true); setHistExpand(null); }} className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-[10px] font-black border border-white/10" title="היסטוריית ידיים">
+                                <i className="fa-solid fa-clock-rotate-left"></i>
                             </button>
                             {isGod && (
                                 <button onClick={() => setGodView(!godView)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border transition-all ${godView ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_12px_purple]' : 'bg-slate-800 text-purple-400 border-white/10'}`}>
@@ -3188,6 +3387,13 @@
 
                     {/* פס פעולות */}
                     <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 p-3 z-40 min-h-[110px] flex flex-col justify-center">
+                        {isSeated && myPlayer?.status === 'active' && (myPlayer.cards || []).length > 0 && !['waiting','showdown'].includes(gs.phase) && (
+                            <div className="flex justify-center gap-2 mb-2">
+                                {!gs.allInReveal && myHand && <span className="bg-slate-950 border border-white/15 text-white text-[11px] font-black px-3 py-1 rounded-lg">{myHand}</span>}
+                                {!gs.allInReveal && myEquity !== null && <span className="bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 text-[11px] font-black px-3 py-1 rounded-lg" dir="ltr">🎯 {myEquity}%</span>}
+                                {gs.allInReveal && realEq && realEq[user.uid] !== undefined && <span className="bg-amber-900/80 border border-amber-500/50 text-amber-300 text-[11px] font-black px-3 py-1 rounded-lg animate-pulse" dir="ltr">ALL-IN · {realEq[user.uid]}%</span>}
+                            </div>
+                        )}
                         {isMyTurn ? (
                             <div className="max-w-md mx-auto w-full flex flex-col gap-2.5">
                                 <div className="flex items-center gap-2">
@@ -3220,6 +3426,50 @@
                             <button onClick={()=>setSpectate(false)} className="mx-auto mt-1 bg-gradient-to-b from-emerald-500 to-emerald-700 text-white px-8 py-2.5 rounded-xl font-black text-sm shadow-lg">שב לשולחן</button>
                         )}
                     </div>
+
+                    {/* היסטוריית ידיים - עד 100 אחורה */}
+                    {historyOpen && (
+                        <div className="absolute inset-0 z-[250] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3" onClick={() => setHistoryOpen(false)}>
+                            <div className="glass-panel rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col animate-pop-in" onClick={e => e.stopPropagation()} dir="rtl">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+                                    <span className="font-black text-white text-sm"><i className="fa-solid fa-clock-rotate-left ml-2 text-amber-400"></i>היסטוריית ידיים ({(tableState.history || []).length})</span>
+                                    <button onClick={() => setHistoryOpen(false)} className="text-slate-500 hover:text-white w-7 h-7"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div className="overflow-y-auto p-3 flex flex-col gap-2">
+                                    {[...(tableState.history || [])].reverse().map((h, i) => (
+                                        <div key={i} className="bg-slate-900/70 rounded-xl border border-white/5">
+                                            <button onClick={() => setHistExpand(histExpand === i ? null : i)} className="w-full flex items-center justify-between px-3 py-2.5 text-right">
+                                                <span className="text-[11px] font-bold text-slate-300">
+                                                    <span className="text-slate-500 ml-2">{new Date(h.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    {h.game} · 🏆 {h.winners}
+                                                </span>
+                                                <span className="text-emerald-400 font-black text-xs" dir="ltr">+{formatShort(h.amount)}</span>
+                                            </button>
+                                            {histExpand === i && (
+                                                <div className="px-3 pb-3 border-t border-white/5 pt-2">
+                                                    {(h.board || []).length > 0 && (
+                                                        <div className="flex gap-1 justify-center mb-2" dir="ltr">
+                                                            {h.board.map((c, ci) => <PCard key={ci} card={c} size="sm" />)}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {(h.ps || []).map((q, qi) => (
+                                                            <div key={qi} className={`flex items-center justify-between bg-slate-950/60 rounded-lg px-2 py-1.5 ${q.f ? 'opacity-45' : ''}`}>
+                                                                <span className="text-[11px] font-bold text-white">{q.w ? '🏆 ' : ''}{q.n}{q.f ? ' (זרק)' : ''}</span>
+                                                                <div className="flex gap-0.5" dir="ltr">{(q.c || []).map((c, ci) => <PCard key={ci} card={c} size="sm" />)}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-bold mt-2 text-center">רייק: {formatMoney(h.rake || 0)}</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {(tableState.history || []).length === 0 && <div className="text-center text-slate-500 font-bold text-xs py-10">עוד לא שוחקו ידיים בשולחן הזה.</div>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* צ'אט */}
                     <button onClick={()=>setChatOpen(!chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
@@ -3434,6 +3684,10 @@
                         });
                     });
                     creditRakeToClub(rake);
+                    logGameResult([
+                        ...winners.filter(w => !w.isBot).map(w => ({ uid: w.uid, username: w.name, game: 'durak', profit: round2(share - (Number(setts.buyIn) || 0)) })),
+                        ...(durakUid && pl[durakUid] && !pl[durakUid].left && !pl[durakUid].isBot ? [{ uid: durakUid, username: pl[durakUid].name, game: 'durak', profit: -(Number(setts.buyIn) || 0) }] : [])
+                    ], tableDocId);
                 } catch(e) {} finally { settlingRef.current = false; }
             };
 
