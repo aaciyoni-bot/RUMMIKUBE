@@ -411,6 +411,13 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
         }
+        // קישור הזמנה של סוכן: שומרים את ההפניה עד אחרי ההתחברות
+        try {
+            const qp = new URLSearchParams(window.location.search);
+            if (qp.get('agent')) {
+                localStorage.setItem('agentRef', JSON.stringify({ code: qp.get('agent').toUpperCase(), club: qp.get('club') || '', at: Date.now() }));
+            }
+        } catch(e) {}
         window.__installEvt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -603,6 +610,18 @@
             }
             return { cuts, total };
         };
+        // תחילת המחזור הנוכחי: יום שני 00:01 שעון ישראל
+        const cycleStartIL = (weeksBack) => {
+            const now = new Date();
+            const il = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+            const back = (il.getDay() + 6) % 7; // ימים אחורה עד יום שני
+            const monday = new Date(il);
+            monday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
+            monday.setHours(0, 1, 0, 0);
+            return monday.getTime() + (now.getTime() - il.getTime());
+        };
+        const genAgentCode = () => 'AG' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
         const creditAgent = async (agentUid, amt) => {
             try {
                 await window.fb.runTransaction(window.fb.db, async (tr) => {
@@ -611,6 +630,8 @@
                     if (!sn.exists()) return;
                     tr.update(r, { balance: round2((sn.data().balance || 0) + amt), agentProfits: round2((sn.data().agentProfits || 0) + amt) });
                 });
+                // יומן רווחי סוכן - לפירוק לפי מחזורים
+                try { await window.fb.addDoc(window.fb.collection(window.fb.db, "agentLog"), { agentUid, clubId: CLUB_ID, amount: round2(amt), at: Date.now() }); } catch(e2) {}
             } catch(e) {}
         };
         const distributeRake = async (rake, uids) => {
@@ -1463,7 +1484,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V17.1</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V18.1</span></p>
                             </div>
                         </nav>
                     )}
@@ -1513,7 +1534,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V17.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V18.1</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1531,8 +1552,9 @@
            ================================================================ */
         function LeadersView({ user, showToast }) {
             const [mems, setMems] = useState(null);
-            const [weekly, setWeekly] = useState(null);
+            const [logAll, setLogAll] = useState(null);
             const [ltab, setLtab] = useState('profit');
+            const [gtab, setGtab] = useState('all');
             useEffect(() => {
                 (async () => {
                     try {
@@ -1542,28 +1564,32 @@
                     } catch(e) { setMems([]); }
                 })();
             }, []);
+            const needLog = ltab === 'week' || gtab !== 'all';
             useEffect(() => {
-                if (ltab !== 'week' || weekly !== null) return;
+                if (!needLog || logAll !== null) return;
                 (async () => {
                     try {
                         const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID));
                         const snap = await window.fb.getDocs(q);
-                        const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
-                        const agg = {};
-                        snap.docs.forEach(d => {
-                            const e = d.data();
-                            if ((e.at || 0) < cutoff || !e.uid) return;
-                            if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', profit: 0, games: 0 };
-                            agg[e.uid].profit = round2(agg[e.uid].profit + (Number(e.profit) || 0));
-                            agg[e.uid].games++;
-                        });
-                        setWeekly(Object.values(agg));
-                    } catch(e) { setWeekly([]); }
+                        setLogAll(snap.docs.map(d => d.data()));
+                    } catch(e) { setLogAll([]); }
                 })();
-            }, [ltab]);
+            }, [needLog]);
 
             const rows = (() => {
-                if (ltab === 'week') return (weekly || []).map(w => ({ ...w, metric: w.profit, sub: `${w.games} משחקים` })).sort((a, b) => b.metric - a.metric);
+                if (needLog) {
+                    const cutoff = ltab === 'week' ? Date.now() - 7 * 24 * 3600 * 1000 : 0;
+                    const agg = {};
+                    (logAll || []).forEach(e => {
+                        if (!e.uid || (e.at || 0) < cutoff) return;
+                        if (gtab !== 'all' && e.game !== gtab) return;
+                        if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', profit: 0, games: 0, wins: 0 };
+                        agg[e.uid].profit = round2(agg[e.uid].profit + (Number(e.profit) || 0));
+                        agg[e.uid].games++;
+                        if ((e.profit || 0) > 0) agg[e.uid].wins++;
+                    });
+                    return Object.values(agg).map(w => ({ ...w, metric: ltab === 'wins' ? w.wins : w.profit, sub: `${w.games} משחקים · ${w.wins} ברווח` })).sort((a, b) => b.metric - a.metric);
+                }
                 const list = (mems || []).map(m => ({
                     uid: m.uid, username: m.username, photo: m.photo, avatarSeed: m.avatarSeed,
                     metric: ltab === 'profit' ? round2((m.stats || {}).totalProfit || 0) : ((m.stats || {}).gamesWon || 0),
@@ -1583,12 +1609,17 @@
                             <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-yellow-200 to-amber-400 tracking-wide"><i className="fa-solid fa-ranking-star ml-2 text-amber-400"></i>לוח המובילים</h2>
                             <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
                         </div>
-                        <div className="flex justify-center gap-2 mb-7">
+                        <div className="flex justify-center gap-2 mb-3">
                             {[['profit', 'רווח כולל'], ['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
                                 <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
-                        {(mems === null || (ltab === 'week' && weekly === null)) ? (
+                        <div className="flex justify-center gap-1.5 mb-7 flex-wrap">
+                            {[['all', 'הכל 🏆'], ['rummikub', 'רמיקוב'], ['poker', 'פוקר'], ['durak', 'דוראק'], ['shesh', 'שש-בש'], ['president', 'פרזידנט'], ['yaniv', 'יניב']].map(([k, l]) => (
+                                <button key={k} onClick={() => setGtab(k)} className={`px-3 py-1.5 rounded-full font-bold text-xs border transition-colors ${gtab === k ? 'bg-amber-500/20 border-amber-400/60 text-amber-300' : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'}`}>{l}</button>
+                            ))}
+                        </div>
+                        {(mems === null || (needLog && logAll === null)) ? (
                             <div className="text-center py-16 text-amber-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>
                         ) : rows.length === 0 ? (
                             <div className="text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl">עדיין אין נתונים - שחקו כמה משחקים! 🎲</div>
@@ -1625,6 +1656,99 @@
                     </div>
                 </div>
             );
+        }
+
+        /* ================================================================
+           תיק שחקן - מייל, טלפון, הערות, סטטיסטיקות לפי תקופות ומחזורים
+           ================================================================ */
+        function PlayerFileModal({ mem, agentName, canEdit, onClose, showToast }) {
+            const [log, setLog] = useState(null);
+            const [phone, setPhone] = useState(mem.phone || '');
+            const [notes, setNotes] = useState(mem.notes || '');
+            useEffect(() => {
+                (async () => {
+                    try {
+                        const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"),
+                            window.fb.where("uid", "==", mem.uid), window.fb.where("clubId", "==", CLUB_ID));
+                        const snap = await window.fb.getDocs(q);
+                        setLog(snap.docs.map(d => d.data()));
+                    } catch(e) { setLog([]); }
+                })();
+            }, [mem.uid]);
+            const saveDetails = async () => {
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", mem.id), { phone: phone.trim(), notes: notes.trim() });
+                    showToast("הפרטים נשמרו", "success");
+                } catch(e) { showToast("שגיאה בשמירה", "error"); }
+            };
+            const periodStats = (from, to) => {
+                const rows = (log || []).filter(e => (e.at || 0) >= from && (!to || e.at < to));
+                const profit = round2(rows.reduce((a, e) => a + (Number(e.profit) || 0), 0));
+                const byGame = {};
+                rows.forEach(e => { const g = e.game || '?'; byGame[g] = byGame[g] || { n: 0, p: 0 }; byGame[g].n++; byGame[g].p = round2(byGame[g].p + (Number(e.profit) || 0)); });
+                return { games: rows.length, profit, wins: rows.filter(e => (e.profit || 0) > 0).length, byGame };
+            };
+            const cyc0 = cycleStartIL(0), cyc1 = cycleStartIL(1);
+            const periods = log === null ? null : [
+                ['המחזור הנוכחי (משני 00:01)', periodStats(cyc0, null)],
+                ['המחזור הקודם', periodStats(cyc1, cyc0)],
+                ['30 יום אחרונים', periodStats(Date.now() - 30 * 24 * 3600 * 1000, null)],
+            ];
+            const lifetime = mem.stats || {};
+            const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', tournament: 'טורניר' };
+            return ReactDOM.createPortal(
+                <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
+                    <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-emerald-500/50 rounded-3xl p-5 max-w-lg w-full max-h-[88vh] overflow-y-auto">
+                        <div className="flex items-center gap-3 mb-4">
+                            <img src={avatarUrl({ ...mem, uid: mem.uid })} className="w-14 h-14 rounded-2xl bg-slate-800 border border-white/10" />
+                            <div className="min-w-0 flex-1">
+                                <div className="text-white font-black text-lg truncate">{mem.username} <span className="text-slate-500 text-xs font-bold">{mem.playerId || ''}</span></div>
+                                <div className="text-slate-400 text-xs font-bold truncate" dir="ltr">{mem.email || ''}</div>
+                                <div className="text-[11px] font-bold mt-0.5">
+                                    {mem.agentUid ? <span className="text-purple-300">🤝 סוכן: {agentName(mem.agentUid)} ({mem.agentPct || 0}%)</span> : <span className="text-slate-500">ללא שיוך סוכן</span>}
+                                    <span className="text-emerald-400 mr-2" dir="ltr">{formatMoney(mem.balance || 0)}</span>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="text-slate-500 hover:text-white shrink-0"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                        {canEdit && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                                <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="📞 טלפון" className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-white font-bold text-sm outline-none focus:border-emerald-500/60" dir="ltr" />
+                                <div className="flex gap-2">
+                                    <input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="📝 הערות" className="flex-1 min-w-0 bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-white font-bold text-sm outline-none focus:border-emerald-500/60" />
+                                    <button onClick={saveDetails} className="bg-emerald-700 hover:bg-emerald-600 text-white px-4 rounded-xl font-black text-xs shrink-0">שמור</button>
+                                </div>
+                            </div>
+                        )}
+                        {log === null ? (
+                            <div className="text-center py-10 text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+                        ) : (
+                            <div className="space-y-3">
+                                {periods.map(([label, st]) => (
+                                    <div key={label} className="bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-slate-300 font-black text-xs">{label}</span>
+                                            <span className={`font-black text-sm ${st.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{st.profit > 0 ? '+' : ''}{formatMoney(st.profit)}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-bold">{st.games} משחקים · {st.wins} ברווח</div>
+                                        {Object.keys(st.byGame).length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                                {Object.entries(st.byGame).map(([g, v]) => (
+                                                    <span key={g} className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${v.p >= 0 ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/5' : 'border-rose-500/30 text-rose-300 bg-rose-500/5'}`} dir="ltr">{GAME_HEB[g] || g}: {v.n} · {v.p > 0 ? '+' : ''}{formatMoney(v.p)}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                <div className="bg-slate-950/60 border border-amber-500/20 rounded-2xl p-3 flex items-center justify-between">
+                                    <span className="text-amber-300 font-black text-xs">כל הזמנים</span>
+                                    <span className="text-[11px] text-slate-400 font-bold">{lifetime.gamesPlayed || 0} משחקים · {lifetime.gamesWon || 0} ניצחונות · <span className={`${(lifetime.totalProfit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-black`} dir="ltr">{(lifetime.totalProfit || 0) > 0 ? '+' : ''}{formatMoney(lifetime.totalProfit || 0)}</span></span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            , document.body);
         }
 
         function PendingView({ clubName, onBack }) {
@@ -1665,11 +1789,38 @@
             const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status !== 'approved' && !god; });
             const otherClubs = clubs.filter(c => !memOf(c.id) && !god);
 
-            const requestJoin = async (club) => {
+            const [joinFor, setJoinFor] = useState(null);   // הקלאב שמבקשים להצטרף אליו
+            const [agentCodeIn, setAgentCodeIn] = useState('');
+            const resolveAgent = async (clubId, code) => {
+                if (!code) return null;
                 try {
-                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${club.id}`), { ...newMembership(user.uid, user), clubId: club.id });
-                    showToast(`בקשת הצטרפות ל"${club.name}" נשלחה! ממתין לאישור`, "success");
+                    const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"),
+                        window.fb.where("clubId", "==", clubId), window.fb.where("agentCode", "==", code.trim().toUpperCase()));
+                    const snap = await window.fb.getDocs(q);
+                    if (snap.empty) return null;
+                    const a = snap.docs[0].data();
+                    return { uid: a.uid, name: a.username, pct: Number(a.agentSharePct) || 50 };
+                } catch(e) { return null; }
+            };
+            const submitJoin = async (club, agent) => {
+                try {
+                    const extra = agent ? { agentUid: agent.uid, agentPct: agent.pct } : {};
+                    await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${club.id}`), { ...newMembership(user.uid, user), clubId: club.id, ...extra });
+                    setJoinFor(null); setAgentCodeIn('');
+                    showToast(agent ? `הבקשה נשלחה - שויכת לסוכן ${agent.name}! ממתין לאישור` : `בקשת הצטרפות ל"${club.name}" נשלחה! ממתין לאישור`, "success");
                 } catch(e) { showToast("שגיאה בשליחת הבקשה", "error"); }
+            };
+            const requestJoin = async (club) => {
+                // הגיע מקישור הזמנה של סוכן? משייכים אוטומטית
+                try {
+                    const ref = JSON.parse(localStorage.getItem('agentRef') || 'null');
+                    if (ref && ref.code && (!ref.club || ref.club === club.id)) {
+                        const agent = await resolveAgent(club.id, ref.code);
+                        if (agent) { localStorage.removeItem('agentRef'); await submitJoin(club, agent); return; }
+                    }
+                } catch(e) {}
+                setAgentCodeIn('');
+                setJoinFor(club); // שואלים: יש קוד סוכן?
             };
 
             const deleteClub = async (c) => {
@@ -1816,6 +1967,26 @@
                             </div>
                         )}
 
+                        {joinFor && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJoinFor(null)}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 max-w-sm w-full text-center">
+                                    <div className="text-3xl mb-1">🎟️</div>
+                                    <h3 className="text-lg font-black text-white mb-1">הצטרפות ל"{joinFor.name}"</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-4">יש לך קוד סוכן? הזן אותו ותשויך אליו אוטומטית</p>
+                                    <input value={agentCodeIn} onChange={e=>setAgentCodeIn(e.target.value)} placeholder="קוד סוכן (למשל AG7K2P)" maxLength={8} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-widest outline-none focus:border-emerald-500/60 mb-3 uppercase" dir="ltr" />
+                                    <button onClick={async () => {
+                                        const code = agentCodeIn.trim();
+                                        if (!code) return showToast("הזן קוד, או בחר הצטרפות בלי קוד", "error");
+                                        const agent = await resolveAgent(joinFor.id, code);
+                                        if (!agent) return showToast("קוד סוכן לא נמצא בקלאב הזה", "error");
+                                        submitJoin(joinFor, agent);
+                                    }} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-xl font-black shadow-lg mb-2">הצטרף עם קוד סוכן ✓</button>
+                                    <button onClick={() => submitJoin(joinFor, null)} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-bold border border-white/10 mb-2">אין לי קוד - הגש בקשה רגילה</button>
+                                    <button onClick={() => setJoinFor(null)} className="text-slate-500 hover:text-white underline text-xs font-bold">ביטול</button>
+                                </div>
+                            </div>
+                        , document.body)}
+
                         <div className="glass-panel rounded-3xl p-6 border border-emerald-500/20">
                             <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1 text-emerald-400"></i> הקם קלאב חדש</h3>
                             <div className="flex gap-2">
@@ -1824,7 +1995,7 @@
                                     {creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם 👑'}
                                 </button>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מתחיל עם 100,000,000 צ'יפים לחלוקה, מאשר חברים, קובע רייק, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
+                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מתחיל עם 100,000,000 צ'יפים לחלוקה, מאשר חברים, קובע את הכללים, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
                         </div>
                     </div>
                 </div>
@@ -2044,7 +2215,7 @@
         function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
             const [showCreateShesh, setShowCreateShesh] = useState(false);
-            const [sheshOpts, setSheshOpts] = useState({ buyIn: 500 });
+            const [sheshOpts, setSheshOpts] = useState({ buyIn: 5 });
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             const [showCreateDurak, setShowCreateDurak] = useState(false);
             const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4, bluff: false });
@@ -2117,7 +2288,7 @@
             };
 
             const handleCreateShesh = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), sheshTableDoc(user.uid, { buyIn: Number(sheshOpts.buyIn), turnTime: SHESH_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), sheshTableDoc(user.uid, { buyIn: Math.max(5, Number(sheshOpts.buyIn) || 5), turnTime: SHESH_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreateShesh(false); showToast("שולחן שש-בש נפתח!", "success");
             };
 
@@ -2194,7 +2365,7 @@
                             </div>
                             {bonusEnabled && (
                                 <button onClick={() => { setBonusOpen(true); setBonusSpin(null); }} className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-sm border-2 transition-all ${bonusReady ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.5)] animate-pulse' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
-                                    🎁 בונוס יומי{bonusReady ? '' : ` · ${bonusHoursLeft} שע'`}
+                                    🎁 בונוס יומי{!bonusReady && <React.Fragment> · <BonusCountdown lastAt={user.lastBonusAt} /></React.Fragment>}
                                 </button>
                             )}
                             <div className="bg-gradient-to-l from-emerald-600/20 to-transparent border border-emerald-500/30 rounded-2xl px-5 py-3 text-left">
@@ -2244,7 +2415,7 @@
                                     </div>
                                     {bonusSpin && bonusSpin.done && <div className="text-emerald-400 font-black text-2xl mb-3 animate-pop-in">+{formatMoney(bonusSpin.prize)} 🎉</div>}
                                     {bonusReady && !bonusSpin && <button onClick={spinBonus} className="w-full bg-gradient-to-b from-amber-400 to-amber-600 hover:from-amber-300 text-slate-900 py-3.5 rounded-xl font-black text-lg shadow-lg">סובב! 🎰</button>}
-                                    {!bonusReady && !bonusSpin && <div className="text-slate-400 font-bold text-sm">כבר סובבת היום · הבונוס הבא בעוד {bonusHoursLeft} שעות ⏳</div>}
+                                    {!bonusReady && !bonusSpin && <div className="text-slate-400 font-bold text-sm">כבר סובבת היום · הסיבוב הבא בעוד <span className="text-amber-300 font-black"><BonusCountdown lastAt={user.lastBonusAt} /></span> ⏳</div>}
                                     {bonusSpin && !bonusSpin.done && <div className="text-amber-300 font-black text-sm animate-pulse">מסתובב... 🤞</div>}
                                     {(!bonusSpin || bonusSpin.done) && <button onClick={() => setBonusOpen(false)} className="mt-3 text-slate-500 hover:text-white underline text-sm font-bold">סגור</button>}
                                 </div>
@@ -2277,7 +2448,7 @@
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
-                                            <span className="text-xs text-slate-500 font-bold">יניב עד 7 · אסף +30 · חצאים: 50→0 · 100→50 · 150→100 · 200→150 · מפסיד ב-201+ · רייק {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%</span>
+                                            <span className="text-xs text-slate-500 font-bold">יניב עד 7 · אסף +30 · חצאים: 50→0 · 100→50 · 150→100 · 200→150 · מפסיד ב-201+</span>
                                             <div className="flex gap-3">
                                                 <button onClick={()=>setShowCreateYnv(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                                 <button onClick={handleCreateYnv} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
@@ -2344,7 +2515,7 @@
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
-                                            <span className="text-xs text-slate-500 font-bold">חלוקת הקופה לפי מקומות (4 שחקנים: 50/30/20/0) · רייק {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%</span>
+                                            <span className="text-xs text-slate-500 font-bold">חלוקת הקופה לפי מקומות (4 שחקנים: 50/30/20/0)</span>
                                             <div className="flex gap-3">
                                                 <button onClick={()=>setShowCreatePres(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                                 <button onClick={handleCreatePres} className="bg-purple-600 hover:bg-purple-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
@@ -2366,7 +2537,7 @@
                                                         <div className="w-11 h-11 rounded-xl bg-purple-900/30 border border-purple-700/40 flex items-center justify-center"><i className="fa-solid fa-chess-king text-purple-400"></i></div>
                                                         <div>
                                                             <h3 className="text-lg font-black text-white leading-tight">פרזידנט</h3>
-                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney(st.buyIn)} · Rake {st.rakePercent ?? clubSettings.rakePct}%</p>
+                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney(st.buyIn)}</p>
                                                         </div>
                                                         {t.status === 'playing' && <span className="mr-auto text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full">● LIVE</span>}
                                                     </div>
@@ -2418,7 +2589,7 @@
                                                 <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
                                                     <option value={0.10}>0.10 ₪</option><option value={0.50}>0.50 ₪</option><option value={1}>1.00 ₪</option><option value={2}>2.00 ₪</option><option value={5}>5.00 ₪</option><option value={10}>10.00 ₪</option>
                                                 </select>
-                                                <p className="text-emerald-400 text-xs mt-2 font-bold" dir="ltr">* כניסה (X100): {formatMoney(newTableOptions.stakes * 100)} ₪ · רייק {clubSettings.rakePct}%</p>
+                                                <p className="text-emerald-400 text-xs mt-2 font-bold" dir="ltr">* כניסה (X100): {formatMoney(newTableOptions.stakes * 100)} ₪</p>
                                             </div>
                                         </div>
                                         <div className="flex justify-end gap-3 pt-3 border-t border-white/5">
@@ -2483,7 +2654,7 @@
                                                         <div className="w-11 h-11 rounded-xl bg-amber-900/30 border border-amber-700/40 flex items-center justify-center"><i className="fa-solid fa-diamond text-amber-400"></i></div>
                                                         <div>
                                                             <h3 className="text-lg font-black text-white leading-tight">{s.baseGameType || 'NLH'} {s.isDealerChoice && <span className="text-rose-400 text-[10px] font-black align-middle mr-1">DC</span>}</h3>
-                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Blinds {formatShort(s.blinds)}/{formatShort(s.blinds*2)} · Rake {s.rakePercent ?? clubSettings.rakePct}%</p>
+                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Blinds {formatShort(s.blinds)}/{formatShort(s.blinds*2)}</p>
                                                         </div>
                                                         {inHand && <span className="mr-auto text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full">● LIVE</span>}
                                                     </div>
@@ -2548,7 +2719,7 @@
                                                 <span className="text-rose-300 text-xs font-black">🎭 מצב בלוף</span>
                                                 <span className="text-slate-500 text-[10px] font-bold hidden sm:inline">התקפה בקלף הפוך, המגן חושד או מקבל</span>
                                             </label>
-                                            <span className="text-xs text-slate-500 font-bold">רייק מועדון: {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}% · המפסיד (הדוראק) מממן את המנצחים</span>
+                                            <span className="text-xs text-slate-500 font-bold">המפסיד (הדוראק) מממן את המנצחים</span>
                                             <div className="flex gap-3">
                                                 <button onClick={()=>setShowCreateDurak(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                                 <button onClick={handleCreateDurak} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
@@ -2607,12 +2778,10 @@
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                             <div>
                                                 <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">Buy-in (המנצח לוקח הכל)</label>
-                                                <select value={sheshOpts.buyIn} onChange={e=>setSheshOpts({...sheshOpts, buyIn: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-amber-500 font-bold">
-                                                    {[50,100,250,500,1000,2500,5000].map(b => <option key={b} value={b}>{formatMoney(b)}</option>)}
-                                                </select>
+                                                <input type="number" min="5" step="5" value={sheshOpts.buyIn} onChange={e=>setSheshOpts({...sheshOpts, buyIn: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-amber-500 font-bold" dir="ltr" />
                                             </div>
                                             <div className="flex items-end">
-                                                <p className="text-xs text-slate-500 font-bold pb-2">2 שחקנים · {SHESH_TIME} שניות לתור · רייק {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%</p>
+                                                <p className="text-xs text-slate-500 font-bold pb-2">2 שחקנים · {SHESH_TIME} שניות לתור</p>
                                             </div>
                                         </div>
                                         <div className="flex justify-end gap-3 pt-3 border-t border-white/5">
@@ -2636,7 +2805,7 @@
                                                         <div className="w-11 h-11 rounded-xl bg-amber-900/30 border border-amber-700/40 flex items-center justify-center"><i className="fa-solid fa-dice text-amber-400"></i></div>
                                                         <div>
                                                             <h3 className="text-lg font-black text-white leading-tight">שש-בש · ראש בראש</h3>
-                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney(s.buyIn)} · Rake {s.rakePercent ?? clubSettings.rakePct}%</p>
+                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney(s.buyIn)}</p>
                                                         </div>
                                                         {t.status === 'playing' && <span className="mr-auto text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full">● LIVE</span>}
                                                     </div>
@@ -2738,9 +2907,20 @@
 
             const isOwner = [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role);
 
+            const [assignFor, setAssignFor] = useState(null); // בקשה שממתינה לבחירת סוכן
+            const approveWith = async (memId, agent) => {
+                try {
+                    const extra = agent ? { agentUid: agent.uid, agentPct: Number(agent.agentSharePct) || 50 } : {};
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", memId), { status: 'approved', ...extra });
+                    setAssignFor(null);
+                    showToast(agent ? `השחקן אושר ושויך ל${agent.username}` : "השחקן אושר", "success");
+                } catch(e) { showToast("שגיאה באישור", "error"); }
+            };
             const handleApprove = async (uid) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", uid), { status: 'approved' }); showToast("שחקן אושר", "success"); }
-                catch(e) { showToast("שגיאה באישור", "error"); }
+                const mem = usersList.find(x => x.id === uid);
+                // כבר משויך (הגיע עם קוד/קישור)? מאשרים ישר. אחרת - שואלים למי לשייך
+                if (mem && !mem.agentUid && agents.length > 0) { setAssignFor(mem); return; }
+                approveWith(uid, null);
             };
             const handleReject = async (u) => {
                 if (!window.confirm(`לדחות ולמחוק את ${u.username}?`)) return;
@@ -2802,7 +2982,9 @@
                 try {
                     const managedGames = [ROLES.MANAGER, ROLES.AGENT].includes(roleDraft.role) ? roleDraft.managedGames : [];
                     const agentPct = Math.min(100, Math.max(0, Number(roleDraft.agentPct) || 0));
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", roleEditUser.id), { role: roleDraft.role, managedGames, agentUid: roleDraft.agentUid || '', agentPct: roleDraft.agentUid ? agentPct : 0 });
+                    const becomingAgent = roleDraft.role === ROLES.AGENT;
+                    const agentFields = becomingAgent ? { agentCode: roleEditUser.agentCode || genAgentCode(), agentSharePct: Number(roleEditUser.agentSharePct) || 50 } : {};
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", roleEditUser.id), { role: roleDraft.role, managedGames, agentUid: roleDraft.agentUid || '', agentPct: roleDraft.agentUid ? agentPct : 0, ...agentFields });
                     showToast(`${roleEditUser.username} עודכן ל${ROLE_LABELS[roleDraft.role]}`, "success");
                     setRoleEditUser(null);
                 } catch(e) { showToast("שגיאה בעדכון תפקיד", "error"); }
@@ -2833,6 +3015,33 @@
             };
 
             const pendingUsers = usersList.filter(u => u.status !== 'approved' && !u.isBot);
+            const agents = usersList.filter(u => u.status === 'approved' && u.role === ROLES.AGENT && !u.isBot);
+            const agentName = (uid) => (usersList.find(x => x.uid === uid) || {}).username || '';
+            // השלמת קוד לסוכנים ותיקים שאין להם (אצל הבעלים בלבד)
+            useEffect(() => {
+                if (!isOwner) return;
+                agents.filter(a => !a.agentCode).forEach(a => {
+                    window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", a.id), { agentCode: genAgentCode(), agentSharePct: Number(a.agentSharePct) || 50 }).catch(() => {});
+                });
+            }, [agents.length, isOwner]);
+            const [playerFile, setPlayerFile] = useState(null); // תיק שחקן פתוח
+            const [agentCycle, setAgentCycle] = useState({});   // רווחי המחזור הנוכחי פר סוכן
+            useEffect(() => {
+                (async () => {
+                    try {
+                        const q = window.fb.query(window.fb.collection(window.fb.db, "agentLog"), window.fb.where("clubId", "==", CLUB_ID));
+                        const snap = await window.fb.getDocs(q);
+                        const cyc = cycleStartIL(0);
+                        const m = {};
+                        snap.docs.forEach(d => { const e = d.data(); if ((e.at || 0) >= cyc) m[e.agentUid] = round2((m[e.agentUid] || 0) + (Number(e.amount) || 0)); });
+                        setAgentCycle(m);
+                    } catch(e) {}
+                })();
+            }, []);
+            const isAgentOnly = user.role === ROLES.AGENT;
+            const canManageAny = isOwner || user.role === ROLES.MANAGER;
+            const myAgentMem = usersList.find(x => x.uid === user.uid);
+            const copyText = async (txt, msg) => { try { await navigator.clipboard.writeText(txt); showToast(msg, "success"); } catch(e) { showToast(txt, "info"); } };
             const realPlayers = usersList.filter(u => u.status === 'approved' && !u.isBot);
             const players = usersList.filter(u => u.status === 'approved' && u.uid !== user.uid)
                 .filter(u => !search || (u.username||'').toLowerCase().includes(search.toLowerCase()) || (u.email||'').toLowerCase().includes(search.toLowerCase()) || (u.playerId||'').toLowerCase().includes(search.toLowerCase()));
@@ -2975,6 +3184,77 @@
                         </div>
 
                         {/* שחקנים: העברות צ'יפים + תפקידים */}
+                        {playerFile && <PlayerFileModal mem={playerFile} agentName={agentName} canEdit={isOwner || canManageAny || playerFile.agentUid === user.uid} onClose={() => setPlayerFile(null)} showToast={showToast} />}
+                        {assignFor && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setAssignFor(null)}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border-2 border-purple-500/60 rounded-3xl p-6 max-w-sm w-full text-center">
+                                    <div className="text-3xl mb-1">🤝</div>
+                                    <h3 className="text-lg font-black text-white mb-1">לאיזה סוכן לשייך את {assignFor.username}?</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-4">השחקן הגיע בלי קוד סוכן - בחר שיוך או אשר בלי</p>
+                                    <div className="flex flex-col gap-2 mb-3 max-h-60 overflow-y-auto">
+                                        {agents.map(a => (
+                                            <button key={a.id} onClick={() => approveWith(assignFor.id, a)} className="flex items-center gap-3 bg-slate-950/70 hover:bg-purple-900/40 border border-purple-500/25 hover:border-purple-400/60 rounded-2xl p-3 transition-colors">
+                                                <img src={avatarUrl({ ...a, uid: a.uid })} className="w-9 h-9 rounded-xl bg-slate-800" />
+                                                <span className="text-white font-black text-sm flex-1 text-right truncate">{a.username}</span>
+                                                <span className="text-purple-300 text-[10px] font-black" dir="ltr">{Number(a.agentSharePct) || 50}%</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => approveWith(assignFor.id, null)} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-bold border border-white/10 mb-2">אשר ללא שיוך סוכן</button>
+                                    <button onClick={() => setAssignFor(null)} className="text-slate-500 hover:text-white underline text-xs font-bold">ביטול</button>
+                                </div>
+                            </div>
+                        , document.body)}
+
+                        {/* ===== אזור הסוכנים ===== */}
+                        {(isOwner || isAgentOnly) && (
+                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-purple-500/20">
+                                <h3 className="text-lg font-black text-white flex items-center gap-2 mb-4">
+                                    <span className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center"><i className="fa-solid fa-handshake text-purple-400 text-sm"></i></span>
+                                    סוכנים {isAgentOnly ? '- האזור שלי' : `(${agents.length})`}
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {(isAgentOnly ? agents.filter(a => a.uid === user.uid) : agents).map(a => {
+                                        const linked = usersList.filter(x => x.agentUid === a.uid && x.status === 'approved');
+                                        const inviteLink = `https://rummikube.com/?agent=${a.agentCode || ''}&club=${CLUB_ID}`;
+                                        return (
+                                            <div key={a.id} className="bg-slate-900/70 border border-purple-500/20 rounded-2xl p-4">
+                                                <div className="flex items-center gap-3 mb-2.5">
+                                                    <img src={avatarUrl({ ...a, uid: a.uid })} className="w-11 h-11 rounded-xl bg-slate-800" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-white font-black text-sm truncate">{a.username}</div>
+                                                        <button onClick={() => copyText(a.agentCode || '', 'קוד הסוכן הועתק')} className="text-purple-300 text-xs font-black tracking-widest hover:text-purple-200" dir="ltr" title="העתק קוד">🎟️ {a.agentCode || '...'}</button>
+                                                    </div>
+                                                    {isOwner && (
+                                                        <div className="text-left shrink-0">
+                                                            <input type="number" min="0" max="100" defaultValue={Number(a.agentSharePct) || 50}
+                                                                   onBlur={e => { const v = Math.min(100, Math.max(0, Number(e.target.value) || 0)); window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", a.id), { agentSharePct: v }).then(() => showToast(`חלקו של ${a.username}: ${v}%`, "success")).catch(() => {}); }}
+                                                                   className="w-14 bg-slate-950 border border-white/10 rounded-lg px-1.5 py-1 text-white font-black text-center text-xs outline-none focus:border-purple-500/60" dir="ltr" />
+                                                            <div className="text-[9px] text-slate-500 font-bold text-center mt-0.5">% מהרייק</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 text-center mb-2.5">
+                                                    <div className="bg-slate-950/60 rounded-xl py-1.5"><div className="text-[9px] text-slate-500 font-bold">שחקנים</div><div className="text-white font-black text-sm">{linked.length}</div></div>
+                                                    <div className="bg-slate-950/60 rounded-xl py-1.5"><div className="text-[9px] text-slate-500 font-bold">המחזור</div><div className="text-emerald-400 font-black text-sm" dir="ltr">{formatMoney(agentCycle[a.uid] || 0)}</div></div>
+                                                    <div className="bg-slate-950/60 rounded-xl py-1.5"><div className="text-[9px] text-slate-500 font-bold">סה"כ רווחים</div><div className="text-emerald-400 font-black text-sm" dir="ltr">{formatMoney(a.agentProfits || 0)}</div></div>
+                                                </div>
+                                                <button onClick={() => copyText(inviteLink, 'קישור ההזמנה הועתק - שלח לשחקנים!')} className="w-full bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-500 text-white py-2 rounded-xl font-black text-xs shadow-md">🔗 העתק קישור הזמנה (שיוך אוטומטי)</button>
+                                                {(isAgentOnly || isOwner) && linked.length > 0 && (
+                                                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                                        {linked.map(p => (
+                                                            <button key={p.id} onClick={() => setPlayerFile(p)} className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-white/10 bg-slate-950/60 text-slate-300 hover:border-emerald-500/40 hover:text-white">{p.username}</button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {agents.length === 0 && !isAgentOnly && <p className="text-slate-500 text-sm font-bold">אין עדיין סוכנים - מנה סוכן דרך ⚙️ ליד שחקן.</p>}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="glass-panel p-6 rounded-3xl mb-6">
                             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                                 <h3 className="text-lg font-black text-white flex items-center gap-2">
@@ -2989,7 +3269,7 @@
                             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
                                 {players.map(u => (
                                     <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
-                                        <div className="flex items-center gap-3 min-w-0">
+                                        <div className="flex items-center gap-3 min-w-0 cursor-pointer flex-1" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
                                             <img src={avatarUrl({ ...u, uid: u.id })} className={`w-10 h-10 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
                                             <div className="min-w-0">
                                                 <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
@@ -2999,6 +3279,7 @@
                                                     {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-2 py-0.5 rounded-full font-bold">{ROLE_LABELS[u.role]}</span>}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" dir="ltr">{u.email} · <span className="text-slate-500 font-black">{u.playerId || ''}</span></div>
+                                                {u.agentUid && <div className="text-[10px] text-purple-300/90 font-bold truncate">🤝 {agentName(u.agentUid)} ({u.agentPct || 0}%)</div>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -3913,9 +4194,6 @@
                                             <span className="text-rose-400 font-bold" dir="ltr">{d.penalty > 0 ? `${d.penalty} pts · ` : ''}-{formatMoney(d.pay)}</span>
                                         </div>
                                     ))}
-                                    <div className="flex justify-between items-center px-4 py-3 text-xs text-slate-500">
-                                        <span>רייק מועדון ({clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%)</span><span dir="ltr">{formatMoney(results.rake)}</span>
-                                    </div>
                                 </div>
                                 <div className="flex gap-3 mt-6">
                                     {isSeated && !tableState.tournamentId && <button onClick={handleNewRound} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">סיבוב חדש</button>}
@@ -5087,7 +5365,7 @@
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col items-center px-1">
                             <span className="text-amber-400 font-black text-xs sm:text-sm tracking-wider truncate max-w-full">{gs.currentGameType || setts.baseGameType} {setts.isDealerChoice && <span className="text-rose-400 text-[9px] align-middle">DC</span>}</span>
-                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold truncate max-w-full" dir="ltr">{formatShort(setts.blinds)}/{formatShort(BB)} · Rake {setts.rakePercent}%</span>
+                            <span className="text-slate-400 text-[9px] sm:text-[10px] font-bold truncate max-w-full" dir="ltr">{formatShort(setts.blinds)}/{formatShort(BB)}</span>
                         </div>
                         <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl px-2.5 sm:px-3 py-1 text-center shrink-0">
                             <span className="text-[9px] text-amber-300 font-bold block leading-none mb-0.5">POT</span>
@@ -5379,7 +5657,7 @@
                                                             </div>
                                                         ))}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-500 font-bold mt-2 text-center">רייק: {formatMoney(h.rake || 0)}</div>
+                                                    <div className="text-[10px] text-slate-500 font-bold mt-2 text-center">&nbsp;</div>
                                                 </div>
                                             )}
                                         </div>
@@ -5439,6 +5717,9 @@
             const [loading, setLoading] = useState(true);
             const [godView, setGodView] = useState(false);
             const [timeLeft, setTimeLeft] = useState(DURAK_TIME);
+            const [resHide, setResHide] = useState(false);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), Number(tableState?.settings?.maxPlayers) || 5, null);
             const [bluffMode, setBluffMode] = useState(false);
 
             const tableRef = useRef(null);
@@ -5556,7 +5837,7 @@
                     if (t.tournamentId) {
                         const champ = soloWinnerUid || (fo && fo[0]) || null;
                         await window.fb.updateDoc(tblRef(), {
-                            status: 'showdown', players: pl, pairs: [], deck: deck || [], discard: discard || 0,
+                            status: 'showdown', showdownAt: Date.now(), players: pl, pairs: [], deck: deck || [], discard: discard || 0,
                             finishOrder: fo || [], turnUid: null, pot: 0,
                             lastResults: { durakName: durakUid && pl[durakUid] ? pl[durakUid].name : null, winners: [], share: 0, rake: 0, pot: 0, tournament: true },
                             tournament: { ...t.tournament, finished: true, tableWinner: champ }
@@ -5591,7 +5872,7 @@
                             });
                         }
                         tr.update(tblRef(), {
-                            status: 'showdown', players: pl, pairs: [], deck: deck || [], discard: discard || 0,
+                            status: 'showdown', showdownAt: Date.now(), players: pl, pairs: [], deck: deck || [], discard: discard || 0,
                             finishOrder: fo || [], turnUid: null, pot: 0,
                             lastResults: { durakName: durakUid ? pl[durakUid].name : null, winners: winners.map(w => w.name), share, rake, pot, solo: !!soloWinnerUid }
                         });
@@ -5992,7 +6273,7 @@
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col items-center px-1">
                             <span className="text-blue-300 font-black text-sm tracking-wider">דוראק {setts.variant === 'perevodnoy' ? '· העברה' : ''}</span>
-                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">{setts.deckSize} cards · Rake {setts.rakePercent}%</span>
+                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">{setts.deckSize} cards</span>
                         </div>
                         <div className="flex items-center gap-2">
                             {T.trumpSuit && T.status !== 'setup' && (
@@ -6136,7 +6417,7 @@
                         )}
 
                         {/* תוצאות */}
-                        {T.status === 'showdown' && res && (
+                        {T.status === 'showdown' && res && !resHide && (
                             <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
                                     {res.durakName ? (
@@ -6157,13 +6438,12 @@
                                                 <span className="text-emerald-400 font-black" dir="ltr">+{formatMoney(res.share)}</span>
                                             </div>
                                         ))}
-                                        <div className="flex justify-between items-center px-4 py-2 text-xs text-slate-500">
-                                            <span>רייק מועדון</span><span dir="ltr">{formatMoney(res.rake)}</span>
-                                        </div>
                                     </div>
                                     <div className="flex gap-3">
                                         {(isHost || isSuperAdmin) && !tableState.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש</button>}
-                                        <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום</button>
+                                        {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                        {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום 🚪</button>}
+                                        {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">👁 המשך לצפות</button>}
                                     </div>
                                 </div>
                             </div>
@@ -6300,6 +6580,51 @@
             5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
             6: [[27, 24], [73, 24], [27, 50], [73, 50], [27, 76], [73, 76]]
         };
+        /* חלון חסד אחרי סיום: מי שלא לוחץ "ממשיך" קם אוטומטית - וכל צופה יכול לנקות שולחן נטוש */
+        const SHOWDOWN_GRACE = 15;
+        function useShowdownSweep(T, refGetter, maxPlayers, seatWaitlistFn) {
+            const [stayLeft, setStayLeft] = useState(SHOWDOWN_GRACE);
+            const sweptRef = useRef(0);
+            useEffect(() => {
+                if (!T || T.status !== 'showdown' || !T.showdownAt) return;
+                const iv = setInterval(async () => {
+                    const rem = Math.max(0, SHOWDOWN_GRACE - Math.floor((Date.now() - T.showdownAt) / 1000));
+                    setStayLeft(rem);
+                    if (rem > 0 || sweptRef.current === T.showdownAt) return;
+                    sweptRef.current = T.showdownAt;
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (tr) => {
+                            const ref = refGetter();
+                            const snap = await tr.get(ref);
+                            if (!snap.exists()) return;
+                            const t = snap.data();
+                            if (t.status !== 'showdown' || t.showdownAt !== T.showdownAt) return;
+                            const pl = {};
+                            Object.entries(t.players || {}).forEach(([k, p]) => {
+                                if (p.isBot || (p.stayAt || 0) >= t.showdownAt) pl[k] = { ...p };
+                            });
+                            let wl = t.waitlist || [];
+                            if (seatWaitlistFn) wl = seatWaitlistFn(pl, [...wl], maxPlayers);
+                            const humans = Object.values(pl).filter(p => !p.isBot).length;
+                            if (humans === 0 && !wl.length) { tr.delete(ref); return; }
+                            tr.update(ref, { players: pl, status: 'setup', waitlist: wl, showdownAt: null });
+                        });
+                    } catch(e) {}
+                }, 500);
+                return () => clearInterval(iv);
+            }, [T && T.status, T && T.showdownAt]);
+            return stayLeft;
+        }
+
+        /* שעון רץ אחורה עד הבונוס הבא */
+        function BonusCountdown({ lastAt }) {
+            const [, setTick] = useState(0);
+            useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);
+            const remMs = Math.max(0, 22 * 3600 * 1000 - (Date.now() - (lastAt || 0)));
+            const pad = (x) => String(x).padStart(2, '0');
+            return <span dir="ltr" className="font-mono">{pad(Math.floor(remMs / 3600000))}:{pad(Math.floor((remMs % 3600000) / 60000))}:{pad(Math.floor((remMs % 60000) / 1000))}</span>;
+        }
+
         const SheshDie = ({ v, used, rolling }) => {
             if (!v) return null;
             return (
@@ -6315,6 +6640,9 @@
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
             const [timeLeft, setTimeLeft] = useState(SHESH_TIME);
+            const [resHide, setResHide] = useState(false);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), 2, null);
             const [selected, setSelected] = useState(null);
             const [rolling, setRolling] = useState(false);
             const [land, setLand] = useState(window.innerWidth > window.innerHeight && window.innerHeight < 620);
@@ -6432,7 +6760,7 @@
                     if (!winnerUid) return;
                     if (t.tournamentId) {
                         await window.fb.updateDoc(tblRef(), {
-                            status: 'showdown', pot: 0, turn: null, dice: [],
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turn: null, dice: [],
                             board: upd ? upd.board : t.board, bar: upd ? upd.bar : t.bar, off: upd ? upd.off : t.off,
                             lastResults: { winnerName: (players[winnerUid] || {}).name || '', amount: 0, rake: 0, mars: false, byForfeit: !!byForfeit, tournament: true },
                             tournament: { ...t.tournament, finished: true, tableWinner: winnerUid }
@@ -6466,7 +6794,7 @@
                             });
                         }
                         tr.update(tblRef(), {
-                            status: 'showdown', pot: 0, turn: null, dice: [],
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turn: null, dice: [],
                             board: upd ? upd.board : t.board, bar: upd ? upd.bar : t.bar, off: upd ? upd.off : t.off,
                             lastResults: { winnerName: (players[winnerUid] || {}).name || '', amount, rake, mars, byForfeit: !!byForfeit }
                         });
@@ -6739,7 +7067,7 @@
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col items-center px-1">
                             <span className="text-amber-300 font-black text-sm tracking-wider">שש-בש</span>
-                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Rake {setts.rakePercent}%</span>
+                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</span>
                         </div>
                         <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl px-3 py-1 text-center">
                             <span className="text-[9px] text-amber-300 font-bold block leading-none mb-0.5">POT</span>
@@ -6814,7 +7142,7 @@
                         )}
 
                         {/* תוצאות */}
-                        {T.status === 'showdown' && res && (
+                        {T.status === 'showdown' && res && !resHide && (
                             <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
                                     <i className="fa-solid fa-trophy text-4xl text-amber-400 mb-2 trophy-pop inline-block"></i>
@@ -6822,10 +7150,11 @@
                                     {res.mars && <div className="text-rose-400 font-black text-lg mb-1">🔥 מארס!</div>}
                                     {res.byForfeit && <div className="text-slate-400 font-bold text-xs mb-1">(היריב פרש)</div>}
                                     <div className="text-emerald-400 font-black text-xl" dir="ltr">+{formatMoney(res.amount)}</div>
-                                    <div className="text-[10px] text-slate-500 font-bold mt-1">רייק מועדון: {formatMoney(res.rake)}</div>
                                     <div className="flex gap-3 mt-5">
                                         {(isHost || isSuperAdmin) && !tableState.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש</button>}
-                                        <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום</button>
+                                        {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                        {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום 🚪</button>}
+                                        {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">👁 המשך לצפות</button>}
                                     </div>
                                 </div>
                             </div>
@@ -6936,6 +7265,7 @@
             const [godOpen, setGodOpen] = useState(false);
             const [selected, setSelected] = useState([]);
             const [timeLeft, setTimeLeft] = useState(YNV_TIME);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), Number(tableState?.settings?.maxPlayers) || 4, (pl, wl, mx) => seatFromWaitlist(pl, wl, mx));
             const [errMsg, setErrMsg] = useState("");
             const [roundLeft, setRoundLeft] = useState(0);
             const [stayHide, setStayHide] = useState(false);
@@ -7243,7 +7573,7 @@
                     const standings = Object.values(pl).filter(p => !p.left).sort((a, b) => (a.score || 0) - (b.score || 0));
                     if (t.tournamentId) {
                         await window.fb.updateDoc(tblRef(), {
-                            status: 'showdown', pot: 0, turnUid: null, players: pl,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
                             lastResults: { winnerName: (pl[winnerUid] || {}).name || '', amount: 0, rake: 0, standings: standings.map(p => ({ uid: p.uid, name: p.name, score: p.score })), tournament: true, lastRound: lastRound || null },
                             tournament: { ...t.tournament, finished: true, tableWinner: winnerUid }
                         });
@@ -7271,7 +7601,7 @@
                             logEntries.push({ uid: p.uid, username: p.name, game: 'yaniv', profit });
                         }
                         tr.update(tblRef(), {
-                            status: 'showdown', pot: 0, turnUid: null, players: pl,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
                             lastResults: { winnerName: (pl[winnerUid] || {}).name || '', amount: prize, rake, standings: standings.map(p => ({ uid: p.uid, name: p.name, score: p.score })), endedAt: Date.now(), lastRound: lastRound || null }
                         });
                     });
@@ -7426,7 +7756,7 @@
                         </div>
                         <div className="flex flex-col items-center">
                             <span className="text-emerald-400 font-black text-sm tracking-wider"><i className="fa-solid fa-bolt ml-1"></i>יניב · סיבוב {T.round || 1}</span>
-                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Buy-in {formatMoney(setts.buyIn)} · Winner takes all · Rake {setts.rakePercent}%</span>
+                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Buy-in {formatMoney(setts.buyIn)} · Winner takes all</span>
                         </div>
                         <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl px-3 py-1 text-center">
                             <div className="text-[9px] text-amber-500/80 font-bold uppercase">Pot</div>
@@ -7593,13 +7923,14 @@
                                             <span className="font-black text-slate-400" dir="ltr">{r.score} pts</span>
                                         </div>
                                     ))}
-                                    {!results.tournament && <div className="flex justify-between items-center px-4 py-2 text-xs text-slate-500"><span>רייק מועדון</span><span dir="ltr">{formatMoney(results.rake)}</span></div>}
+                                    
                                 </div>
                                 {(T.waitlist || []).length > 0 && <div className="text-[11px] text-amber-300/90 font-bold mb-3">⏳ ממתינים למקום: {(T.waitlist || []).map(w => w.name).join(' · ')}</div>}
                                 <div className="flex gap-2 flex-wrap">
                                     {(isHost || isSuperAdmin) && !T.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש ({formatMoney(setts.buyIn)})</button>}
-                                    {isSeated && <button onClick={() => setStayHide(true)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄</button>}
-                                    <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום ופנה מקום 🚪</button>
+                                    {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setStayHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                    {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום ופנה מקום 🚪</button>}
+                                    {!isSeated && <button onClick={() => setStayHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-slate-700">👁 המשך לצפות</button>}
                                 </div>
                             </div>
                         </div>
@@ -7666,6 +7997,9 @@
             const [godOpen, setGodOpen] = useState(false);
             const [selected, setSelected] = useState([]);
             const [timeLeft, setTimeLeft] = useState(PRES_TIME);
+            const [resHide, setResHide] = useState(false);
+            useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
+            const stayLeft = useShowdownSweep(tableState, () => tblRef(), Number(tableState?.settings?.maxPlayers) || 4, null);
             const [errMsg, setErrMsg] = useState("");
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
@@ -7890,7 +8224,7 @@
                     const t = tableRef.current; if (!t) return;
                     if (t.tournamentId) {
                         await window.fb.updateDoc(tblRef(), {
-                            status: 'showdown', pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
                             lastResults: { ranks: fo.map((uid, i) => ({ uid, name: (pl[uid] || {}).name || '', rank: i + 1, prize: 0 })), pot: 0, rake: 0, tournament: true },
                             tournament: { ...t.tournament, finished: true, tableWinner: fo[0] || null }
                         });
@@ -7919,7 +8253,7 @@
                             logEntries.push({ uid: r.uid, username: r.name, game: 'president', profit });
                         }
                         tr.update(tblRef(), {
-                            status: 'showdown', pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
                             lastResults: { ranks, pot, rake, endedAt: Date.now() }
                         });
                     });
@@ -8038,7 +8372,7 @@
                         </div>
                         <div className="flex flex-col items-center">
                             <span className="text-purple-400 font-black text-sm tracking-wider"><i className="fa-solid fa-chess-king ml-1"></i>פרזידנט</span>
-                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Buy-in {formatMoney(setts.buyIn)} · Rake {setts.rakePercent}%</span>
+                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</span>
                         </div>
                         <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl px-3 py-1 text-center">
                             <div className="text-[9px] text-amber-500/80 font-bold uppercase">Pot</div>
@@ -8143,7 +8477,7 @@
                     )}
 
                     {/* Showdown */}
-                    {T.status === 'showdown' && results && (
+                    {T.status === 'showdown' && results && !resHide && (
                         <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-gold-500/50 p-7 rounded-3xl text-center max-w-md w-full">
                                 <div className="trophy-pop inline-block"><i className="fa-solid fa-crown text-5xl text-gold-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]"></i></div>
@@ -8155,11 +8489,13 @@
                                             <span className={`font-black ${r.prize > 0 ? 'text-emerald-400' : 'text-slate-600'}`} dir="ltr">{r.prize > 0 ? '+' + formatMoney(r.prize) : '-'}</span>
                                         </div>
                                     ))}
-                                    {!results.tournament && <div className="flex justify-between items-center px-4 py-2 text-xs text-slate-500"><span>רייק מועדון</span><span dir="ltr">{formatMoney(results.rake)}</span></div>}
+                                    
                                 </div>
                                 <div className="flex gap-3">
                                     {(isHost || isSuperAdmin) && !T.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש</button>}
-                                    <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום מהשולחן</button>
+                                    {isSeated && <button onClick={() => { window.fb.updateDoc(tblRef(), { [`players.${user.uid}.stayAt`]: Date.now() }).catch(() => {}); setResHide(true); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄 ({stayLeft})</button>}
+                                    {isSeated && <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום מהשולחן 🚪</button>}
+                                    {!isSeated && <button onClick={() => setResHide(true)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-slate-700">👁 המשך לצפות</button>}
                                 </div>
                             </div>
                         </div>
@@ -8649,7 +8985,7 @@
                                             <div>
                                                 <h3 className="text-lg font-black text-white leading-tight">🏆 {tor.name}</h3>
                                                 <p className="text-slate-400 text-xs font-bold mt-0.5" dir="ltr">
-                                                    {tourEntryOf(tor) === 0 && <span className="text-amber-400 font-black">🎁 FREEROLL · </span>}{tor.game === 'poker' ? (tor.pokerType || 'NLH') : GAME_LABEL(tor.game)} · Buy-in {formatMoney(tor.buyIn)}{(Number(tor.fee) || 0) > 0 ? ` + ${formatMoney(tor.fee)} עמלה` : ''}{tor.bounty > 0 ? ` + ${formatMoney(tor.bounty)} bounty` : ''}{tor.game === 'poker' ? ` · סטאק ${Number(tor.startStack) || 1000}` : ' · נוק-אאוט'} · פרסים {(tor.payouts && tor.payouts.length ? tor.payouts : [50,30,20]).join('/')}%
+                                                    {tourEntryOf(tor) === 0 && <span className="text-amber-400 font-black">🎁 FREEROLL · </span>}{tor.game === 'poker' ? (tor.pokerType || 'NLH') : GAME_LABEL(tor.game)} · Buy-in {formatMoney(tor.buyIn)}{tor.bounty > 0 ? ` + ${formatMoney(tor.bounty)} bounty` : ''}{tor.game === 'poker' ? ` · סטאק ${Number(tor.startStack) || 1000}` : ' · נוק-אאוט'} · פרסים {(tor.payouts && tor.payouts.length ? tor.payouts : [50,30,20]).join('/')}%
                                                 </p>
                                                 <p className="text-slate-500 text-[10px] font-bold mt-0.5">{tor.rebuys ? 'ריביי ✓ ' : ''}{tor.addon ? 'אדאון ✓ ' : ''}{tor.bounty > 0 ? 'באונטי ✓' : ''}</p>
                                             </div>
