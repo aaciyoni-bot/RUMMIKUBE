@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Rummikube Elite Club</title>
+    <title>Rummikube Clubs</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#04060d">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Rummikube">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -388,6 +396,17 @@
 </head>
 <body class="bg-slate-950 h-full w-full">
     <div id="root" class="h-full w-full"></div>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+        }
+        window.__installEvt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.__installEvt = e;
+            window.dispatchEvent(new Event('pwa-installable'));
+        });
+    </script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
@@ -1433,7 +1452,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15.3</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V16</span></p>
                             </div>
                         </nav>
                     )}
@@ -1483,7 +1502,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15.3</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V16</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1612,6 +1631,18 @@
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
             const [newName, setNewName] = useState('');
             const [creating, setCreating] = useState(false);
+            const [canInstall, setCanInstall] = useState(!!window.__installEvt);
+            useEffect(() => {
+                const h = () => setCanInstall(true);
+                window.addEventListener('pwa-installable', h);
+                return () => window.removeEventListener('pwa-installable', h);
+            }, []);
+            const doInstall = async () => {
+                const evt = window.__installEvt;
+                if (!evt) return;
+                evt.prompt();
+                try { const res = await evt.userChoice; if (res.outcome === 'accepted') { showToast("האפליקציה מותקנת! 📲", "success"); setCanInstall(false); window.__installEvt = null; } } catch(e) {}
+            };
             const god = isGodUser(user);
             const memOf = (cid) => myMems.find(m => m.clubId === cid);
             const myClubs = clubs.filter(c => { const m = memOf(c.id); return (m && m.status === 'approved') || god; });
@@ -1692,6 +1723,13 @@
                             <p className="text-emerald-400/80 text-[10px] sm:text-[11px] font-black tracking-[0.3em] uppercase mt-1">משחקים בין חברים וטורנירים</p>
                             <p className="text-slate-400 text-sm font-bold mt-5">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
                             <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-xs text-slate-500 underline font-bold mt-2">התנתק</button>
+                            {canInstall && (
+                                <div className="mt-4">
+                                    <button onClick={doInstall} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
+                                        📲 התקן כאפליקציה
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {myClubs.length > 0 && (
