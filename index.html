@@ -637,7 +637,29 @@
         // כשהשולחן מתמלא בשחקן אמיתי - נפתח אוטומטית שולחן זהה חדש בלובי
         const spawnTwinTable = async (t) => {
             try {
-                if (!t || !t.type) return;
+                if (!t || !t.type || t.tournamentId) return; // שולחנות טורניר לא משתכפלים
+                const cid = t.clubId || CLUB_ID;
+                // הגנה מכפילויות: אם כבר קיים שולחן זהה (אותן הגדרות) עם מקום פנוי - לא פותחים עוד אחד
+                try {
+                    const q = window.fb.query(window.fb.collection(window.fb.db, "tables"), window.fb.where("type", "==", t.type));
+                    const snap = await window.fb.getDocs(q);
+                    const keyOf = (x) => x.type === 'rummikub'
+                        ? JSON.stringify([Number(x.maxPlayers) || 0, Number(x.minBuyIn) || 0, Number(x.stakes) || 0])
+                        : JSON.stringify([Number((x.settings || {}).buyIn) || 0, Number((x.settings || {}).blinds) || 0, (x.settings || {}).baseGameType || '', Number((x.settings || {}).maxPlayers) || 0, Number((x.settings || {}).deckSize) || 0, (x.settings || {}).variant || '']);
+                    const maxOf = (x) => Number(x.type === 'rummikub' ? x.maxPlayers : (x.settings || {}).maxPlayers) || 9;
+                    const myId = t.docId || t.id || '';
+                    const twinExists = snap.docs.some(d => {
+                        if (d.id === myId) return false;
+                        const x = d.data();
+                        if ((x.clubId || 'main') !== cid || x.tournamentId) return false;
+                        // "מקבל שחקנים": פוקר - תמיד כשיש כיסא; רמי - בשלב ההמתנה; תורניים - בשלב ההקמה
+                        const joinable = x.type === 'poker' ? true : x.type === 'rummikub' ? (x.phase === 'waiting') : (x.status === 'setup');
+                        if (!joinable) return false;
+                        if (Object.keys(x.players || {}).length >= maxOf(x)) return false;
+                        return keyOf(x) === keyOf(t);
+                    });
+                    if (twinExists) return;
+                } catch(e2) {}
                 const col = window.fb.collection(window.fb.db, "tables");
                 if (t.type === 'rummikub') {
                     await window.fb.addDoc(col, {
@@ -1411,7 +1433,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15.2</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V15.3</span></p>
                             </div>
                         </nav>
                     )}
@@ -1461,7 +1483,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15.2</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V15.3</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
