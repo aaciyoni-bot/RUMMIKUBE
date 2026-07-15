@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -186,6 +189,103 @@
         .dice[data-val="6"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="6"] .dot:nth-child(2) { grid-area: c; } .dice[data-val="6"] .dot:nth-child(3) { grid-area: e; } .dice[data-val="6"] .dot:nth-child(4) { grid-area: f; } .dice[data-val="6"] .dot:nth-child(5) { grid-area: d; } .dice[data-val="6"] .dot:nth-child(6) { grid-area: b; }
         @keyframes rollShake { 0% { transform: translate(0,0) rotate(0); } 25% { transform: translate(-3px,-3px) rotate(-15deg); } 50% { transform: translate(3px,3px) rotate(15deg); } 75% { transform: translate(-3px,3px) rotate(-8deg); } 100% { transform: translate(0,0) rotate(0); } }
         .rolling { animation: rollShake 0.4s infinite; }
+
+        /* ================================================================
+           MODERN SKIN V13.1 - שכבת עיצוב בלבד, אפס לוגיקה
+           ================================================================ */
+        html, body, #root, button, input, select, textarea { font-family: 'Heebo', 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+        /* רקע עומק: מש-גרדיאנטים עדינים במקום שטוח */
+        #root {
+            background:
+                radial-gradient(1100px 700px at 88% -12%, rgba(16,185,129,0.11), transparent 60%),
+                radial-gradient(900px 650px at -8% 112%, rgba(99,102,241,0.09), transparent 55%),
+                radial-gradient(700px 500px at 50% 115%, rgba(14,165,233,0.05), transparent 50%),
+                #04060d;
+        }
+        .aurora-bg {
+            background:
+                radial-gradient(900px 520px at 75% -8%, rgba(16,185,129,0.13), transparent 60%),
+                radial-gradient(720px 520px at 8% 108%, rgba(56,189,248,0.07), transparent 55%) !important;
+        }
+
+        /* זכוכית אמיתית */
+        .glass-panel {
+            background: linear-gradient(180deg, rgba(15,23,42,0.66), rgba(8,13,26,0.82)) !important;
+            -webkit-backdrop-filter: blur(18px) saturate(150%);
+            backdrop-filter: blur(18px) saturate(150%);
+            border: 1px solid rgba(255,255,255,0.07) !important;
+            box-shadow: 0 20px 48px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        /* כרטיסים: קצה ניאון + ריחוף */
+        .grad-card {
+            background: linear-gradient(165deg, rgba(255,255,255,0.16), rgba(255,255,255,0.03) 35%, rgba(16,185,129,0.28)) !important;
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        .grad-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 26px 52px rgba(0,0,0,0.55), 0 0 34px rgba(16,185,129,0.14);
+        }
+        .grad-card-inner {
+            background: linear-gradient(180deg, #0c1424, #080e1b) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+
+        /* טאבים: segmented control מודרני */
+        .pill-tab {
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(15,23,42,0.55);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .pill-tab:hover { border-color: rgba(255,255,255,0.14); }
+        .pill-tab.active {
+            background: linear-gradient(180deg, #10b981, #047857) !important;
+            color: #fff !important;
+            border-color: rgba(52,211,153,0.65) !important;
+            box-shadow: 0 10px 26px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.28);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+        }
+
+        /* קלפים: עומק וחדות */
+        .card-face {
+            background: linear-gradient(168deg, #ffffff 0%, #edf2f8 100%) !important;
+            border: 1px solid rgba(148,163,184,0.5) !important;
+            border-radius: 9px !important;
+            box-shadow: 0 6px 14px rgba(2,6,23,0.5), inset 0 1px 0 #ffffff !important;
+        }
+        .card-back {
+            border-radius: 9px !important;
+            background:
+                repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.05) 5px, rgba(255,255,255,0.05) 10px),
+                linear-gradient(160deg, #0e3a30 0%, #091d2b 100%) !important;
+            border: 1px solid rgba(16,185,129,0.4) !important;
+            box-shadow: 0 6px 14px rgba(2,6,23,0.55), inset 0 0 0 3px rgba(255,255,255,0.05) !important;
+        }
+
+        /* תחושת לחיצה */
+        button { -webkit-tap-highlight-color: transparent; transition: transform 0.08s ease; }
+        button:active { transform: scale(0.965); }
+
+        /* פוקוס נקי */
+        input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(16,185,129,0.16); }
+
+        /* סקרולברים דקים */
+        *::-webkit-scrollbar { width: 7px; height: 7px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.22); border-radius: 8px; }
+        *::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.5); }
+
+        /* טקסטורת פרימיום עדינה מעל הכל */
+        body::after {
+            content: '';
+            position: fixed; inset: 0;
+            pointer-events: none; z-index: 9999;
+            opacity: 0.028;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1177,7 +1277,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V13</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V13.2</span></p>
                             </div>
                         </nav>
                     )}
@@ -1215,7 +1315,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V13</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V13.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1738,7 +1838,7 @@
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
-                                            <span className="text-xs text-slate-500 font-bold">יניב עד 7 · אסף +30 · חצאים 50/100/150/200 · הדחה מעל 200 · רייק {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%</span>
+                                            <span className="text-xs text-slate-500 font-bold">יניב עד 7 · אסף +30 · חצאים: 50→0 · 100→50 · 150→100 · 200→150 · מפסיד ב-201+ · רייק {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}%</span>
                                             <div className="flex gap-3">
                                                 <button onClick={()=>setShowCreateYnv(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                                 <button onClick={handleCreateYnv} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
@@ -6291,10 +6391,10 @@
             const sorted = [...cs].sort((a, b) => (a.joker ? 99 : a.rank) - (b.joker ? 99 : b.rank));
             return [cs[0].id, cs[cs.length - 1].id];
         };
-        const ynvHalves = (score) => score === 50 ? 25 : score === 100 ? 50 : score === 150 ? 75 : score === 200 ? 100 : score;
+        const ynvHalves = (score) => score === 50 ? 0 : score === 100 ? 50 : score === 150 ? 100 : score === 200 ? 150 : score;
         const yanivTableDoc = (hostUid, settings) => ({
             type: 'yaniv', clubId: CLUB_ID, createdAt: Date.now(), hostUid, status: 'setup',
-            settings: { ...settings }, players: {}, pot: 0, round: 0,
+            settings: { ...settings }, players: {}, pot: 0, round: 0, waitlist: [], stickable: null,
             deck: [], discardStack: [], lastThrow: null, pendingThrow: null,
             turnUid: null, turnPhase: 'discard', nextRoundAt: null,
             chat: [], lastRound: null, lastResults: null, turnStartedAt: null
@@ -6309,7 +6409,7 @@
             const open = d.splice(0, 1);
             const actives = Object.values(np).filter(p => !p.out && !p.left);
             const lead = (leaderUid && np[leaderUid] && !np[leaderUid].out && !np[leaderUid].left) ? leaderUid : actives[Math.floor(Math.random() * actives.length)].uid;
-            return { players: np, deck: d, discardStack: [], lastThrow: { uid: null, name: '', cards: open }, pendingThrow: null, turnUid: lead, turnPhase: 'discard', turnStartedAt: Date.now() };
+            return { players: np, deck: d, discardStack: [], lastThrow: { uid: null, name: '', cards: open }, pendingThrow: null, stickable: null, turnUid: lead, turnPhase: 'discard', turnStartedAt: Date.now() };
         };
 
         function YanivTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
@@ -6320,6 +6420,8 @@
             const [timeLeft, setTimeLeft] = useState(YNV_TIME);
             const [errMsg, setErrMsg] = useState("");
             const [roundLeft, setRoundLeft] = useState(0);
+            const [stayHide, setStayHide] = useState(false);
+            useEffect(() => { setStayHide(false); }, [T.status]);
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
 
@@ -6389,6 +6491,39 @@
                 await window.fb.updateDoc(tblRef(), { [`players.${uid}`]: { uid, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] + Math.floor(Math.random() * 99), photo: '', avatarSeed: uid, seatIndex, cards: [], score: 0, isBot: true, out: false, left: false } });
             };
 
+            const joinWaitlist = async () => {
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists()) throw "השולחן לא קיים";
+                        const t = tSnap.data();
+                        if (t.players[user.uid]) throw "אתה כבר בשולחן";
+                        const wl = [...(t.waitlist || [])];
+                        if (wl.find(w => w.uid === user.uid)) throw "אתה כבר ברשימת ההמתנה";
+                        wl.push({ uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '' });
+                        tr.update(tblRef(), { waitlist: wl });
+                    });
+                    showToast("נכנסת לרשימת ההמתנה - תשובץ אוטומטית כשיתפנה מקום 🪑", "success");
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            const leaveWaitlist = async () => {
+                const t = tableRef.current; if (!t) return;
+                try { await window.fb.updateDoc(tblRef(), { waitlist: (t.waitlist || []).filter(w => w.uid !== user.uid) }); } catch(e) {}
+            };
+            // שיבוץ ממתינים למושבים פנויים (בין משחקים)
+            const seatFromWaitlist = (pl, wl, max) => {
+                const kept = [...wl];
+                while (kept.length && Object.keys(pl).length < max) {
+                    const w = kept.shift();
+                    if (pl[w.uid]) continue;
+                    let seatIndex = 0;
+                    const taken = new Set(Object.values(pl).map(q => q.seatIndex));
+                    while (taken.has(seatIndex)) seatIndex++;
+                    pl[w.uid] = { uid: w.uid, name: w.name, photo: w.photo || '', avatarSeed: w.avatarSeed || '', seatIndex, cards: [], score: 0, isBot: false, out: false, left: false };
+                }
+                return kept;
+            };
+
             const startGame = async () => {
                 const t = tableRef.current; if (!t) return;
                 if (!(t.hostUid === user.uid || isSuperAdmin)) return;
@@ -6401,8 +6536,22 @@
                         const tbl = snap.data();
                         if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
                         const buyIn = Number(tbl.settings.buyIn) || 0;
+                        const max = Number(tbl.settings.maxPlayers) || 4;
                         const base = {};
                         Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], score: 0, out: false, left: false });
+                        // שיבוץ ממתינים: מי שאין לו יתרה יורד מהרשימה
+                        let wl = [...(tbl.waitlist || [])];
+                        const stillWaiting = [];
+                        for (const w of wl) {
+                            if (base[w.uid]) continue;
+                            if (Object.keys(base).length >= max) { stillWaiting.push(w); continue; }
+                            const ws = await tr.get(memDoc(w.uid));
+                            if (!ws.exists() || (ws.data().balance || 0) < buyIn) continue;
+                            let seatIndex = 0;
+                            const taken = new Set(Object.values(base).map(q => q.seatIndex));
+                            while (taken.has(seatIndex)) seatIndex++;
+                            base[w.uid] = { uid: w.uid, name: w.name, photo: w.photo || '', avatarSeed: w.avatarSeed || '', seatIndex, cards: [], score: 0, isBot: false, out: false, left: false };
+                        }
                         const uids = Object.keys(base);
                         const uSnaps = {};
                         for (const uid of uids) {
@@ -6414,7 +6563,7 @@
                         for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
                         const deal = ynvDealRound(base, null);
                         tr.update(tblRef(), {
-                            status: 'playing', pot: round2(buyIn * uids.length), round: 1,
+                            status: 'playing', pot: round2(buyIn * uids.length), round: 1, waitlist: stillWaiting,
                             ...deal, nextRoundAt: null, lastRound: null, lastResults: null
                         });
                     });
@@ -6432,7 +6581,7 @@
                 if (!cards.length) return;
                 if (!ynvValidSet(cards)) { if (uid === user.uid) flashErr("סדרה לא חוקית: בודד, זהים, או רצף (3+) מאותה צורה"); return; }
                 p.cards = p.cards.filter(c => !ids.includes(c.id));
-                await window.fb.updateDoc(tblRef(), { players: pl, pendingThrow: { uid, name: p.name, cards }, turnPhase: 'draw', turnStartedAt: Date.now() });
+                await window.fb.updateDoc(tblRef(), { players: pl, pendingThrow: { uid, name: p.name, cards }, turnPhase: 'draw', stickable: null, turnStartedAt: Date.now() });
                 playSnd('tile');
                 if (uid === user.uid) setSelected([]);
             };
@@ -6446,6 +6595,7 @@
                 let deck = [...(t.deck || [])];
                 let stack = [...(t.discardStack || [])];
                 const last = t.lastThrow;
+                let stick = null;
                 if (fromDeck) {
                     if (!deck.length) {
                         // ערבוב הערימה חזרה לקופה
@@ -6453,7 +6603,12 @@
                         stack = [];
                         if (!deck.length) { if (uid === user.uid) flashErr("אין קלפים למשוך"); return; }
                     }
-                    p.cards.push(deck.pop());
+                    const drawn = deck.pop();
+                    p.cards.push(drawn);
+                    // הדבקה: הקלף שנמשך זהה בערכו לזריקה שלי - חלון פתוח עד שהיריב זורק
+                    const myThrow = ((t.pendingThrow || {}).cards) || [];
+                    const ranks = new Set(myThrow.filter(c => !c.joker).map(c => c.rank));
+                    if (!drawn.joker && ranks.size === 1 && ranks.has(drawn.rank)) stick = { uid, cardId: drawn.id };
                     if (last) stack.push(...(last.cards || []));
                 } else {
                     const allowed = ynvTakeable(last);
@@ -6466,10 +6621,29 @@
                 const newLast = t.pendingThrow || null;
                 const nxt = nextActive(uid, pl);
                 await window.fb.updateDoc(tblRef(), {
-                    players: pl, deck, discardStack: stack, lastThrow: newLast, pendingThrow: null,
+                    players: pl, deck, discardStack: stack, lastThrow: newLast, pendingThrow: null, stickable: stick,
                     turnUid: nxt, turnPhase: 'discard', turnStartedAt: Date.now()
                 });
                 playSnd('chip');
+            };
+
+            /* ---------- הדבקה ---------- */
+            const doStick = async (uid) => {
+                const t = tableRef.current;
+                if (!t || t.status !== 'playing' || !t.stickable || t.stickable.uid !== uid) return;
+                if (t.turnPhase !== 'discard') { if (uid === user.uid) flashErr("מאוחר מדי - היריב כבר פעל"); return; }
+                if (!t.lastThrow || t.lastThrow.uid !== uid) return;
+                const pl = clonePl(t.players);
+                const p = pl[uid]; if (!p) return;
+                const idx = p.cards.findIndex(c => c.id === t.stickable.cardId);
+                if (idx === -1) return;
+                const card = p.cards.splice(idx, 1)[0];
+                await window.fb.updateDoc(tblRef(), {
+                    players: pl,
+                    lastThrow: { ...t.lastThrow, cards: [...(t.lastThrow.cards || []), card] },
+                    stickable: null
+                });
+                playSnd('tile');
             };
 
             /* ---------- יניב! ---------- */
@@ -6506,7 +6680,7 @@
                     return;
                 }
                 await window.fb.updateDoc(tblRef(), {
-                    players: pl, status: 'round_end', lastRound, turnUid: null, pendingThrow: null,
+                    players: pl, status: 'round_end', lastRound, turnUid: null, pendingThrow: null, stickable: null,
                     nextRoundAt: Date.now() + 6500
                 });
                 playSnd(isAssaf ? 'fold' : 'win');
@@ -6631,6 +6805,16 @@
                 return () => clearInterval(iv);
             }, [T.turnUid, T.turnPhase, T.turnStartedAt, T.status, isSuperAdmin]);
 
+            // בוט מנצל הדבקה (אצל האדמין)
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState) return;
+                const st = T.stickable;
+                if (st && players[st.uid] && players[st.uid].isBot && T.status === 'playing' && T.turnPhase === 'discard') {
+                    const tm = setTimeout(() => doStick(st.uid), 700);
+                    return () => clearTimeout(tm);
+                }
+            }, [T.stickable, T.turnPhase, T.status, isSuperAdmin]);
+
             /* ---------- טיימר ---------- */
             useEffect(() => {
                 let iv;
@@ -6669,8 +6853,9 @@
                 }
                 try {
                     const pl = { ...t.players }; delete pl[user.uid];
-                    if (Object.keys(pl).length === 0 && !['playing', 'round_end'].includes(t.status)) await window.fb.deleteDoc(tblRef());
-                    else await window.fb.updateDoc(tblRef(), { players: pl });
+                    const wl = seatFromWaitlist(pl, (t.waitlist || []).filter(w => w.uid !== user.uid), Number(setts.maxPlayers) || 4);
+                    if (Object.keys(pl).length === 0 && !wl.length && !['playing', 'round_end'].includes(t.status)) await window.fb.deleteDoc(tblRef());
+                    else await window.fb.updateDoc(tblRef(), { players: pl, waitlist: wl });
                 } catch(e) {}
                 onLeave();
             };
@@ -6790,6 +6975,9 @@
                                         className={`px-7 py-2.5 rounded-full font-black text-base tracking-widest border-2 transition-all ${isMyTurn && T.turnPhase === 'discard' && mySum <= 7 ? 'bg-gradient-to-b from-emerald-400 to-emerald-600 text-white border-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.7)] animate-pulse active:scale-95' : 'bg-slate-900 text-slate-600 border-slate-800'}`}>
                                     📣 יניב!
                                 </button>
+                                {T.stickable && T.stickable.uid === user.uid && T.turnPhase === 'discard' && (
+                                    <button onClick={() => doStick(user.uid)} className="px-5 py-2.5 rounded-full font-black text-sm border-2 bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 border-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.7)] animate-pulse active:scale-95">⚡ הדבקה!</button>
+                                )}
                                 <span className={`px-3 py-1 rounded-full text-xs font-black border ${mySum <= 7 ? 'text-emerald-300 border-emerald-500/60 bg-emerald-500/10' : 'text-slate-300 border-slate-700 bg-slate-900'}`}>סכום: {mySum}</span>
                                 <span className="px-3 py-1 rounded-full text-xs font-black border text-rose-300 border-slate-700 bg-slate-900">נק': {me.score || 0}</span>
                             </div>
@@ -6797,6 +6985,7 @@
                                 <div className="flex justify-start sm:justify-center min-w-max pr-4" dir="ltr">
                                     {myCards.map(c => (
                                         <YCard key={c.id} c={c} sel={selected.includes(c.id)}
+                                               glow={!!(T.stickable && T.stickable.uid === user.uid && T.turnPhase === 'discard' && c.id === T.stickable.cardId)}
                                                onClick={isMyTurn && T.turnPhase === 'discard' ? () => setSelected(prev => prev.includes(c.id) ? prev.filter(x => x !== c.id) : [...prev, c.id]) : null} />
                                     ))}
                                 </div>
@@ -6807,6 +6996,14 @@
                     {isSeated && isPlaying && (me.out || me.left) && (
                         <div className="shrink-0 z-30 bg-slate-900/90 border-t-4 border-rose-600 py-4 text-center">
                             <span className="text-rose-300 font-black">הודחת ({me.score} נק') - צופה במשחק</span>
+                        </div>
+                    )}
+                    {!isSeated && T.status !== 'setup' && (
+                        <div className="shrink-0 z-30 bg-slate-900/90 border-t border-white/10 py-3 px-3 flex items-center justify-center gap-3 flex-wrap">
+                            <span className="text-slate-400 text-xs font-bold">👁️ מצב צפייה</span>
+                            {(T.waitlist || []).find(w => w.uid === user.uid)
+                                ? <button onClick={leaveWaitlist} className="bg-slate-800 hover:bg-slate-700 text-amber-300 px-5 py-2 rounded-xl font-bold text-xs border border-amber-500/40">⏳ אתה {(T.waitlist || []).findIndex(w => w.uid === user.uid) + 1} בתור · צא מהרשימה</button>
+                                : <button onClick={joinWaitlist} className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg">🪑 הצטרף לרשימת ההמתנה ({(T.waitlist || []).length})</button>}
                         </div>
                     )}
 
@@ -6828,8 +7025,11 @@
                                         <div key={'e' + i} className="w-14 h-14 rounded-2xl bg-slate-800/30 border-2 border-slate-700 border-dashed flex items-center justify-center"><i className="fa-solid fa-user-plus text-slate-600"></i></div>
                                     ))}
                                 </div>
+                                {(T.waitlist || []).length > 0 && <div className="text-[11px] text-amber-300/90 font-bold mb-3">⏳ ממתינים: {(T.waitlist || []).map(w => w.name).join(' · ')}</div>}
                                 <div className="flex flex-col gap-2">
-                                    {!isSeated && <button onClick={handleJoin} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black text-lg shadow-lg">שב בשולחן</button>}
+                                    {!isSeated && Object.keys(players).length < (Number(setts.maxPlayers) || 4) && <button onClick={handleJoin} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black text-lg shadow-lg">שב בשולחן</button>}
+                                    {!isSeated && Object.keys(players).length >= (Number(setts.maxPlayers) || 4) && !(T.waitlist || []).find(w => w.uid === user.uid) && <button onClick={joinWaitlist} className="bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-xl font-black shadow-lg">🪑 הצטרף לרשימת ההמתנה ({(T.waitlist || []).length})</button>}
+                                    {!isSeated && (T.waitlist || []).find(w => w.uid === user.uid) && <button onClick={leaveWaitlist} className="bg-slate-800 hover:bg-slate-700 text-amber-300 py-3 rounded-xl font-bold border border-amber-500/40">⏳ ברשימה ({(T.waitlist || []).findIndex(w => w.uid === user.uid) + 1}) · צא מהרשימה</button>}
                                     {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-700 hover:bg-emerald-600 text-white py-3 rounded-xl font-black">התחל משחק ({Object.keys(players).length} שחקנים)</button>}
                                     {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 py-2 rounded-xl font-bold text-sm border border-white/10"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט</button>}
                                     <button onClick={handleLeave} className="text-slate-400 hover:text-white underline text-sm font-bold mt-1">חזרה ללובי</button>
@@ -6862,7 +7062,7 @@
                     )}
 
                     {/* Showdown */}
-                    {T.status === 'showdown' && results && (
+                    {T.status === 'showdown' && results && !stayHide && (
                         <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-gold-500/50 p-7 rounded-3xl text-center max-w-md w-full">
                                 <div className="trophy-pop inline-block"><i className="fa-solid fa-trophy text-5xl text-gold-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]"></i></div>
@@ -6877,9 +7077,11 @@
                                     ))}
                                     {!results.tournament && <div className="flex justify-between items-center px-4 py-2 text-xs text-slate-500"><span>רייק מועדון</span><span dir="ltr">{formatMoney(results.rake)}</span></div>}
                                 </div>
-                                <div className="flex gap-3">
-                                    {(isHost || isSuperAdmin) && !T.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש</button>}
-                                    <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום מהשולחן</button>
+                                {(T.waitlist || []).length > 0 && <div className="text-[11px] text-amber-300/90 font-bold mb-3">⏳ ממתינים למקום: {(T.waitlist || []).map(w => w.name).join(' · ')}</div>}
+                                <div className="flex gap-2 flex-wrap">
+                                    {(isHost || isSuperAdmin) && !T.tournamentId && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש ({formatMoney(setts.buyIn)})</button>}
+                                    {isSeated && <button onClick={() => setStayHide(true)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-black border border-slate-500">אני ממשיך 🔄</button>}
+                                    <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-3 rounded-xl font-black border border-slate-700">קום ופנה מקום 🚪</button>
                                 </div>
                             </div>
                         </div>
