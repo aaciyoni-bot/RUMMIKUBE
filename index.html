@@ -176,6 +176,7 @@
         const GAMES = [
             { id: 'rummikub', label: 'רמיקוב', live: true },
             { id: 'poker', label: 'פוקר', live: true },
+            { id: 'durak', label: 'דוראק', live: true },
             { id: 'yaniv', label: 'יניב (בקרוב)', live: false },
             { id: 'president', label: 'פרזידנט (בקרוב)', live: false },
             { id: 'shesh', label: 'שש-בש (בקרוב)', live: false },
@@ -720,7 +721,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V3</p>
+                                <p className="text-[9px] text-slate-500 font-bold tracking-[0.3em] uppercase leading-none">Elite Club · V4</p>
                             </div>
                         </nav>
                     )}
@@ -728,12 +729,13 @@
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
-                        {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
+                        {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && <ProfileView user={dbUser} />}
                         {currentView === 'backoffice' && <BackofficeView user={dbUser} clubSettings={clubSettings} showToast={showToast} />}
                         {currentView === 'poker-create' && <PokerCreateView user={dbUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
                         {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => { setLobbyTab('poker'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'durak-table' && <DurakTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('durak'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
@@ -753,7 +755,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="text-4xl font-black text-white mb-1 tracking-widest">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V3</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Elite Private Club · V4</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -815,12 +817,27 @@
         /* ================================================================
            לובי - טאבים לרמיקוב ולפוקר
            ================================================================ */
-        function LobbyView({ user, tables, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onCreatePoker, showToast }) {
+        function LobbyView({ user, tables, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
+            const [showCreateDurak, setShowCreateDurak] = useState(false);
+            const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4 });
 
             const rummyTables = tables.filter(t => t.type === 'rummikub').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const pokerTables = tables.filter(t => t.type === 'poker').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const durakTables = tables.filter(t => t.type === 'durak').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+
+            const handleCreateDurak = async () => {
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
+                    type: 'durak', createdAt: Date.now(), hostUid: user.uid, status: 'setup',
+                    settings: { ...durakOpts, buyIn: Number(durakOpts.buyIn), rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT, bluffEnabled: false },
+                    players: { [user.uid]: { uid: user.uid, name: user.username, seatIndex: 0, cards: [], isBot: false, out: false, left: false } },
+                    pot: 0, deck: [], trumpCard: null, trumpSuit: null,
+                    attackerUid: null, defenderUid: null, pairs: [], roundCap: 6,
+                    finishOrder: [], chat: [], lastResults: null, turnStartedAt: null
+                });
+                setShowCreateDurak(false); showToast("שולחן דוראק נפתח!", "success");
+            };
 
             const handleCreateRummy = async () => {
                 const calculatedBuyIn = round2(newTableOptions.stakes * 100);
@@ -843,11 +860,12 @@
                         const snap = await tr.get(tblRef);
                         if (!snap.exists()) return;
                         const players = snap.data().players || {};
+                        const potShare = round2((snap.data().pot || 0) / Math.max(Object.keys(players).length, 1));
                         const refunds = [];
                         for (const uid of Object.keys(players)) {
                             if (uid.startsWith('bot_')) continue;
                             const uSnap = await tr.get(window.fb.doc(window.fb.db, "users", uid));
-                            if (uSnap.exists()) refunds.push([uSnap.ref, round2((uSnap.data().balance || 0) + (players[uid].stack || 0) + (players[uid].bet || 0))]);
+                            if (uSnap.exists()) refunds.push([uSnap.ref, round2((uSnap.data().balance || 0) + (players[uid].stack || 0) + (players[uid].bet || 0) + potShare)]);
                         }
                         refunds.forEach(([ref, bal]) => tr.update(ref, { balance: bal }));
                         tr.delete(tblRef);
@@ -892,6 +910,9 @@
                             </button>
                             <button onClick={()=>setTab('poker')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='poker' ? 'active' : 'hover:text-white'}`}>
                                 <i className="fa-solid fa-diamond ml-2"></i>פוקר <span className="text-[10px] opacity-80">({pokerTables.length})</span>
+                            </button>
+                            <button onClick={()=>setTab('durak')} className={`pill-tab px-6 py-2.5 rounded-xl font-black text-sm text-slate-400 ${tab==='durak' ? 'active' : 'hover:text-white'}`}>
+                                <i className="fa-solid fa-chess-king ml-2"></i>דוראק <span className="text-[10px] opacity-80">({durakTables.length})</span>
                             </button>
                         </div>
 
@@ -996,6 +1017,87 @@
                                         );
                                     })}
                                     {pokerTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות פוקר פתוחים.</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ===== טאב דוראק ===== */}
+                        {tab === 'durak' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-5">
+                                    <h2 className="text-xl font-black text-white">שולחנות דוראק</h2>
+                                    {canManageGame(user, 'durak') && (
+                                        <button onClick={()=>setShowCreateDurak(!showCreateDurak)} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_6px_20px_rgba(59,130,246,0.3)] text-sm">
+                                            <i className="fa-solid fa-plus ml-2"></i>שולחן חדש
+                                        </button>
+                                    )}
+                                </div>
+
+                                {showCreateDurak && (
+                                    <div className="glass-panel p-6 rounded-2xl mb-6 border border-blue-500/30 animate-pop-in">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">חפיסה</label>
+                                                <select value={durakOpts.deckSize} onChange={e=>setDurakOpts({...durakOpts, deckSize: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                                    <option value={36}>36 קלפים (6-A)</option><option value={52}>52 קלפים</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סוג</label>
+                                                <select value={durakOpts.variant} onChange={e=>setDurakOpts({...durakOpts, variant: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                                    <option value="podkidnoy">רגיל (Podkidnoy)</option><option value="perevodnoy">העברה (Perevodnoy)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">דמי כניסה</label>
+                                                <select value={durakOpts.buyIn} onChange={e=>setDurakOpts({...durakOpts, buyIn: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                                    {[50,100,250,500,1000,2500,5000].map(b => <option key={b} value={b}>{formatMoney(b)}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שחקנים</label>
+                                                <select value={durakOpts.maxPlayers} onChange={e=>setDurakOpts({...durakOpts, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 font-bold">
+                                                    {[2,3,4,5,6].map(n => <option key={n} value={n}>{n} שחקנים</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                                            <span className="text-xs text-slate-500 font-bold">רייק מועדון: {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}% · המפסיד (הדוראק) מממן את המנצחים</span>
+                                            <div className="flex gap-3">
+                                                <button onClick={()=>setShowCreateDurak(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
+                                                <button onClick={handleCreateDurak} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {durakTables.map(t => {
+                                        const s = t.settings || {};
+                                        return (
+                                            <div key={t.docId} className="grad-card cursor-pointer" onClick={()=>onJoinDurak(t)}>
+                                                <div className="grad-card-inner p-5 relative">
+                                                    {canManageGame(user, 'durak') && (
+                                                        <button onClick={(e) => handleDelete(e, t)} className="absolute top-3 left-3 w-8 h-8 rounded-lg bg-slate-800/80 text-slate-500 hover:text-rose-400 flex items-center justify-center z-10"><i className="fa-solid fa-trash text-xs"></i></button>
+                                                    )}
+                                                    {t.players && t.players[user.uid] && <div className="absolute top-3 right-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold z-10">🟢 אתה יושב כאן</div>}
+                                                    <div className="flex items-center gap-3 mb-4 mt-3">
+                                                        <div className="w-11 h-11 rounded-xl bg-blue-900/30 border border-blue-700/40 flex items-center justify-center"><i className="fa-solid fa-chess-king text-blue-400"></i></div>
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-white leading-tight">דוראק {s.variant === 'perevodnoy' ? 'העברה' : 'רגיל'}</h3>
+                                                            <p className="text-slate-400 text-xs font-bold" dir="ltr">Buy-in {formatMoney(s.buyIn)} · {s.deckSize} cards</p>
+                                                        </div>
+                                                        {t.status === 'playing' && <span className="mr-auto text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full">● LIVE</span>}
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <AvatarsRow players={t.players} />
+                                                        <span className="text-blue-400 font-bold text-xs bg-blue-900/20 border border-blue-700/40 px-3 py-1 rounded-full">{Object.keys(t.players||{}).length}/{s.maxPlayers || 6}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {durakTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות דוראק פתוחים.</div>}
                                 </div>
                             </div>
                         )}
@@ -3145,6 +3247,744 @@
                             </div>
                         </div>
                     )}
+                </div>
+            );
+        }
+
+        /* ================================================================
+           דוראק - מנוע מלא (Podkidnoy / Perevodnoy)
+           ================================================================ */
+        const DURAK_TIME = 30;
+        const durakDeck = (size) => {
+            const base = [['6',6],['7',7],['8',8],['9',9],['10',10],['J',11],['Q',12],['K',13],['A',14]];
+            const ranks = size === 52 ? [['2',2],['3',3],['4',4],['5',5], ...base] : base;
+            let d = [];
+            for (const suit of SUITS) for (const [r, v] of ranks) d.push({ id: `${r}${suit}`, val: r, suit, v });
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            return d;
+        };
+        const beatsCard = (c, t, trump) => (c.suit === t.suit && c.v > t.v) || (c.suit === trump && t.suit !== trump);
+
+        function DurakTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
+            const [tableState, setTableState] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [godView, setGodView] = useState(false);
+            const [timeLeft, setTimeLeft] = useState(DURAK_TIME);
+
+            const tableRef = useRef(null);
+            const settlingRef = useRef(false);
+            const synthRef = useRef(null);
+
+            const isGod = isGodUser(user);
+            const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const tblRef = () => window.fb.doc(window.fb.db, "tables", tableDocId);
+
+            const T = tableState || {};
+            const setts = T.settings || {};
+            const players = T.players || {};
+            const me = players[user.uid];
+            const isSeated = !!me;
+            const isHost = T.hostUid === user.uid;
+            const pairs = T.pairs || [];
+            const undefPairs = pairs.filter(x => !x.d);
+            const iAmDefender = T.defenderUid === user.uid;
+            const iAmAttackerMain = T.attackerUid === user.uid;
+            const myTurn = T.turnUid === user.uid && T.status === 'playing';
+
+            const toastErr = (m) => showToast(m, 'error');
+            const clonePlayers = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v, cards: [...(v.cards || [])] }); return o; };
+            const activeList = (pl) => Object.values(pl).filter(p => !p.out && !p.left).sort((a, b) => a.seatIndex - b.seatIndex);
+            const nextActive = (pl, uid) => {
+                const arr = activeList(pl); if (!arr.length) return null;
+                const seat = pl[uid]?.seatIndex ?? -1;
+                const after = arr.filter(p => p.seatIndex > seat).concat(arr.filter(p => p.seatIndex <= seat && p.uid !== uid));
+                return after[0]?.uid ?? null;
+            };
+            const pairRanks = (prs) => { const s = new Set(); prs.forEach(x => { s.add(x.a.v); if (x.d) s.add(x.d.v); }); return s; };
+            const attackerFor = (pl, preferUid, defUid) => {
+                let a = preferUid, guard = 0;
+                while (a && guard < 10 && (a === defUid || !pl[a] || pl[a].out || pl[a].left)) { a = nextActive(pl, a); guard++; }
+                return (a && a !== defUid) ? a : null;
+            };
+
+            /* ---------- סנכרון ---------- */
+            useEffect(() => {
+                if (!tableDocId) return;
+                const unsub = window.fb.onSnapshot(tblRef(), d => {
+                    if (d.exists()) { const t = { id: d.id, ...d.data() }; tableRef.current = t; setTableState(t); setLoading(false); }
+                    else { showToast("השולחן נסגר", "error"); onLeave(); }
+                });
+                return () => unsub();
+            }, [tableDocId]);
+
+            /* ---------- צ'אט, ריאקציות, צלילים ---------- */
+            const chatArr = tableState?.chat || [];
+            const [chatOpen, setChatOpen] = useState(false);
+            const [emoTick, setEmoTick] = useState(0);
+            const reactions = useMemo(() => {
+                const now = Date.now(); const r = {};
+                chatArr.forEach(m => { if (m.emoji && now - m.at < 6000) r[m.uid] = m.emoji; });
+                return r;
+            }, [chatArr.length, emoTick]);
+            const reactCount = Object.keys(reactions).length;
+            useEffect(() => {
+                if (!reactCount) return;
+                const iv = setInterval(() => setEmoTick(x => x + 1), 1500);
+                return () => clearInterval(iv);
+            }, [reactCount]);
+            const sendChat = async (text, emoji) => {
+                const t = tableRef.current; if (!t) return;
+                const msg = { uid: user.uid, name: user.username, text: text || '', emoji: emoji || '', at: Date.now() };
+                try { await window.fb.updateDoc(tblRef(), { chat: [...(t.chat || []), msg].slice(-30) }); } catch(e) {}
+            };
+            const prevDSnd = useRef({ status: '', chatLen: 0, pairsN: 0, turnMine: false });
+            useEffect(() => {
+                if (!tableState) return;
+                const ps = prevDSnd.current;
+                if (T.status === 'showdown' && ps.status !== 'showdown') playSnd('win');
+                if (T.status === 'playing' && ps.status !== 'playing') playSnd('deal');
+                const pn = (T.pairs || []).length;
+                if (pn > ps.pairsN) playSnd('tile');
+                const mine = T.turnUid === user.uid && T.status === 'playing';
+                if (mine && !ps.turnMine) playSnd('turn');
+                const cl = (T.chat || []).length;
+                if (ps.chatLen && cl > ps.chatLen) playSnd('msg');
+                prevDSnd.current = { status: T.status, chatLen: cl, pairsN: pn, turnMine: mine };
+            }, [tableState]);
+
+            /* ---------- התחלת משחק (מארח / סופר-אדמין) ---------- */
+            const startGame = async () => {
+                const t = tableRef.current; if (!t) return;
+                if (!(t.hostUid === user.uid || isSuperAdmin)) return;
+                if (!['setup', 'showdown'].includes(t.status)) return;
+                if (Object.keys(t.players || {}).length < 2) return toastErr("צריך לפחות 2 שחקנים");
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const snap = await tr.get(tblRef());
+                        if (!snap.exists()) throw "השולחן לא קיים";
+                        const tbl = snap.data();
+                        if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
+                        const buyIn = Number(tbl.settings.buyIn) || 0;
+                        const pl = {};
+                        Object.entries(tbl.players).forEach(([k, v]) => pl[k] = { ...v, cards: [], out: false, left: false });
+                        const uids = Object.values(pl).sort((a, b) => a.seatIndex - b.seatIndex).map(p => p.uid);
+                        // גביית Buy-in מכל השחקנים בטרנזקציה
+                        const uSnaps = {};
+                        for (const uid of uids) {
+                            const s = await tr.get(window.fb.doc(window.fb.db, "users", uid));
+                            if (!s.exists() || (s.data().balance || 0) < buyIn) throw `ל${pl[uid].name} אין מספיק צ'יפים (${formatMoney(buyIn)})`;
+                            uSnaps[uid] = s;
+                        }
+                        for (const uid of uids) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
+                        // חלוקה
+                        const deck = durakDeck(Number(tbl.settings.deckSize) || 36);
+                        for (let i = 0; i < 6; i++) for (const uid of uids) pl[uid].cards.push(deck.pop());
+                        const trumpCard = deck[0]; const trumpSuit = trumpCard.suit;
+                        // המתחיל: בעל השליט הנמוך ביותר
+                        let low = 99, attacker = uids[0];
+                        uids.forEach(uid => pl[uid].cards.forEach(c => { if (c.suit === trumpSuit && c.v < low) { low = c.v; attacker = uid; } }));
+                        const defender = nextActive(pl, attacker);
+                        tr.update(tblRef(), {
+                            status: 'playing', pot: round2(buyIn * uids.length), deck, trumpCard, trumpSuit,
+                            players: pl, pairs: [], attackerUid: attacker, defenderUid: defender,
+                            turnUid: attacker, roundCap: 6, passed: [], discard: 0, finishOrder: [],
+                            lastResults: null, turnStartedAt: Date.now()
+                        });
+                    });
+                } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהתחלת המשחק"); }
+            };
+
+            /* ---------- סליקה ---------- */
+            const settle = async (pl, durakUid, soloWinnerUid, deck, discard, fo) => {
+                if (settlingRef.current) return;
+                settlingRef.current = true;
+                try {
+                    const t = tableRef.current; if (!t) return;
+                    const pot = t.pot || 0;
+                    const rake = round2(pot * ((Number(setts.rakePercent) || 0) / 100));
+                    const buyIn = Number(setts.buyIn) || 0;
+                    let winners = soloWinnerUid ? [pl[soloWinnerUid]] : Object.values(pl).filter(p => p.out && !p.left && p.uid !== durakUid);
+                    const share = winners.length ? Math.floor(((pot - rake) / winners.length) * 100) / 100 : 0;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const reads = {};
+                        for (const w of winners) { const s = await tr.get(window.fb.doc(window.fb.db, "users", w.uid)); if (s.exists()) reads[w.uid] = s; }
+                        let durakSnap = null;
+                        if (durakUid && pl[durakUid] && !pl[durakUid].left) { const s = await tr.get(window.fb.doc(window.fb.db, "users", durakUid)); if (s.exists()) durakSnap = s; }
+                        for (const w of winners) {
+                            const s = reads[w.uid]; if (!s) continue;
+                            const st = s.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            tr.update(s.ref, {
+                                balance: round2((s.data().balance || 0) + share),
+                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
+                                'stats.gamesWon': (st.gamesWon || 0) + 1,
+                                'stats.totalProfit': round2((st.totalProfit || 0) + share - buyIn)
+                            });
+                        }
+                        if (durakSnap) {
+                            const st = durakSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            tr.update(durakSnap.ref, {
+                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
+                                'stats.totalProfit': round2((st.totalProfit || 0) - buyIn)
+                            });
+                        }
+                        tr.update(tblRef(), {
+                            status: 'showdown', players: pl, pairs: [], deck: deck || [], discard: discard || 0,
+                            finishOrder: fo || [], turnUid: null, pot: 0,
+                            lastResults: { durakName: durakUid ? pl[durakUid].name : null, winners: winners.map(w => w.name), share, rake, pot, solo: !!soloWinnerUid }
+                        });
+                    });
+                    creditRakeToClub(rake);
+                } catch(e) {} finally { settlingRef.current = false; }
+            };
+
+            /* ---------- סיום סיבוב: ביטה או לקיחה ---------- */
+            const finishRound = async (t, pl, prs, kind) => {
+                let discard = t.discard || 0;
+                if (kind === 'bita') {
+                    discard += prs.reduce((s, x) => s + 1 + (x.d ? 1 : 0), 0);
+                } else {
+                    const def = pl[t.defenderUid];
+                    prs.forEach(x => { def.cards.push(x.a); if (x.d) def.cards.push(x.d); });
+                }
+                // שליפה עד 6: תוקף ראשי, שאר התוקפים לפי השעון, המגן אחרון
+                const deck = [...(t.deck || [])];
+                const order = [];
+                let cur = attackerFor(pl, t.attackerUid, t.defenderUid);
+                let guard = 0;
+                while (cur && guard < 8) {
+                    if (!order.includes(cur)) order.push(cur);
+                    let nxt = nextActive(pl, cur); guard++;
+                    if (!nxt || order.includes(nxt) || nxt === cur) break;
+                    cur = (nxt === t.defenderUid) ? nextActive(pl, nxt) : nxt;
+                    if (cur && order.includes(cur)) break;
+                }
+                if (pl[t.defenderUid] && !pl[t.defenderUid].out && !pl[t.defenderUid].left) order.push(t.defenderUid);
+                for (const uid of order) { const p = pl[uid]; if (!p) continue; while (p.cards.length < 6 && deck.length) p.cards.push(deck.pop()); }
+                // מי שנשאר בלי קלפים כשהקופה ריקה - יצא בשלום
+                const fo = [...(t.finishOrder || [])];
+                Object.values(pl).forEach(p => { if (!p.out && !p.left && deck.length === 0 && p.cards.length === 0) { p.out = true; if (!fo.includes(p.uid)) fo.push(p.uid); } });
+                const remain = activeList(pl);
+                if (remain.length <= 1) { await settle(pl, remain[0]?.uid || null, null, deck, discard, fo); return; }
+                // תפקידים לסיבוב הבא
+                let newAtt;
+                if (kind === 'bita') newAtt = attackerFor(pl, t.defenderUid, null);
+                else newAtt = attackerFor(pl, nextActive(pl, t.defenderUid), null);
+                const newDef = nextActive(pl, newAtt);
+                await window.fb.updateDoc(tblRef(), {
+                    players: pl, pairs: [], deck, discard, finishOrder: fo,
+                    attackerUid: newAtt, defenderUid: newDef,
+                    roundCap: Math.min(6, pl[newDef].cards.length),
+                    passed: [], turnUid: newAtt, turnStartedAt: Date.now()
+                });
+            };
+
+            /* ---------- פעולות משחק ---------- */
+            const playCard = async (uid, cardId) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing') return;
+                const pl = clonePlayers(t.players);
+                const p = pl[uid]; if (!p || p.out || p.left) return;
+                const prs = (t.pairs || []).map(x => ({ ...x }));
+                const card = p.cards.find(c => c.id === cardId); if (!card) return;
+                const trump = t.trumpSuit;
+                const undef = prs.filter(x => !x.d);
+
+                if (uid === t.defenderUid) {
+                    if (t.turnUid !== uid) return;
+                    if (undef.length === 0) return toastErr("אין קלף לענות עליו");
+                    // העברה (Perevodnoy): לפני כל הגנה, עם קלף באותה דרגה
+                    const noDef = prs.every(x => !x.d);
+                    if (setts.variant === 'perevodnoy' && noDef && prs.every(x => x.a.v === card.v)) {
+                        const newDef = nextActive(pl, uid);
+                        if (newDef && pl[newDef].cards.length >= prs.length + 1) {
+                            p.cards = p.cards.filter(c => c.id !== cardId);
+                            prs.push({ a: card, d: null, by: uid });
+                            if (t.deck.length === 0 && p.cards.length === 0) { p.out = true; }
+                            await window.fb.updateDoc(tblRef(), {
+                                players: pl, pairs: prs, defenderUid: newDef,
+                                roundCap: Math.min(6, pl[newDef].cards.length),
+                                passed: [], turnUid: newDef, turnStartedAt: Date.now(),
+                                finishOrder: p.out ? [...(t.finishOrder || []), uid] : (t.finishOrder || [])
+                            });
+                            return;
+                        }
+                    }
+                    const target = undef.find(x => beatsCard(card, x.a, trump));
+                    if (!target) return toastErr("הקלף הזה לא מנצח אף קלף פתוח");
+                    const real = prs.find(x => x.a.id === target.a.id);
+                    real.d = card;
+                    p.cards = p.cards.filter(c => c.id !== cardId);
+                    const stillUndef = prs.some(x => !x.d);
+                    if (!stillUndef && t.deck.length === 0 && p.cards.length === 0) {
+                        await finishRound({ ...t, pairs: prs }, pl, prs, 'bita');
+                        return;
+                    }
+                    const nextTurn = stillUndef ? uid : attackerFor(pl, t.attackerUid, t.defenderUid);
+                    await window.fb.updateDoc(tblRef(), { players: pl, pairs: prs, passed: [], turnUid: nextTurn || t.attackerUid, turnStartedAt: Date.now() });
+                    return;
+                }
+
+                // תוקף
+                if (undef.length > 0) return toastErr("ממתינים לתגובת המגן");
+                if (prs.length === 0) {
+                    if (uid !== t.attackerUid) return toastErr("התוקף הראשי פותח את הסיבוב");
+                } else {
+                    if (t.turnUid !== uid) return toastErr("המתן לתורך להוסיף");
+                    if (!pairRanks(prs).has(card.v)) return toastErr("אפשר להוסיף רק דרגות שכבר על השולחן");
+                }
+                if (prs.length >= (t.roundCap || 6)) return toastErr("הגעת למקסימום התקפות בסיבוב");
+                if ((pl[t.defenderUid]?.cards.length || 0) < 1) return toastErr("למגן אין קלפים");
+                p.cards = p.cards.filter(c => c.id !== cardId);
+                prs.push({ a: card, d: null, by: uid });
+                const fo = [...(t.finishOrder || [])];
+                if (t.deck.length === 0 && p.cards.length === 0) { p.out = true; if (!fo.includes(uid)) fo.push(uid); }
+                await window.fb.updateDoc(tblRef(), { players: pl, pairs: prs, passed: [], turnUid: t.defenderUid, turnStartedAt: Date.now(), finishOrder: fo });
+            };
+
+            const takeCards = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing') return;
+                if (uid !== t.defenderUid || !(t.pairs || []).length) return;
+                const pl = clonePlayers(t.players);
+                await finishRound(t, pl, (t.pairs || []).map(x => ({ ...x })), 'take');
+            };
+
+            const passAttack = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing') return;
+                if (uid === t.defenderUid || t.turnUid !== uid) return;
+                const prs = t.pairs || [];
+                if (!prs.length || prs.some(x => !x.d)) return;
+                const pl = clonePlayers(t.players);
+                const passed = [...(t.passed || []), uid];
+                let nxt = nextActive(pl, uid); let guard = 0;
+                while (nxt && guard < 8 && (nxt === t.defenderUid || passed.includes(nxt) || nxt === uid)) { nxt = nextActive(pl, nxt); guard++; }
+                if (!nxt || nxt === t.defenderUid || passed.includes(nxt) || nxt === uid) {
+                    await finishRound(t, pl, prs.map(x => ({ ...x })), 'bita');
+                } else {
+                    await window.fb.updateDoc(tblRef(), { passed, turnUid: nxt, turnStartedAt: Date.now() });
+                }
+            };
+
+            const autoAction = async (uid) => {
+                const t = tableRef.current; if (!t || t.status !== 'playing' || !t.players[uid]) return;
+                const prs = t.pairs || [];
+                if (uid === t.defenderUid) { if (prs.some(x => !x.d)) await takeCards(uid); return; }
+                if (prs.length === 0 && uid === t.attackerUid) {
+                    const hand = [...t.players[uid].cards].sort((a, b) => (a.suit === t.trumpSuit ? 100 : 0) + a.v - ((b.suit === t.trumpSuit ? 100 : 0) + b.v));
+                    if (hand[0]) await playCard(uid, hand[0].id);
+                    return;
+                }
+                await passAttack(uid);
+            };
+
+            /* ---------- הצטרפות / עזיבה / בוט ---------- */
+            const handleJoin = async () => {
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                        const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
+                        if (!tSnap.exists()) throw "השולחן לא קיים";
+                        const t = tSnap.data();
+                        if (!['setup', 'showdown'].includes(t.status)) throw "המשחק כבר רץ - חכה לסיבוב הבא";
+                        if (t.players[user.uid]) throw "אתה כבר בשולחן";
+                        if (Object.keys(t.players).length >= (t.settings.maxPlayers || 6)) throw "השולחן מלא";
+                        if ((uSnap.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק יתרה לדמי הכניסה";
+                        let seatIndex = 0;
+                        const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
+                        while (taken.has(seatIndex)) seatIndex++;
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, seatIndex, cards: [], isBot: false, out: false, left: false } });
+                    });
+                } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהצטרפות"); }
+            };
+
+            const handleLeave = async () => {
+                const t = tableRef.current;
+                if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'playing' && !t.players[user.uid].out) {
+                    if (!window.confirm("⚠️ פרישה באמצע משחק דוראק = ויתור על דמי הכניסה. בטוח?")) return;
+                    try {
+                        const pl = clonePlayers(t.players);
+                        const meP = pl[user.uid];
+                        // קלפי השולחן חוזרים לבעליהם, מתחילים סיבוב נקי בלי הפורש
+                        (t.pairs || []).forEach(x => {
+                            const owner = pl[x.by] && !pl[x.by].left && x.by !== user.uid ? pl[x.by] : null;
+                            if (owner) owner.cards.push(x.a); 
+                            if (x.d) { const dOwner = pl[t.defenderUid] && t.defenderUid !== user.uid ? pl[t.defenderUid] : null; if (dOwner) dOwner.cards.push(x.d); }
+                        });
+                        delete pl[user.uid];
+                        // סטטיסטיקת מפסיד לפורש
+                        try {
+                            const uRef = window.fb.doc(window.fb.db, "users", user.uid);
+                            const uSnap = await window.fb.getDoc(uRef);
+                            if (uSnap.exists()) {
+                                const st = uSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                                await window.fb.updateDoc(uRef, { 'stats.gamesPlayed': (st.gamesPlayed || 0) + 1, 'stats.totalProfit': round2((st.totalProfit || 0) - (Number(setts.buyIn) || 0)) });
+                            }
+                        } catch(e2) {}
+                        const remain = activeList(pl);
+                        if (remain.length <= 1) {
+                            await settle(pl, null, remain[0]?.uid || null, t.deck || [], t.discard || 0, t.finishOrder || []);
+                        } else {
+                            const newAtt = attackerFor(pl, nextActive(pl, remain[0].uid) ? remain[0].uid : remain[0].uid, null);
+                            const newDef = nextActive(pl, newAtt);
+                            await window.fb.updateDoc(tblRef(), {
+                                players: pl, pairs: [], attackerUid: newAtt, defenderUid: newDef,
+                                roundCap: Math.min(6, pl[newDef].cards.length), passed: [], turnUid: newAtt, turnStartedAt: Date.now()
+                            });
+                        }
+                    } catch(e) {}
+                    onLeave(); return;
+                }
+                // setup / showdown / כבר יצא
+                try {
+                    const pl = { ...t.players }; delete pl[user.uid];
+                    if (Object.keys(pl).length === 0 && t.status !== 'playing') {
+                        await window.fb.deleteDoc(tblRef());
+                    } else {
+                        const upd = { players: pl };
+                        if (t.hostUid === user.uid) { const first = Object.values(pl).sort((a,b)=>a.seatIndex-b.seatIndex)[0]; if (first) upd.hostUid = first.uid; }
+                        await window.fb.updateDoc(tblRef(), upd);
+                    }
+                } catch(e) {}
+                onLeave();
+            };
+
+            const handleAddBot = async () => {
+                const t = tableRef.current; if (!t || !['setup', 'showdown'].includes(t.status)) return;
+                if (Object.keys(t.players).length >= (setts.maxPlayers || 6)) return toastErr("השולחן מלא");
+                try {
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const botSnaps = await window.fb.getDocs(botQ);
+                    const bots = botSnaps.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !t.players[b.id]);
+                    if (!bots.length) return toastErr("אין בוטים פנויים - צור בוטים בדשבורד");
+                    const bot = bots[Math.floor(Math.random() * bots.length)];
+                    let seatIndex = 0;
+                    const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
+                    while (taken.has(seatIndex)) seatIndex++;
+                    await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: { uid: bot.id, name: bot.username, seatIndex, cards: [], isBot: true, out: false, left: false } });
+                } catch(e) {}
+            };
+
+            /* ---------- מוח בוטים + אכיפת טיימאאוט (אצל הסופר-אדמין) ---------- */
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState) return;
+                if (T.status === 'playing' && T.turnUid && players[T.turnUid]?.isBot) {
+                    const uid = T.turnUid;
+                    const tm = setTimeout(async () => {
+                        const t = tableRef.current; if (!t || t.turnUid !== uid || t.status !== 'playing') return;
+                        const b = t.players[uid]; if (!b) return;
+                        const prs = t.pairs || [];
+                        const trump = t.trumpSuit;
+                        const sortHand = (h) => [...h].sort((a, c) => ((a.suit === trump ? 100 : 0) + a.v) - ((c.suit === trump ? 100 : 0) + c.v));
+                        if (uid === t.defenderUid) {
+                            const undef = prs.filter(x => !x.d);
+                            if (!undef.length) return;
+                            const noDef = prs.every(x => !x.d);
+                            if (setts.variant === 'perevodnoy' && noDef && Math.random() < 0.5) {
+                                const tCard = b.cards.find(c => prs.every(x => x.a.v === c.v));
+                                const newDef = nextActive(t.players, uid);
+                                if (tCard && newDef && t.players[newDef].cards.length >= prs.length + 1) { await playCard(uid, tCard.id); return; }
+                            }
+                            const cand = sortHand(b.cards).find(c => undef.some(x => beatsCard(c, x.a, trump)));
+                            if (cand) await playCard(uid, cand.id); else await takeCards(uid);
+                            return;
+                        }
+                        if (prs.length === 0 && uid === t.attackerUid) {
+                            const h = sortHand(b.cards);
+                            if (h[0]) await playCard(uid, h[0].id);
+                            return;
+                        }
+                        const ranks = pairRanks(prs);
+                        const adds = sortHand(b.cards).filter(c => ranks.has(c.v));
+                        if (adds.length && prs.length < (t.roundCap || 6) && Math.random() < 0.7) await playCard(uid, adds[0].id);
+                        else await passAttack(uid);
+                    }, 1900);
+                    return () => clearTimeout(tm);
+                }
+            }, [T.turnUid, T.status, T.turnStartedAt, (T.pairs || []).length, isSuperAdmin]);
+
+            // בוטים מצטרפים אוטומטית בזמן ההמתנה
+            const dPlayersCount = Object.keys(players).length;
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState || T.status !== 'setup') return;
+                const iv = setInterval(async () => {
+                    const t = tableRef.current; if (!t || t.status !== 'setup') return;
+                    const pl = t.players || {};
+                    const hasHuman = Object.values(pl).some(p => !p.isBot);
+                    if (!hasHuman || Object.keys(pl).length >= (t.settings.maxPlayers || 6)) return;
+                    await handleAddBot();
+                }, 3500);
+                return () => clearInterval(iv);
+            }, [T.status, dPlayersCount, isSuperAdmin]);
+
+            // אכיפת טיימאאוט לכל שחקן שנרדם
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState || T.status !== 'playing') return;
+                const iv = setInterval(() => {
+                    const t = tableRef.current; if (!t || t.status !== 'playing' || !t.turnStartedAt) return;
+                    if (Date.now() - t.turnStartedAt > (DURAK_TIME + 5) * 1000) autoAction(t.turnUid);
+                }, 4000);
+                return () => clearInterval(iv);
+            }, [T.status, isSuperAdmin]);
+
+            /* ---------- טיימר התור שלי ---------- */
+            useEffect(() => {
+                let interval;
+                if (T.status === 'playing' && T.turnStartedAt) {
+                    interval = setInterval(() => {
+                        const remaining = Math.max(0, DURAK_TIME - Math.floor((Date.now() - T.turnStartedAt) / 1000));
+                        setTimeLeft(remaining);
+                        if (remaining <= 5 && remaining > 0 && T.turnUid === user.uid) {
+                            try {
+                                if (window.Tone && window.Tone.context.state !== 'running') window.Tone.context.resume();
+                                if (!synthRef.current && window.Tone) { synthRef.current = new window.Tone.Synth({ oscillator: { type: 'square' } }).toDestination(); synthRef.current.volume.value = -14; }
+                                synthRef.current?.triggerAttackRelease("E6", "0.05");
+                            } catch(e) {}
+                        }
+                        if (remaining === 0 && T.turnUid === user.uid) { clearInterval(interval); autoAction(user.uid); }
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [T.turnStartedAt, T.turnUid, T.status]);
+
+            if (loading || !tableState) return <div className="h-full flex items-center justify-center text-blue-400"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
+
+            /* ---------- חישובי תצוגה ---------- */
+            const list = Object.values(players).sort((a, b) => a.seatIndex - b.seatIndex);
+            let displayList = list;
+            if (isSeated) {
+                const myIdx = list.findIndex(p => p.uid === user.uid);
+                displayList = [...list.slice(myIdx), ...list.slice(0, myIdx)];
+            }
+            const N = Math.max(displayList.length, 2);
+            const seatPos = (i) => { const ang = Math.PI / 2 + (i * 2 * Math.PI) / N; return { left: `${50 + 40 * Math.cos(ang)}%`, top: `${50 + 40 * Math.sin(ang)}%` }; };
+            const trumpCol = SUIT_COLORS[T.trumpSuit] || '#f8fafc';
+            const canIDefend = iAmDefender && myTurn && undefPairs.length > 0;
+            const allDefended = pairs.length > 0 && undefPairs.length === 0;
+            const canIAdd = isSeated && !iAmDefender && !me?.out && T.status === 'playing' && ((pairs.length === 0 && iAmAttackerMain) || (pairs.length > 0 && allDefended && myTurn));
+            const canTransfer = canIDefend && setts.variant === 'perevodnoy' && pairs.every(x => !x.d) && (me?.cards || []).some(c => pairs.every(x => x.a.v === c.v));
+            const res = T.lastResults;
+
+            return (
+                <div className="h-full w-full flex flex-col bg-slate-950 font-sans overflow-hidden select-none" dir="rtl"
+                     style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a2436 0%, #020617 60%)' }}>
+
+                    {/* Header */}
+                    <div className="h-14 bg-slate-900/80 backdrop-blur-md border-b border-white/5 flex justify-between items-center px-3 shrink-0 z-40">
+                        <div className="flex items-center gap-2">
+                            <button onClick={handleLeave} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-700 hover:text-white text-xs font-bold border border-white/10">
+                                <i className="fa-solid fa-door-open ml-1"></i>{isSeated ? 'קום' : 'יציאה'}
+                            </button>
+                            {isGod && (
+                                <button onClick={() => setGodView(!godView)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border transition-all ${godView ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_12px_purple]' : 'bg-slate-800 text-purple-400 border-white/10'}`}>
+                                    <i className="fa-solid fa-eye ml-1"></i>GOD
+                                </button>
+                            )}
+                            {isSuperAdmin && ['setup','showdown'].includes(T.status) && (
+                                <button onClick={handleAddBot} className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-purple-300 text-[10px] font-black border border-white/10" title="הוסף בוט"><i className="fa-solid fa-robot"></i></button>
+                            )}
+                        </div>
+                        <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
+                            <span className="text-blue-300 font-black text-sm tracking-wider">דוראק {setts.variant === 'perevodnoy' ? '· העברה' : ''}</span>
+                            <span className="text-slate-400 text-[10px] font-bold" dir="ltr">{setts.deckSize} cards · Rake {setts.rakePercent}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {T.trumpSuit && T.status !== 'setup' && (
+                                <div className="bg-slate-950/80 border border-white/10 rounded-xl px-2.5 py-1 text-center">
+                                    <span className="text-[9px] text-slate-400 font-bold block leading-none mb-0.5">שליט</span>
+                                    <span className="font-black text-lg leading-none" style={{ color: trumpCol, textShadow: '0 0 8px rgba(255,255,255,0.2)' }}>{T.trumpSuit}</span>
+                                </div>
+                            )}
+                            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl px-3 py-1 text-center">
+                                <span className="text-[9px] text-amber-300 font-bold block leading-none mb-0.5">POT</span>
+                                <span className="text-amber-400 font-black text-sm leading-none" dir="ltr">{formatShort(T.status === 'showdown' ? (res?.pot || 0) : (T.pot || 0))}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* השולחן */}
+                    <div className="flex-1 relative flex items-center justify-center p-3 sm:p-5 min-h-0">
+                        <div className="poker-table w-full max-w-[440px] h-full max-h-[calc(100dvh-215px)] relative">
+
+                            {/* קופה מרכזית: חפיסה + שליט + פח */}
+                            {T.status === 'playing' && (
+                                <div className="absolute right-[6%] top-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1.5">
+                                    <div className="relative w-12 h-[4.4rem]">
+                                        {T.trumpCard && (T.deck || []).length > 0 && (
+                                            <div className="absolute top-3 -left-4 rotate-90 opacity-95"><PCard card={T.trumpCard} size="md" /></div>
+                                        )}
+                                        {(T.deck || []).length > 0 ? (
+                                            <div className="absolute inset-0">
+                                                <div className="w-10 card-back absolute inset-0" style={{ height: '3.9rem' }}></div>
+                                                <div className="absolute inset-0 flex items-center justify-center"><span className="text-white font-black text-base bg-black/60 rounded-lg px-1.5 shadow">{(T.deck || []).length}</span></div>
+                                            </div>
+                                        ) : (
+                                            T.trumpCard && <div className="absolute -top-1 left-0 opacity-40"><span className="font-black text-3xl" style={{ color: trumpCol }}>{T.trumpSuit}</span></div>
+                                        )}
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 font-bold bg-black/40 px-2 py-0.5 rounded-full">🗑 {T.discard || 0}</span>
+                                </div>
+                            )}
+
+                            {/* זוגות ההתקפה/הגנה */}
+                            {T.status === 'playing' && (
+                                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-wrap justify-center items-center gap-x-5 gap-y-4 w-[62%] z-10" dir="ltr">
+                                    {pairs.map((x, i) => (
+                                        <div key={i} className="relative animate-pop-in" style={{ width: '3rem', height: '4.6rem' }}>
+                                            <div className="absolute inset-0"><PCard card={x.a} size="md" /></div>
+                                            {x.d && <div className="absolute left-3 top-3 rotate-[12deg] drop-shadow-xl"><PCard card={x.d} size="md" /></div>}
+                                        </div>
+                                    ))}
+                                    {pairs.length === 0 && <span className="text-emerald-200/20 font-black text-xs tracking-[0.25em] uppercase pointer-events-none">Rummikube Elite</span>}
+                                </div>
+                            )}
+
+                            {/* שחקנים */}
+                            {displayList.map((p, i) => {
+                                const isMe = p.uid === user.uid;
+                                const isTurn = T.turnUid === p.uid && T.status === 'playing';
+                                const isAtt = T.attackerUid === p.uid && T.status === 'playing';
+                                const isDef = T.defenderUid === p.uid && T.status === 'playing';
+                                const timerPct = isTurn ? Math.max(0, timeLeft / DURAK_TIME) : 0;
+                                const showAll = godView && !isMe;
+                                return (
+                                    <div key={p.uid} className="absolute z-20" style={{ ...seatPos(i), transform: 'translate(-50%, -50%)' }}>
+                                        {isTurn && <div className="player-spotlight"></div>}
+                                        <div className={`relative flex flex-col items-center ${p.out || p.left ? 'opacity-45' : ''}`}>
+                                            {reactions[p.uid] && <div className="absolute -top-9 left-1/2 -translate-x-1/2 text-2xl animate-pop-in z-[70] drop-shadow-lg pointer-events-none">{reactions[p.uid]}</div>}
+                                            {isAtt && !p.out && <div className="action-badge badge-blind">⚔ תוקף</div>}
+                                            {isDef && !p.out && <div className="action-badge badge-fold">🛡 מגן</div>}
+                                            {p.out && <div className="action-badge badge-call">✓ סיים</div>}
+
+                                            {!isMe && !p.out && (p.cards || []).length > 0 && T.status === 'playing' && (
+                                                <div className="flex mb-[-8px] z-0" dir="ltr">
+                                                    {(showAll ? p.cards : p.cards.slice(0, 6)).map((c, ci) => (
+                                                        <div key={ci} style={{ marginLeft: ci > 0 ? '-14px' : 0 }}><PCard card={c} hidden={!showAll} size="sm" /></div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p.uid)})` }}>
+                                                {isTurn && (
+                                                    <svg className="absolute inset-0 w-full h-full timer-ring" viewBox="0 0 40 40">
+                                                        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(250,204,21,0.9)" strokeWidth="3" strokeDasharray={`${113 * timerPct} 113`} strokeLinecap="round" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                            {T.hostUid === p.uid && <div className="absolute -left-3 top-0 w-5 h-5 rounded-full bg-amber-400 text-slate-900 text-[9px] font-black flex items-center justify-center shadow-lg z-30">★</div>}
+                                            <div className="text-[10px] font-bold text-white mt-1 max-w-[74px] truncate text-center">{isMe ? 'אתה' : p.name}</div>
+                                            <div className="stack-capsule text-slate-200 font-black text-[10px]" dir="ltr">🂠 {(p.cards || []).length}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* המתנה לשחקנים */}
+                        {T.status === 'setup' && (
+                            <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-blue-500/40">
+                                    <i className="fa-solid fa-chess-king text-4xl text-blue-400 mb-2"></i>
+                                    <h3 className="text-xl font-black text-white mb-1">ממתין לשחקנים...</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-4" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {Object.keys(players).length}/{setts.maxPlayers || 6}</p>
+                                    <div className="flex justify-center gap-3 mb-5 flex-wrap">
+                                        {list.map(p => (
+                                            <div key={p.uid} className="flex flex-col items-center">
+                                                <img src={avatarUrl(p.uid)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-blue-500'}`} />
+                                                <span className="text-[10px] text-white font-bold mt-1 max-w-[60px] truncate">{p.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!isSeated && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
+                                    {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && (
+                                        <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>
+                                    )}
+                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* תוצאות */}
+                        {T.status === 'showdown' && res && (
+                            <div className="absolute inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
+                                    {res.durakName ? (
+                                        <React.Fragment>
+                                            <div className="text-5xl mb-2">🤡</div>
+                                            <h3 className="text-2xl font-black text-rose-400 mb-1">{res.durakName} הוא הדוראק!</h3>
+                                        </React.Fragment>
+                                    ) : (
+                                        <React.Fragment>
+                                            <i className="fa-solid fa-trophy text-4xl text-amber-400 mb-2"></i>
+                                            <h3 className="text-xl font-black text-white mb-1">ניצחון!</h3>
+                                        </React.Fragment>
+                                    )}
+                                    <div className="bg-slate-950/60 rounded-2xl border border-white/5 divide-y divide-white/5 text-sm my-4">
+                                        {(res.winners || []).map((w, i) => (
+                                            <div key={i} className="flex justify-between items-center px-4 py-2.5">
+                                                <span className="font-bold text-emerald-300">🏆 {w}</span>
+                                                <span className="text-emerald-400 font-black" dir="ltr">+{formatMoney(res.share)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between items-center px-4 py-2 text-xs text-slate-500">
+                                            <span>רייק מועדון</span><span dir="ltr">{formatMoney(res.rake)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">משחק חדש</button>}
+                                        <button onClick={handleLeave} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl font-black border border-white/10">קום</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* היד שלי + פעולות */}
+                    <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-3 pt-2 pb-3 z-40 min-h-[135px] flex flex-col justify-end gap-2">
+                        {isSeated && T.status === 'playing' && !me.out && (
+                            <div className="flex justify-center" dir="ltr">
+                                {[...(me.cards || [])].sort((a, b) => ((a.suit === T.trumpSuit ? 100 : 0) + a.v) - ((b.suit === T.trumpSuit ? 100 : 0) + b.v)).map((c, ci) => {
+                                    const clickable = canIDefend || canIAdd || canTransfer;
+                                    return (
+                                        <div key={c.id} onClick={() => clickable ? playCard(user.uid, c.id) : null}
+                                             className={`transition-transform ${clickable ? 'cursor-pointer hover:-translate-y-3' : 'opacity-80'} ${c.suit === T.trumpSuit ? 'ring-1 ring-amber-400/50 rounded-lg' : ''}`}
+                                             style={{ marginLeft: ci > 0 ? ((me.cards.length > 9) ? '-26px' : '-14px') : 0, zIndex: ci }}>
+                                            <PCard card={c} size="lg" />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        <div className="flex justify-center items-center gap-2.5 min-h-[44px]">
+                            {T.status === 'playing' && !me?.out && isSeated ? (
+                                <React.Fragment>
+                                    {iAmDefender && pairs.length > 0 && (
+                                        <button onClick={() => takeCards(user.uid)} disabled={!myTurn || undefPairs.length === 0} className="btn-fold text-white px-8 py-3 font-black text-sm shadow-lg active:scale-95 transition-transform disabled:opacity-40">
+                                            לקחת 🃏
+                                        </button>
+                                    )}
+                                    {!iAmDefender && myTurn && allDefended && (
+                                        <button onClick={() => passAttack(user.uid)} className="btn-call text-white px-8 py-3 font-black text-sm shadow-lg active:scale-95 transition-transform">
+                                            ביטה ✔ (סיימתי)
+                                        </button>
+                                    )}
+                                    <span className="text-[11px] font-bold text-slate-400 text-center">
+                                        {canIDefend ? (canTransfer ? 'הגן על הקלפים, העבר עם קלף באותה דרגה, או קח' : 'לחץ על קלף שמנצח את ההתקפה, או קח')
+                                        : canIAdd ? (pairs.length === 0 ? '⚔ אתה פותח - לחץ על קלף לתקוף' : 'אפשר להוסיף קלף בדרגה שעל השולחן')
+                                        : T.turnUid ? `ממתין ל${players[T.turnUid]?.name || '...'}` : ''}
+                                    </span>
+                                </React.Fragment>
+                            ) : (
+                                <span className="text-[11px] font-bold text-slate-500">
+                                    {T.status === 'playing' && me?.out ? '✓ סיימת את הקלפים - ממתין לסוף המשחק' : T.status === 'setup' ? '' : ''}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* צ'אט */}
+                    <button onClick={() => setChatOpen(!chatOpen)} className="absolute bottom-[150px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                        <i className="fa-solid fa-comment-dots"></i>
+                    </button>
+                    {chatOpen && <ChatPanel chat={chatArr} meUid={user.uid} onSend={sendChat} onClose={() => setChatOpen(false)} className="bottom-[150px] left-3" />}
                 </div>
             );
         }
