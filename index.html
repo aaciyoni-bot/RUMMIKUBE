@@ -476,6 +476,7 @@
             const [activeTable, setActiveTable] = useState(null);
             const [toasts, setToasts] = useState([]);
             const [clubSettings, setClubSettings] = useState({ rakePct: DEFAULT_RAKE_PCT });
+            const [lobbyTab, setLobbyTab] = useState('rummikub'); // זוכר באיזה טאב היית (רמי/פוקר)
 
             const viewRef = useRef(currentView);
             useEffect(() => { viewRef.current = currentView; }, [currentView]);
@@ -604,12 +605,12 @@
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'pending' && <PendingView />}
-                        {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} clubSettings={clubSettings} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
+                        {currentView === 'lobby' && <LobbyView user={dbUser} tables={tablesDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && <ProfileView user={dbUser} />}
                         {currentView === 'backoffice' && <BackofficeView user={dbUser} clubSettings={clubSettings} showToast={showToast} />}
-                        {currentView === 'poker-create' && <PokerCreateView user={dbUser} clubSettings={clubSettings} onBack={() => changeView('lobby')} onCreated={() => { changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
-                        {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => changeView('lobby')} showToast={showToast} />}
-                        {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => changeView('lobby')} showToast={showToast} />}
+                        {currentView === 'poker-create' && <PokerCreateView user={dbUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
+                        {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={dbUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={dbUser} onLeave={() => { setLobbyTab('poker'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
@@ -691,8 +692,7 @@
         /* ================================================================
            לובי - טאבים לרמיקוב ולפוקר
            ================================================================ */
-        function LobbyView({ user, tables, clubSettings, onJoinRummy, onJoinPoker, onCreatePoker, showToast }) {
-            const [tab, setTab] = useState('rummikub');
+        function LobbyView({ user, tables, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
 
@@ -2533,7 +2533,7 @@
             useEffect(() => {
                 if (!isSuperAdmin || !tableState || !gs.phase) return;
 
-                if (BETTING.includes(gs.phase) && gs.activeTurnUid && gs.activeTurnUid.startsWith('bot_')) {
+                if (BETTING.includes(gs.phase) && gs.activeTurnUid && players[gs.activeTurnUid]?.isBot) {
                     const uid = gs.activeTurnUid;
                     const tm = setTimeout(() => {
                         const t = tableRef.current; if (!t) return;
@@ -2561,7 +2561,7 @@
                     return () => clearInterval(iv);
                 }
 
-                if (gs.phase === 'dc_selection' && gs.dcUid && gs.dcUid.startsWith('bot_')) {
+                if (gs.phase === 'dc_selection' && gs.dcUid && players[gs.dcUid]?.isBot) {
                     const tm = setTimeout(() => {
                         const opts = Object.keys(GAME_CARDS);
                         selectDCGame(opts[Math.floor(Math.random() * opts.length)], gs.dcUid);
@@ -2581,6 +2581,41 @@
                     return () => clearTimeout(tm);
                 }
             }, [gs.phase, playersCount]);
+
+            /* ---------- בוטים מצטרפים אוטומטית לפוקר (רץ אצל הסופר-אדמין, כמו ברמי) ----------
+               מצטרפים כשיש לפחות אדם אחד בשולחן, בהפסקות בין ידיים, עד שהשולחן מתמלא. */
+            useEffect(() => {
+                if (!isSuperAdmin || !tableState) return;
+                if (!['waiting','showdown'].includes(gs.phase)) return;
+                const iv = setInterval(async () => {
+                    try {
+                        const t = tableRef.current; if (!t) return;
+                        if (!['waiting','showdown'].includes(t.gameState.phase)) return;
+                        const pl = t.players || {};
+                        const count = Object.keys(pl).length;
+                        const hasHuman = Object.values(pl).some(p => !p.isBot);
+                        if (!hasHuman || count >= (t.settings.maxPlayers || 6)) return;
+
+                        const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                        const botSnaps = await window.fb.getDocs(botQ);
+                        if (botSnaps.empty) return;
+                        const bots = botSnaps.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !pl[b.id]);
+                        if (bots.length === 0) return;
+                        const bot = bots[Math.floor(Math.random() * bots.length)];
+
+                        let seatIndex = 0;
+                        const taken = new Set(Object.values(pl).map(p => p.seatIndex));
+                        while (taken.has(seatIndex)) seatIndex++;
+                        const bbNow = (Number(t.settings.blinds) || 0.5) * 2;
+                        await window.fb.updateDoc(tblRef(), { [`players.${bot.id}`]: {
+                            uid: bot.id, name: bot.username, seatIndex,
+                            stack: round2(100 * bbNow), bet: 0,
+                            status: 'active', cards: [], hasActed: false, actionText: '', isBot: true
+                        }});
+                    } catch(e) {}
+                }, 3500);
+                return () => clearInterval(iv);
+            }, [gs.phase, playersCount, isSuperAdmin]);
 
             /* ---------- טיימר תור ---------- */
             useEffect(() => {
