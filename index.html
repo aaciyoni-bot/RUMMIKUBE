@@ -1501,7 +1501,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V23.1</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V23.2</span></p>
                             </div>
                         </nav>
                     )}
@@ -1555,7 +1555,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V23.1</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V23.2</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1784,6 +1784,19 @@
         /* ================================================================
            לובי הקלאבים - הבחירה, ההצטרפות וההקמה
            ================================================================ */
+        /* כל קלאב מקבל זהות צבעונית קבועה משלו - נגזרת מהמזהה */
+        const CLUB_HUES = [
+            { a: '#34d399', b: '#065f46', glow: 'rgba(52,211,153,0.22)' },
+            { a: '#38bdf8', b: '#0c4a6e', glow: 'rgba(56,189,248,0.22)' },
+            { a: '#a78bfa', b: '#4c1d95', glow: 'rgba(167,139,250,0.22)' },
+            { a: '#fb7185', b: '#881337', glow: 'rgba(251,113,133,0.22)' },
+            { a: '#fbbf24', b: '#92400e', glow: 'rgba(251,191,36,0.22)' },
+            { a: '#2dd4bf', b: '#134e4a', glow: 'rgba(45,212,191,0.22)' },
+            { a: '#e879f9', b: '#701a75', glow: 'rgba(232,121,249,0.22)' },
+            { a: '#fb923c', b: '#7c2d12', glow: 'rgba(251,146,60,0.22)' },
+        ];
+        const clubHue = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CLUB_HUES[h % CLUB_HUES.length]; };
+
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
             const [newName, setNewName] = useState('');
             const [creating, setCreating] = useState(false);
@@ -1876,24 +1889,27 @@
             const ClubCard = ({ c, action }) => {
                 const m = memOf(c.id);
                 const isOwner = c.ownerUid === user.uid;
+                const hue = clubHue(c.id);
                 return (
-                    <div className="grad-card">
-                        <div className="grad-card-inner p-5 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="rounded-3xl p-[1.5px] transition-transform hover:-translate-y-0.5"
+                         style={{ background: `linear-gradient(135deg, ${hue.a}66, rgba(255,255,255,0.04) 35%, rgba(255,255,255,0.04) 65%, ${hue.a}44)`, boxShadow: `0 12px 32px ${hue.glow}` }}>
+                        <div className="bg-slate-900/95 rounded-[22px] p-5 flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3 min-w-0">
                                 {(isOwner || god) && c.id !== 'main' && (
                                     <button onClick={(e) => { e.stopPropagation(); deleteClub(c); }} title="מחק קלאב" className="w-9 h-9 rounded-xl bg-slate-800/80 text-slate-500 hover:text-white hover:bg-rose-700 border border-white/5 flex items-center justify-center shrink-0 transition-colors">
                                         <i className="fa-solid fa-trash text-xs"></i>
                                     </button>
                                 )}
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center shrink-0 shadow-lg">
-                                    <i className="fa-solid fa-building-columns text-white text-lg"></i>
+                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg text-white font-black text-xl"
+                                     style={{ background: `linear-gradient(135deg, ${hue.a}, ${hue.b})`, textShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>
+                                    {(c.name || '?').trim().charAt(0)}
                                 </div>
                                 <div className="min-w-0">
                                     <div className="font-black text-white text-lg truncate flex items-center gap-2">
                                         {c.name}
-                                        {isOwner && <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/50 text-emerald-300 px-2 py-0.5 rounded-full font-black">👑 שלך</span>}
+                                        {isOwner && <span className="text-[9px] px-2 py-0.5 rounded-full font-black border" style={{ color: hue.a, borderColor: hue.a + '80', background: hue.a + '1f' }}>👑 שלך</span>}
                                     </div>
-                                    <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span className="text-emerald-400"> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
+                                    <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span style={{ color: hue.a }}> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
                                 </div>
                             </div>
                             {action}
@@ -1960,7 +1976,8 @@
                                 <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
                                 <div className="flex flex-col gap-3">
                                     {myClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => onEnter(c)} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0">כניסה</button>
+                                        <button onClick={() => onEnter(c)} className="text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0 hover:brightness-110 transition-all"
+                                                style={{ background: `linear-gradient(180deg, ${clubHue(c.id).a}, ${clubHue(c.id).b})` }}>כניסה</button>
                                     } />)}
                                 </div>
                             </div>
@@ -1982,7 +1999,7 @@
                                 <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-globe ml-1"></i> כל הקלאבים</h3>
                                 <div className="flex flex-col gap-3">
                                     {otherClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => requestJoin(c)} className="bg-slate-800 hover:bg-emerald-800 border border-white/10 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0">בקש להצטרף</button>
+                                        <button onClick={() => requestJoin(c)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0 border transition-all" style={{ borderColor: clubHue(c.id).a + '66' }}>בקש להצטרף</button>
                                     } />)}
                                 </div>
                             </div>
@@ -7012,9 +7029,11 @@
                             });
                             // בשולחנות סטאק (פוקר סיני): מי שנבעט מקבל את הצ'יפים שלו חזרה לארנק
                             if (cashStacks) {
-                                for (const p of kicked) {
-                                    if (p.isBot || !(p.stack > 0)) continue;
-                                    const ms = await tr.get(memDoc(p.uid));
+                                // פיירסטור: כל הקריאות לפני כל הכתיבות - שלב א' אוסף, שלב ב' מזכה
+                                const payable = kicked.filter(p => !p.isBot && p.stack > 0);
+                                const snaps = [];
+                                for (const p of payable) snaps.push([p, await tr.get(memDoc(p.uid))]);
+                                for (const [p, ms] of snaps) {
                                     if (ms.exists()) tr.update(ms.ref, { balance: round2((ms.data().balance || 0) + p.stack) });
                                 }
                             }
@@ -8071,7 +8090,7 @@
                     const boards = {};
                     parts.forEach(p => {
                         const full = placedCount(p) === 13 && !p.left;
-                        boards[p.uid] = full ? ofcBoard(p) : { t: [0], m: [0], b: [0], foul: true, roy: 0, flNext: 0 }; // עוזב/לא הושלם = פאול
+                        boards[p.uid] = full ? { ...ofcBoard(p), left: false } : { t: [0], m: [0], b: [0], foul: true, roy: 0, flNext: 0, left: !!p.left }; // עוזב/לא הושלם = פאול
                     });
                     const pts = {}; parts.forEach(p => pts[p.uid] = 0);
                     for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
