@@ -1418,6 +1418,33 @@
 
             const leaveToClubs = () => { setActiveClubState(null); setActiveMem(null); changeView('clubs'); };
 
+            // התראה כששחקן נכנס / המשחק מתחיל בשולחן שאתה יושב בו וממתין (ואינך כרגע בתוכו)
+            const seatSigRef = useRef({});
+            useEffect(() => {
+                const uid = dbUser?.uid;
+                if (!uid) return;
+                const inTableView = ['rummy-table','poker-table','durak-table','shesh-table','president-table','yaniv-table','bridge-table','gin-table','twist-table','ofc-table'].includes(currentView);
+                const seen = {};
+                (tablesDB || []).forEach(t => {
+                    if (!t.players || !t.players[uid] || t.type === 'poker') return;
+                    seen[t.docId] = true;
+                    const humans = Object.entries(t.players).filter(([k, p]) => !p.isBot && !String(k).startsWith('bot_')).length;
+                    const active = t.type === 'rummikub' ? (t.phase === 'playing') : (t.status === 'playing');
+                    const prev = seatSigRef.current[t.docId];
+                    if (prev) {
+                        const gotOpponent = humans > prev.humans && humans >= 2;
+                        const started = active && !prev.active;
+                        const viewingThis = inTableView && activeTable && activeTable.docId === t.docId;
+                        if ((gotOpponent || started) && !viewingThis) {
+                            showToast(`🔔 ${started ? 'המשחק התחיל' : 'שחקן נכנס'} בשולחן ה${GAME_LABEL(t.type)} שלך!`, 'success');
+                            playSnd('turn');
+                        }
+                    }
+                    seatSigRef.current[t.docId] = { humans, active };
+                });
+                Object.keys(seatSigRef.current).forEach(id => { if (!seen[id]) delete seatSigRef.current[id]; });
+            }, [tablesDB, currentView]);
+
             useEffect(() => {
                 if (!fbReady || !dbUser?.uid) return;
                 const unsubT = window.fb.onSnapshot(window.fb.collection(window.fb.db, "tables"), (s) => {
@@ -2488,6 +2515,40 @@
                 );
             };
 
+            // שולחנות שאתה יושב בהם וממתין - כדי שתוכל לחזור אליהם או לעזוב מהלובי
+            const waitLabel = (t) => t.type === 'poker' ? '' : t.type === 'rummikub' ? (t.phase === 'waiting' ? 'ממתין' : '') : (t.status === 'setup' ? 'ממתין' : '');
+            const joinForType = { rummikub: onJoinRummy, poker: onJoinPoker, durak: onJoinDurak, shesh: onJoinShesh, president: onJoinPres, yaniv: onJoinYaniv, bridge: onJoinBridge, gin: onJoinGin, twist: onJoinTwist, ofc: onJoinOfc };
+            const myWaiting = (tables || []).filter(t => (t.clubId || 'main') === CLUB_ID && t.players && t.players[user.uid] && waitLabel(t) === 'ממתין');
+            const tableStakeLabel = (t) => t.type === 'rummikub' ? `${formatMoney(t.minBuyIn)}` : `${formatMoney((t.settings || {}).buyIn ?? (t.settings || {}).minBuyIn ?? 0)}`;
+            const leaveWaitingTable = async (t) => {
+                try {
+                    let deleted = false;
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const ref = window.fb.doc(window.fb.db, "tables", t.docId);
+                        const uRef = memDoc(user.uid);
+                        const [uSnap, snap] = [await tr.get(uRef), await tr.get(ref)]; // כל הקריאות לפני הכתיבות
+                        if (!snap.exists()) return;
+                        const d = snap.data();
+                        const pl = { ...(d.players || {}) };
+                        const me = pl[user.uid];
+                        if (!me) return;
+                        // החזר כל כניסה ששולמה מראש (OFC/רמיקוב גובים בישיבה) - בשלב ההמתנה אין קופה
+                        const refund = round2((me.stack || 0) + (me.bet || 0));
+                        delete pl[user.uid];
+                        const humans = Object.keys(pl).filter(u => !u.startsWith('bot_') && !pl[u].isBot);
+                        if (refund > 0 && uSnap.exists()) tr.update(uRef, { balance: round2((uSnap.data().balance || 0) + refund) });
+                        if (humans.length === 0) { tr.delete(ref); deleted = true; }
+                        else {
+                            const upd = { players: pl };
+                            if (d.hostUid === user.uid) { const first = Object.values(pl).sort((a, b) => ((a.seatIndex ?? a.seat ?? 0) - (b.seatIndex ?? b.seat ?? 0)))[0]; if (first) upd.hostUid = first.uid; }
+                            tr.update(ref, upd);
+                        }
+                    });
+                    if (deleted) spawnTwinTable(t); // שולחן שנסגר - נולד חדש במקומו (עם dedup)
+                    showToast("עזבת את השולחן", "info");
+                } catch(e) { showToast("שגיאה בעזיבה", "error"); }
+            };
+
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-6xl mx-auto animate-fade-in relative z-10">
@@ -2511,6 +2572,22 @@
                                 <div className="text-2xl font-black text-white" dir="ltr"><Coin amount={user.balance} /></div>
                             </div>
                         </div>
+
+                        {myWaiting.length > 0 && (
+                            <div className="glass-panel rounded-2xl px-4 py-3 mb-5 border border-amber-500/30 animate-fade-in">
+                                <div className="text-[11px] font-black text-amber-300 mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה ממתין ליריב ב{myWaiting.length > 1 ? `-${myWaiting.length} שולחנות` : 'שולחן'} — נודיע לך כששחקן נכנס</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {myWaiting.map(t => (
+                                        <div key={t.docId} className="flex items-center gap-1.5 bg-slate-900/70 border border-amber-500/20 rounded-xl pl-1.5 pr-3 py-1.5">
+                                            <span className="text-xs font-bold text-white">{GAME_LABEL(t.type)} <span className="text-slate-400" dir="ltr">{tableStakeLabel(t)}</span></span>
+                                            <span className="text-[10px] text-slate-500">· {Object.keys(t.players || {}).length} יושבים</span>
+                                            <button onClick={() => (joinForType[t.type] || (() => {}))(t)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg shadow">חזור</button>
+                                            <button onClick={() => leaveWaitingTable(t)} title="עזוב את השולחן" className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-rose-800 text-slate-400 hover:text-white text-xs">✕</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
@@ -4413,6 +4490,7 @@
             /* ---------- עזיבת שולחן ---------- */
             const handleLeave = async () => {
                 if (!tableState?.players?.[user.uid]) { onLeave(); return; }
+                if (tableState.phase === 'waiting' && !tableState.tournamentId) { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (tableState.tournamentId) {
                     if (tableState.phase === 'playing' && !window.confirm("⚠️ עזיבה = פרישה מהטורניר (בלי החזר). בטוח?")) return;
                     try {
@@ -6587,6 +6665,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing' && !t.players[user.uid].out) {
                     if (!window.confirm("⚠️ פרישה באמצע משחק דוראק = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -7502,6 +7581,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע שש-בש = הפסד טכני והיריב לוקח את הקופה. בטוח?")) return;
                     await settleShesh(oppC(myColor), null, true);
@@ -8134,6 +8214,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע משחקון = פאול אוטומטי במשחקון הזה. הסטאק שיישאר ייפדה לארנק. בטוח?")) return;
                     try {
@@ -8730,6 +8811,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -9298,6 +9380,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (['playing', 'hand_end'].includes(t.status)) {
                     if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני וויתור על דמי הכניסה. בטוח?")) return;
                     const oppP = Object.values(t.players).find(p => p.uid !== user.uid);
@@ -9772,6 +9855,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני לצמד שלך וויתור על דמי הכניסה. בטוח?")) return;
                     await settleBridge(null, brSide(t.players[user.uid].seat) === 'NS' ? 'EW' : 'NS', true);
@@ -10714,6 +10798,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (['playing', 'round_end'].includes(t.status) && !t.players[user.uid].out) {
                     if (!window.confirm(t.tournamentId ? "⚠️ עזיבה = פרישה מהטורניר. בטוח?" : "⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -11311,6 +11396,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
+                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing' && (t.players[user.uid].cards || []).length > 0) {
                     if (!window.confirm(t.tournamentId ? "⚠️ עזיבה = פרישה מהטורניר. בטוח?" : "⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
