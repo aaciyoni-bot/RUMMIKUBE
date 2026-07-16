@@ -583,7 +583,8 @@
             const monday = new Date(il);
             monday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
             monday.setHours(0, 1, 0, 0);
-            return monday.getTime() + (now.getTime() - il.getTime());
+            // עיגול לדקה: מסיר את רעש המילישניות מ-toLocaleString כך שהמפתח יציב לאורך כל המחזור
+            return Math.round((monday.getTime() + (now.getTime() - il.getTime())) / 60000) * 60000;
         };
         const genAgentCode = () => 'AG' + Math.random().toString(36).slice(2, 6).toUpperCase();
 
@@ -1834,7 +1835,7 @@
                 if (nm.length < 2 || nm.length > 30) return showToast("שם קלאב בין 2 ל-30 תווים", "error");
                 setCreating(true);
                 try {
-                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now() });
+                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now(), ownerSeeded: true });
                     await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved', balance: 100000000 });
                     setNewName('');
                     showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
@@ -2039,7 +2040,8 @@
                 try {
                     const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("uid", "==", user.uid));
                     const s = await window.fb.getDocs(q);
-                    setLogs(s.docs.map(d => d.data()).sort((a, b) => (b.at || 0) - (a.at || 0)));
+                    // סינון לפי הקלאב הפעיל בזיכרון (בלי אינדקס מורכב) - הדוח האישי תואם ליתרה ולסטטיסטיקות של הקלאב
+                    setLogs(s.docs.map(d => d.data()).filter(l => (l.clubId || 'main') === CLUB_ID).sort((a, b) => (b.at || 0) - (a.at || 0)));
                 } catch(e) { setLogs([]); }
                 setLogsLoading(false);
             };
@@ -2380,13 +2382,13 @@
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreateYnv = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Number(ynvOpts.buyIn) || 0, maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Math.max(0, Number(ynvOpts.buyIn) || 0), maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreateYnv(false); showToast("שולחן יניב נפתח!", "success");
             };
             const [showCreatePres, setShowCreatePres] = useState(false);
             const [presOpts, setPresOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreatePres = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Number(presOpts.buyIn) || 0, maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Math.max(0, Number(presOpts.buyIn) || 0), maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreatePres(false); showToast("שולחן פרזידנט נפתח!", "success");
             };
 
@@ -2429,7 +2431,9 @@
                         if (!snap.exists()) return;
                         const players = snap.data().players || {};
                         const humanUids = Object.keys(players).filter(u => !u.startsWith('bot_') && !players[u].isBot);
-                        const potShare = round2((snap.data().pot || 0) / Math.max(humanUids.length, 1));
+                        // בפוקר הקופה יושבת ב-gameState.pots (לא בשדה pot העליון) - כוללים אותה בהחזר כדי שלא תושמד
+                        const gsPots = round2(((snap.data().gameState || {}).pots || []).reduce((s, p) => s + (Number(p.amount) || 0), 0));
+                        const potShare = round2(((snap.data().pot || 0) + gsPots) / Math.max(humanUids.length, 1));
                         const refunds = [];
                         for (const uid of humanUids) {
                             const uSnap = await tr.get(memDoc(uid));
@@ -3226,7 +3230,7 @@
             const exportClubCSV = async () => {
                 setExporting(true);
                 try {
-                    const s = await window.fb.getDocs(window.fb.collection(window.fb.db, "gameLog"));
+                    const s = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID)));
                     let all = s.docs.map(d => d.data());
                     if (expFrom) all = all.filter(l => l.at >= new Date(expFrom).getTime());
                     if (expTo) all = all.filter(l => l.at <= new Date(expTo).getTime() + 24 * 3600 * 1000);
@@ -6324,6 +6328,9 @@
                         didSettle = true;
                     });
                     if (!didSettle) return;
+                    // שימור צ'יפים: חלקו של בוט מנצח לא ניתן לזיכוי (אין לו חברות) - עובר לקופת הבית במקום להישמד
+                    const durakBotShare = round2(winners.filter(w => w.isBot).length * share);
+                    if (durakBotShare > 0) creditRakeToClub(durakBotShare);
                     distributeRake(rake, Object.keys(pl));
                     logGameResult([
                         ...winners.filter(w => !w.isBot).map(w => ({ uid: w.uid, username: w.name, game: 'durak', profit: round2(share - (Number(setts.buyIn) || 0)) })),
@@ -7395,6 +7402,8 @@
                         didSettle = true;
                     });
                     if (!didSettle) return;
+                    // שימור צ'יפים: בוט מנצח - הזכייה לקופת הבית במקום להישמד
+                    if ((players[winnerUid] || {}).isBot && amount > 0) creditRakeToClub(amount);
                     distributeRake(rake, [winnerUid, loserUid].filter(Boolean));
                     logGameResult([
                         ...(!players[winnerUid]?.isBot ? [{ uid: winnerUid, username: players[winnerUid]?.name, game: 'shesh', profit: round2(amount - buyIn) }] : []),
@@ -10598,6 +10607,8 @@
                         didSettle = true;
                     });
                     if (!didSettle) return;
+                    // שימור צ'יפים: בוט לוקח-הכל - הקופה לבית במקום להישמד
+                    if ((pl[winnerUid] || {}).isBot && prize > 0) creditRakeToClub(prize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.left).map(p => p.uid));
@@ -11257,6 +11268,9 @@
                         didSettle = true;
                     });
                     if (!didSettle) return;
+                    // שימור צ'יפים: פרסי בוטים (לפי דירוג) לקופת הבית במקום להישמד
+                    const presBotPrize = round2(ranks.filter(r => (pl[r.uid] || {}).isBot).reduce((s, r) => s + (r.prize || 0), 0));
+                    if (presBotPrize > 0) creditRakeToClub(presBotPrize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, fo.filter(uid => !(pl[uid] || {}).isBot));
