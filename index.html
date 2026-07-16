@@ -102,22 +102,27 @@
             background: linear-gradient(180deg, rgba(13,20,36,0.66), rgba(7,11,22,0.84));
             -webkit-backdrop-filter: blur(18px) saturate(150%);
             backdrop-filter: blur(18px) saturate(150%);
-            border: 1px solid rgba(255,255,255,0.07);
+            border: 1px solid rgba(103,232,249,0.10);
             box-shadow: 0 20px 48px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
         }
 
         .grad-card {
             position: relative; border-radius: 1.5rem; padding: 1px;
-            background: linear-gradient(165deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04) 40%, rgba(34,211,238,0.16));
+            background: linear-gradient(165deg, rgba(103,232,249,0.45), rgba(255,255,255,0.05) 38%, rgba(34,211,238,0.10) 70%, rgba(34,211,238,0.35));
+            box-shadow: 0 14px 34px rgba(0,0,0,0.45), 0 0 18px rgba(34,211,238,0.07);
             transition: transform 0.22s ease, box-shadow 0.22s ease;
         }
         .grad-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 26px 52px rgba(0,0,0,0.55), 0 0 34px rgba(34,211,238,0.13);
+            box-shadow: 0 26px 52px rgba(0,0,0,0.55), 0 0 30px rgba(34,211,238,0.20), inset 0 0 0 1px rgba(34,211,238,0.25);
         }
         .grad-card-inner {
-            background: linear-gradient(180deg, #0d1526, #080e1b); border-radius: calc(1.5rem - 1px); height: 100%;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+            background:
+                radial-gradient(ellipse at 50% -10%, rgba(34,211,238,0.07), transparent 55%),
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                linear-gradient(180deg, #0d1526, #080e1b);
+            border-radius: calc(1.5rem - 1px); height: 100%;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 30px rgba(0,0,0,0.35);
         }
         .grad-card::after {
             content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -126,7 +131,13 @@
             transition: background-position 0.7s ease;
         }
         .grad-card:hover::after { background-position: -130% 0; }
-        .stat-tile { background: linear-gradient(150deg, rgba(22,31,51,0.9), rgba(10,15,30,0.95)); border: 1px solid rgba(255,255,255,0.07); }
+        .stat-tile {
+            background:
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.010) 0 2px, transparent 2px 7px),
+                linear-gradient(150deg, rgba(22,31,51,0.9), rgba(10,15,30,0.95));
+            border: 1px solid rgba(103,232,249,0.12);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
 
         .pill-tab {
             border: 1px solid rgba(255,255,255,0.06);
@@ -157,6 +168,8 @@
         /* ===== רמיקוב: לוח עתידני כהה ===== */
         #felt-board {
             touch-action: pan-x pan-y;
+            border: 1px solid rgba(34,211,238,0.28);
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.6), inset 0 0 30px rgba(34,211,238,0.06), 0 0 26px rgba(34,211,238,0.08);
             background:
                 radial-gradient(ellipse at 50% 26%, rgba(34,211,238,0.05), transparent 62%),
                 repeating-linear-gradient(0deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
@@ -196,21 +209,28 @@
         /* ===== פוקר: שולחן קפסולה עתידני ===== */
         .poker-table {
             background:
-                radial-gradient(ellipse at 50% 34%, rgba(34,211,238,0.09), transparent 62%),
-                radial-gradient(ellipse at 50% 38%, #16243c 0%, #0c1526 55%, #060b14 100%);
+                radial-gradient(ellipse at 50% 40%, rgba(34,211,238,0.13), rgba(34,211,238,0.03) 45%, transparent 68%),
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.014) 0 2px, transparent 2px 7px),
+                radial-gradient(ellipse at 50% 38%, #14213a 0%, #0b1424 55%, #060b14 100%);
             border-radius: 46% / 24%;
             border: 7px solid #0a0f19;
-            box-shadow: inset 0 0 70px rgba(0,0,0,0.75), inset 0 0 40px rgba(8,145,178,0.10), 0 22px 55px rgba(0,0,0,0.85);
+            box-shadow: inset 0 0 80px rgba(0,0,0,0.8), 0 24px 60px rgba(0,0,0,0.85), 0 0 45px rgba(34,211,238,0.10);
             position: relative;
         }
         .poker-table::before {
             content: ''; position: absolute; inset: -7px; border-radius: inherit; pointer-events: none;
             border: 2px solid transparent;
-            background: linear-gradient(165deg, #3a4a66, #141a28 45%, #2b3752 75%, #10151f) border-box;
+            background: linear-gradient(165deg, #46536e, #161c2a 40%, #34405c 72%, #10151f) border-box;
             -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor; mask-composite: exclude;
         }
-        .poker-table::after { content: ''; position: absolute; inset: 12px; border-radius: inherit; pointer-events: none; border: 1px solid rgba(103,232,249,0.10); box-shadow: 0 0 22px rgba(34,211,238,0.07) inset; }
+        .poker-table::after {
+            content: ''; position: absolute; inset: 10px; border-radius: inherit; pointer-events: none;
+            border: 2px solid rgba(34,211,238,0.50);
+            box-shadow: 0 0 16px rgba(34,211,238,0.38), 0 0 40px rgba(34,211,238,0.12), inset 0 0 26px rgba(34,211,238,0.15);
+            animation: ledBreathe 4.5s ease-in-out infinite;
+        }
+        @keyframes ledBreathe { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 
         .card-face {
             background: linear-gradient(168deg, #ffffff 0%, #edf2f8 100%);
@@ -227,9 +247,9 @@
             box-shadow: 0 6px 14px rgba(2,6,23,0.55), inset 0 0 0 3px rgba(255,255,255,0.05);
         }
 
-        .casino-chip { border-radius: 50%; background-color: #f8fafc; box-shadow: inset 0 0 4px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; position: absolute; border-style: dashed; }
-        .casino-chip-inner { border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-weight: 900; font-family: 'Rubik', sans-serif; background: rgba(255,255,255,0.9); }
-        .chip-1000 { border-color: #3b82f6; color: #1e3a8a; } .chip-100 { border-color: #0c1322; color: #05070f; } .chip-25 { border-color: #06b6d4; color: #164e63; } .chip-5 { border-color: #e3ae4e; color: #854d0e; } .chip-1 { border-color: #94a3b8; color: #26334d; }
+        .casino-chip { border-radius: 50%; border-style: dashed; box-shadow: 0 3px 6px rgba(0,0,0,0.55), inset 0 -2px 4px rgba(0,0,0,0.40), inset 0 2px 3px rgba(255,255,255,0.28); display: flex; align-items: center; justify-content: center; position: absolute; }
+        .casino-chip-inner { border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); display: flex; align-items: center; justify-content: center; font-weight: 900; font-family: 'Rubik', sans-serif; background: rgba(2,6,15,0.32); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.6); }
+        .chip-1000 { background-color: #7c3aed; border-color: #ede9fe; } .chip-100 { background-color: #111827; border-color: #94a3b8; } .chip-25 { background-color: #0f766e; border-color: #ccfbf1; } .chip-5 { background-color: #b91c1c; border-color: #fecaca; } .chip-1 { background-color: #64748b; border-color: #f1f5f9; }
 
         .player-pod { width: 56px; height: 56px; border-radius: 50%; background-color: #121a2a; border: 2px solid #283552; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.6); background-size: cover; background-position: center; position: relative; }
         .active-glow { border-color: #f5c860 !important; animation: pulseBorder 1.5s infinite; }
@@ -257,19 +277,54 @@
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
 
         /* ===== שש-בש: לוח גרפיט עתידני ===== */
-        .shesh-frame { background: linear-gradient(160deg, #232e45, #151e31 45%, #0c1220); border: 8px solid #070b14; border-radius: 18px; box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 18px 45px rgba(0,0,0,0.7), 0 0 40px rgba(34,211,238,0.05); }
-        .shesh-half { background: radial-gradient(ellipse at 50% 50%, #121c30 0%, #0b1322 85%); border: 1px solid rgba(103,232,249,0.10); border-radius: 10px; box-shadow: inset 0 0 22px rgba(0,0,0,0.5); }
+        .shesh-frame {
+            background:
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.014) 0 2px, transparent 2px 7px),
+                linear-gradient(160deg, #232e45, #151e31 45%, #0c1220);
+            border: 8px solid #070b14; border-radius: 18px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 18px 45px rgba(0,0,0,0.7), 0 0 40px rgba(34,211,238,0.08);
+            position: relative;
+        }
+        .shesh-frame::after {
+            content: ''; position: absolute; inset: 3px; border-radius: 10px; pointer-events: none; z-index: 5;
+            border: 2px solid rgba(34,211,238,0.40);
+            box-shadow: 0 0 14px rgba(34,211,238,0.30), inset 0 0 20px rgba(34,211,238,0.10);
+            animation: ledBreathe 4.5s ease-in-out infinite;
+        }
+        .shesh-half {
+            background:
+                radial-gradient(ellipse at 50% 30%, rgba(34,211,238,0.05), transparent 65%),
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                radial-gradient(ellipse at 50% 50%, #121c30 0%, #0b1322 85%);
+            border: 1px solid rgba(103,232,249,0.10); border-radius: 10px; box-shadow: inset 0 0 22px rgba(0,0,0,0.55);
+        }
         .shesh-bar { background: linear-gradient(180deg, #1a2438, #101827); box-shadow: inset 0 0 14px rgba(0,0,0,0.55); border: 1px solid rgba(0,0,0,0.35); border-radius: 8px; }
         .pt-down { clip-path: polygon(8% 0, 92% 0, 50% 97%); }
         .pt-up { clip-path: polygon(50% 3%, 92% 100%, 8% 100%); }
-        .pt-a { background: linear-gradient(to bottom, #0e7490, #164e63); }
+        .pt-a { background: linear-gradient(to bottom, rgba(255,255,255,0.14), transparent 22%), linear-gradient(to bottom, #0e7490, #155e75 55%, #134152); }
         .pt-up, .pt-down { filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
-        .pt-b { background: linear-gradient(to bottom, #3a4a6b, #222d45); }
-        .checker { border-radius: 50%; box-shadow: 0 4px 7px rgba(0,0,0,0.6), inset 0 -3px 5px rgba(0,0,0,0.5), inset 0 3px 5px rgba(255,255,255,0.35); border: 2px solid rgba(0,0,0,0.35); }
-        .checker-w { background: radial-gradient(circle at 30% 30%, #ffffff, #d6dee8 60%, #9fb0c4); }
-        .checker-b { background: radial-gradient(circle at 30% 30%, #3e4c66, #1b2436 60%, #0a0f1b); border-color: #000; }
-        .dice { width: 40px; height: 40px; background: radial-gradient(circle at center, #ffffff, #eef1f5); border-radius: 9px; box-shadow: inset 0 0 8px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.45); display: grid; grid-template-areas: "a . c" "e g f" "d . b"; padding: 6px; gap: 2px; }
-        .dot { width: 7px; height: 7px; border-radius: 50%; background-color: #111827; box-shadow: inset 0 2px 3px rgba(0,0,0,0.6); }
+        .pt-b { background: linear-gradient(to bottom, rgba(255,255,255,0.10), transparent 22%), linear-gradient(to bottom, #3e4f73, #28344f 55%, #1c2539); }
+        .checker { border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.65), inset 0 -3px 5px rgba(0,0,0,0.45), inset 0 2px 3px rgba(255,255,255,0.30); border: 1px solid rgba(0,0,0,0.45); }
+        .checker-w {
+            background:
+                radial-gradient(circle at 34% 28%, rgba(255,255,255,0.95), rgba(255,255,255,0) 42%),
+                repeating-radial-gradient(circle at 50% 50%, #eef2f7 0 15%, #c9d3e0 15% 19%, #e7ecf3 19% 38%, #bfcbda 38% 42%, #e2e8f0 42% 62%, #cbd5e1 62% 66%, #dde4ee 66% 100%);
+        }
+        .checker-b {
+            background:
+                radial-gradient(circle at 34% 28%, rgba(148,163,184,0.5), rgba(148,163,184,0) 42%),
+                repeating-radial-gradient(circle at 50% 50%, #2c3853 0 15%, #131c2f 15% 19%, #27334d 19% 38%, #101827 38% 42%, #232e47 42% 62%, #141d31 62% 66%, #1e2840 66% 100%);
+            border-color: #000;
+        }
+        .dice {
+            width: 40px; height: 40px;
+            background: linear-gradient(145deg, #ffffff 0%, #f2f5f9 55%, #dfe5ec 100%);
+            border-radius: 22%;
+            border: 1px solid rgba(180,190,205,0.7);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 2px 2px rgba(255,255,255,0.9), inset 0 -3px 5px rgba(120,135,160,0.35);
+            display: grid; grid-template-areas: "a . c" "e g f" "d . b"; padding: 6px; gap: 2px;
+        }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #334155, #0b1220 70%); box-shadow: inset 0 1.5px 2px rgba(0,0,0,0.75), 0 1px 0 rgba(255,255,255,0.5); }
         .dice[data-val="1"] { justify-content: center; align-content: center; align-items: center; display: flex; }
         @media (max-width: 640px) { .dice { width: 33px !important; height: 33px !important; } }
         .dice[data-val="2"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="2"] .dot:nth-child(2) { grid-area: b; }
@@ -278,38 +333,46 @@
         .dice[data-val="5"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="5"] .dot:nth-child(2) { grid-area: c; } .dice[data-val="5"] .dot:nth-child(3) { grid-area: g; align-self: center; justify-self: center; } .dice[data-val="5"] .dot:nth-child(4) { grid-area: d; } .dice[data-val="5"] .dot:nth-child(5) { grid-area: b; }
         .dice[data-val="6"] .dot:nth-child(1) { grid-area: a; } .dice[data-val="6"] .dot:nth-child(2) { grid-area: c; } .dice[data-val="6"] .dot:nth-child(3) { grid-area: e; } .dice[data-val="6"] .dot:nth-child(4) { grid-area: f; } .dice[data-val="6"] .dot:nth-child(5) { grid-area: d; } .dice[data-val="6"] .dot:nth-child(6) { grid-area: b; }
         @keyframes rollShake { 0% { transform: translate(0,0) rotate(0); } 25% { transform: translate(-3px,-3px) rotate(-15deg); } 50% { transform: translate(3px,3px) rotate(15deg); } 75% { transform: translate(-3px,3px) rotate(-8deg); } 100% { transform: translate(0,0) rotate(0); } }
-        .rolling { animation: rollShake 0.4s infinite; }
+        .rolling { animation: rollShake 0.4s infinite; box-shadow: 0 6px 12px rgba(0,0,0,0.5), 0 0 18px rgba(34,211,238,0.55), inset 0 2px 2px rgba(255,255,255,0.9) !important; }
 
         /* ===== קוביות המשחקים בדשבורד ===== */
         .game-cube {
             position: relative; aspect-ratio: 1 / 1; min-width: 0;
-            border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-            border: 1px solid var(--cubeB); background: linear-gradient(165deg, var(--cubeBg1), var(--cubeBg2));
+            border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+            border: 1px solid rgba(103,232,249,0.10);
+            background:
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                linear-gradient(165deg, #0d1526, #080e1b);
             overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
-        .game-cube::before { content: ''; position: absolute; inset: 0; background: radial-gradient(110px 80px at 50% -5%, var(--cubeGlowSoft), transparent 70%); }
-        .game-cube:hover { transform: translateY(-3px); border-color: var(--cubeB2); box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 22px var(--cubeGlowSoft); }
+        .game-cube::before { content: ''; position: absolute; inset: 0; background: radial-gradient(110px 70px at 50% -8%, rgba(34,211,238,0.07), transparent 70%); }
+        .game-cube:hover { transform: translateY(-3px); border-color: rgba(34,211,238,0.35); box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 20px rgba(34,211,238,0.10); }
         .game-cube .cube-icon {
-            width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
-            font-size: 19px; color: #fff; background: linear-gradient(160deg, var(--cubeA), var(--cubeA2));
-            box-shadow: 0 6px 16px var(--cubeGlow), inset 0 1px 0 rgba(255,255,255,0.35); position: relative;
+            width: 42px; height: 42px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+            font-size: 17px; color: #a5f3fc;
+            background: rgba(34,211,238,0.07);
+            border: 1px solid rgba(34,211,238,0.20);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); position: relative;
+            transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
         }
-        .game-cube .cube-label { font-weight: 900; font-size: 13px; color: #e2e8f0; position: relative; white-space: nowrap; }
-        .game-cube .cube-count { font-weight: 700; font-size: 10px; color: #64748b; position: relative; white-space: nowrap; }
-        .cube-active { border-color: var(--cubeA) !important; transform: translateY(-3px); box-shadow: inset 0 0 0 2px var(--cubeA), 0 12px 30px var(--cubeGlow), 0 0 28px var(--cubeGlow) !important; }
+        .game-cube .cube-label { font-weight: 800; font-size: 13px; color: #cbd5e1; position: relative; white-space: nowrap; }
+        .game-cube .cube-count { font-weight: 700; font-size: 10px; color: #5b6b84; position: relative; white-space: nowrap; }
+        .cube-active {
+            border-color: rgba(34,211,238,0.60) !important; transform: translateY(-3px);
+            box-shadow: inset 0 0 0 1px rgba(34,211,238,0.35), 0 12px 30px rgba(0,0,0,0.5), 0 0 26px rgba(34,211,238,0.18) !important;
+            background:
+                radial-gradient(120px 80px at 50% -10%, rgba(34,211,238,0.16), transparent 70%),
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                linear-gradient(165deg, #0f1c31, #091120);
+        }
+        .cube-active .cube-icon {
+            background: linear-gradient(180deg, #22d3ee, #0891b2); color: #05202b;
+            border-color: rgba(165,243,252,0.7);
+            box-shadow: 0 6px 18px rgba(34,211,238,0.40), inset 0 1px 0 rgba(255,255,255,0.45);
+        }
         .cube-active .cube-label { color: #fff; }
-        .cube-active .cube-count { color: #cbd5e1; }
-        .cube-emerald { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171d; --cubeBg2:#070d18; }
-        .cube-rose { --cubeA:#f43f5e; --cubeA2:#9f1239; --cubeGlow:rgba(244,63,94,0.35); --cubeGlowSoft:rgba(244,63,94,0.14); --cubeB:rgba(244,63,94,0.22); --cubeB2:rgba(244,63,94,0.55); --cubeBg1:#1a0b10; --cubeBg2:#070d18; }
-        .cube-sky { --cubeA:#0ea5e9; --cubeA2:#075985; --cubeGlow:rgba(14,165,233,0.35); --cubeGlowSoft:rgba(14,165,233,0.14); --cubeB:rgba(14,165,233,0.22); --cubeB2:rgba(14,165,233,0.55); --cubeBg1:#0a141f; --cubeBg2:#070d18; }
-        .cube-amber { --cubeA:#f59e0b; --cubeA2:#b45309; --cubeGlow:rgba(245,158,11,0.35); --cubeGlowSoft:rgba(245,158,11,0.14); --cubeB:rgba(245,158,11,0.22); --cubeB2:rgba(245,158,11,0.55); --cubeBg1:#1a1408; --cubeBg2:#070d18; }
-        .cube-cyan { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171b; --cubeBg2:#070d18; }
-        .cube-purple { --cubeA:#a855f7; --cubeA2:#6b21a8; --cubeGlow:rgba(168,85,247,0.35); --cubeGlowSoft:rgba(168,85,247,0.14); --cubeB:rgba(168,85,247,0.22); --cubeB2:rgba(168,85,247,0.55); --cubeBg1:#150b1f; --cubeBg2:#070d18; }
-        .cube-indigo { --cubeA:#6366f1; --cubeA2:#3730a3; --cubeGlow:rgba(99,102,241,0.35); --cubeGlowSoft:rgba(99,102,241,0.14); --cubeB:rgba(99,102,241,0.22); --cubeB2:rgba(99,102,241,0.55); --cubeBg1:#0e0f24; --cubeBg2:#070d18; }
-        .cube-teal { --cubeA:#14b8a6; --cubeA2:#134e4a; --cubeGlow:rgba(20,184,166,0.35); --cubeGlowSoft:rgba(20,184,166,0.14); --cubeB:rgba(20,184,166,0.22); --cubeB2:rgba(20,184,166,0.55); --cubeBg1:#081a18; --cubeBg2:#070d18; }
-        .cube-orange { --cubeA:#f97316; --cubeA2:#9a3412; --cubeGlow:rgba(249,115,22,0.35); --cubeGlowSoft:rgba(249,115,22,0.14); --cubeB:rgba(249,115,22,0.22); --cubeB2:rgba(249,115,22,0.55); --cubeBg1:#1a1008; --cubeBg2:#070d18; }
-        .cube-lime { --cubeA:#84cc16; --cubeA2:#3f6212; --cubeGlow:rgba(132,204,22,0.35); --cubeGlowSoft:rgba(132,204,22,0.14); --cubeB:rgba(132,204,22,0.22); --cubeB2:rgba(132,204,22,0.55); --cubeBg1:#131a08; --cubeBg2:#070d18; }
-        .cube-gold { --cubeA:#e3ae4e; --cubeA2:#a16207; --cubeGlow:rgba(227,174,78,0.35); --cubeGlowSoft:rgba(227,174,78,0.14); --cubeB:rgba(227,174,78,0.28); --cubeB2:rgba(227,174,78,0.6); --cubeBg1:#1a1608; --cubeBg2:#070d18; }
+        .cube-active .cube-count { color: #a5f3fc; }
+        .cube-emerald, .cube-rose, .cube-sky, .cube-amber, .cube-cyan, .cube-purple, .cube-indigo, .cube-teal, .cube-orange, .cube-lime, .cube-gold { --cubeA: #22d3ee; }
 
         /* לוגו נושם */
         .logo-shine { background-size: 200% auto !important; animation: logoShine 5.5s linear infinite; }
@@ -1194,7 +1257,7 @@
                         </div>
                     ))}
                     {showLabel && (
-                        <div className="absolute transform -translate-x-1/2 left-1/2 bg-slate-900/90 text-white font-black px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap shadow-lg border border-slate-700" style={{ bottom: `${(chipsToRender.length * 3 * scale) + chipSize + 4}px` }}>
+                        <div className="absolute transform -translate-x-1/2 left-1/2 bg-slate-950/90 text-gold-400 font-black px-2 py-0.5 rounded-md text-[10px] whitespace-nowrap shadow-lg border border-white/10" style={{ bottom: `${(chipsToRender.length * 3 * scale) + chipSize + 4}px` }}>
                             {formatShort(amount)}
                         </div>
                     )}
@@ -1580,18 +1643,20 @@
                         {currentView === 'ofc-table' && <OFCTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('ofc'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
-                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
-                        {clubMsg && !inTable && (
-                            <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={dismissClubMsg}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 max-w-md w-full text-center shadow-2xl animate-pop-in">
-                                    <div className="text-4xl mb-2">📣</div>
-                                    <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
-                                    <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap">{clubMsg.text}</div>
-                                    <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
-                                    {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
-                                </div>
+                    {/* חלון הודעת ברודקאסט - overlay עצמאי ברמת המסך (לא בתוך קונטיינר הטוסטים) כדי ש-fixed ימוקם ביחס לחלון ושהלחיצות ייקלטו */}
+                    {clubMsg && !inTable && (
+                        <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={dismissClubMsg}>
+                            <div onClick={e=>e.stopPropagation()} className="relative bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 pt-10 max-w-md w-full text-center shadow-2xl animate-pop-in my-auto max-h-[90vh] overflow-y-auto">
+                                <button onClick={dismissClubMsg} aria-label="סגור" className="absolute top-3 left-3 w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-700 text-slate-300 hover:text-white font-black flex items-center justify-center border border-white/10 leading-none">✕</button>
+                                <div className="text-4xl mb-2">📣</div>
+                                <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
+                                <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap break-words">{clubMsg.text}</div>
+                                <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
+                                {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
                             </div>
-                        )}
+                        </div>
+                    )}
+                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>{t.msg}</div>
                         ))}
@@ -1776,7 +1841,7 @@
             const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', bridge: "ברידג'", gin: "ג'ין רמי", twist: 'טוויסט', ofc: 'פוקר סיני', tournament: 'טורניר' };
             return ReactDOM.createPortal(
                 <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
-                    <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-5 max-w-lg w-full max-h-[88vh] overflow-y-auto">
+                    <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-5 max-w-lg w-full max-h-[88vh] overflow-y-auto">
                         <div className="flex items-center gap-3 mb-4">
                             <img src={avatarUrl({ ...mem, uid: mem.uid })} className="w-14 h-14 rounded-full bg-slate-800 border border-white/10" />
                             <div className="min-w-0 flex-1">
@@ -1994,7 +2059,7 @@
                             )}
                             {iosGuide && ReactDOM.createPortal(
                                 <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIosGuide(false)}>
-                                    <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+                                    <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
                                         <div className="text-4xl mb-2">📲</div>
                                         <h3 className="text-xl font-black text-white mb-4">התקנה באייפון</h3>
                                         {!isIOSSafari && (
@@ -2065,7 +2130,7 @@
 
                         {joinFor && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJoinFor(null)}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full text-center">
+                                <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center">
                                     <div className="text-3xl mb-1">🎟️</div>
                                     <h3 className="text-lg font-black text-white mb-1">הצטרפות ל"{joinFor.name}"</h3>
                                     <p className="text-slate-400 text-xs font-bold mb-4">יש לך קוד סוכן? הזן אותו ותשויך אליו אוטומטית</p>
@@ -2660,19 +2725,19 @@
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
-                                { id: 'poker', label: 'פוקר', icon: 'fa-diamond', c: 'rose', n: pokerTables.length },
+                                { id: 'poker', label: 'פוקר', suit: '♠', c: 'rose', n: pokerTables.length },
                                 { id: 'durak', label: 'דוראק', icon: 'fa-shield-halved', c: 'sky', n: durakTables.length },
                                 { id: 'shesh', label: 'שש-בש', icon: 'fa-dice', c: 'amber', n: sheshTables.length },
-                                { id: 'yaniv', label: 'יניב', icon: 'fa-bolt', c: 'cyan', n: yanivTables.length },
-                                { id: 'president', label: 'פרזידנט', icon: 'fa-chess-king', c: 'purple', n: presTables.length },
-                                { id: 'bridge', label: "ברידג'", icon: 'fa-diamond', c: 'indigo', n: bridgeTables.length },
+                                { id: 'yaniv', label: 'יניב', suit: '♥', c: 'cyan', n: yanivTables.length },
+                                { id: 'president', label: 'פרזידנט', icon: 'fa-crown', c: 'purple', n: presTables.length },
+                                { id: 'bridge', label: "ברידג'", suit: '♦', c: 'indigo', n: bridgeTables.length },
                                 { id: 'gin', label: "ג'ין רמי", icon: 'fa-layer-group', c: 'lime', n: ginTables.length },
                                 { id: 'twist', label: 'טוויסט', icon: 'fa-arrows-spin', c: 'orange', n: twistTables.length },
                                 { id: 'ofc', label: 'פוקר סיני', icon: 'fa-table-cells', c: 'teal', n: ofcTables.length },
                                 { id: 'tours', label: 'טורנירים', icon: 'fa-trophy', c: 'gold', n: (tournaments || []).filter(t => (t.clubId || 'main') === CLUB_ID && ['reg', 'running'].includes(t.status)).length },
                             ].map(g => (
                                 <button key={g.id} onClick={() => setTab(g.id)} className={`game-cube cube-${g.c} ${tab === g.id ? 'cube-active' : ''}`}>
-                                    <span className="cube-icon"><i className={`fa-solid ${g.icon}`}></i></span>
+                                    <span className="cube-icon">{g.suit ? <SuitGlyph s={g.suit} color="currentColor" size="1.1em"/> : <i className={`fa-solid ${g.icon}`}></i>}</span>
                                     <span className="cube-label">{g.label}</span>
                                     <span className="cube-count">{g.n} שולחנות</span>
                                 </button>
@@ -2722,7 +2787,7 @@
 
                         {bonusOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!bonusSpin || bonusSpin.done) && setBonusOpen(false)}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-7 text-center max-w-sm w-full shadow-2xl">
+                                <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-7 text-center max-w-sm w-full shadow-2xl">
                                     <h3 className="text-2xl font-black text-amber-400 mb-1">🎁 גלגל הבונוס היומי</h3>
                                     <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הפרס משולם מקופת הקלאב ישר ליתרה</p>
                                     <div className="relative w-64 h-64 mx-auto mb-6">
@@ -3799,7 +3864,7 @@
                         {playerFile && <PlayerFileModal mem={playerFile} agentName={agentName} canEdit={isOwner || canManageAny || playerFile.agentUid === user.uid} onClose={() => setPlayerFile(null)} showToast={showToast} />}
                         {assignFor && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setAssignFor(null)}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full text-center">
+                                <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center">
                                     <div className="text-3xl mb-1">🤝</div>
                                     <h3 className="text-lg font-black text-white mb-1">לאיזה סוכן לשייך את {assignFor.username}?</h3>
                                     <p className="text-slate-400 text-xs font-bold mb-4">השחקן הגיע בלי קוד סוכן - בחר שיוך או אשר בלי</p>
@@ -4766,7 +4831,12 @@
             return (
                 <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl">
 
-                    {tableState.phase === 'waiting' && (
+                    {tableState.phase === 'waiting' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין לשחקנים ({Object.keys(tableState.players || {}).length})</span>
+                        </div>
+                    )}
+                    {tableState.phase === 'waiting' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-8 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <h2 className="text-3xl font-black text-white mb-2">ממתין לשחקנים...</h2>
@@ -6091,12 +6161,12 @@
                             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1.5 z-10" dir="ltr">
                                 {(gs.board || []).map((c, i) => <PCard key={i} card={c} size="lg" />)}
                                 {gs.phase !== 'waiting' && [...Array(Math.max(0, 5 - (gs.board || []).length))].map((_, i) => (
-                                    <div key={'ph'+i} className="w-11 sm:w-12 rounded-lg border-2 border-dashed border-white/10" style={{ height: '4.4rem' }}></div>
+                                    <div key={'ph'+i} className="w-11 sm:w-12 rounded-lg border border-dashed border-white/15 bg-white/[0.02]" style={{ height: '4.4rem' }}></div>
                                 ))}
                             </div>
 
                             <div className="absolute left-1/2 top-[64%] -translate-x-1/2 text-center z-10 pointer-events-none w-[80%]">
-                                {gs.phase === 'waiting' && <div className="text-emerald-200/25 font-black text-xs tracking-[0.3em] uppercase">Rummikube Elite</div>}
+                                {gs.phase === 'waiting' && <div className="text-cyan-200/20 font-black text-xs tracking-[0.35em] uppercase">Rummikube Elite</div>}
                                 {gs.phase === 'discard' && <div className="text-amber-300 font-black text-xs animate-pulse">🍍 Pineapple - זורקים קלף אחד...</div>}
                             </div>
 
@@ -6358,7 +6428,7 @@
                     )}
 
                     {/* צ'אט */}
-                    <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-[128px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
@@ -6368,7 +6438,7 @@
                     {isSeated && (
                         <div className="absolute bottom-20 left-3 z-[60] flex flex-col gap-2">
                             <button onClick={toggleSitOut} title={myPlayer?.sitOut ? 'חזור לשולחן' : 'סיט-אאוט'} className={`w-11 h-11 rounded-2xl border shadow-xl text-lg ${myPlayer?.sitOut ? 'bg-amber-500 text-slate-900 border-amber-300 animate-pulse' : 'bg-slate-900/90 border-white/10 text-slate-300 hover:text-amber-300'}`}>{myPlayer?.sitOut ? '✋' : '☕'}</button>
-                            {!(tableState?.tournamentId) && <button onClick={topUpChips} title="הוסף צ'יפים" className="w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-emerald-300 shadow-xl text-lg">💰</button>}
+                            {!(tableState?.tournamentId) && <button onClick={topUpChips} title="הוסף צ'יפים" className="w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-emerald-300 shadow-xl text-lg">💰</button>}
                         </div>
                     )}
 
@@ -7121,7 +7191,14 @@
                         </div>
 
                         {/* המתנה לשחקנים */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-blue-500/40">
                                     <i className="fa-solid fa-chess-king text-4xl text-blue-400 mb-2"></i>
@@ -7239,7 +7316,7 @@
                     </div>
 
                     {/* צ'אט */}
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[150px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[150px] left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-[150px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
@@ -7449,10 +7526,10 @@
             if (!H) return null;
             return (
                 <React.Fragment>
-                    <button onClick={() => setOpen(true)} title="איך משחקים?" className={`absolute ${cls} z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-amber-300 shadow-xl`}><i className="fa-solid fa-circle-question text-lg"></i></button>
+                    <button onClick={() => setOpen(true)} title="איך משחקים?" className={`absolute ${cls} z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-amber-300 shadow-xl`}><i className="fa-solid fa-circle-question text-lg"></i></button>
                     {open && ReactDOM.createPortal(
                         <div dir="rtl" className="fixed inset-0 z-[400] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(false)}>
-                            <div onClick={e => e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto">
+                            <div onClick={e => e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto">
                                 <h3 className="text-xl font-black text-white mb-4 text-center">{H.title}</h3>
                                 <div className="space-y-2.5">
                                     {H.lines.map((l, i) => (
@@ -8051,7 +8128,14 @@
                         </div>
 
                         {/* המתנה */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
                                     <i className="fa-solid fa-dice text-4xl text-amber-400 mb-2"></i>
@@ -8112,7 +8196,7 @@
                     </div>
 
                     {/* צ'אט */}
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[86px] left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl">
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[86px] left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-[86px] left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
@@ -8828,7 +8912,14 @@
                         )}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-teal-500/40">
                                     <i className="fa-solid fa-table-cells text-4xl text-teal-400 mb-2"></i>
@@ -8888,7 +8979,7 @@
                         )}
                     </div>
 
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-4 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-4 left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-4 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                     <HelpButton game="ofc" cls="bottom-4 right-3" />
                 </div>
@@ -9224,7 +9315,7 @@
 
             /* ---------- רינדור ---------- */
             const TCard = ({ c, sel, onClick, small }) => (
-                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg bg-gradient-to-b from-white to-slate-200 border shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : 'border-slate-400'} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'} ${[1, 2, 8, 11].includes(c.v) ? 'ring-1 ring-orange-400/70' : ''}`}>
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : 'border-slate-400'} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'} ${[1, 2, 8, 11].includes(c.v) ? 'ring-1 ring-orange-400/70' : ''}`}>
                     <span className="leading-none">{twName(c.v)}</span>
                     <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
                 </div>
@@ -9298,7 +9389,14 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-orange-500/40">
                                     <i className="fa-solid fa-arrows-spin text-4xl text-orange-400 mb-2"></i>
@@ -9342,7 +9440,7 @@
                         {/* בחירת צבע לנסיך */}
                         {jPick && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJPick(null)}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-slate-900 border border-white/10 rounded-3xl p-6 text-center">
+                                <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-6 text-center">
                                     <h3 className="text-lg font-black text-white mb-4">נסיך! לאיזה צבע להחליף?</h3>
                                     <div className="flex gap-3">
                                         {['♠', '♥', '♦', '♣'].map(su => (
@@ -9387,7 +9485,7 @@
                         {isSeated && T.status === 'playing' && <div className="text-center text-[9px] text-slate-600 font-bold mt-1">קלפים עם מסגרת כתומה = מיוחדים · אפשר להניח כמה קלפים באותו מספר יחד</div>}
                     </div>
 
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-28 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                     <HelpButton game="twist" cls="bottom-28 right-3" />
                 </div>
@@ -9795,7 +9893,7 @@
 
             /* ---------- רינדור ---------- */
             const GCard = ({ c, sel, meld, onClick, small }) => (
-                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg bg-gradient-to-b from-white to-slate-200 shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
                     <span className="leading-none">{ginName(c.v)}</span>
                     <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
                 </div>
@@ -9869,7 +9967,14 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-lime-500/40">
                                     <i className="fa-solid fa-layer-group text-4xl text-lime-400 mb-2"></i>
@@ -9955,7 +10060,7 @@
                         {isSeated && T.status === 'playing' && <div className="text-center text-[9px] text-slate-600 font-bold mt-1">קלפים במסגרת ירוקה = מלדים · השאר = עודף (Deadwood)</div>}
                     </div>
 
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-28 left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-28 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                     <HelpButton game="gin" cls="bottom-28 right-3" />
                 </div>
@@ -10332,7 +10437,7 @@
 
             /* ---------- רינדור ---------- */
             const BCard = ({ c, onClick, dim, small }) => (
-                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-10 h-14 sm:w-12 sm:h-16 text-sm sm:text-base'} rounded-lg bg-gradient-to-b from-white to-slate-200 border border-slate-400 shadow-md flex flex-col items-center justify-center font-black shrink-0 ${onClick ? 'cursor-pointer hover:-translate-y-1.5 transition-transform' : ''} ${dim ? 'opacity-40' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-10 h-14 sm:w-12 sm:h-16 text-sm sm:text-base'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 ${onClick ? 'cursor-pointer hover:-translate-y-1.5 transition-transform' : ''} ${dim ? 'opacity-40' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
                     <span className="leading-none">{brRankName(c.v)}</span>
                     <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
                 </div>
@@ -10428,7 +10533,14 @@
                         {errMsg && <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-indigo-500/40">
                                     <i className="fa-solid fa-diamond text-4xl text-indigo-400 mb-2"></i>
@@ -10510,7 +10622,7 @@
                         </div>
                     </div>
 
-                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-24 left-3 z-[60] w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
+                    <button onClick={() => ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-24 left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl"><i className="fa-solid fa-comment-dots"></i></button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={() => ch.setChatOpen(false)} className="bottom-24 left-3" targets={list.filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                     <HelpButton game="bridge" cls="bottom-24 right-3" />
                 </div>
@@ -11192,8 +11304,16 @@
                         </div>
                     )}
 
+                    {/* Setup - seated player stays INSIDE the table */}
+                    {T.status === 'setup' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
+                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
+                        </div>
+                    )}
                     {/* Setup */}
-                    {T.status === 'setup' && (
+                    {T.status === 'setup' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-bolt text-emerald-500 text-4xl mb-2"></i>
@@ -11796,8 +11916,16 @@
                         </div>
                     )}
 
+                    {/* Setup overlay - seated player stays INSIDE the table */}
+                    {T.status === 'setup' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
+                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-purple-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
+                        </div>
+                    )}
                     {/* Setup overlay */}
-                    {T.status === 'setup' && (
+                    {T.status === 'setup' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-purple-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-chess-king text-purple-500 text-4xl mb-2"></i>
