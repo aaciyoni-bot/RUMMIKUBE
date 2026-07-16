@@ -4083,6 +4083,7 @@
                             const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: Number(t.minBuyIn), isBot: true } };
                             if (Object.keys(newPlayers).length === Number(t.maxPlayers)) {
                                 await window.fb.updateDoc(tblRef, buildDeal(newPlayers));
+                                spawnTwinTable(t); // התמלא בבוטים והמשחק התחיל - נפתח תאום ממתין חדש (עם dedup)
                             } else {
                                 await window.fb.updateDoc(tblRef, { players: newPlayers });
                             }
@@ -6564,6 +6565,7 @@
                             lastResults: null, turnStartedAt: Date.now()
                         });
                     });
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהתחלת המשחק"); }
             };
 
@@ -7822,6 +7824,7 @@
                             turn: a > b ? 'w' : 'b', turnStartedAt: Date.now(), lastResults: null
                         });
                     });
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהתחלה"); }
             };
 
@@ -8461,6 +8464,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const cashOutSeat = async () => {
@@ -9086,6 +9090,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleLeave = async () => {
@@ -9662,6 +9667,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleLeave = async () => {
@@ -10198,6 +10204,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
@@ -10826,6 +10833,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
