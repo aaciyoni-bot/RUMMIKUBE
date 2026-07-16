@@ -1501,7 +1501,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V23.2</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V24</span></p>
                             </div>
                         </nav>
                     )}
@@ -1555,7 +1555,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V23.2</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V24</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -5043,12 +5043,15 @@
                 await saveGame(g, pl);
             };
 
-            const performAction = async (actorUid, type, targetBet) => {
+            const performAction = async (actorUid, type, targetBet, autoTimeout) => {
                 const t = tableRef.current; if (!t) return;
                 const g = { ...t.gameState };
                 if (g.activeTurnUid !== actorUid || !BETTING.includes(g.phase)) return;
                 const pl = clonePlayers(t.players);
                 const p = pl[actorUid]; if (!p || p.status !== 'active') return;
+                // סיט-אאוט אוטומטי: שתי החמצות טיימר רצופות
+                p.missed = autoTimeout ? (p.missed || 0) + 1 : 0;
+                if (autoTimeout && p.missed >= 2 && !p.sitOut) { p.sitOut = true; p.sitOutAt = Date.now(); p.sitAuto = true; }
 
                 if (type === 'fold') { p.status = 'folded'; p.actionText = 'Fold'; p.hasActed = true; }
                 else if (type === 'call') {
@@ -5139,7 +5142,7 @@
                     const g0 = t.gameState;
                     if (!['waiting','showdown'].includes(g0.phase)) return;
                     const pl = clonePlayers(t.players);
-                    Object.values(pl).forEach(p => { p.cards = []; p.bet = 0; p.actionText = ''; p.hasActed = false; p.status = p.stack > 0 ? 'active' : (['busted','out'].includes(p.status) ? p.status : 'sitout'); });
+                    Object.values(pl).forEach(p => { p.cards = []; p.bet = 0; p.actionText = ''; p.hasActed = false; p.status = p.stack > 0 ? ((p.sitOut && !t.tournamentId) ? 'sitout' : 'active') : (['busted','out'].includes(p.status) ? p.status : 'sitout'); });
                     const actives = Object.values(pl).filter(p => p.status === 'active').sort((a,b) => a.seatIndex - b.seatIndex);
                     if (actives.length < 2) {
                         await saveGame({ ...g0, phase: 'waiting', activeTurnUid: null, board: [], pots: [] }, pl);
@@ -5287,6 +5290,73 @@
                 if (alive.length === 1) return { tournament: { ...tour, finished: true, tableWinner: alive[0].uid } };
                 return {};
             };
+
+            const toggleSitOut = async () => {
+                const meP = tableRef.current?.players?.[user.uid]; if (!meP) return;
+                try {
+                    if (meP.sitOut) {
+                        await window.fb.updateDoc(tblRef(), { [`players.${user.uid}.sitOut`]: false, [`players.${user.uid}.missed`]: 0, [`players.${user.uid}.sitAuto`]: false });
+                        showToast("חזרת לשולחן! תחולק ביד הבאה 💪", "success");
+                    } else {
+                        await window.fb.updateDoc(tblRef(), { [`players.${user.uid}.sitOut`]: true, [`players.${user.uid}.sitOutAt`]: Date.now(), [`players.${user.uid}.sitAuto`]: false });
+                        showToast(tableRef.current?.tournamentId ? "סיט-אאוט ☕ בטורניר הבליינדים ממשיכים לרדת!" : "סיט-אאוט ☕ יש לך 10 דקות לחזור", "info");
+                    }
+                } catch(e) {}
+            };
+            const topUpChips = async () => {
+                const t = tableRef.current; if (!t || t.tournamentId) return;
+                const BBv = round2((Number(setts.blinds) || 1) * 2);
+                const maxBuy2 = round2(BBv * (Number(setts.maxBuyInBB) || 100));
+                const meP = t.players[user.uid]; if (!meP) return;
+                const room = round2(maxBuy2 - (meP.stack || 0) - (meP.bet || 0));
+                if (room <= 0) return showToast(`אתה על תקרת השולחן (${formatMoney(maxBuy2)})`, "info");
+                const inHand = !['waiting', 'showdown'].includes((t.gameState || {}).phase) && meP.status === 'active';
+                if (inHand) return showToast("הוספת צ'יפים רק בין ידיים", "info");
+                const amt = Number(window.prompt(`כמה להוסיף? (מקסימום ${formatMoney(room)})`, String(Math.min(room, BBv * 50))));
+                if (!amt || amt <= 0) return;
+                const add = Math.min(round2(amt), room);
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const ms = await tr.get(memDoc(user.uid));
+                        const ts2 = await tr.get(tblRef());
+                        if (!ms.exists() || !ts2.exists()) throw "err";
+                        if ((ms.data().balance || 0) < add) throw "אין מספיק בארנק";
+                        const cur = ts2.data().players[user.uid]; if (!cur) throw "err";
+                        tr.update(ms.ref, { balance: round2((ms.data().balance || 0) - add) });
+                        tr.update(tblRef(), { [`players.${user.uid}.stack`]: round2((cur.stack || 0) + add) });
+                    });
+                    playSnd('chip');
+                    showToast(`נוספו ${formatMoney(add)} לסטאק 💰`, "success");
+                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+            };
+            // בעיטת 10 דקות (קאש בלבד) - כל לקוח צופה בודק; מנהל יכול לבעוט ידנית
+            const kickSeat = async (uid, byAdmin) => {
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        const ts2 = await tr.get(tblRef());
+                        if (!ts2.exists()) return;
+                        const t = ts2.data();
+                        const p = t.players[uid]; if (!p) return;
+                        if (!byAdmin && !(p.sitOut && !t.tournamentId && Date.now() - (p.sitOutAt || 0) > 600000)) return;
+                        const inHand = !['waiting', 'showdown'].includes((t.gameState || {}).phase) && p.status === 'active';
+                        if (inHand && !byAdmin) return; // לא בועטים באמצע יד
+                        const ms = p.isBot ? null : await tr.get(memDoc(uid));
+                        const pl = { ...t.players }; delete pl[uid];
+                        if (ms && ms.exists()) tr.update(ms.ref, { balance: round2((ms.data().balance || 0) + (p.stack || 0) + (inHand ? 0 : (p.bet || 0))) });
+                        tr.update(tblRef(), { players: pl });
+                    });
+                } catch(e) {}
+            };
+            useEffect(() => {
+                if (!tableState || tableState.tournamentId) return;
+                const iv = setInterval(() => {
+                    const t = tableRef.current; if (!t) return;
+                    Object.values(t.players || {}).forEach(p => {
+                        if (p.sitOut && !p.isBot && Date.now() - (p.sitOutAt || 0) > 600000) kickSeat(p.uid, false);
+                    });
+                }, 12000);
+                return () => clearInterval(iv);
+            }, [tableState && tableState.id]);
 
             const rebuyAfterBust = async () => {
                 try {
@@ -5502,7 +5572,7 @@
                         if (remaining === 0 && gs.activeTurnUid === user.uid) {
                             clearInterval(interval);
                             const toCall = round2(Math.max(0, gs.highestBet - (myPlayer?.bet || 0)));
-                            performAction(user.uid, toCall > 0 ? 'fold' : 'call');
+                            performAction(user.uid, toCall > 0 ? 'fold' : 'call', undefined, true);
                         }
                     }, 1000);
                 }
@@ -5839,8 +5909,13 @@
                                 return (
                                     <div key={p.uid} className="absolute z-20" style={{ ...seatPos(i), transform: 'translate(-50%, -50%)' }}>
                                         {isTurn && <div className="player-spotlight"></div>}
-                                        <div className={`relative flex flex-col items-center ${folded ? 'opacity-40 grayscale' : ''}`}>
+                                        <div className={`relative flex flex-col items-center ${folded ? 'opacity-40 grayscale' : ''} ${p.sitOut ? 'opacity-50' : ''}`}>
                                             {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
+                                            {p.sitOut && <div className="absolute -top-2 right-0 z-30 text-[9px] font-black bg-slate-950/90 border border-amber-500/50 text-amber-300 rounded-full px-2 py-0.5">☕ סיט-אאוט{p.sitAuto ? ' 📵' : ''}</div>}
+                                            {!isMe && canManageGame(user, 'poker') && (
+                                                <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`להוציא את ${p.name} מהשולחן? הסטאק יוחזר לארנק שלו.`)) kickSeat(p.uid, true); }}
+                                                        className="absolute -top-2 left-0 z-30 w-5 h-5 rounded-full bg-slate-900/90 border border-rose-500/50 text-rose-400 hover:bg-rose-800 hover:text-white text-[9px] font-black flex items-center justify-center">✕</button>
+                                            )}
                                             {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
                                             {p.actionText && <div className={`action-badge ${p.actionText === 'Fold' ? 'badge-fold' : p.actionText === 'Raise' || p.actionText === 'All-in' ? 'badge-raise' : p.actionText === 'WINNER' ? 'badge-win' : ['SB','BB'].includes(p.actionText) ? 'badge-blind' : 'badge-call'}`}>{p.actionText}</div>}
 
@@ -6073,6 +6148,15 @@
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-[128px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                    {isSeated && myPlayer?.sitOut && (
+                        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[70] bg-amber-500/95 text-slate-900 font-black text-xs rounded-full px-4 py-2 shadow-xl cursor-pointer" onClick={toggleSitOut}>☕ אתה בסיט-אאוט - הקש כדי לחזור ✋</div>
+                    )}
+                    {isSeated && (
+                        <div className="absolute bottom-20 left-3 z-[60] flex flex-col gap-2">
+                            <button onClick={toggleSitOut} title={myPlayer?.sitOut ? 'חזור לשולחן' : 'סיט-אאוט'} className={`w-11 h-11 rounded-2xl border shadow-xl text-lg ${myPlayer?.sitOut ? 'bg-amber-500 text-slate-900 border-amber-300 animate-pulse' : 'bg-slate-900/90 border-white/10 text-slate-300 hover:text-amber-300'}`}>{myPlayer?.sitOut ? '✋' : '☕'}</button>
+                            {!(tableState?.tournamentId) && <button onClick={topUpChips} title="הוסף צ'יפים" className="w-11 h-11 rounded-2xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-emerald-300 shadow-xl text-lg">💰</button>}
+                        </div>
+                    )}
 
                     {/* Buy-in */}
                     {(canShowBuyIn || needRebuy) && (
@@ -6957,8 +7041,9 @@
             board: sheshInitBoard(), bar: { w: 0, b: 0 }, off: { w: 0, b: 0 },
             dice: [], turn: null, turnStartedAt: null, lastResults: null, chat: []
         });
+        const cryptoDie = () => { const u = new Uint32Array(1); crypto.getRandomValues(u); return 1 + (u[0] % 6); };
         const rollPair = () => {
-            const a = 1 + Math.floor(Math.random() * 6), b = 1 + Math.floor(Math.random() * 6);
+            const a = cryptoDie(), b = cryptoDie();
             return a === b ? [a, a, a, a].map(v => ({ v, used: false })) : [{ v: a, used: false }, { v: b, used: false }];
         };
         const sheshAllHome = (board, bar, c) => bar[c] === 0 && board.every((pt, i) => pt.c !== c || (c === 'w' ? i >= 18 : i <= 5));
@@ -8667,7 +8752,12 @@
                 const n = (t.drawStack || 0) > 0 ? t.drawStack : 1;
                 for (let i = 0; i < n; i++) {
                     if (!deck.length) {
-                        if (pile.length > 1) { const tp2 = pile.pop(); deck = pile.sort(() => Math.random() - 0.5); pile = [tp2]; }
+                        if (pile.length > 1) {
+                            const tp2 = pile.pop();
+                            deck = [...pile];
+                            for (let k = deck.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [deck[k], deck[j]] = [deck[j], deck[k]]; }
+                            pile = [tp2];
+                        }
                         else break;
                     }
                     if (deck.length) p.cards.push(deck.pop());
@@ -9341,7 +9431,7 @@
 
             /* ---------- רינדור ---------- */
             const GCard = ({ c, sel, meld, onClick, small }) => (
-                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-15 sm:w-13 sm:h-[4.5rem] text-sm'} w-11 h-16 sm:w-12 sm:h-[4.4rem] rounded-lg bg-gradient-to-b from-white to-slate-200 shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
+                <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg bg-gradient-to-b from-white to-slate-200 shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
                     <span className="leading-none">{ginName(c.v)}</span>
                     <span className="leading-none">{c.suit}</span>
                 </div>
@@ -10313,7 +10403,8 @@
                 if (fromDeck) {
                     if (!deck.length) {
                         // ערבוב הערימה חזרה לקופה
-                        deck = stack.sort(() => Math.random() - 0.5);
+                        deck = [...stack];
+                        for (let k = deck.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [deck[k], deck[j]] = [deck[j], deck[k]]; }
                         stack = [];
                         if (!deck.length) { if (uid === user.uid) flashErr("אין קלפים למשוך"); return; }
                     }
