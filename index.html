@@ -6891,7 +6891,7 @@
                 try {
                     const pl = { ...t.players }; delete pl[user.uid];
                     if (Object.keys(pl).length === 0 && t.status !== 'playing') {
-                        await window.fb.deleteDoc(tblRef());
+                        await window.fb.deleteDoc(tblRef()); spawnTwinTable(t);
                     } else {
                         const upd = { players: pl };
                         if (t.hostUid === user.uid) { const first = Object.values(pl).sort((a,b)=>a.seatIndex-b.seatIndex)[0]; if (first) upd.hostUid = first.uid; }
@@ -7855,7 +7855,7 @@
                 try {
                     const t2 = tableRef.current;
                     const pl = { ...t2.players }; delete pl[user.uid];
-                    if (Object.keys(pl).length === 0) await window.fb.deleteDoc(tblRef());
+                    if (Object.keys(pl).length === 0) { await window.fb.deleteDoc(tblRef()); spawnTwinTable(t2); }
                     else {
                         const upd = { players: pl };
                         if (t2.hostUid === user.uid) { const first = Object.values(pl)[0]; if (first) upd.hostUid = first.uid; }
@@ -11534,6 +11534,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
@@ -11749,7 +11750,7 @@
                 }
                 try {
                     const pl = { ...t.players }; delete pl[user.uid];
-                    if (Object.keys(pl).length === 0 && t.status !== 'playing') await window.fb.deleteDoc(tblRef());
+                    if (Object.keys(pl).length === 0 && t.status !== 'playing') { await window.fb.deleteDoc(tblRef()); spawnTwinTable(t); }
                     else await window.fb.updateDoc(tblRef(), { players: pl });
                 } catch(e) {}
                 onLeave();
