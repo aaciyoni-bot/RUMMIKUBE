@@ -7826,12 +7826,42 @@
         const ofcRoyalBot = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 25 : 15) : ev[0] === 7 ? 10 : ev[0] === 6 ? 6 : ev[0] === 5 ? 4 : ev[0] === 4 ? 2 : 0;
         const ofcRoyalMid = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 50 : 30) : ev[0] === 7 ? 20 : ev[0] === 6 ? 12 : ev[0] === 5 ? 8 : ev[0] === 4 ? 4 : ev[0] === 3 ? 2 : 0;
         const ofcRoyalTop = (ev) => ev[0] === 3 ? (ev[1] - 2 + 10) : (ev[0] === 1 && ev[1] >= 6 ? ev[1] - 5 : 0); // 66=1..AA=9, שלישיות 222=10..AAA=22
+        const topAs5Of = (t) => [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // טופ להשוואה מול אמצע (זוג/שלישייה/גבוה)
+        // כל ערכי הג'וקר האפשריים בשורה (dedup לפי חוזק) - לבחירה משותפת חוקית
+        const ofcRowCands = (cards, isTop) => {
+            const fn = isTop ? ofcEval3 : ofcEval5;
+            const jok = (cards || []).filter(c => c.v === 0), rest = (cards || []).filter(c => c.v !== 0);
+            if (!jok.length) return [fn(cards || [])];
+            const seen = new Set(), out = [];
+            const add = e => { const k = e.join(','); if (!seen.has(k)) { seen.add(k); out.push(e); } };
+            if (jok.length === 1) { for (const r of OFC_ALL52) add(fn([...rest, r])); }
+            else { for (const r1 of OFC_ALL52) for (const r2 of OFC_ALL52) add(fn([...rest, r1, r2])); }
+            return out;
+        };
+        // הג'וקר "מתאים את עצמו לניצחון": קודם לוח חוקי (לא פאול), ואז מקסימום רויאלטיז - במשותף לכל השורות
+        const ofcResolve = (p) => {
+            let t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
+            let foul = ofcCmp(topAs5Of(t), m) > 0 || ofcCmp(m, b) > 0;
+            const hasJoker = [...(p.top || []), ...(p.mid || []), ...(p.bot || [])].some(c => c && c.v === 0);
+            if (foul && hasJoker) {
+                // הבחירה הבלתי-תלויה יצרה פאול - מחפשים שילוב ערכי ג'וקר שנשאר חוקי וממקסם רויאלטיז
+                const T = ofcRowCands(p.top || [], true), M = ofcRowCands(p.mid || [], false), B = ofcRowCands(p.bot || [], false);
+                let best = null, bestRoy = -Infinity;
+                for (const bb of B) for (const mm of M) {
+                    if (ofcCmp(mm, bb) > 0) continue;
+                    for (const tt of T) {
+                        if (ofcCmp(topAs5Of(tt), mm) > 0) continue;
+                        const roy = ofcRoyalTop(tt) + ofcRoyalMid(mm) + ofcRoyalBot(bb);
+                        if (roy > bestRoy) { bestRoy = roy; best = { t: tt, m: mm, b: bb }; }
+                    }
+                }
+                if (best) { t = best.t; m = best.m; b = best.b; foul = false; }
+            }
+            return { t, m, b, foul };
+        };
         // ניתוח לוח שלם: פאול + רויאלטיז + הכשרה לפנטזילנד
         const ofcBoard = (p) => {
-            const t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
-            const m5 = [m[0] >= 3 ? m[0] : m[0], ...m.slice(1)];
-            const topAs5 = [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // השוואת טופ מול אמצע: קטגוריות תואמות (זוג/שלישייה/גבוה)
-            const foul = ofcCmp(topAs5, m) > 0 || ofcCmp(m, b) > 0;
+            const { t, m, b, foul } = ofcResolve(p);
             const roy = foul ? 0 : ofcRoyalTop(t) + ofcRoyalMid(m) + ofcRoyalBot(b);
             let flNext = 0;
             if (!foul) {
@@ -8381,8 +8411,13 @@
                                 {(() => {
                                     const merged = (row) => [...(me[row] || []), ...Object.entries(stage).filter(([, r]) => r === row).map(([id]) => (me.pending || []).find(c => c.id === id)).filter(Boolean)];
                                     const tR = merged('top'), mR = merged('mid'), bR = merged('bot');
-                                    const tE = tR.length === 3 ? ofcEval3J(tR) : null, mE = mR.length === 5 ? ofcEval5J(mR) : null, bE = bR.length === 5 ? ofcEval5J(bR) : null;
-                                    const foulTM = tE && mE && ofcCmp(tE, mE) > 0, foulMB = mE && bE && ofcCmp(mE, bE) > 0;
+                                    // כשהלוח מלא - מציגים את הפירוש שהסליקה תשתמש בו (ג'וקר מותאם לניצחון), כדי שהאזהרה תואמת לתוצאה
+                                    const full = tR.length === 3 && mR.length === 5 && bR.length === 5;
+                                    const rs = full ? ofcResolve({ top: tR, mid: mR, bot: bR }) : null;
+                                    const tE = rs ? rs.t : (tR.length === 3 ? ofcEval3J(tR) : null);
+                                    const mE = rs ? rs.m : (mR.length === 5 ? ofcEval5J(mR) : null);
+                                    const bE = rs ? rs.b : (bR.length === 5 ? ofcEval5J(bR) : null);
+                                    const foulTM = rs ? rs.foul : (tE && mE && ofcCmp(topAs5Of(tE), mE) > 0), foulMB = rs ? rs.foul : (mE && bE && ofcCmp(mE, bE) > 0);
                                     const lbl = (ev, full, isTop, foul) => <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${foul ? 'text-rose-300 border-rose-500/70 bg-rose-500/15 animate-pulse' : full ? 'text-teal-200 border-teal-500/40 bg-teal-500/10' : 'text-slate-600 border-white/8'}`}>{full ? ofcHandName(ev, isTop) : '···'}</span>;
                                     return (
                                         <div className="space-y-1.5 mb-2">
