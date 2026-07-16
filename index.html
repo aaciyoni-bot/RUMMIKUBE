@@ -469,6 +469,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
@@ -476,7 +477,7 @@
             projectId: "rummikube-5c138"
         };
         const app = initializeApp(firebaseConfig);
-        window.fb = { auth: getAuth(app), db: getFirestore(app), googleProvider: new GoogleAuthProvider(), signInWithPopup, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
+        window.fb = { auth: getAuth(app), db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -2558,39 +2559,16 @@
                 if (bonusSpin && !bonusSpin.done) return;
                 try {
                     if (!bonusEnabled) throw "בעל הקלאב כיבה את הגלגל";
-                    let prize = 0, fromBank = false;
-                    const ownerUid = (window.__club || {}).ownerUid;
-                    await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const mRef = memDoc(user.uid);
-                        const mSnap = await tr.get(mRef);
-                        if (!mSnap.exists()) throw "אין חברות";
-                        const last = mSnap.data().lastBonusAt || 0;
-                        if (Date.now() - last < 22 * 3600 * 1000) throw `הבונוס הבא בעוד ${Math.ceil((22 * 3600 * 1000 - (Date.now() - last)) / 3600000)} שעות`;
-                        // הגרלה משוקללת
-                        const total = BONUS_W.reduce((a, b) => a + b, 0);
-                        let r = Math.random() * total, idx = 0;
-                        for (let i = 0; i < BONUS_W.length; i++) { r -= BONUS_W[i]; if (r <= 0) { idx = i; break; } }
-                        prize = BONUS_SEGS[idx];
-                        // שימור צ'יפים: הפרס עובר מקופת בעל הקלאב לשחקן - לא נוצר כסף חדש
-                        if (ownerUid && ownerUid !== user.uid) {
-                            const oRef = memDoc(ownerUid);
-                            const oSnap = await tr.get(oRef);
-                            if (!oSnap.exists() || (oSnap.data().balance || 0) < prize) throw "קופת הקלאב ריקה כרגע - נסה מאוחר יותר";
-                            tr.update(oRef, { balance: round2((oSnap.data().balance || 0) - prize), bonusPaid: round2(((oSnap.data().bonusPaid || 0)) + prize) });
-                            tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastBonusAt: Date.now() });
-                            fromBank = true;
-                        } else {
-                            // הבעלים מסובב: הפרס מהקופה שלו אל עצמו = נשאר במקום
-                            tr.update(mRef, { lastBonusAt: Date.now() });
-                        }
-                    });
-                    const idx = BONUS_SEGS.indexOf(prize);
+                    // הפרס נקבע והכסף מוזז בשרת (Cloud Function) - לא ניתן לזיוף מהדפדפן
+                    const call = window.fb.httpsCallable(window.fb.functions, 'spinDailyBonus');
+                    const res = await call({ clubId: CLUB_ID });
+                    const { prize, idx, fromBank } = res.data;
                     const segDeg = 360 / BONUS_SEGS.length;
                     const target = 360 * 6 - (idx * segDeg + segDeg / 2);
                     setBonusSpin({ deg: target, prize, done: false });
                     playSnd('dice');
                     setTimeout(() => { setBonusSpin(sp => sp ? { ...sp, done: true } : sp); playSnd('win'); showToast(fromBank ? `זכית ב-${formatMoney(prize)} מקופת הקלאב! 🎁` : `יצא ${formatMoney(prize)} - אתה הבית, הכסף נשאר בקופה שלך 😉`, "success"); }, 4200);
-                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בבונוס", "error"); }
+                } catch(e) { showToast((e && e.message) ? e.message : (typeof e === 'string' ? e : "שגיאה בבונוס"), "error"); }
             };
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
