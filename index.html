@@ -344,6 +344,34 @@
             opacity: 0.012;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
         }
+
+        /* ===== נגישות (WCAG 2.0 AA / ת"י 5568) ===== */
+        /* פוקוס מקלדת ברור */
+        a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+            outline: 3px solid #38bdf8 !important; outline-offset: 2px !important; border-radius: 4px;
+        }
+        /* כיבוד העדפת מערכת לצמצום תנועה */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+        }
+        /* מצב עצירת אנימציות (וידג'ט) */
+        html.a11y-noanim *, html.a11y-noanim *::before, html.a11y-noanim *::after { animation: none !important; transition: none !important; }
+        /* ניגודיות גבוהה */
+        html.a11y-contrast, html.a11y-contrast body, html.a11y-contrast #root { background: #000 !important; }
+        html.a11y-contrast .glass-panel, html.a11y-contrast .grad-card-inner, html.a11y-contrast .stat-tile, html.a11y-contrast .game-cube { background: #000 !important; border-color: #fff !important; }
+        html.a11y-contrast, html.a11y-contrast .text-slate-400, html.a11y-contrast .text-slate-500, html.a11y-contrast .text-slate-300, html.a11y-contrast .text-slate-600 { color: #fff !important; }
+        html.a11y-contrast a, html.a11y-contrast button { color: #ffff00 !important; }
+        html.a11y-contrast .text-emerald-400, html.a11y-contrast .text-emerald-300 { color: #00ff9c !important; }
+        /* הדגשת קישורים וכפתורים */
+        html.a11y-links a, html.a11y-links button { text-decoration: underline !important; outline: 1px solid rgba(56,189,248,0.5); }
+        /* גופן קריא */
+        html.a11y-readable, html.a11y-readable body, html.a11y-readable button, html.a11y-readable input, html.a11y-readable select, html.a11y-readable textarea { font-family: Arial, "Segoe UI", sans-serif !important; letter-spacing: 0.01em; }
+        /* קישור "דלג לתוכן" */
+        .a11y-skip { position: fixed; top: -60px; right: 8px; z-index: 100000; background: #0ea5e9; color: #fff; font-weight: 800; padding: 10px 16px; border-radius: 10px; transition: top 0.15s; }
+        .a11y-skip:focus { top: 8px; }
+        /* וידג'ט הנגישות */
+        .a11y-fab { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 99998; width: 46px; height: 46px; border-radius: 0 12px 12px 0; background: #1d4ed8; color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.25); }
+        .a11y-fab:hover { background: #2563eb; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1496,6 +1524,7 @@
 
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
+                    <A11yWidget />
                     {effUser && activeClub && effUser.status === 'approved' && !inTable && currentView !== 'clubs' && (
                         <nav className="bg-slate-900/80 backdrop-blur-xl px-4 py-3 z-40 shrink-0 border-b border-white/5 shadow-xl flex justify-between items-center">
                             <div className="flex items-center gap-2 sm:gap-3">
@@ -7344,6 +7373,76 @@
             twist: { title: 'איך משחקים טוויסט 🌀', lines: ['הנח קלף שמתאים לקלף העליון בצורה או במספר. אפשר כמה קלפים מאותו מספר יחד!', '2 = היריב הבא לוקח 2 קלפים. אפשר לשרשר 2 משלך והעונש מצטבר!', '8 = עצור, הבא בתור מדלג. אס = הכיוון מתהפך.', 'נסיך (J) מונח על הכל ומחליף את הצבע לבחירתך - אבל אסור לסיים איתו את היד!', 'נשאר לך קלף אחד? המערכת מכריזה "טוויסט!" לכולם.', 'המרוקן ראשון את היד לוקח את הקופה.'] },
             ofc: { title: 'איך משחקים פוקר סיני OFC 🀄', lines: ['בנה 3 שורות: עליונה (3 קלפים), אמצעית (5), תחתונה (5). התחתונה חייבת להיות החזקה ביותר והעליונה החלשה - אחרת פאול (6- + כל הרויאלטיז ליריב)!', 'סיבוב ראשון: קבל 5 והנח את כולם. אחר כך: קבל 3, הנח 2, השלישי נזרק.', 'התוויות ליד השורות מראות לך את החוזק חי - ואדום מהבהב = אזהרת פאול.', 'רויאלטיז: בונוסים לידיים חזקות (פלאש בתחתונה 4, באמצעית 8, שלישייה למעלה 10-22...).', "ג'וקר 🃏 = כל קלף שתרצה - המערכת בוחרת עבורך את הטוב ביותר.", 'זוג מלכות+ למעלה בלי פאול = פנטזילנד! ביד הבאה תקבל 14-16 קלפים בבת אחת.', 'כמו פוקר: קנית סטאק בכניסה, כל משחקון משוחק על ערך קבוע (נקודה = עשירית ממנו), והסטאק שלך גדל וקטן. קם מתי שרוצים - הצ\'יפים חוזרים לארנק!'] },
         };
+        /* ===== וידג'ט נגישות (WCAG 2.0 AA / ת"י 5568) ===== */
+        function A11yWidget() {
+            const [open, setOpen] = useState(false);
+            const [stmt, setStmt] = useState(false);
+            const [s, setS] = useState(() => { try { return JSON.parse(localStorage.getItem('a11y') || '{}'); } catch(e) { return {}; } });
+            useEffect(() => {
+                const r = document.documentElement;
+                r.classList.toggle('a11y-contrast', !!s.contrast);
+                r.classList.toggle('a11y-noanim', !!s.noanim);
+                r.classList.toggle('a11y-links', !!s.links);
+                r.classList.toggle('a11y-readable', !!s.readable);
+                r.style.fontSize = s.fs ? (s.fs + '%') : '';
+                try { localStorage.setItem('a11y', JSON.stringify(s)); } catch(e) {}
+            }, [s]);
+            const set = (k, v) => setS(prev => ({ ...prev, [k]: v }));
+            const fs = s.fs || 100;
+            const Toggle = ({ k, label, icon }) => (
+                <button onClick={() => set(k, !s[k])} aria-pressed={!!s[k]} className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl border text-sm font-bold ${s[k] ? 'bg-sky-600 border-sky-400 text-white' : 'bg-slate-800 border-white/10 text-slate-200'}`}>
+                    <span>{icon} {label}</span><span>{s[k] ? '✓' : ''}</span>
+                </button>
+            );
+            return ReactDOM.createPortal(
+                <React.Fragment>
+                    <button className="a11y-fab" aria-label="פתיחת תפריט נגישות" title="נגישות" onClick={() => setOpen(o => !o)}>♿</button>
+                    {open && (
+                        <div dir="rtl" className="fixed inset-0 z-[99999] bg-black/50 flex items-stretch justify-start" onClick={() => setOpen(false)}>
+                            <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="תפריט נגישות" className="bg-slate-900 border-l border-white/10 h-full w-72 max-w-[85vw] p-4 overflow-y-auto shadow-2xl">
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="font-black text-white text-lg">♿ נגישות</span>
+                                    <button onClick={() => setOpen(false)} aria-label="סגירה" className="text-slate-400 hover:text-white w-8 h-8 text-xl">✕</button>
+                                </div>
+                                <div className="mb-3">
+                                    <div className="text-xs font-bold text-slate-400 mb-1.5">גודל טקסט: {fs}%</div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => set('fs', Math.max(80, fs - 10))} aria-label="הקטן טקסט" className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-black text-white">A−</button>
+                                        <button onClick={() => set('fs', 100)} className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-bold text-slate-300 text-sm">100%</button>
+                                        <button onClick={() => set('fs', Math.min(160, fs + 10))} aria-label="הגדל טקסט" className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-black text-white">A+</button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Toggle k="contrast" label="ניגודיות גבוהה" icon="◑" />
+                                    <Toggle k="noanim" label="עצירת אנימציות" icon="⏸" />
+                                    <Toggle k="links" label="הדגשת קישורים" icon="🔗" />
+                                    <Toggle k="readable" label="גופן קריא" icon="🔤" />
+                                </div>
+                                <button onClick={() => setS({})} className="w-full mt-3 bg-slate-800 hover:bg-slate-700 border border-white/10 text-slate-300 rounded-xl py-2 font-bold text-sm">איפוס הגדרות</button>
+                                <button onClick={() => setStmt(true)} className="w-full mt-2 text-sky-400 hover:text-sky-300 underline text-xs font-bold">הצהרת נגישות</button>
+                            </div>
+                        </div>
+                    )}
+                    {stmt && (
+                        <div dir="rtl" className="fixed inset-0 z-[100000] bg-black/80 flex items-center justify-center p-4" onClick={() => setStmt(false)}>
+                            <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="הצהרת נגישות" className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto text-slate-200">
+                                <h2 className="text-xl font-black text-white mb-3">הצהרת נגישות</h2>
+                                <div className="space-y-2 text-sm leading-relaxed">
+                                    <p>אנו רואים חשיבות רבה במתן שירות שוויוני ונגיש לכלל המשתמשים, לרבות אנשים עם מוגבלות.</p>
+                                    <p>האתר פועל להנגשה בהתאם לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), תשע"ג-2013, ולתקן הישראלי ת"י 5568 המבוסס על הנחיות WCAG 2.0 ברמה AA.</p>
+                                    <p>באתר מוטמע תפריט נגישות המאפשר: הגדלה והקטנה של גודל הטקסט, מצב ניגודיות גבוהה, עצירת אנימציות, הדגשת קישורים וגופן קריא. האתר תומך בניווט מקלדת ובחיווי פוקוס ברור, ומכבד את העדפת המערכת לצמצום תנועה.</p>
+                                    <p>למרות מאמצינו, ייתכן שחלקים מסוימים באתר טרם הונגשו במלואם. אנו ממשיכים לשפר את הנגישות באופן שוטף.</p>
+                                    <p>נתקלת בבעיית נגישות? נשמח לעזור ולתקן בהקדם.</p>
+                                    <p className="font-bold text-white">רכז נגישות · יצירת קשר: aaci.yoni@gmail.com</p>
+                                    <p className="text-[11px] text-slate-500">עודכן: 2026</p>
+                                </div>
+                                <button onClick={() => setStmt(false)} className="mt-4 bg-sky-600 hover:bg-sky-500 text-white px-6 py-2.5 rounded-xl font-black">סגור</button>
+                            </div>
+                        </div>
+                    )}
+                </React.Fragment>
+            , document.body);
+        }
         function HelpButton({ game, cls }) {
             const [open, setOpen] = useState(false);
             const H = GAME_HELP[game];
