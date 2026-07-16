@@ -532,7 +532,7 @@
         const genPlayerId = () => { const C = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r = ''; for (let i = 0; i < 6; i++) r += C[Math.floor(Math.random() * C.length)]; return r; };
         let CLUB_ID = 'main'; // הקלאב הפעיל - מוחלף בכניסה לקלאב
         window.__club = { id: 'main', ownerUid: '', name: 'הקלאב הראשי' };
-        const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id }; };
+        const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id, botsActive: true }; };
         // חשבון החברות: הכסף, התפקיד והסטטיסטיקות של שחקן בקלאב מסוים
         const memId = (uid, cid) => `${uid}_${cid || CLUB_ID}`;
         const memDoc = (uid, cid) => window.fb.doc(window.fb.db, "memberships", memId(uid, cid));
@@ -1376,7 +1376,7 @@
                 if (!fbReady) return;
                 if (!activeClub) { setClubSettings({ rakePct: DEFAULT_RAKE_PCT }); return; }
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "clubs", activeClub.id), (d) => {
-                    if (d.exists()) setClubSettings({ rakePct: DEFAULT_RAKE_PCT, ...d.data() });
+                    if (d.exists()) { setClubSettings({ rakePct: DEFAULT_RAKE_PCT, ...d.data() }); if (window.__club) window.__club.botsActive = (d.data().botsActive !== false); }
                 });
                 return () => unsub();
             }, [fbReady, activeClub?.id]);
@@ -1945,6 +1945,7 @@
         const clubHue = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CLUB_HUES[h % CLUB_HUES.length]; };
         // מזהה קלאב בן 6 ספרות - נגזר דטרמיניסטית מה-id (יציב, ללא צורך במיגרציה)
         const clubCode = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return String(100000 + (h % 900000)); };
+        const botsAreActive = () => !(window.__club && window.__club.botsActive === false);
 
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
             const [newName, setNewName] = useState('');
@@ -3634,6 +3635,11 @@
                     showToast("כל הבוטים נמחקו.", "info");
                 } catch(e) { showToast("שגיאה במחיקת בוטים", "error"); }
             };
+            const handleToggleBots = async () => {
+                const now = !(clubSettings?.botsActive === false); // currently active?
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { botsActive: !now }); showToast(!now ? "הבוטים הופעלו" : "הבוטים הושבתו (עדיין קיימים)", "info"); }
+                catch(e) { showToast("שגיאה", "error"); }
+            };
 
             const pendingUsers = usersList.filter(u => u.status === 'pending' && !u.isBot);
             const leaveRequests = usersList.filter(u => u.status === 'approved' && u.leaveRequested && !u.isBot);
@@ -3687,6 +3693,7 @@
                             {user.role === ROLES.SUPER_ADMIN && (
                                 <div className="flex gap-2">
                                     <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
+                                    <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
                                     <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת (משרתים את כל הקלאבים)</span>
                                     <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
                                 </div>
@@ -4102,6 +4109,7 @@
                             const t = tblSnap.data();
                             const playersCount = Object.keys(t.players || {}).length;
                             if (playersCount === 0 || playersCount >= t.maxPlayers || t.phase !== 'waiting') return;
+                            if (!botsAreActive()) return;
 
                             const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                             const botSnaps = await window.fb.getDocs(botQ);
@@ -5736,6 +5744,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t) return;
                 const pl = t.players || {};
                 if (Object.keys(pl).length >= (setts.maxPlayers || 6)) return showToast("השולחן מלא", "error");
@@ -5816,6 +5825,7 @@
                         const count = Object.keys(pl).length;
                         const hasHuman = Object.values(pl).some(p => !p.isBot);
                         if (!hasHuman || count >= (t.settings.maxPlayers || 6)) return;
+                        if (!botsAreActive()) return;
 
                         const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                         const botSnaps = await window.fb.getDocs(botQ);
@@ -6935,6 +6945,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return toastErr("הבוטים מושבתים בקלאב");
                 const t = tableRef.current; if (!t || !['setup', 'showdown'].includes(t.status)) return;
                 if (Object.keys(t.players).length >= (setts.maxPlayers || 6)) return toastErr("השולחן מלא");
                 try {
@@ -6996,6 +7007,7 @@
                 if (!isSuperAdmin || !tableState || T.status !== 'setup') return;
                 const iv = setInterval(async () => {
                     const t = tableRef.current; if (!t || t.status !== 'setup') return;
+                    if (!botsAreActive()) return;
                     const pl = t.players || {};
                     const hasHuman = Object.values(pl).some(p => !p.isBot);
                     if (!hasHuman || Object.keys(pl).length >= (t.settings.maxPlayers || 6)) return;
@@ -7900,6 +7912,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return toastErr("הבוטים מושבתים בקלאב");
                 const t = tableRef.current; if (!t || !['setup', 'showdown'].includes(t.status)) return;
                 if (Object.keys(t.players).length >= 2) return toastErr("השולחן מלא");
                 try {
@@ -7936,6 +7949,7 @@
                 if (!isSuperAdmin || !tableState || T.status !== 'setup') return;
                 const tm = setTimeout(() => {
                     const t = tableRef.current; if (!t || t.status !== 'setup') return;
+                    if (!botsAreActive()) return;
                     const pl = t.players || {};
                     if (Object.keys(pl).length === 1 && Object.values(pl).some(p => !p.isBot)) handleAddBot();
                 }, 4000);
@@ -8456,6 +8470,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= maxP) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -9073,6 +9088,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= maxP) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -9648,6 +9664,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= 2) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -10170,6 +10187,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                     const bs = await window.fb.getDocs(botQ);
@@ -10778,6 +10796,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t || t.status !== 'setup') return;
                 if (Object.keys(t.players).length >= (Number(setts.maxPlayers) || 4)) return showToast("השולחן מלא", "error");
                 let seatIndex = 0;
@@ -11532,6 +11551,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t || t.status !== 'setup') return;
                 const max = Number(setts.maxPlayers) || 4;
                 if (Object.keys(t.players).length >= max) return showToast("השולחן מלא", "error");
