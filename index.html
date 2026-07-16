@@ -1643,18 +1643,20 @@
                         {currentView === 'ofc-table' && <OFCTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('ofc'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
-                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
-                        {clubMsg && !inTable && (
-                            <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={dismissClubMsg}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 max-w-md w-full text-center shadow-2xl animate-pop-in">
-                                    <div className="text-4xl mb-2">📣</div>
-                                    <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
-                                    <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap">{clubMsg.text}</div>
-                                    <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
-                                    {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
-                                </div>
+                    {/* חלון הודעת ברודקאסט - overlay עצמאי ברמת המסך (לא בתוך קונטיינר הטוסטים) כדי ש-fixed ימוקם ביחס לחלון ושהלחיצות ייקלטו */}
+                    {clubMsg && !inTable && (
+                        <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={dismissClubMsg}>
+                            <div onClick={e=>e.stopPropagation()} className="relative bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 pt-10 max-w-md w-full text-center shadow-2xl animate-pop-in my-auto max-h-[90vh] overflow-y-auto">
+                                <button onClick={dismissClubMsg} aria-label="סגור" className="absolute top-3 left-3 w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-700 text-slate-300 hover:text-white font-black flex items-center justify-center border border-white/10 leading-none">✕</button>
+                                <div className="text-4xl mb-2">📣</div>
+                                <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
+                                <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap break-words">{clubMsg.text}</div>
+                                <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
+                                {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
                             </div>
-                        )}
+                        </div>
+                    )}
+                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>{t.msg}</div>
                         ))}
