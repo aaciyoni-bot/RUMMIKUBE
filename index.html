@@ -338,33 +338,41 @@
         /* ===== קוביות המשחקים בדשבורד ===== */
         .game-cube {
             position: relative; aspect-ratio: 1 / 1; min-width: 0;
-            border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-            border: 1px solid var(--cubeB); background: repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px), linear-gradient(165deg, var(--cubeBg1), var(--cubeBg2));
+            border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+            border: 1px solid rgba(103,232,249,0.10);
+            background:
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                linear-gradient(165deg, #0d1526, #080e1b);
             overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
-        .game-cube::before { content: ''; position: absolute; inset: 0; background: radial-gradient(110px 80px at 50% -5%, var(--cubeGlowSoft), transparent 70%); }
-        .game-cube:hover { transform: translateY(-3px); border-color: var(--cubeB2); box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 22px var(--cubeGlowSoft); }
+        .game-cube::before { content: ''; position: absolute; inset: 0; background: radial-gradient(110px 70px at 50% -8%, rgba(34,211,238,0.07), transparent 70%); }
+        .game-cube:hover { transform: translateY(-3px); border-color: rgba(34,211,238,0.35); box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 20px rgba(34,211,238,0.10); }
         .game-cube .cube-icon {
-            width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
-            font-size: 19px; color: #fff; background: linear-gradient(160deg, var(--cubeA), var(--cubeA2));
-            box-shadow: 0 6px 16px var(--cubeGlow), inset 0 1px 0 rgba(255,255,255,0.35); position: relative;
+            width: 42px; height: 42px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+            font-size: 17px; color: #a5f3fc;
+            background: rgba(34,211,238,0.07);
+            border: 1px solid rgba(34,211,238,0.20);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); position: relative;
+            transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
         }
-        .game-cube .cube-label { font-weight: 900; font-size: 13px; color: #e2e8f0; position: relative; white-space: nowrap; }
-        .game-cube .cube-count { font-weight: 700; font-size: 10px; color: #64748b; position: relative; white-space: nowrap; }
-        .cube-active { border-color: var(--cubeA) !important; transform: translateY(-3px); box-shadow: inset 0 0 0 2px var(--cubeA), 0 12px 30px var(--cubeGlow), 0 0 28px var(--cubeGlow) !important; }
+        .game-cube .cube-label { font-weight: 800; font-size: 13px; color: #cbd5e1; position: relative; white-space: nowrap; }
+        .game-cube .cube-count { font-weight: 700; font-size: 10px; color: #5b6b84; position: relative; white-space: nowrap; }
+        .cube-active {
+            border-color: rgba(34,211,238,0.60) !important; transform: translateY(-3px);
+            box-shadow: inset 0 0 0 1px rgba(34,211,238,0.35), 0 12px 30px rgba(0,0,0,0.5), 0 0 26px rgba(34,211,238,0.18) !important;
+            background:
+                radial-gradient(120px 80px at 50% -10%, rgba(34,211,238,0.16), transparent 70%),
+                repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+                linear-gradient(165deg, #0f1c31, #091120);
+        }
+        .cube-active .cube-icon {
+            background: linear-gradient(180deg, #22d3ee, #0891b2); color: #05202b;
+            border-color: rgba(165,243,252,0.7);
+            box-shadow: 0 6px 18px rgba(34,211,238,0.40), inset 0 1px 0 rgba(255,255,255,0.45);
+        }
         .cube-active .cube-label { color: #fff; }
-        .cube-active .cube-count { color: #cbd5e1; }
-        .cube-emerald { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171d; --cubeBg2:#070d18; }
-        .cube-rose { --cubeA:#f43f5e; --cubeA2:#9f1239; --cubeGlow:rgba(244,63,94,0.35); --cubeGlowSoft:rgba(244,63,94,0.14); --cubeB:rgba(244,63,94,0.22); --cubeB2:rgba(244,63,94,0.55); --cubeBg1:#1a0b10; --cubeBg2:#070d18; }
-        .cube-sky { --cubeA:#0ea5e9; --cubeA2:#075985; --cubeGlow:rgba(14,165,233,0.35); --cubeGlowSoft:rgba(14,165,233,0.14); --cubeB:rgba(14,165,233,0.22); --cubeB2:rgba(14,165,233,0.55); --cubeBg1:#0a141f; --cubeBg2:#070d18; }
-        .cube-amber { --cubeA:#f59e0b; --cubeA2:#b45309; --cubeGlow:rgba(245,158,11,0.35); --cubeGlowSoft:rgba(245,158,11,0.14); --cubeB:rgba(245,158,11,0.22); --cubeB2:rgba(245,158,11,0.55); --cubeBg1:#1a1408; --cubeBg2:#070d18; }
-        .cube-cyan { --cubeA:#06b6d4; --cubeA2:#0e7490; --cubeGlow:rgba(6,182,212,0.35); --cubeGlowSoft:rgba(6,182,212,0.14); --cubeB:rgba(6,182,212,0.22); --cubeB2:rgba(6,182,212,0.55); --cubeBg1:#08171b; --cubeBg2:#070d18; }
-        .cube-purple { --cubeA:#a855f7; --cubeA2:#6b21a8; --cubeGlow:rgba(168,85,247,0.35); --cubeGlowSoft:rgba(168,85,247,0.14); --cubeB:rgba(168,85,247,0.22); --cubeB2:rgba(168,85,247,0.55); --cubeBg1:#150b1f; --cubeBg2:#070d18; }
-        .cube-indigo { --cubeA:#6366f1; --cubeA2:#3730a3; --cubeGlow:rgba(99,102,241,0.35); --cubeGlowSoft:rgba(99,102,241,0.14); --cubeB:rgba(99,102,241,0.22); --cubeB2:rgba(99,102,241,0.55); --cubeBg1:#0e0f24; --cubeBg2:#070d18; }
-        .cube-teal { --cubeA:#14b8a6; --cubeA2:#134e4a; --cubeGlow:rgba(20,184,166,0.35); --cubeGlowSoft:rgba(20,184,166,0.14); --cubeB:rgba(20,184,166,0.22); --cubeB2:rgba(20,184,166,0.55); --cubeBg1:#081a18; --cubeBg2:#070d18; }
-        .cube-orange { --cubeA:#f97316; --cubeA2:#9a3412; --cubeGlow:rgba(249,115,22,0.35); --cubeGlowSoft:rgba(249,115,22,0.14); --cubeB:rgba(249,115,22,0.22); --cubeB2:rgba(249,115,22,0.55); --cubeBg1:#1a1008; --cubeBg2:#070d18; }
-        .cube-lime { --cubeA:#84cc16; --cubeA2:#3f6212; --cubeGlow:rgba(132,204,22,0.35); --cubeGlowSoft:rgba(132,204,22,0.14); --cubeB:rgba(132,204,22,0.22); --cubeB2:rgba(132,204,22,0.55); --cubeBg1:#131a08; --cubeBg2:#070d18; }
-        .cube-gold { --cubeA:#e3ae4e; --cubeA2:#a16207; --cubeGlow:rgba(227,174,78,0.35); --cubeGlowSoft:rgba(227,174,78,0.14); --cubeB:rgba(227,174,78,0.28); --cubeB2:rgba(227,174,78,0.6); --cubeBg1:#1a1608; --cubeBg2:#070d18; }
+        .cube-active .cube-count { color: #a5f3fc; }
+        .cube-emerald, .cube-rose, .cube-sky, .cube-amber, .cube-cyan, .cube-purple, .cube-indigo, .cube-teal, .cube-orange, .cube-lime, .cube-gold { --cubeA: #22d3ee; }
 
         /* לוגו נושם */
         .logo-shine { background-size: 200% auto !important; animation: logoShine 5.5s linear infinite; }
@@ -2715,19 +2723,19 @@
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
-                                { id: 'poker', label: 'פוקר', icon: 'fa-diamond', c: 'rose', n: pokerTables.length },
+                                { id: 'poker', label: 'פוקר', suit: '♠', c: 'rose', n: pokerTables.length },
                                 { id: 'durak', label: 'דוראק', icon: 'fa-shield-halved', c: 'sky', n: durakTables.length },
                                 { id: 'shesh', label: 'שש-בש', icon: 'fa-dice', c: 'amber', n: sheshTables.length },
-                                { id: 'yaniv', label: 'יניב', icon: 'fa-bolt', c: 'cyan', n: yanivTables.length },
-                                { id: 'president', label: 'פרזידנט', icon: 'fa-chess-king', c: 'purple', n: presTables.length },
-                                { id: 'bridge', label: "ברידג'", icon: 'fa-diamond', c: 'indigo', n: bridgeTables.length },
+                                { id: 'yaniv', label: 'יניב', suit: '♥', c: 'cyan', n: yanivTables.length },
+                                { id: 'president', label: 'פרזידנט', icon: 'fa-crown', c: 'purple', n: presTables.length },
+                                { id: 'bridge', label: "ברידג'", suit: '♦', c: 'indigo', n: bridgeTables.length },
                                 { id: 'gin', label: "ג'ין רמי", icon: 'fa-layer-group', c: 'lime', n: ginTables.length },
                                 { id: 'twist', label: 'טוויסט', icon: 'fa-arrows-spin', c: 'orange', n: twistTables.length },
                                 { id: 'ofc', label: 'פוקר סיני', icon: 'fa-table-cells', c: 'teal', n: ofcTables.length },
                                 { id: 'tours', label: 'טורנירים', icon: 'fa-trophy', c: 'gold', n: (tournaments || []).filter(t => (t.clubId || 'main') === CLUB_ID && ['reg', 'running'].includes(t.status)).length },
                             ].map(g => (
                                 <button key={g.id} onClick={() => setTab(g.id)} className={`game-cube cube-${g.c} ${tab === g.id ? 'cube-active' : ''}`}>
-                                    <span className="cube-icon"><i className={`fa-solid ${g.icon}`}></i></span>
+                                    <span className="cube-icon">{g.suit ? <SuitGlyph s={g.suit} color="currentColor" size="1.1em"/> : <i className={`fa-solid ${g.icon}`}></i>}</span>
                                     <span className="cube-label">{g.label}</span>
                                     <span className="cube-count">{g.n} שולחנות</span>
                                 </button>
