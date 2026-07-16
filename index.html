@@ -12216,7 +12216,7 @@
                 });
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
                     type: 'poker', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
-                    tournament: { name: tor.name, startedAt: tor.startedAt, levelMins: tor.levelMins || 5, anteFromLevel: 4, rebuyUntil: tor.rebuys ? 1 : -1, addonAt: tor.addon ? 2 : -1, startStack: Number(tor.startStack) || 1000, bounty: Number(tor.bounty) || 0, round, finished: false, tableWinner: null },
+                    tournament: { name: tor.name, startedAt: tor.startedAt, levelMins: tor.levelMins || 5, anteFromLevel: 4, rebuyUntil: tor.rebuys ? ((Number(tor.rebuyUntilLevel) || 2) - 1) : -1, addonAt: tor.addon ? ((Number(tor.addonLevel) || 3) - 1) : -1, startStack: Number(tor.startStack) || 1000, bounty: Number(tor.bounty) || 0, round, finished: false, tableWinner: null },
                     settings: { baseGameType: tor.pokerType || 'NLH', isDealerChoice: false, maxPlayers: tblSize, blinds: 5, actionTime: 25, minBuyInBB: 0, maxBuyInBB: 0, rakePercent: 0, autoStart: 2, straddle: false, ante: 0 },
                     players, chat: [], leftStacks: {},
                     gameState: { phase: 'waiting', deck: [], board: [], pots: [], highestBet: 0, minRaise: 10, dealerUid: null, dcUid: null, dcAnchor: null, currentGameType: tor.pokerType || 'NLH', activeTurnUid: null, turnStartedAt: null, lastWinners: null, lastWinAmount: 0, allInReveal: false }
@@ -12338,7 +12338,7 @@
         function TournamentsTab({ user, game, tournaments, tables, clubSettings, showToast, onJoinTable }) {
             const [showCreate, setShowCreate] = useState(false);
             const [tick, setTick] = useState(0);
-            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, addon: true, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
+            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
             const isAll = game === 'all';
             const effGame = isAll ? (opts.gameSel || 'poker') : game;
             const isPoker = effGame === 'poker';
@@ -12363,6 +12363,7 @@
                     startAt, maxPlayers: Math.max(2, Number(opts.maxPlayers) || 2),
                     levelMins: isPoker ? Number(opts.levelMins) : 0,
                     rebuys: isPoker ? !!opts.rebuys : false, addon: isPoker ? !!opts.addon : false,
+                    rebuyUntilLevel: isPoker ? Math.max(1, Number(opts.rebuyUntilLevel) || 2) : 0, addonLevel: isPoker ? Math.max(1, Number(opts.addonLevel) || 3) : 0,
                     startStack: isPoker ? Math.max(100, Number(opts.startStack) || 1000) : 1000,
                     payouts: payoutsArr, creatorUid: user.uid,
                     status: 'reg', players: {}, prizePool: addedPrize, feeTotal: 0, round: 0, createdAt: Date.now()
@@ -12547,8 +12548,8 @@
                                     </select>
                                 </div>}
                                 {isPoker && <div className="flex flex-col gap-2 justify-end">
-                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.rebuys} onChange={e=>setOpts({...opts, rebuys: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">ריביי (עד רמה 2)</span></label>
-                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.addon} onChange={e=>setOpts({...opts, addon: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">אדאון (ברמה 3)</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.rebuys} onChange={e=>setOpts({...opts, rebuys: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">ריביי עד רמה</span><input type="number" min="1" max="12" value={opts.rebuyUntilLevel} onChange={e=>setOpts({...opts, rebuyUntilLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.rebuys} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.addon} onChange={e=>setOpts({...opts, addon: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">אדאון ברמה</span><input type="number" min="1" max="12" value={opts.addonLevel} onChange={e=>setOpts({...opts, addonLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.addon} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
                                 </div>}
                             </div>
                             <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
