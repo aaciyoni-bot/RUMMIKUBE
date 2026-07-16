@@ -2508,43 +2508,13 @@
             const claimScratch = async () => {
                 try {
                     if (!scratchReady) throw "עוד לא הגיע הזמן";
-                    let prize = 0, fromBank = false;
-                    const ownerUid = (window.__club || {}).ownerUid;
-                    await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const mRef = memDoc(user.uid);
-                        const mSnap = await tr.get(mRef);
-                        if (!mSnap.exists()) throw "אין חברות";
-                        const lastS = mSnap.data().lastScratchAt || 0;
-                        if (Date.now() - lastS < SCR_HOURS * 3600 * 1000) throw "כבר גירדת השבוע";
-                        const cRef = window.fb.doc(window.fb.db, "clubs", CLUB_ID);
-                        const cSnap = await tr.get(cRef);
-                        const cycleKey = String(cycleStartIL(0));
-                        let sc = (cSnap.exists() && cSnap.data().scratch) || {};
-                        if (sc.key !== cycleKey) sc = { key: cycleKey, won400: false, won200: false };
-                        // הגרלה: 80% עשרה · 15% חמש-עשרה · 0.5% ארבע מאות (אחד בשבוע) · 1% מאתיים (אחד בשבוע) · השאר עשרה
-                        const r = Math.random() * 1000;
-                        if (r < 800) prize = 10;
-                        else if (r < 950) prize = 15;
-                        else if (r < 955) prize = !sc.won400 ? 400 : 10;
-                        else if (r < 965) prize = !sc.won200 ? 200 : 10;
-                        else prize = 10;
-                        if (prize === 400) sc = { ...sc, won400: true };
-                        if (prize === 200) sc = { ...sc, won200: true };
-                        if (ownerUid && ownerUid !== user.uid) {
-                            const oRef = memDoc(ownerUid);
-                            const oSnap = await tr.get(oRef);
-                            if (!oSnap.exists() || (oSnap.data().balance || 0) < prize) throw "קופת הקלאב ריקה כרגע - נסה מאוחר יותר";
-                            tr.update(oRef, { balance: round2((oSnap.data().balance || 0) - prize), bonusPaid: round2((oSnap.data().bonusPaid || 0) + prize) });
-                            tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastScratchAt: Date.now() });
-                            fromBank = true;
-                        } else {
-                            tr.update(mRef, { lastScratchAt: Date.now() });
-                        }
-                        tr.update(cRef, { scratch: sc });
-                    });
+                    // הפרס נקבע והכסף מוזז בשרת (Cloud Function) - לא ניתן לזיוף מהדפדפן
+                    const call = window.fb.httpsCallable(window.fb.functions, 'claimWeeklyScratch');
+                    const res = await call({ clubId: CLUB_ID });
+                    const { prize, fromBank } = res.data;
                     setScr({ prize, grid: buildGrid(prize), revealed: false, fromBank });
                     playSnd('deal');
-                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+                } catch(e) { showToast((e && e.message) ? e.message : (typeof e === 'string' ? e : "שגיאה"), "error"); }
             };
             const revealScratch = () => {
                 setScr(sc => sc ? { ...sc, revealed: true } : sc);
