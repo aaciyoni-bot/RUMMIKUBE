@@ -469,6 +469,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
@@ -476,7 +477,7 @@
             projectId: "rummikube-5c138"
         };
         const app = initializeApp(firebaseConfig);
-        window.fb = { auth: getAuth(app), db: getFirestore(app), googleProvider: new GoogleAuthProvider(), signInWithPopup, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
+        window.fb = { auth: getAuth(app), db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -2558,39 +2559,16 @@
                 if (bonusSpin && !bonusSpin.done) return;
                 try {
                     if (!bonusEnabled) throw "בעל הקלאב כיבה את הגלגל";
-                    let prize = 0, fromBank = false;
-                    const ownerUid = (window.__club || {}).ownerUid;
-                    await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const mRef = memDoc(user.uid);
-                        const mSnap = await tr.get(mRef);
-                        if (!mSnap.exists()) throw "אין חברות";
-                        const last = mSnap.data().lastBonusAt || 0;
-                        if (Date.now() - last < 22 * 3600 * 1000) throw `הבונוס הבא בעוד ${Math.ceil((22 * 3600 * 1000 - (Date.now() - last)) / 3600000)} שעות`;
-                        // הגרלה משוקללת
-                        const total = BONUS_W.reduce((a, b) => a + b, 0);
-                        let r = Math.random() * total, idx = 0;
-                        for (let i = 0; i < BONUS_W.length; i++) { r -= BONUS_W[i]; if (r <= 0) { idx = i; break; } }
-                        prize = BONUS_SEGS[idx];
-                        // שימור צ'יפים: הפרס עובר מקופת בעל הקלאב לשחקן - לא נוצר כסף חדש
-                        if (ownerUid && ownerUid !== user.uid) {
-                            const oRef = memDoc(ownerUid);
-                            const oSnap = await tr.get(oRef);
-                            if (!oSnap.exists() || (oSnap.data().balance || 0) < prize) throw "קופת הקלאב ריקה כרגע - נסה מאוחר יותר";
-                            tr.update(oRef, { balance: round2((oSnap.data().balance || 0) - prize), bonusPaid: round2(((oSnap.data().bonusPaid || 0)) + prize) });
-                            tr.update(mRef, { balance: round2((mSnap.data().balance || 0) + prize), lastBonusAt: Date.now() });
-                            fromBank = true;
-                        } else {
-                            // הבעלים מסובב: הפרס מהקופה שלו אל עצמו = נשאר במקום
-                            tr.update(mRef, { lastBonusAt: Date.now() });
-                        }
-                    });
-                    const idx = BONUS_SEGS.indexOf(prize);
+                    // הפרס נקבע והכסף מוזז בשרת (Cloud Function) - לא ניתן לזיוף מהדפדפן
+                    const call = window.fb.httpsCallable(window.fb.functions, 'spinDailyBonus');
+                    const res = await call({ clubId: CLUB_ID });
+                    const { prize, idx, fromBank } = res.data;
                     const segDeg = 360 / BONUS_SEGS.length;
                     const target = 360 * 6 - (idx * segDeg + segDeg / 2);
                     setBonusSpin({ deg: target, prize, done: false });
                     playSnd('dice');
                     setTimeout(() => { setBonusSpin(sp => sp ? { ...sp, done: true } : sp); playSnd('win'); showToast(fromBank ? `זכית ב-${formatMoney(prize)} מקופת הקלאב! 🎁` : `יצא ${formatMoney(prize)} - אתה הבית, הכסף נשאר בקופה שלך 😉`, "success"); }, 4200);
-                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בבונוס", "error"); }
+                } catch(e) { showToast((e && e.message) ? e.message : (typeof e === 'string' ? e : "שגיאה בבונוס"), "error"); }
             };
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
@@ -11591,17 +11569,29 @@
 
             /* ---------- חוקיות מהלך ---------- */
             const topPlay = (pile) => (pile && pile.length) ? pile[pile.length - 1] : null;
+            // ערך אפקטיבי של מהלך: ג'וקר משמש כוויילד ומקבל את ערך הקלפים הרגילים; ג'וקר(ים) לבד = פצצה (16)
+            const topEV = (top) => top ? (top.ev != null ? top.ev : top.cards[0].v) : null;
+            const topCount = (top) => top ? (top.count != null ? top.count : top.cards.length) : null;
             const validateSel = (cards, pile) => {
                 if (!cards.length) return { ok: false, msg: "בחר קלפים" };
-                const v0 = cards[0].v;
-                if (!cards.every(c => c.v === v0)) return { ok: false, msg: "כל הקלפים חייבים להיות באותו ערך" };
-                const clear = v0 >= 15; // 2 או ג'וקר - מנקה הכל
+                const regs = cards.filter(c => !c.joker);
+                // כלל 1: הג'וקר וויילד - כל הקלפים הרגילים חייבים באותו ערך, הג'וקרים מצטרפים אליהם
+                if (regs.length) {
+                    const rv = regs[0].v;
+                    if (!regs.every(c => c.v === rv)) return { ok: false, msg: "כל הקלפים (מלבד ג'וקר) חייבים באותו ערך" };
+                }
+                const ev = regs.length ? regs[0].v : 16;   // רק ג'וקרים = פצצה
+                const count = cards.length;
+                const clear = regs.length === 0 || ev === 15; // ג'וקר(ים) לבד, או 2 - מנקים הכל
                 const top = topPlay(pile);
-                if (!top) return { ok: true, clear };
-                if (clear) return { ok: true, clear: true };
-                if (cards.length !== top.cards.length) return { ok: false, msg: `חייבים בדיוק ${top.cards.length} קלפים (או 2/ג'וקר)` };
-                if (v0 <= top.cards[0].v) return { ok: false, msg: "הערך חייב להיות גבוה מהשולחן" };
-                return { ok: true };
+                if (!top) return { ok: true, clear, ev, count, skip: false };
+                if (clear) return { ok: true, clear: true, ev, count, skip: false };
+                const tev = topEV(top), tc = topCount(top);
+                if (count !== tc) return { ok: false, msg: `חייבים בדיוק ${tc} קלפים (או 2/ג'וקר לניקוי)` };
+                if (ev < tev) return { ok: false, msg: "הערך חייב להיות שווה או גבוה מהשולחן" };
+                // כלל 2: ערך זהה לשולחן מותר - ומדלג על השחקן הבא
+                const skip = ev === tev;
+                return { ok: true, clear: false, ev, count, skip };
             };
 
             /* ---------- ביצוע מהלך / פאס ---------- */
@@ -11628,8 +11618,14 @@
                     upd.lastPlayedUid = null;
                     upd.turnUid = finishedNow ? nextActive(uid, pl) : uid;
                 } else {
-                    upd.pile = [...(t.pile || []), { uid, name: p.name, cards }];
-                    upd.turnUid = nextActive(uid, pl);
+                    upd.pile = [...(t.pile || []), { uid, name: p.name, cards, ev: val.ev, count: val.count }];
+                    if (val.skip) {
+                        // כלל 2: שוויון ערך - מדלגים על השחקן הבא
+                        const skipped = nextActive(uid, pl);
+                        upd.turnUid = skipped ? nextActive(skipped, pl) : nextActive(uid, pl);
+                    } else {
+                        upd.turnUid = nextActive(uid, pl);
+                    }
                 }
 
                 // נשאר שחקן אחד עם קלפים - הוא העבד, סוגרים
@@ -11645,6 +11641,7 @@
                 if (!upd.turnUid) upd.turnUid = nextActive(uid, pl, false);
                 await window.fb.updateDoc(tblRef(), upd);
                 playSnd('tile');
+                if (val.skip && uid === user.uid) showToast('🔁 ערך זהה - השחקן הבא מדולג!');
                 if (uid === user.uid) setSelected([]);
             };
 
@@ -11686,7 +11683,7 @@
                     await doPlay(uid, g[lo].map(c => c.id));
                     return;
                 }
-                const need = top.cards.length, over = top.cards[0].v;
+                const need = topCount(top), over = topEV(top);
                 const g = {}; hand.forEach(c => { (g[c.v] = g[c.v] || []).push(c); });
                 const vals = Object.keys(g).map(Number).sort((a, b) => a - b);
                 for (const v of vals) {
