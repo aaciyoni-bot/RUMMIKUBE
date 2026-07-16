@@ -12381,6 +12381,38 @@
                 } catch(e) { showToast("שגיאה בהוספת בוטים: " + (e.message || e), "error"); }
             };
 
+            // ניהול אדמין: הרצה מיידית / ביטול (עם החזר) / מחיקה
+            const runNow = async (tor) => {
+                const n = Object.keys(tor.players || {}).length;
+                if (n < 2) return showToast("צריך לפחות 2 שחקנים", "error");
+                if (!window.confirm(`להתחיל את "${tor.name}" עכשיו עם ${n} שחקנים? (מתעלם מהתאריך שנקבע)`)) return;
+                try {
+                    const snap = await window.fb.getDoc(tRef(tor.id));
+                    if (!snap.exists()) return;
+                    const fresh = { id: tor.id, ...snap.data() };
+                    if (fresh.status !== 'reg') return showToast("הטורניר כבר התחיל או הסתיים", "error");
+                    await tourStart(fresh);
+                    showToast("הטורניר יוצא לדרך! 🏆", "success");
+                } catch(e) { showToast("שגיאה בהרצה: " + (e.message || e), "error"); }
+            };
+            const cancelTour = async (tor) => {
+                if (!window.confirm(`לבטל את "${tor.name}"? דמי הכניסה יוחזרו לשחקנים והשולחנות ייסגרו.`)) return;
+                try {
+                    for (const p of Object.values(tor.players || {})) { if ((p.paid || 0) > 0 && !p.isBot) { try { await creditBalance(p.uid, p.paid); } catch(e2){} } }
+                    for (const tb of (tables || []).filter(x => x.tournamentId === tor.id)) { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", tb.docId || tb.id)); } catch(e2){} }
+                    await window.fb.updateDoc(tRef(tor.id), { status: 'cancelled' });
+                    showToast("הטורניר בוטל והכספים הוחזרו", "info");
+                } catch(e) { showToast("שגיאה בביטול: " + (e.message || e), "error"); }
+            };
+            const deleteTour = async (tor) => {
+                if (!window.confirm(`למחוק לצמיתות את "${tor.name}"? פעולה בלתי הפיכה.`)) return;
+                try {
+                    for (const tb of (tables || []).filter(x => x.tournamentId === tor.id)) { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", tb.docId || tb.id)); } catch(e2){} }
+                    await window.fb.deleteDoc(tRef(tor.id));
+                    showToast("הטורניר נמחק", "info");
+                } catch(e) { showToast("שגיאה במחיקה: " + (e.message || e), "error"); }
+            };
+
             const fmtCountdown = (ms) => {
                 if (ms <= 0) return "מתחיל...";
                 const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), sec = Math.floor((ms % 60000) / 1000);
@@ -12541,6 +12573,9 @@
                                         )}
                                         <div className="flex gap-2">
                                             {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => fillBots(tor)} title="מלא בבוטים (בדיקה)" className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">🤖</button>}
+                                            {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => runNow(tor)} title="התחל עכשיו" className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">▶️</button>}
+                                            {['reg','running'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => cancelTour(tor)} title="בטל טורניר (החזר כספים)" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">✖️</button>}
+                                            {['cancelled','done'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => deleteTour(tor)} title="מחק טורניר לצמיתות" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">🗑️</button>}
                                             {tor.status === 'reg' && !me && <button onClick={() => tourRegister(tor, user, showToast)} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg">הירשם ({formatMoney(tourEntryOf(tor))})</button>}
                                             {tor.status === 'reg' && me && <button onClick={() => tourUnregister(tor, user, showToast)} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-2.5 rounded-xl font-bold text-sm border border-white/10">רשום ✓ · בטל הרשמה</button>}
                                             {myTable && <button onClick={() => onJoinTable(myTable)} className="flex-1 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg animate-pulse">🎲 לשולחן שלי!</button>}
