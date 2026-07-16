@@ -583,7 +583,8 @@
             const monday = new Date(il);
             monday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
             monday.setHours(0, 1, 0, 0);
-            return monday.getTime() + (now.getTime() - il.getTime());
+            // עיגול לדקה: מסיר את רעש המילישניות מ-toLocaleString כך שהמפתח יציב לאורך כל המחזור
+            return Math.round((monday.getTime() + (now.getTime() - il.getTime())) / 60000) * 60000;
         };
         const genAgentCode = () => 'AG' + Math.random().toString(36).slice(2, 6).toUpperCase();
 
@@ -998,7 +999,7 @@
             if (isStraight && isFlush) return 8000000 + straightHigh * 10000;
             if (groups[0].count === 4) return 7000000 + groups[0].rank * 10000 + kickers([groups[0].rank])[0];
             if (groups[0].count === 3 && groups[1] && groups[1].count >= 2) return 6000000 + groups[0].rank * 10000 + groups[1].rank;
-            if (isFlush) return 5000000 + ranks[0] * 10000 + ranks[1] * 500 + ranks[2] * 25 + ranks[3];
+            if (isFlush) return 5000000 + ranks[0] * 50625 + ranks[1] * 3375 + ranks[2] * 225 + ranks[3] * 15 + ranks[4];
             if (isStraight) return 4000000 + straightHigh * 10000;
             if (groups[0].count === 3) { const k = kickers([groups[0].rank]); return 3000000 + groups[0].rank * 10000 + k[0] * 100 + k[1]; }
             if (groups[0].count === 2 && groups[1] && groups[1].count === 2) { const k = kickers([groups[0].rank, groups[1].rank]); return 2000000 + groups[0].rank * 10000 + groups[1].rank * 100 + k[0]; }
@@ -1458,7 +1459,7 @@
                             </div>
                             <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
                                 <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
-                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V25</span></p>
+                                <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· V24</span></p>
                             </div>
                         </nav>
                     )}
@@ -1512,7 +1513,7 @@
                             <i className="fa-solid fa-diamond text-3xl text-white"></i>
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
-                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V25</p>
+                        <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · V24</p>
                         <button onClick={()=>window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider)} className="w-full bg-white hover:bg-slate-100 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             <i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים
                         </button>
@@ -1834,7 +1835,7 @@
                 if (nm.length < 2 || nm.length > 30) return showToast("שם קלאב בין 2 ל-30 תווים", "error");
                 setCreating(true);
                 try {
-                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now() });
+                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now(), ownerSeeded: true });
                     await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved', balance: 100000000 });
                     setNewName('');
                     showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
@@ -2039,7 +2040,8 @@
                 try {
                     const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("uid", "==", user.uid));
                     const s = await window.fb.getDocs(q);
-                    setLogs(s.docs.map(d => d.data()).sort((a, b) => (b.at || 0) - (a.at || 0)));
+                    // סינון לפי הקלאב הפעיל בזיכרון (בלי אינדקס מורכב) - הדוח האישי תואם ליתרה ולסטטיסטיקות של הקלאב
+                    setLogs(s.docs.map(d => d.data()).filter(l => (l.clubId || 'main') === CLUB_ID).sort((a, b) => (b.at || 0) - (a.at || 0)));
                 } catch(e) { setLogs([]); }
                 setLogsLoading(false);
             };
@@ -2380,13 +2382,13 @@
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreateYnv = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Number(ynvOpts.buyIn) || 0, maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Math.max(0, Number(ynvOpts.buyIn) || 0), maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreateYnv(false); showToast("שולחן יניב נפתח!", "success");
             };
             const [showCreatePres, setShowCreatePres] = useState(false);
             const [presOpts, setPresOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreatePres = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Number(presOpts.buyIn) || 0, maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Math.max(0, Number(presOpts.buyIn) || 0), maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreatePres(false); showToast("שולחן פרזידנט נפתח!", "success");
             };
 
@@ -2429,7 +2431,9 @@
                         if (!snap.exists()) return;
                         const players = snap.data().players || {};
                         const humanUids = Object.keys(players).filter(u => !u.startsWith('bot_') && !players[u].isBot);
-                        const potShare = round2((snap.data().pot || 0) / Math.max(humanUids.length, 1));
+                        // בפוקר הקופה יושבת ב-gameState.pots (לא בשדה pot העליון) - כוללים אותה בהחזר כדי שלא תושמד
+                        const gsPots = round2(((snap.data().gameState || {}).pots || []).reduce((s, p) => s + (Number(p.amount) || 0), 0));
+                        const potShare = round2(((snap.data().pot || 0) + gsPots) / Math.max(humanUids.length, 1));
                         const refunds = [];
                         for (const uid of humanUids) {
                             const uSnap = await tr.get(memDoc(uid));
@@ -3226,7 +3230,7 @@
             const exportClubCSV = async () => {
                 setExporting(true);
                 try {
-                    const s = await window.fb.getDocs(window.fb.collection(window.fb.db, "gameLog"));
+                    const s = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID)));
                     let all = s.docs.map(d => d.data());
                     if (expFrom) all = all.filter(l => l.at >= new Date(expFrom).getTime());
                     if (expTo) all = all.filter(l => l.at <= new Date(expTo).getTime() + 24 * 3600 * 1000);
@@ -6251,10 +6255,10 @@
                             uSnaps[uid] = s;
                         }
                         for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
-                        // חלוקה
+                        // חלוקה: הקלף התחתון (deck[0]) הוא השליט ונשאר בקופה עד סופה - לעולם לא מחלקים אותו
                         const deck = durakDeck(Number(tbl.settings.deckSize) || 36);
-                        for (let i = 0; i < 6; i++) for (const uid of uids) pl[uid].cards.push(deck.pop());
                         const trumpCard = deck[0]; const trumpSuit = trumpCard.suit;
+                        for (let i = 0; i < 6; i++) for (const uid of uids) { if (deck.length > 1) pl[uid].cards.push(deck.pop()); }
                         // המתחיל: בעל השליט הנמוך ביותר
                         let low = 99, attacker = uids[0];
                         uids.forEach(uid => pl[uid].cards.forEach(c => { if (c.suit === trumpSuit && c.v < low) { low = c.v; attacker = uid; } }));
@@ -6290,7 +6294,11 @@
                     const buyIn = Number(setts.buyIn) || 0;
                     let winners = soloWinnerUid ? [pl[soloWinnerUid]] : Object.values(pl).filter(p => p.out && !p.left && p.uid !== durakUid);
                     const share = winners.length ? Math.floor(((pot - rake) / winners.length) * 100) / 100 : 0;
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק ע"י לקוח אחר
                         const reads = {};
                         for (const w of winners) { const s = await tr.get(memDoc(w.uid)); if (s.exists()) reads[w.uid] = s; }
                         let durakSnap = null;
@@ -6317,7 +6325,12 @@
                             finishOrder: fo || [], turnUid: null, pot: 0,
                             lastResults: { durakName: durakUid ? pl[durakUid].name : null, winners: winners.map(w => w.name), share, rake, pot, solo: !!soloWinnerUid }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
+                    // שימור צ'יפים: חלקו של בוט מנצח לא ניתן לזיכוי (אין לו חברות) - עובר לקופת הבית במקום להישמד
+                    const durakBotShare = round2(winners.filter(w => w.isBot).length * share);
+                    if (durakBotShare > 0) creditRakeToClub(durakBotShare);
                     distributeRake(rake, Object.keys(pl));
                     logGameResult([
                         ...winners.filter(w => !w.isBot).map(w => ({ uid: w.uid, username: w.name, game: 'durak', profit: round2(share - (Number(setts.buyIn) || 0)) })),
@@ -7356,7 +7369,11 @@
                     const amount = round2(pot - rake);
                     const buyIn = Number(setts.buyIn) || 0;
                     const mars = !byForfeit && upd && (upd.off[oppC(winnerColor)] || 0) === 0;
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const wRef = memDoc(winnerUid);
                         const wSnap = await tr.get(wRef);
                         let lSnap = null, lRef = null;
@@ -7382,7 +7399,11 @@
                             board: upd ? upd.board : t.board, bar: upd ? upd.bar : t.bar, off: upd ? upd.off : t.off,
                             lastResults: { winnerName: (players[winnerUid] || {}).name || '', amount, rake, mars, byForfeit: !!byForfeit }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
+                    // שימור צ'יפים: בוט מנצח - הזכייה לקופת הבית במקום להישמד
+                    if ((players[winnerUid] || {}).isBot && amount > 0) creditRakeToClub(amount);
                     distributeRake(rake, [winnerUid, loserUid].filter(Boolean));
                     logGameResult([
                         ...(!players[winnerUid]?.isBot ? [{ uid: winnerUid, username: players[winnerUid]?.name, game: 'shesh', profit: round2(amount - buyIn) }] : []),
@@ -7856,12 +7877,42 @@
         const ofcRoyalBot = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 25 : 15) : ev[0] === 7 ? 10 : ev[0] === 6 ? 6 : ev[0] === 5 ? 4 : ev[0] === 4 ? 2 : 0;
         const ofcRoyalMid = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 50 : 30) : ev[0] === 7 ? 20 : ev[0] === 6 ? 12 : ev[0] === 5 ? 8 : ev[0] === 4 ? 4 : ev[0] === 3 ? 2 : 0;
         const ofcRoyalTop = (ev) => ev[0] === 3 ? (ev[1] - 2 + 10) : (ev[0] === 1 && ev[1] >= 6 ? ev[1] - 5 : 0); // 66=1..AA=9, שלישיות 222=10..AAA=22
+        const topAs5Of = (t) => [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // טופ להשוואה מול אמצע (זוג/שלישייה/גבוה)
+        // כל ערכי הג'וקר האפשריים בשורה (dedup לפי חוזק) - לבחירה משותפת חוקית
+        const ofcRowCands = (cards, isTop) => {
+            const fn = isTop ? ofcEval3 : ofcEval5;
+            const jok = (cards || []).filter(c => c.v === 0), rest = (cards || []).filter(c => c.v !== 0);
+            if (!jok.length) return [fn(cards || [])];
+            const seen = new Set(), out = [];
+            const add = e => { const k = e.join(','); if (!seen.has(k)) { seen.add(k); out.push(e); } };
+            if (jok.length === 1) { for (const r of OFC_ALL52) add(fn([...rest, r])); }
+            else { for (const r1 of OFC_ALL52) for (const r2 of OFC_ALL52) add(fn([...rest, r1, r2])); }
+            return out;
+        };
+        // הג'וקר "מתאים את עצמו לניצחון": קודם לוח חוקי (לא פאול), ואז מקסימום רויאלטיז - במשותף לכל השורות
+        const ofcResolve = (p) => {
+            let t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
+            let foul = ofcCmp(topAs5Of(t), m) > 0 || ofcCmp(m, b) > 0;
+            const hasJoker = [...(p.top || []), ...(p.mid || []), ...(p.bot || [])].some(c => c && c.v === 0);
+            if (foul && hasJoker) {
+                // הבחירה הבלתי-תלויה יצרה פאול - מחפשים שילוב ערכי ג'וקר שנשאר חוקי וממקסם רויאלטיז
+                const T = ofcRowCands(p.top || [], true), M = ofcRowCands(p.mid || [], false), B = ofcRowCands(p.bot || [], false);
+                let best = null, bestRoy = -Infinity;
+                for (const bb of B) for (const mm of M) {
+                    if (ofcCmp(mm, bb) > 0) continue;
+                    for (const tt of T) {
+                        if (ofcCmp(topAs5Of(tt), mm) > 0) continue;
+                        const roy = ofcRoyalTop(tt) + ofcRoyalMid(mm) + ofcRoyalBot(bb);
+                        if (roy > bestRoy) { bestRoy = roy; best = { t: tt, m: mm, b: bb }; }
+                    }
+                }
+                if (best) { t = best.t; m = best.m; b = best.b; foul = false; }
+            }
+            return { t, m, b, foul };
+        };
         // ניתוח לוח שלם: פאול + רויאלטיז + הכשרה לפנטזילנד
         const ofcBoard = (p) => {
-            const t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
-            const m5 = [m[0] >= 3 ? m[0] : m[0], ...m.slice(1)];
-            const topAs5 = [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // השוואת טופ מול אמצע: קטגוריות תואמות (זוג/שלישייה/גבוה)
-            const foul = ofcCmp(topAs5, m) > 0 || ofcCmp(m, b) > 0;
+            const { t, m, b, foul } = ofcResolve(p);
             const roy = foul ? 0 : ofcRoyalTop(t) + ofcRoyalMid(m) + ofcRoyalBot(b);
             let flNext = 0;
             if (!foul) {
@@ -8166,52 +8217,60 @@
                     if (posSum > 0) Object.entries(rawPos).forEach(([u, r]) => wins[u] = round2(Math.floor(distributable * (r / posSum) * 100) / 100));
                     const logEntries = [];
                     const cashouts = [];
+                    const baseStack = {}; parts.forEach(p => baseStack[p.uid] = p.stack || 0); // בסיס יציב ל-retry
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const humans = parts.filter(p => !p.isBot);
                         const reads = {};
                         for (const p of humans) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; }
-                        // עדכון סטאקים: המשחקון עובר בין הערימות שעל השולחן
-                        Object.keys(pl).forEach(u => {
-                            pl[u].stack = round2((pl[u].stack || 0) - (pays[u] || 0) + (wins[u] || 0));
-                            pl[u].flNext = boards[u].flNext || 0;
-                            pl[u].pending = [];
+                        logEntries.length = 0; cashouts.length = 0; // איפוס לכל ניסיון retry
+                        // בונים מפת שחקנים חדשה מהבסיס - חסין retry (בלי מוטציה של pl)
+                        const stackOf = (u) => round2((baseStack[u] || 0) - (pays[u] || 0) + (wins[u] || 0));
+                        const outPl = {};
+                        parts.forEach(p => {
+                            const u = p.uid, stack = stackOf(u);
+                            if (!p.left && stack > 0.009) outPl[u] = { ...p, stack, flNext: boards[u].flNext || 0, pending: [] };
                         });
                         for (const p of humans) {
                             const sm = reads[p.uid]; if (!sm) continue;
                             const delta = round2((wins[p.uid] || 0) - (pays[p.uid] || 0));
                             const st = sm.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            const stackNow = stackOf(p.uid);
                             const memUpd = {
                                 'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
                                 'stats.gamesWon': (st.gamesWon || 0) + (pts[p.uid] > 0 ? 1 : 0),
                                 'stats.totalProfit': round2((st.totalProfit || 0) + delta)
                             };
                             // עוזב באמצע - פודה את מה שנשאר לו מיד
-                            if (pl[p.uid].left && (pl[p.uid].stack || 0) > 0) {
-                                memUpd.balance = round2((sm.data().balance || 0) + pl[p.uid].stack);
+                            if (p.left && stackNow > 0) {
+                                memUpd.balance = round2((sm.data().balance || 0) + stackNow);
                                 cashouts.push(p.name);
                             }
                             tr.update(sm.ref, memUpd);
                             logEntries.push({ uid: p.uid, username: p.name, game: 'ofc', profit: delta });
                         }
-                        // עוזבים ומרוששים יורדים מהשולחן
-                        Object.keys(pl).forEach(u => { if (pl[u].left || (pl[u].stack || 0) <= 0.009) delete pl[u]; });
                         tr.update(tblRef(), {
-                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: outPl,
                             lastResults: {
                                 rows: parts.map(p => ({
                                     uid: p.uid, name: p.name, pts: pts[p.uid], roy: boards[p.uid].roy, foul: boards[p.uid].foul, fl: boards[p.uid].flNext || 0,
                                     money: round2((wins[p.uid] || 0) - (pays[p.uid] || 0)),
-                                    stack: pl[p.uid] ? pl[p.uid].stack : 0, busted: !pl[p.uid] && !boards[p.uid].left,
+                                    stack: outPl[p.uid] ? outPl[p.uid].stack : 0, busted: !outPl[p.uid] && !p.left,
                                     hands: boards[p.uid].foul ? null : { t: ofcHandName(boards[p.uid].t, true), m: ofcHandName(boards[p.uid].m), b: ofcHandName(boards[p.uid].b) },
                                     isBot: !!p.isBot
                                 })).sort((a, b) => b.pts - a.pts),
                                 pv, stake, rake, endedAt: Date.now()
                             }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
-                    if (rake > 0) { creditRakeToClub(rake, CLUB_ID); distributeRake(rake, parts.filter(p => !p.isBot).map(p => p.uid)); }
+                    if (rake > 0) { distributeRake(rake, parts.filter(p => !p.isBot).map(p => p.uid)); }
                 } catch(e) {} finally { settlingRef.current = false; }
             };
 
@@ -8403,8 +8462,13 @@
                                 {(() => {
                                     const merged = (row) => [...(me[row] || []), ...Object.entries(stage).filter(([, r]) => r === row).map(([id]) => (me.pending || []).find(c => c.id === id)).filter(Boolean)];
                                     const tR = merged('top'), mR = merged('mid'), bR = merged('bot');
-                                    const tE = tR.length === 3 ? ofcEval3J(tR) : null, mE = mR.length === 5 ? ofcEval5J(mR) : null, bE = bR.length === 5 ? ofcEval5J(bR) : null;
-                                    const foulTM = tE && mE && ofcCmp(tE, mE) > 0, foulMB = mE && bE && ofcCmp(mE, bE) > 0;
+                                    // כשהלוח מלא - מציגים את הפירוש שהסליקה תשתמש בו (ג'וקר מותאם לניצחון), כדי שהאזהרה תואמת לתוצאה
+                                    const full = tR.length === 3 && mR.length === 5 && bR.length === 5;
+                                    const rs = full ? ofcResolve({ top: tR, mid: mR, bot: bR }) : null;
+                                    const tE = rs ? rs.t : (tR.length === 3 ? ofcEval3J(tR) : null);
+                                    const mE = rs ? rs.m : (mR.length === 5 ? ofcEval5J(mR) : null);
+                                    const bE = rs ? rs.b : (bR.length === 5 ? ofcEval5J(bR) : null);
+                                    const foulTM = rs ? rs.foul : (tE && mE && ofcCmp(topAs5Of(tE), mE) > 0), foulMB = rs ? rs.foul : (mE && bE && ofcCmp(mE, bE) > 0);
                                     const lbl = (ev, full, isTop, foul) => <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${foul ? 'text-rose-300 border-rose-500/70 bg-rose-500/15 animate-pulse' : full ? 'text-teal-200 border-teal-500/40 bg-teal-500/10' : 'text-slate-600 border-white/8'}`}>{full ? ofcHandName(ev, isTop) : '···'}</span>;
                                     return (
                                         <div className="space-y-1.5 mb-2">
@@ -8741,7 +8805,11 @@
                     const winner = pl[winnerUid];
                     const buyIn = Number(setts.buyIn) || 0;
                     const logEntries = [];
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false; logEntries.length = 0;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -8762,7 +8830,9 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, drawStack: 0,
                             lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, endedAt: Date.now() }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -9314,7 +9384,11 @@
                     const winner = pl[winnerUid];
                     const logEntries = [];
                     const buyIn = Number(setts.buyIn) || 0;
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false; logEntries.length = 0;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -9335,7 +9409,9 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, nextHandAt: null,
                             lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, scores: Object.values(pl).map(p => ({ name: p.name, score: p.score || 0 })), endedAt: Date.now() }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -9844,7 +9920,11 @@
                     const share = humanWinners.length ? round2(Math.floor(net / humanWinners.length * 100) / 100) : 0;
                     const logEntries = [];
                     const buyIn = Number(setts.buyIn) || 0;
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false; logEntries.length = 0;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -9865,7 +9945,9 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, trick: [], turnSeat: null, players: pl,
                             lastResults: { contract: c, made, declTricks, need, score, winSide, byForfeit: !!byForfeit, pot, rake, winners: winners.map(w => ({ uid: w.uid, name: w.name, prize: w.isBot ? 0 : share })), endedAt: Date.now() }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
                     if (!humanWinners.length && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -10182,7 +10264,7 @@
             const [errMsg, setErrMsg] = useState("");
             const [roundLeft, setRoundLeft] = useState(0);
             const [stayHide, setStayHide] = useState(false);
-            useEffect(() => { setStayHide(false); }, [T.status]);
+            useEffect(() => { setStayHide(false); }, [tableState && tableState.status]);
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
 
@@ -10498,7 +10580,11 @@
                     const prize = round2(pot - rake);
                     const buyIn = Number(setts.buyIn) || 0;
                     const logEntries = [];
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false; logEntries.length = 0;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot && !p.left) { const s = await tr.get(memDoc(p.uid)); if (s.exists()) reads[p.uid] = s; } }
                         for (const p of Object.values(pl)) {
@@ -10518,7 +10604,11 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
                             lastResults: { winnerName: (pl[winnerUid] || {}).name || '', amount: prize, rake, standings: standings.map(p => ({ uid: p.uid, name: p.name, score: p.score })), endedAt: Date.now(), lastRound: lastRound || null }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
+                    // שימור צ'יפים: בוט לוקח-הכל - הקופה לבית במקום להישמד
+                    if ((pl[winnerUid] || {}).isBot && prize > 0) creditRakeToClub(prize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.left).map(p => p.uid));
@@ -11152,7 +11242,11 @@
                     const buyIn = Number(setts.buyIn) || 0;
                     const ranks = fo.map((uid, i) => ({ uid, name: (pl[uid] || {}).name || '', rank: i + 1, prize: i < scheme.length ? round2(Math.floor(net * scheme[i]) / 100) : 0 }));
                     const logEntries = [];
+                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
+                        didSettle = false; logEntries.length = 0;
+                        const tSnap = await tr.get(tblRef());
+                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const r of ranks) { if (!(pl[r.uid] || {}).isBot) { const s = await tr.get(memDoc(r.uid)); if (s.exists()) reads[r.uid] = s; } }
                         for (const r of ranks) {
@@ -11171,7 +11265,12 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
                             lastResults: { ranks, pot, rake, endedAt: Date.now() }
                         });
+                        didSettle = true;
                     });
+                    if (!didSettle) return;
+                    // שימור צ'יפים: פרסי בוטים (לפי דירוג) לקופת הבית במקום להישמד
+                    const presBotPrize = round2(ranks.filter(r => (pl[r.uid] || {}).isBot).reduce((s, r) => s + (r.prize || 0), 0));
+                    if (presBotPrize > 0) creditRakeToClub(presBotPrize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, fo.filter(uid => !(pl[uid] || {}).isBot));
