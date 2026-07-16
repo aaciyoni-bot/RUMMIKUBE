@@ -1943,6 +1943,8 @@
             { a: '#fb923c', b: '#7c2d12', glow: 'rgba(251,146,60,0.22)' },
         ];
         const clubHue = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CLUB_HUES[h % CLUB_HUES.length]; };
+        // מזהה קלאב בן 6 ספרות - נגזר דטרמיניסטית מה-id (יציב, ללא צורך במיגרציה)
+        const clubCode = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return String(100000 + (h % 900000)); };
 
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
             const [newName, setNewName] = useState('');
@@ -1967,8 +1969,25 @@
             const god = isGodUser(user);
             const memOf = (cid) => myMems.find(m => m.clubId === cid);
             const myClubs = clubs.filter(c => { const m = memOf(c.id); return (m && m.status === 'approved') || god; });
-            const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status !== 'approved' && !god; });
+            const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status === 'pending' && !god; });
             const otherClubs = clubs.filter(c => !memOf(c.id) && !god);
+            const [searchCode, setSearchCode] = useState('');
+            const [foundClub, setFoundClub] = useState(null);
+            const [foundCount, setFoundCount] = useState(null);
+            const doClubSearch = async () => {
+                const code = searchCode.trim();
+                if (!/^\d{6}$/.test(code)) { setFoundClub(null); return showToast("הזן מזהה בן 6 ספרות", "error"); }
+                const hit = clubs.find(c => clubCode(c.id) === code);
+                if (!hit) { setFoundClub(null); setFoundCount(null); return showToast("לא נמצא קלאב עם המזהה הזה", "error"); }
+                setFoundClub(hit); setFoundCount(null);
+                try {
+                    const [memSnap, botSnap] = await Promise.all([
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", hit.id), window.fb.where("status", "==", "approved"))),
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true)))
+                    ]);
+                    setFoundCount(memSnap.size + botSnap.size);
+                } catch(e) { setFoundCount(null); }
+            };
 
             const [joinFor, setJoinFor] = useState(null);   // הקלאב שמבקשים להצטרף אליו
             const [agentCodeIn, setAgentCodeIn] = useState('');
@@ -2027,7 +2046,7 @@
                     const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now(), ownerSeeded: true });
                     await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved', balance: 100000000 });
                     setNewName('');
-                    showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
+                    showToast(`הקלאב "${nm}" הוקם! מזהה לשיתוף: ${clubCode(cRef.id)} 👑`, "success");
                     onEnter({ id: cRef.id, name: nm, ownerUid: user.uid });
                 } catch(e) { showToast("שגיאה בהקמת הקלאב", "error"); }
                 setCreating(false);
@@ -2057,6 +2076,7 @@
                                         {isOwner && <span className="text-[9px] px-2 py-0.5 rounded-full font-black border" style={{ color: hue.a, borderColor: hue.a + '80', background: hue.a + '1f' }}>👑 שלך</span>}
                                     </div>
                                     <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span style={{ color: hue.a }}> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
+                                    <div className="text-[10px] text-slate-500 font-black tracking-wider mt-0.5" dir="ltr">🆔 {clubCode(c.id)}</div>
                                 </div>
                             </div>
                             {action}
@@ -2141,16 +2161,27 @@
                             </div>
                         )}
 
-                        {otherClubs.length > 0 && (
-                            <div className="mb-8">
-                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-globe ml-1"></i> כל הקלאבים</h3>
-                                <div className="flex flex-col gap-3">
-                                    {otherClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => requestJoin(c)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0 border transition-all" style={{ borderColor: clubHue(c.id).a + '66' }}>בקש להצטרף</button>
-                                    } />)}
-                                </div>
+                        <div className="mb-8">
+                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
+                            <div className="flex gap-2 mb-3">
+                                <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה קלאב (6 ספרות)" dir="ltr" maxLength={6} className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.3em] outline-none focus:border-emerald-500/60" />
+                                <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-6 rounded-xl font-black shadow-lg">חפש</button>
                             </div>
-                        )}
+                            {foundClub && !memOf(foundClub.id) && (
+                                <ClubCard c={foundClub} action={
+                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                        <span className="text-[11px] text-slate-400 font-bold">{foundCount != null ? `👤 ${foundCount} שחקנים` : '…'}</span>
+                                        <button onClick={() => requestJoin(foundClub)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2 rounded-xl font-bold text-sm border transition-all" style={{ borderColor: clubHue(foundClub.id).a + '66' }}>בקש להצטרף</button>
+                                    </div>
+                                } />
+                            )}
+                            {foundClub && memOf(foundClub.id) && memOf(foundClub.id).status === 'rejected' && (
+                                <div className="text-center text-rose-300 font-bold text-sm bg-rose-500/10 border border-rose-500/30 rounded-2xl py-4">בקשתך לקלאב זה נדחתה.</div>
+                            )}
+                            {foundClub && memOf(foundClub.id) && ['pending', 'approved'].includes(memOf(foundClub.id).status) && (
+                                <div className="text-center text-slate-400 font-bold text-sm py-2">אתה כבר {memOf(foundClub.id).status === 'approved' ? 'חבר' : 'ממתין לאישור'} בקלאב הזה.</div>
+                            )}
+                        </div>
 
                         {joinFor && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJoinFor(null)}>
@@ -3494,8 +3525,8 @@
                 approveWith(uid, null);
             };
             const handleReject = async (u) => {
-                if (!window.confirm(`לדחות ולמחוק את ${u.username}?`)) return;
-                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "memberships", u.id)); showToast("הבקשה נדחתה", "info"); }
+                if (!window.confirm(`לדחות את ${u.username}? הקלאב ייעלם מהמסך שלו והוא לא יוכל לבקש שוב.`)) return;
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'rejected', rejectedAt: Date.now() }); showToast("הבקשה נדחתה", "info"); }
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
             };
 
