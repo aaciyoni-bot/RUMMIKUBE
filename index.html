@@ -12333,6 +12333,54 @@
                 setShowCreate(false); showToast("הטורניר נפתח להרשמה! 🏆", "success");
             };
 
+            // כלי בדיקה (אדמין): מילוי טורניר בבוטים לבדיקת עומס/איזון
+            const fillBots = async (tor) => {
+                const ans = window.prompt("כמה בוטים להוסיף לטורניר?", "400");
+                if (ans === null) return;
+                const want = Math.max(1, Math.min(2000, parseInt(ans, 10) || 0));
+                if (!want) return;
+                try {
+                    showToast(`מכין ${want} בוטים...`, "info");
+                    const already = new Set(Object.keys(tor.players || {}));
+                    // בריכת בוטים קיימים שלא רשומים כבר
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    let avail = (await window.fb.getDocs(botQ)).docs
+                        .map(d => ({ uid: d.id, ...d.data() })).filter(b => !already.has(b.uid));
+                    // יצירת בוטים חסרים במקביל (מנות)
+                    const shortfall = want - avail.length;
+                    if (shortfall > 0) {
+                        showToast(`יוצר ${shortfall} בוטים חדשים...`, "info");
+                        for (let i = 0; i < shortfall; i += 25) {
+                            const batch = [];
+                            for (let j = i; j < Math.min(i + 25, shortfall); j++) {
+                                const name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] + Math.floor(Math.random() * 100000);
+                                batch.push(window.fb.addDoc(window.fb.collection(window.fb.db, "users"), {
+                                    username: name, email: `bot_${Date.now()}_${j}@rummikube.com`, role: ROLES.PLAYER,
+                                    status: 'approved', balance: 50000, isBot: true, managedGames: [],
+                                    stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
+                                }).then(ref => ({ uid: ref.id, username: name, avatarSeed: ref.id, photo: '' })));
+                            }
+                            avail = avail.concat(await Promise.all(batch));
+                        }
+                    }
+                    const chosen = avail.slice(0, want);
+                    const needCap = Object.keys(tor.players || {}).length + chosen.length;
+                    // הגדלת התקרה כדי להכיל את כולם
+                    await window.fb.updateDoc(tRef(tor.id), { maxPlayers: Math.max(Number(tor.maxPlayers) || 0, needCap) });
+                    // רישום במנות (בוטים בחינם - paid:0 - כדי לא לזייף את קופת הפרסים)
+                    for (let i = 0; i < chosen.length; i += 40) {
+                        const chunk = chosen.slice(i, i + 40);
+                        const upd = {};
+                        chunk.forEach(b => {
+                            upd[`players.${b.uid}`] = { uid: b.uid, name: b.username, photo: b.photo || '', avatarSeed: b.avatarSeed || b.uid, isBot: true, out: false, rank: null, bounties: 0, paid: 0, addon: false };
+                        });
+                        await window.fb.updateDoc(tRef(tor.id), upd);
+                        showToast(`נרשמו ${Math.min(i + 40, chosen.length)}/${chosen.length}...`, "info");
+                    }
+                    showToast(`✅ ${chosen.length} בוטים נרשמו! (סה"כ ${needCap} שחקנים)`, "success");
+                } catch(e) { showToast("שגיאה בהוספת בוטים: " + (e.message || e), "error"); }
+            };
+
             const fmtCountdown = (ms) => {
                 if (ms <= 0) return "מתחיל...";
                 const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), sec = Math.floor((ms % 60000) / 1000);
@@ -12492,6 +12540,7 @@
                                             </div>
                                         )}
                                         <div className="flex gap-2">
+                                            {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => fillBots(tor)} title="מלא בבוטים (בדיקה)" className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">🤖</button>}
                                             {tor.status === 'reg' && !me && <button onClick={() => tourRegister(tor, user, showToast)} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg">הירשם ({formatMoney(tourEntryOf(tor))})</button>}
                                             {tor.status === 'reg' && me && <button onClick={() => tourUnregister(tor, user, showToast)} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-2.5 rounded-xl font-bold text-sm border border-white/10">רשום ✓ · בטל הרשמה</button>}
                                             {myTable && <button onClick={() => onJoinTable(myTable)} className="flex-1 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg animate-pulse">🎲 לשולחן שלי!</button>}
