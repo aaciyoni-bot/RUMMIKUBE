@@ -561,6 +561,9 @@
                         [['C3', 0], ['E3', 0.07], ['G3', 0.14], ['A3', 0.2]].forEach(([n, d]) => SND.m.triggerAttackRelease(n, '32n', t + d));
                         SND.bell.triggerAttackRelease('B5', '16n', t + 0.28);
                         break;
+                    case 'scratch': // גירוד כרטיס - שריקת רעש קצרה וחלקה
+                        SND.nz.triggerAttackRelease('32n', t);
+                        break;
                 }
             } catch(e) {}
         };
@@ -1211,6 +1214,7 @@
                     lastBonusAt: m.lastBonusAt || 0, lastScratchAt: m.lastScratchAt || 0,
                     agentUid: m.agentUid || '', agentPct: m.agentPct || 0,
                     managedGames: god ? GAMES.map(g => g.id) : (m.managedGames || []),
+                    leaveRequested: !!m.leaveRequested,
                 };
             }, [dbUser, activeClub, activeMem]);
 
@@ -1407,6 +1411,8 @@
                         } else {
                             showToast("שלח בקשת הצטרפות קודם", "error"); return;
                         }
+                    } else if (mSnap.data().status === 'left' && !god) {
+                        showToast("עזבת את הקלאב הזה. לחזרה - פנה למנהל הקלאב", "error"); return;
                     } else if (mSnap.data().status !== 'approved' && !god) {
                         showToast("הבקשה שלך ממתינה לאישור בעל הקלאב", "info"); return;
                     }
@@ -1527,7 +1533,7 @@
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
-                        {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} />}
+                        {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} status={activeMem?.status} />}
                         {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onJoinBridge={(t) => changeView('bridge-table', t)} onJoinGin={(t) => changeView('gin-table', t)} onJoinTwist={(t) => changeView('twist-table', t)} onJoinOfc={(t) => changeView('ofc-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
                         {currentView === 'leaders' && activeClub && <LeadersView user={effUser} showToast={showToast} />}
@@ -1592,7 +1598,7 @@
         function LeadersView({ user, showToast }) {
             const [mems, setMems] = useState(null);
             const [logAll, setLogAll] = useState(null);
-            const [ltab, setLtab] = useState('profit');
+            const [ltab, setLtab] = useState('wins');   // wins | games | week — ללא כל נתון כספי
             const [gtab, setGtab] = useState('all');
             useEffect(() => {
                 (async () => {
@@ -1615,6 +1621,8 @@
                 })();
             }, [needLog]);
 
+            // אווטאר עדכני מתוך החברות (מקור אמת יחיד) - כדי שהחלפת אווטאר תשתקף גם כאן
+            const memByUid = useMemo(() => { const o = {}; (mems || []).forEach(m => o[m.uid] = m); return o; }, [mems]);
             const rows = (() => {
                 if (needLog) {
                     const cutoff = ltab === 'week' ? Date.now() - 7 * 24 * 3600 * 1000 : 0;
@@ -1622,16 +1630,18 @@
                     (logAll || []).forEach(e => {
                         if (!e.uid || (e.at || 0) < cutoff) return;
                         if (gtab !== 'all' && e.game !== gtab) return;
-                        if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', profit: 0, games: 0, wins: 0 };
-                        agg[e.uid].profit = round2(agg[e.uid].profit + (Number(e.profit) || 0));
+                        if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', games: 0, wins: 0 };
                         agg[e.uid].games++;
-                        if ((e.profit || 0) > 0) agg[e.uid].wins++;
+                        if ((e.profit || 0) > 0) agg[e.uid].wins++; // ניצחון = יצא ברווח, בלי לחשוף סכום
                     });
-                    return Object.values(agg).map(w => ({ ...w, metric: ltab === 'wins' ? w.wins : w.profit, sub: `${w.games} משחקים · ${w.wins} ברווח` })).sort((a, b) => b.metric - a.metric);
+                    return Object.values(agg).map(w => {
+                        const m = memByUid[w.uid] || {};
+                        return { ...w, photo: m.photo, avatarSeed: m.avatarSeed, metric: ltab === 'games' ? w.games : w.wins, sub: `${w.games} משחקים · ${w.wins} ניצחונות` };
+                    }).sort((a, b) => b.metric - a.metric);
                 }
                 const list = (mems || []).map(m => ({
                     uid: m.uid, username: m.username, photo: m.photo, avatarSeed: m.avatarSeed,
-                    metric: ltab === 'profit' ? round2((m.stats || {}).totalProfit || 0) : ((m.stats || {}).gamesWon || 0),
+                    metric: ltab === 'games' ? ((m.stats || {}).gamesPlayed || 0) : ((m.stats || {}).gamesWon || 0),
                     sub: `${(m.stats || {}).gamesPlayed || 0} משחקים · ${(m.stats || {}).gamesWon || 0} ניצחונות`
                 }));
                 return list.sort((a, b) => b.metric - a.metric);
@@ -1639,7 +1649,7 @@
             const top3 = rows.slice(0, 3);
             const rest = rows.slice(3, 25);
             const medal = ['🥇', '🥈', '🥉'];
-            const fmtM = (v) => ltab === 'wins' ? `${v} 🏆` : formatMoney(v);
+            const fmtM = (v) => ltab === 'games' ? `${v} 🎮` : `${v} 🏆`;
 
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
@@ -1649,7 +1659,7 @@
                             <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
                         </div>
                         <div className="flex justify-center gap-2 mb-3">
-                            {[['profit', 'רווח כולל'], ['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
+                            {[['wins', 'ניצחונות'], ['games', 'הכי פעילים'], ['week', 'השבוע 🔥']].map(([k, l]) => (
                                 <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
@@ -1672,7 +1682,7 @@
                                                 <img src={avatarUrl(top3[i])} className="w-full h-full object-cover bg-slate-800" />
                                             </div>
                                             <span className={`font-black mt-1.5 ${i === 0 ? 'text-white text-sm' : 'text-slate-300 text-xs'}`}>{top3[i].username}</span>
-                                            <span className={`font-black text-xs ${top3[i].metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(top3[i].metric)}</span>
+                                            <span className="font-black text-xs text-amber-300" dir="ltr">{fmtM(top3[i].metric)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -1685,7 +1695,7 @@
                                                 <div className="text-white font-bold text-sm truncate">{r.username}{r.uid === user.uid ? ' (אתה)' : ''}</div>
                                                 <div className="text-slate-500 text-[10px] font-bold">{r.sub || ''}</div>
                                             </div>
-                                            <span className={`font-black text-sm ${r.metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(r.metric)}</span>
+                                            <span className="font-black text-sm text-amber-300" dir="ltr">{fmtM(r.metric)}</span>
                                         </div>
                                     ))}
                                     {rest.length === 0 && <div className="text-center py-6 text-slate-600 font-bold text-sm">רק שלושה על הפודיום בינתיים 🏆</div>}
@@ -1790,10 +1800,11 @@
             , document.body);
         }
 
-        function PendingView({ clubName, onBack }) {
+        function PendingView({ clubName, onBack, status }) {
+            const isLeft = status === 'left';
             return <div className="h-full w-full aurora-bg text-slate-300 flex justify-center items-center font-bold text-xl flex-col gap-4">
-                <i className="fa-solid fa-clock-rotate-left text-4xl text-amber-500 animate-spin"></i>
-                <div className="text-center">ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</div>
+                <i className={`fa-solid ${isLeft ? 'fa-door-open text-rose-500' : 'fa-clock-rotate-left text-amber-500 animate-spin'} text-4xl`}></i>
+                <div className="text-center px-6">{isLeft ? <>עזבת את הקלאב{clubName ? <span className="text-rose-300"> "{clubName}"</span> : ''}. הנתונים שלך נשמרו — לחזרה פנה למנהל הקלאב.</> : <>ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</>}</div>
                 {onBack && <button onClick={onBack} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-sm font-bold px-6 py-2.5 rounded-xl">🏛️ חזרה לרשימת הקלאבים</button>}
                 <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-sm text-slate-500 underline font-normal">התנתק</button>
             </div>;
@@ -2062,13 +2073,28 @@
             const [avatarOpen, setAvatarOpen] = useState(false);
             const [avStyle, setAvStyle] = useState('adventurer');
             const [nameDraft, setNameDraft] = useState('');
+            // מעדכן את כל החברויות של המשתמש (בכל הקלאבים) כדי שהחלפת אווטאר/שם תשתקף בכל מקום, כולל לוח הדירוג
+            const propagateProfile = async (fields) => {
+                try {
+                    const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("uid", "==", user.uid));
+                    const snap = await window.fb.getDocs(q);
+                    for (const d of snap.docs) { try { await window.fb.updateDoc(d.ref, fields); } catch(e2) {} }
+                } catch(e) { try { await window.fb.updateDoc(memDoc(user.uid), fields); } catch(e3) {} }
+            };
+            const requestLeaveClub = async () => {
+                if (!window.confirm("לבקש לצאת מהקלאב?\n\nהבקשה תישלח לאישור מנהל הקלאב. הנתונים שלך (יתרה, היסטוריה, סטטיסטיקות) יישמרו במלואם לצורך התחשבנות ולא יימחקו.")) return;
+                try { await window.fb.updateDoc(memDoc(user.uid), { leaveRequested: true, leaveRequestedAt: Date.now() }); showToast("בקשת יציאה נשלחה למנהל הקלאב", "success"); } catch(e) { showToast("שגיאה בשליחת הבקשה", "error"); }
+            };
+            const cancelLeaveClub = async () => {
+                try { await window.fb.updateDoc(memDoc(user.uid), { leaveRequested: false, leaveRequestedAt: null }); showToast("בקשת היציאה בוטלה", "info"); } catch(e) {}
+            };
             const saveName = async () => {
                 const nm = nameDraft.trim();
                 if (nm.length < 2 || nm.length > 20) { showToast("שם בין 2 ל-20 תווים", "error"); return; }
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); try { await window.fb.updateDoc(memDoc(user.uid), { username: nm }); } catch(e2) {} setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); await propagateProfile({ username: nm }); setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
             };
             const setSeed = async (seed) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { avatarSeed: seed, photo: '' }); } catch(e2) {} showToast("האווטאר עודכן! ייכנס לתוקף בשולחנות בכניסה הבאה", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); await propagateProfile({ avatarSeed: seed, photo: '' }); showToast("האווטאר עודכן בכל המקומות!", "success"); } catch(e) {}
             };
             const onPhotoPick = (e) => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2083,7 +2109,7 @@
                         ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
                         const data = c.toDataURL('image/jpeg', 0.82);
                         if (data.length > 70000) { showToast("התמונה מורכבת מדי - נסה תמונה אחרת", "error"); return; }
-                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { photo: data, avatarSeed: '' }); } catch(e2) {} showToast("התמונה הועלתה!", "success"); } catch(err) {}
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); await propagateProfile({ photo: data, avatarSeed: '' }); showToast("התמונה הועלתה בכל המקומות!", "success"); } catch(err) {}
                     };
                     img.src = rd.result;
                 };
@@ -2175,6 +2201,19 @@
                             {user.role === ROLES.MANAGER && (user.managedGames||[]).length > 0 && (
                                 <div className="flex justify-center gap-2 mt-3 flex-wrap">
                                     {(user.managedGames||[]).map(g => <span key={g} className="text-[10px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-3 py-1 rounded-full font-bold">{(GAMES.find(x=>x.id===g)||{}).label || g}</span>)}
+                                </div>
+                            )}
+                            {![ROLES.CLUB_OWNER, ROLES.SUPER_ADMIN].includes(user.role) && (
+                                <div className="mt-4 pt-4 border-t border-white/5">
+                                    {user.leaveRequested ? (
+                                        <div className="text-center">
+                                            <p className="text-amber-300 text-xs font-bold mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i>בקשת יציאה ממתינה לאישור מנהל הקלאב</p>
+                                            <button onClick={cancelLeaveClub} className="text-slate-400 hover:text-white text-xs font-bold underline">בטל בקשה</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={requestLeaveClub} className="text-rose-400/80 hover:text-rose-300 text-xs font-bold underline"><i className="fa-solid fa-door-open ml-1"></i>בקש לצאת מהקלאב</button>
+                                    )}
+                                    <p className="text-[10px] text-slate-600 font-bold mt-2">היציאה טעונה אישור מנהל · הנתונים שלך נשמרים לצורך התחשבנות</p>
                                 </div>
                             )}
                         </div>
@@ -3395,6 +3434,25 @@
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
             };
 
+            // אישור יציאה: השחקן מסומן "עזב" - הנתונים נשמרים לצורך התחשבנות, לא נמחקים
+            const approveLeave = async (u) => {
+                if (!window.confirm(`לאשר את יציאתו של ${u.username} מהקלאב?\n\nהשחקן יסומן כ"עזב" ולא יוכל לשחק, אך כל הנתונים שלו (יתרה ${formatMoney(u.balance || 0)}, היסטוריה, סטטיסטיקות) יישמרו לצורך התחשבנות. מחיקה סופית נעשית ידנית בלבד.`)) return;
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'left', leftAt: Date.now(), leaveRequested: false }); showToast(`${u.username} עזב את הקלאב · הנתונים נשמרו`, "info"); } catch(e) { showToast("שגיאה", "error"); }
+            };
+            const rejectLeave = async (u) => {
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { leaveRequested: false, leaveRequestedAt: null }); showToast(`בקשת היציאה של ${u.username} נדחתה`, "info"); } catch(e) {}
+            };
+            const reinstateMember = async (u) => {
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'approved', leftAt: null }); showToast(`${u.username} הוחזר לפעילות`, "success"); } catch(e) {}
+            };
+            // מחיקה סופית - הדרך היחידה למחוק נתונים, ידנית ובאישור כפול, לבעלים בלבד
+            const deletePlayerPermanently = async (u) => {
+                if (!isOwner) return;
+                if (!window.confirm(`⚠️ מחיקה סופית של ${u.username} מהקלאב!\n\nכל הנתונים יימחקו לצמיתות (יתרה, היסטוריה, סטטיסטיקות) ולא ניתן יהיה להתחשבן איתו. בטוח?`)) return;
+                if (!window.confirm(`אישור אחרון: למחוק לצמיתות את ${u.username}?`)) return;
+                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "memberships", u.id)); showToast(`${u.username} נמחק לצמיתות`, "info"); } catch(e) { showToast("שגיאה במחיקה", "error"); }
+            };
+
             const adjustBalance = async (target, isDeposit) => {
                 const raw = window.prompt(isDeposit ? `כמה צ'יפים להפקיד ל-${target.username}? (יורד מהיתרה שלך)` : `כמה צ'יפים למשוך מ-${target.username}? (עובר ליתרה שלך)`, "100");
                 const amount = parseFloat(raw);
@@ -3481,7 +3539,9 @@
                 } catch(e) { showToast("שגיאה במחיקת בוטים", "error"); }
             };
 
-            const pendingUsers = usersList.filter(u => u.status !== 'approved' && !u.isBot);
+            const pendingUsers = usersList.filter(u => u.status === 'pending' && !u.isBot);
+            const leaveRequests = usersList.filter(u => u.status === 'approved' && u.leaveRequested && !u.isBot);
+            const leftMembers = usersList.filter(u => u.status === 'left' && !u.isBot);
             const agents = usersList.filter(u => u.status === 'approved' && u.role === ROLES.AGENT && !u.isBot);
             const agentName = (uid) => (usersList.find(x => x.uid === uid) || {}).username || '';
             // השלמת קוד לסוכנים ותיקים שאין להם (אצל הבעלים בלבד)
@@ -3649,6 +3709,62 @@
                                 ))}
                             </div>
                         </div>
+
+                        {/* בקשות יציאה מהקלאב (מנהל/בעלים) - הנתונים נשמרים, לא נמחקים */}
+                        {(isOwner || user.role === ROLES.MANAGER) && leaveRequests.length > 0 && (
+                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-rose-500/20">
+                                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center"><i className="fa-solid fa-door-open text-rose-400 text-sm"></i></span>
+                                    בקשות יציאה מהקלאב <span className="text-rose-400">({leaveRequests.length})</span>
+                                </h3>
+                                <div className="flex flex-col gap-2">
+                                    {leaveRequests.map(u => (
+                                        <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5">
+                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => setPlayerFile(u)} title="פתח תיק שחקן">
+                                                <img src={avatarUrl({ ...u, uid: u.id })} className="w-10 h-10 rounded-xl bg-slate-800 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-white truncate">{u.username} <span className="text-emerald-400 text-xs font-black" dir="ltr">{formatMoney(u.balance || 0)}</span></div>
+                                                    <div className="text-xs text-slate-400 truncate">ביקש לצאת · הנתונים יישמרו להתחשבנות</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 shrink-0">
+                                                <button onClick={()=>approveLeave(u)} className="bg-gradient-to-b from-rose-500 to-rose-700 hover:from-rose-400 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg">אשר יציאה</button>
+                                                <button onClick={()=>rejectLeave(u)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 rounded-xl font-bold text-sm border border-white/10">דחה</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שחקנים שעזבו - נשמרים להתחשבנות, נמחקים ידנית בלבד */}
+                        {(isOwner || user.role === ROLES.MANAGER) && leftMembers.length > 0 && (
+                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-slate-500/20">
+                                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2 flex-wrap">
+                                    <span className="w-8 h-8 rounded-lg bg-slate-500/15 border border-slate-500/30 flex items-center justify-center"><i className="fa-solid fa-user-slash text-slate-400 text-sm"></i></span>
+                                    שחקנים שעזבו <span className="text-slate-400">({leftMembers.length})</span>
+                                    <span className="text-[10px] text-slate-500 font-bold mr-auto">הנתונים נשמרים · מחיקה ידנית בלבד</span>
+                                </h3>
+                                <div className="flex flex-col gap-2">
+                                    {leftMembers.map(u => (
+                                        <div key={u.id} className="flex items-center justify-between bg-slate-900/50 rounded-2xl p-3 border border-white/5">
+                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => setPlayerFile(u)} title="פתח תיק להתחשבנות">
+                                                <img src={avatarUrl({ ...u, uid: u.id })} className="w-10 h-10 rounded-xl bg-slate-800 shrink-0 grayscale" />
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-white truncate">{u.username} <span className="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-black">עזב</span></div>
+                                                    <div className="text-xs text-slate-400 truncate" dir="ltr">יתרה: {formatMoney(u.balance || 0)} · {u.email}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 shrink-0">
+                                                <button onClick={()=>adjustBalance(u, false)} title="התחשבן (משוך יתרה)" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-emerald-900 text-white font-black border border-white/10">−</button>
+                                                {isOwner && <button onClick={()=>reinstateMember(u)} title="החזר לפעילות" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 border border-white/10"><i className="fa-solid fa-rotate-left text-xs"></i></button>}
+                                                {isOwner && <button onClick={()=>deletePlayerPermanently(u)} title="מחק לצמיתות (רק אחרי התחשבנות)" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-800 text-slate-400 hover:text-white border border-white/10"><i className="fa-solid fa-trash text-xs"></i></button>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* שחקנים: העברות צ'יפים + תפקידים */}
                         {playerFile && <PlayerFileModal mem={playerFile} agentName={agentName} canEdit={isOwner || canManageAny || playerFile.agentUid === user.uid} onClose={() => setPlayerFile(null)} showToast={showToast} />}
@@ -7303,12 +7419,15 @@
                 ctx.fillText('✨ גרד כאן ✨', w / 2, h / 2 + 6);
                 ctx.globalCompositeOperation = 'destination-out';
             }, []);
+            const lastSndRef = useRef(0);
             const scratch = (e) => {
                 const cv = cvRef.current; if (!cv || doneRef.current) return;
                 const r = cv.getBoundingClientRect();
                 const x = (e.clientX - r.left), y = (e.clientY - r.top);
                 const ctx = cv.getContext('2d');
                 ctx.beginPath(); ctx.arc(x, y, 20, 0, 7); ctx.fill();
+                const now = (window.performance && performance.now) ? performance.now() : Date.now();
+                if (now - lastSndRef.current > 90) { lastSndRef.current = now; playSnd('scratch'); } // צליל גירוד מווסת
             };
             const checkDone = () => {
                 const cv = cvRef.current; if (!cv || doneRef.current) return;
