@@ -4766,7 +4766,12 @@
             return (
                 <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl">
 
-                    {tableState.phase === 'waiting' && (
+                    {tableState.phase === 'waiting' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין לשחקנים ({Object.keys(tableState.players || {}).length})</span>
+                        </div>
+                    )}
+                    {tableState.phase === 'waiting' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-8 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <h2 className="text-3xl font-black text-white mb-2">ממתין לשחקנים...</h2>
@@ -7121,7 +7126,14 @@
                         </div>
 
                         {/* המתנה לשחקנים */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-blue-500/40">
                                     <i className="fa-solid fa-chess-king text-4xl text-blue-400 mb-2"></i>
@@ -8051,7 +8063,14 @@
                         </div>
 
                         {/* המתנה */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
                                     <i className="fa-solid fa-dice text-4xl text-amber-400 mb-2"></i>
@@ -8828,7 +8847,14 @@
                         )}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-teal-500/40">
                                     <i className="fa-solid fa-table-cells text-4xl text-teal-400 mb-2"></i>
@@ -9298,7 +9324,14 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-orange-500/40">
                                     <i className="fa-solid fa-arrows-spin text-4xl text-orange-400 mb-2"></i>
@@ -9869,7 +9902,14 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-lime-500/40">
                                     <i className="fa-solid fa-layer-group text-4xl text-lime-400 mb-2"></i>
@@ -10428,7 +10468,14 @@
                         {errMsg && <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && (
+                        {T.status === 'setup' && isSeated && (
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
+                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
+                            </div>
+                        )}
+                        {T.status === 'setup' && !isSeated && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-indigo-500/40">
                                     <i className="fa-solid fa-diamond text-4xl text-indigo-400 mb-2"></i>
@@ -11192,8 +11239,16 @@
                         </div>
                     )}
 
+                    {/* Setup - seated player stays INSIDE the table */}
+                    {T.status === 'setup' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
+                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
+                        </div>
+                    )}
                     {/* Setup */}
-                    {T.status === 'setup' && (
+                    {T.status === 'setup' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-bolt text-emerald-500 text-4xl mb-2"></i>
@@ -11796,8 +11851,16 @@
                         </div>
                     )}
 
+                    {/* Setup overlay - seated player stays INSIDE the table */}
+                    {T.status === 'setup' && isSeated && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
+                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
+                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
+                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-purple-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
+                        </div>
+                    )}
                     {/* Setup overlay */}
-                    {T.status === 'setup' && (
+                    {T.status === 'setup' && !isSeated && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-purple-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-chess-king text-purple-500 text-4xl mb-2"></i>
