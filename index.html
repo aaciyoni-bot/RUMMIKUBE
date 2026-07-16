@@ -11591,17 +11591,29 @@
 
             /* ---------- חוקיות מהלך ---------- */
             const topPlay = (pile) => (pile && pile.length) ? pile[pile.length - 1] : null;
+            // ערך אפקטיבי של מהלך: ג'וקר משמש כוויילד ומקבל את ערך הקלפים הרגילים; ג'וקר(ים) לבד = פצצה (16)
+            const topEV = (top) => top ? (top.ev != null ? top.ev : top.cards[0].v) : null;
+            const topCount = (top) => top ? (top.count != null ? top.count : top.cards.length) : null;
             const validateSel = (cards, pile) => {
                 if (!cards.length) return { ok: false, msg: "בחר קלפים" };
-                const v0 = cards[0].v;
-                if (!cards.every(c => c.v === v0)) return { ok: false, msg: "כל הקלפים חייבים להיות באותו ערך" };
-                const clear = v0 >= 15; // 2 או ג'וקר - מנקה הכל
+                const regs = cards.filter(c => !c.joker);
+                // כלל 1: הג'וקר וויילד - כל הקלפים הרגילים חייבים באותו ערך, הג'וקרים מצטרפים אליהם
+                if (regs.length) {
+                    const rv = regs[0].v;
+                    if (!regs.every(c => c.v === rv)) return { ok: false, msg: "כל הקלפים (מלבד ג'וקר) חייבים באותו ערך" };
+                }
+                const ev = regs.length ? regs[0].v : 16;   // רק ג'וקרים = פצצה
+                const count = cards.length;
+                const clear = regs.length === 0 || ev === 15; // ג'וקר(ים) לבד, או 2 - מנקים הכל
                 const top = topPlay(pile);
-                if (!top) return { ok: true, clear };
-                if (clear) return { ok: true, clear: true };
-                if (cards.length !== top.cards.length) return { ok: false, msg: `חייבים בדיוק ${top.cards.length} קלפים (או 2/ג'וקר)` };
-                if (v0 <= top.cards[0].v) return { ok: false, msg: "הערך חייב להיות גבוה מהשולחן" };
-                return { ok: true };
+                if (!top) return { ok: true, clear, ev, count, skip: false };
+                if (clear) return { ok: true, clear: true, ev, count, skip: false };
+                const tev = topEV(top), tc = topCount(top);
+                if (count !== tc) return { ok: false, msg: `חייבים בדיוק ${tc} קלפים (או 2/ג'וקר לניקוי)` };
+                if (ev < tev) return { ok: false, msg: "הערך חייב להיות שווה או גבוה מהשולחן" };
+                // כלל 2: ערך זהה לשולחן מותר - ומדלג על השחקן הבא
+                const skip = ev === tev;
+                return { ok: true, clear: false, ev, count, skip };
             };
 
             /* ---------- ביצוע מהלך / פאס ---------- */
@@ -11628,8 +11640,14 @@
                     upd.lastPlayedUid = null;
                     upd.turnUid = finishedNow ? nextActive(uid, pl) : uid;
                 } else {
-                    upd.pile = [...(t.pile || []), { uid, name: p.name, cards }];
-                    upd.turnUid = nextActive(uid, pl);
+                    upd.pile = [...(t.pile || []), { uid, name: p.name, cards, ev: val.ev, count: val.count }];
+                    if (val.skip) {
+                        // כלל 2: שוויון ערך - מדלגים על השחקן הבא
+                        const skipped = nextActive(uid, pl);
+                        upd.turnUid = skipped ? nextActive(skipped, pl) : nextActive(uid, pl);
+                    } else {
+                        upd.turnUid = nextActive(uid, pl);
+                    }
                 }
 
                 // נשאר שחקן אחד עם קלפים - הוא העבד, סוגרים
@@ -11645,6 +11663,7 @@
                 if (!upd.turnUid) upd.turnUid = nextActive(uid, pl, false);
                 await window.fb.updateDoc(tblRef(), upd);
                 playSnd('tile');
+                if (val.skip && uid === user.uid) showToast('🔁 ערך זהה - השחקן הבא מדולג!');
                 if (uid === user.uid) setSelected([]);
             };
 
@@ -11686,7 +11705,7 @@
                     await doPlay(uid, g[lo].map(c => c.id));
                     return;
                 }
-                const need = top.cards.length, over = top.cards[0].v;
+                const need = topCount(top), over = topEV(top);
                 const g = {}; hand.forEach(c => { (g[c.v] = g[c.v] || []).push(c); });
                 const vals = Object.keys(g).map(Number).sort((a, b) => a - b);
                 for (const v of vals) {
