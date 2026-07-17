@@ -214,7 +214,7 @@
                 radial-gradient(ellipse at 50% 40%, rgba(34,211,238,0.13), rgba(34,211,238,0.03) 45%, transparent 68%),
                 repeating-linear-gradient(115deg, rgba(255,255,255,0.014) 0 2px, transparent 2px 7px),
                 radial-gradient(ellipse at 50% 38%, #14213a 0%, #0b1424 55%, #060b14 100%);
-            border-radius: 46% / 24%;
+            border-radius: 999px;
             border: 7px solid #0a0f19;
             box-shadow: inset 0 0 80px rgba(0,0,0,0.8), 0 24px 60px rgba(0,0,0,0.85), 0 0 45px rgba(34,211,238,0.10);
             position: relative;
@@ -235,9 +235,9 @@
         @keyframes ledBreathe { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 
         .card-face {
-            background: linear-gradient(168deg, #ffffff 0%, #edf2f8 100%);
-            border: 1px solid rgba(148,163,184,0.5); border-radius: 9px;
-            box-shadow: 0 6px 14px rgba(2,6,23,0.5), inset 0 1px 0 #ffffff;
+            background: #ffffff;
+            border: none; border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(2,6,23,0.45);
             font-family: 'Rubik', sans-serif;
         }
         .card-back {
@@ -273,7 +273,7 @@
         .badge-blind { background: linear-gradient(to bottom, #3b82f6, #2563eb); color: white; border: 1px solid #60a5fa; }
         .badge-win { background: linear-gradient(to bottom, #f5c860, #b98a3a); color: #422006; border: 1px solid #f8dc8f; }
 
-        .stack-capsule { background: rgba(5,8,14,0.92); border: 1px solid rgba(103,232,249,0.18); padding: 2px 12px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        .stack-capsule { background: rgba(5,8,14,0.78); border: 1px solid rgba(255,255,255,0.06); padding: 2px 12px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
         .btn-fold {
             background: linear-gradient(180deg, rgba(244,63,94,0.10), rgba(10,14,26,0.90));
             border: 1px solid rgba(244,63,94,0.40); border-radius: 14px;
@@ -298,6 +298,14 @@
         }
         .btn-raise:not(:disabled):hover { filter: brightness(1.06); }
         .timer-ring { transform: rotate(-90deg); transition: stroke-dashoffset 1s linear; }
+        .win-tag {
+            position: absolute; top: -26px; left: 50%; transform: translateX(-50%); z-index: 70;
+            font-family: 'Rubik', sans-serif; font-weight: 900; font-size: 14px; letter-spacing: 0.06em; white-space: nowrap; pointer-events: none;
+            background: linear-gradient(180deg, #fbe7ae, #e3ae4e 60%, #a9761f);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)) drop-shadow(0 0 10px rgba(245,200,96,0.5));
+            animation: popIn 0.3s ease-out;
+        }
 
         /* ===== שש-בש: לוח גרפיט עתידני ===== */
         .shesh-frame {
@@ -422,6 +430,60 @@
         .font-black { font-weight: 800 !important; letter-spacing: -0.01em; }
         input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(34,211,238,0.16); }
 
+        /* ===== שולחן הגמר - FINAL TABLE ===== */
+        .final-table { box-shadow: inset 0 0 90px rgba(0,0,0,0.8), 0 24px 60px rgba(0,0,0,0.85), 0 0 55px rgba(245,200,96,0.15) !important; }
+        .final-table::before { background: linear-gradient(165deg, #7a6535, #1e1a12 40%, #63512a 72%, #16120b) border-box; }
+        .final-table::after {
+            border-color: rgba(245,200,96,0.55);
+            box-shadow: 0 0 18px rgba(245,200,96,0.40), 0 0 46px rgba(245,200,96,0.14), inset 0 0 30px rgba(245,200,96,0.14);
+        }
+        .ft-banner {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none;
+            font-family: 'Rubik', sans-serif; font-weight: 900; font-size: clamp(15px, 4.5vw, 22px);
+            letter-spacing: 0.5em; margin-right: -0.5em; white-space: nowrap;
+            background: linear-gradient(180deg, #fbe7ae, #d8a648);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 0 14px rgba(245,200,96,0.35));
+        }
+        .ft-btn {
+            background: linear-gradient(180deg, rgba(245,200,96,0.12), rgba(10,14,26,0.90));
+            border: 1px solid rgba(245,200,96,0.45); color: #f5c860 !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        .ft-btn:hover { border-color: rgba(245,200,96,0.80); box-shadow: 0 0 16px rgba(245,200,96,0.20); }
+        .ft-champ {
+            background:
+                radial-gradient(420px 260px at 50% -8%, rgba(245,200,96,0.16), transparent 60%),
+                linear-gradient(180deg, #0e1526, #070b16);
+            border: 1px solid rgba(245,200,96,0.35);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(245,200,96,0.12);
+        }
+        .ft-rays {
+            position: absolute; inset: -45%; pointer-events: none;
+            background: repeating-conic-gradient(from 0deg, rgba(245,200,96,0.045) 0 6deg, transparent 6deg 18deg);
+            animation: raysSpin 36s linear infinite;
+        }
+        @keyframes raysSpin { to { transform: rotate(360deg); } }
+        .brc { position: relative; width: 100px; height: 52px; }
+        .brc-band { position: absolute; inset: 4px 10px; border-radius: 50%; border: 8px solid; box-shadow: inset 0 2px 3px rgba(255,255,255,0.35), inset 0 -2px 4px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.5); }
+        .brc-plate {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+            width: 44px; height: 31px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Rubik', sans-serif; font-weight: 900; font-size: 15px;
+            border: 1px solid rgba(255,255,255,0.55);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.6);
+        }
+        .brc-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; margin-left: 2px; }
+        .solo-silver { border-color: rgba(203,213,225,0.40) !important; box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(203,213,225,0.10) !important; }
+        .solo-bronze { border-color: rgba(180,83,9,0.45) !important; box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(180,83,9,0.12) !important; }
+        .brc-gold .brc-band { border-color: #d9a83f; }
+        .brc-gold .brc-plate { background: linear-gradient(160deg, #fbe7ae, #e3ae4e 55%, #a9761f); color: #4a3005; }
+        .brc-silver .brc-band { border-color: #aab6c5; }
+        .brc-silver .brc-plate { background: linear-gradient(160deg, #f8fafc, #cbd5e1 55%, #8494a8); color: #26334d; }
+        .brc-bronze .brc-band { border-color: #a5683a; }
+        .brc-bronze .brc-plate { background: linear-gradient(160deg, #eec49b, #c78a52 55%, #7d4c24); color: #3c2410; }
+
         /* טקסטורת פרימיום עדינה */
         body::after {
             content: '';
@@ -430,34 +492,6 @@
             opacity: 0.012;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
         }
-
-        /* ===== נגישות (WCAG 2.0 AA / ת"י 5568) ===== */
-        /* פוקוס מקלדת ברור */
-        a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-            outline: 3px solid #38bdf8 !important; outline-offset: 2px !important; border-radius: 4px;
-        }
-        /* כיבוד העדפת מערכת לצמצום תנועה */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
-        }
-        /* מצב עצירת אנימציות (וידג'ט) */
-        html.a11y-noanim *, html.a11y-noanim *::before, html.a11y-noanim *::after { animation: none !important; transition: none !important; }
-        /* ניגודיות גבוהה */
-        html.a11y-contrast, html.a11y-contrast body, html.a11y-contrast #root { background: #000 !important; }
-        html.a11y-contrast .glass-panel, html.a11y-contrast .grad-card-inner, html.a11y-contrast .stat-tile, html.a11y-contrast .game-cube { background: #000 !important; border-color: #fff !important; }
-        html.a11y-contrast, html.a11y-contrast .text-slate-400, html.a11y-contrast .text-slate-500, html.a11y-contrast .text-slate-300, html.a11y-contrast .text-slate-600 { color: #fff !important; }
-        html.a11y-contrast a, html.a11y-contrast button { color: #ffff00 !important; }
-        html.a11y-contrast .text-emerald-400, html.a11y-contrast .text-emerald-300 { color: #00ff9c !important; }
-        /* הדגשת קישורים וכפתורים */
-        html.a11y-links a, html.a11y-links button { text-decoration: underline !important; outline: 1px solid rgba(56,189,248,0.5); }
-        /* גופן קריא */
-        html.a11y-readable, html.a11y-readable body, html.a11y-readable button, html.a11y-readable input, html.a11y-readable select, html.a11y-readable textarea { font-family: Arial, "Segoe UI", sans-serif !important; letter-spacing: 0.01em; }
-        /* קישור "דלג לתוכן" */
-        .a11y-skip { position: fixed; top: -60px; right: 8px; z-index: 100000; background: #0ea5e9; color: #fff; font-weight: 800; padding: 10px 16px; border-radius: 10px; transition: top 0.15s; }
-        .a11y-skip:focus { top: 8px; }
-        /* וידג'ט הנגישות */
-        .a11y-fab { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 99998; width: 46px; height: 46px; border-radius: 0 12px 12px 0; background: #1d4ed8; color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.25); }
-        .a11y-fab:hover { background: #2563eb; }
     </style>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -512,8 +546,8 @@
             '♦': 'M12 2l6.3 10L12 22 5.7 12 12 2z',
             '♣': 'M12 2a3.9 3.9 0 0 0-3.8 4.8 3.9 3.9 0 1 0 1.5 7.1c.4-.2.8-.5 1.1-.9-.2 2.6-1 4.9-2.4 6.4h7.2c-1.4-1.5-2.2-3.8-2.4-6.4.3.4.7.7 1.1.9a3.9 3.9 0 1 0 1.5-7.1A3.9 3.9 0 0 0 12 2z'
         };
-        const SUIT_LIGHT_COL = { '♠': '#0f172a', '♥': '#e11d48', '♦': '#2563eb', '♣': '#15803d' };
-        const SUIT_DARK_COL = { '♠': '#e2e8f0', '♥': '#fb7185', '♦': '#60a5fa', '♣': '#4ade80' };
+        const SUIT_LIGHT_COL = { '♠': '#111827', '♥': '#dc2626', '♦': '#dc2626', '♣': '#111827' };
+        const SUIT_DARK_COL = { '♠': '#e2e8f0', '♥': '#fb7185', '♦': '#fb7185', '♣': '#e2e8f0' };
         const SuitGlyph = ({ s, color, dark, size }) => {
             const p = SUIT_GLYPH_PATHS[s];
             if (!p) return <span>{s}</span>;
@@ -532,7 +566,7 @@
         const genPlayerId = () => { const C = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r = ''; for (let i = 0; i < 6; i++) r += C[Math.floor(Math.random() * C.length)]; return r; };
         let CLUB_ID = 'main'; // הקלאב הפעיל - מוחלף בכניסה לקלאב
         window.__club = { id: 'main', ownerUid: '', name: 'הקלאב הראשי' };
-        const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id }; };
+        const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id, botsActive: true }; };
         // חשבון החברות: הכסף, התפקיד והסטטיסטיקות של שחקן בקלאב מסוים
         const memId = (uid, cid) => `${uid}_${cid || CLUB_ID}`;
         const memDoc = (uid, cid) => window.fb.doc(window.fb.db, "memberships", memId(uid, cid));
@@ -676,9 +710,6 @@
                         [['C3', 0], ['E3', 0.07], ['G3', 0.14], ['A3', 0.2]].forEach(([n, d]) => SND.m.triggerAttackRelease(n, '32n', t + d));
                         SND.bell.triggerAttackRelease('B5', '16n', t + 0.28);
                         break;
-                    case 'scratch': // גירוד כרטיס - שריקת רעש קצרה וחלקה
-                        SND.nz.triggerAttackRelease('32n', t);
-                        break;
                 }
             } catch(e) {}
         };
@@ -733,8 +764,7 @@
             const monday = new Date(il);
             monday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
             monday.setHours(0, 1, 0, 0);
-            // עיגול לדקה: מסיר את רעש המילישניות מ-toLocaleString כך שהמפתח יציב לאורך כל המחזור
-            return Math.round((monday.getTime() + (now.getTime() - il.getTime())) / 60000) * 60000;
+            return monday.getTime() + (now.getTime() - il.getTime());
         };
         const genAgentCode = () => 'AG' + Math.random().toString(36).slice(2, 6).toUpperCase();
 
@@ -1149,7 +1179,7 @@
             if (isStraight && isFlush) return 8000000 + straightHigh * 10000;
             if (groups[0].count === 4) return 7000000 + groups[0].rank * 10000 + kickers([groups[0].rank])[0];
             if (groups[0].count === 3 && groups[1] && groups[1].count >= 2) return 6000000 + groups[0].rank * 10000 + groups[1].rank;
-            if (isFlush) return 5000000 + ranks[0] * 50625 + ranks[1] * 3375 + ranks[2] * 225 + ranks[3] * 15 + ranks[4];
+            if (isFlush) return 5000000 + ranks[0] * 10000 + ranks[1] * 500 + ranks[2] * 25 + ranks[3];
             if (isStraight) return 4000000 + straightHigh * 10000;
             if (groups[0].count === 3) { const k = kickers([groups[0].rank]); return 3000000 + groups[0].rank * 10000 + k[0] * 100 + k[1]; }
             if (groups[0].count === 2 && groups[1] && groups[1].count === 2) { const k = kickers([groups[0].rank, groups[1].rank]); return 2000000 + groups[0].rank * 10000 + groups[1].rank * 100 + k[0]; }
@@ -1180,7 +1210,7 @@
         };
 
         /* ===== עוצמת יד ואחוזי זכייה (Monte Carlo, כמו ב-GG) ===== */
-        const SUIT_COLORS = { '♠': '#111827', '♥': '#dc2626', '♦': '#2563eb', '♣': '#16a34a' };
+        const SUIT_COLORS = { '♠': '#111827', '♥': '#dc2626', '♦': '#dc2626', '♣': '#111827' };
         const handName = (s) => s >= 8000000 ? 'סטרייט פלאש' : s >= 7000000 ? 'רביעייה' : s >= 6000000 ? 'פול האוס' : s >= 5000000 ? 'פלאש' : s >= 4000000 ? 'סטרייט' : s >= 3000000 ? 'שלישייה' : s >= 2000000 ? 'שני זוגות' : s >= 1000000 ? 'זוג' : 'קלף גבוה';
         const bestScoreFull = (hole, board5, gameType) => {
             const omaha = (gameType || '').startsWith('Omaha');
@@ -1241,22 +1271,51 @@
             } catch(e) { return null; }
         };
 
-        /* ===== קלף פוקר מקצועי - חפיסת 4 צבעים ===== */
+        /* פריסת נקודות תקנית לקלפי מספר */
+        const PIP_LAYOUT = {
+            2: [[50,20],[50,80]],
+            3: [[50,20],[50,50],[50,80]],
+            4: [[32,20],[68,20],[32,80],[68,80]],
+            5: [[32,20],[68,20],[50,50],[32,80],[68,80]],
+            6: [[32,20],[68,20],[32,50],[68,50],[32,80],[68,80]],
+            7: [[32,20],[68,20],[50,35],[32,50],[68,50],[32,80],[68,80]],
+            8: [[32,20],[68,20],[50,35],[32,50],[68,50],[50,65],[32,80],[68,80]],
+            9: [[32,18],[68,18],[32,39],[68,39],[50,50],[32,61],[68,61],[32,82],[68,82]],
+            10: [[32,18],[68,18],[50,28],[32,39],[68,39],[32,61],[68,61],[50,72],[32,82],[68,82]]
+        };
+        const CardPips = ({ suit, val, color }) => {
+            const n = Number(val);
+            const pips = PIP_LAYOUT[n];
+            if (!pips) {
+                return <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {['J','Q','K'].includes(String(val))
+                        ? <span style={{ color, fontFamily: "'Rubik', sans-serif", fontWeight: 900, fontSize: '2em', opacity: 0.9 }}>{val}</span>
+                        : <SuitGlyph s={suit} color={color} size="1.9em"/>}
+                </div>;
+            }
+            return <div className="absolute pointer-events-none" style={{ inset: '6% 20% 6% 26%' }}>
+                {pips.map((pt, i) => (
+                    <div key={i} style={{ position: 'absolute', left: pt[0] + '%', top: pt[1] + '%', transform: 'translate(-50%,-50%)' + (pt[1] > 55 ? ' rotate(180deg)' : '') }}>
+                        <SuitGlyph s={suit} color={color} size="0.72em"/>
+                    </div>
+                ))}
+            </div>;
+        };
+
+        /* ===== קלף פוקר מקצועי - חפיסה תקנית ===== */
         const PCard = ({ card, hidden, size }) => {
-            const D = size === 'xl' ? { w: 'w-14', h: '5.1rem', rank: 'text-2xl', suit: 'text-base', corner: 'text-xl' }
-                    : size === 'lg' ? { w: 'w-11 sm:w-12', h: '4.4rem', rank: 'text-xl', suit: 'text-sm', corner: 'text-lg' }
-                    : size === 'sm' ? { w: 'w-7', h: '2.6rem', rank: 'text-xs', suit: 'text-[8px]', corner: 'text-xs' }
-                    : { w: 'w-9 sm:w-10', h: '3.4rem', rank: 'text-base', suit: 'text-[10px]', corner: 'text-sm' };
+            const D = size === 'xl' ? { w: 'w-14', h: '5.1rem', rank: '1.85rem', big: '2.65rem' }
+                    : size === 'lg' ? { w: 'w-11 sm:w-12', h: '4.4rem', rank: '1.6rem', big: '2.3rem' }
+                    : size === 'sm' ? { w: 'w-7', h: '2.6rem', rank: '0.95rem', big: '1.35rem' }
+                    : { w: 'w-9 sm:w-10', h: '3.4rem', rank: '1.25rem', big: '1.75rem' };
             if (!card || hidden) return <div className={`${D.w} card-back shadow-md`} style={{ height: D.h }}></div>;
             const col = SUIT_COLORS[card.suit] || '#111827';
             return (
                 <div className={`${D.w} card-face relative overflow-hidden`} style={{ height: D.h }} dir="ltr">
-                    {(size === 'lg' || size === 'xl') && <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ opacity: 0.13 }}><SuitGlyph s={card.suit} color={col} size="2.7em"/></div>}
-                    <div className="absolute top-0.5 left-1 leading-none font-black text-left" style={{ color: col }}>
-                        <div className={D.rank} style={{ letterSpacing: '-0.06em' }}>{card.val}</div>
-                        <div className={`${D.suit} mt-[2px]`}><SuitGlyph s={card.suit} color={col} size="1.25em"/></div>
+                    <div className="absolute leading-none font-bold" style={{ top: '4%', left: '8%', fontSize: D.rank, color: col, letterSpacing: '-0.05em', fontFamily: "'Rubik', sans-serif", fontWeight: 700 }}>{card.val}</div>
+                    <div className="absolute inset-x-0 bottom-[3%] flex justify-center pointer-events-none">
+                        <SuitGlyph s={card.suit} color={col} size={D.big}/>
                     </div>
-                    <div className={`absolute bottom-0.5 right-1 ${D.corner} leading-none font-black`} style={{ color: col }}><SuitGlyph s={card.suit} color={col} size="1.15em"/></div>
                 </div>
             );
         };
@@ -1329,7 +1388,6 @@
                     lastBonusAt: m.lastBonusAt || 0, lastScratchAt: m.lastScratchAt || 0,
                     agentUid: m.agentUid || '', agentPct: m.agentPct || 0,
                     managedGames: god ? GAMES.map(g => g.id) : (m.managedGames || []),
-                    leaveRequested: !!m.leaveRequested,
                 };
             }, [dbUser, activeClub, activeMem]);
 
@@ -1376,7 +1434,7 @@
                 if (!fbReady) return;
                 if (!activeClub) { setClubSettings({ rakePct: DEFAULT_RAKE_PCT }); return; }
                 const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "clubs", activeClub.id), (d) => {
-                    if (d.exists()) setClubSettings({ rakePct: DEFAULT_RAKE_PCT, ...d.data() });
+                    if (d.exists()) { setClubSettings({ rakePct: DEFAULT_RAKE_PCT, ...d.data() }); if (window.__club) window.__club.botsActive = (d.data().botsActive !== false); }
                 });
                 return () => unsub();
             }, [fbReady, activeClub?.id]);
@@ -1526,8 +1584,6 @@
                         } else {
                             showToast("שלח בקשת הצטרפות קודם", "error"); return;
                         }
-                    } else if (mSnap.data().status === 'left' && !god) {
-                        showToast("עזבת את הקלאב הזה. לחזרה - פנה למנהל הקלאב", "error"); return;
                     } else if (mSnap.data().status !== 'approved' && !god) {
                         showToast("הבקשה שלך ממתינה לאישור בעל הקלאב", "info"); return;
                     }
@@ -1538,33 +1594,6 @@
             };
 
             const leaveToClubs = () => { setActiveClubState(null); setActiveMem(null); changeView('clubs'); };
-
-            // התראה כששחקן נכנס / המשחק מתחיל בשולחן שאתה יושב בו וממתין (ואינך כרגע בתוכו)
-            const seatSigRef = useRef({});
-            useEffect(() => {
-                const uid = dbUser?.uid;
-                if (!uid) return;
-                const inTableView = ['rummy-table','poker-table','durak-table','shesh-table','president-table','yaniv-table','bridge-table','gin-table','twist-table','ofc-table'].includes(currentView);
-                const seen = {};
-                (tablesDB || []).forEach(t => {
-                    if (!t.players || !t.players[uid] || t.type === 'poker') return;
-                    seen[t.docId] = true;
-                    const humans = Object.entries(t.players).filter(([k, p]) => !p.isBot && !String(k).startsWith('bot_')).length;
-                    const active = t.type === 'rummikub' ? (t.phase === 'playing') : (t.status === 'playing');
-                    const prev = seatSigRef.current[t.docId];
-                    if (prev) {
-                        const gotOpponent = humans > prev.humans && humans >= 2;
-                        const started = active && !prev.active;
-                        const viewingThis = inTableView && activeTable && activeTable.docId === t.docId;
-                        if ((gotOpponent || started) && !viewingThis) {
-                            showToast(`🔔 ${started ? 'המשחק התחיל' : 'שחקן נכנס'} בשולחן ה${GAME_LABEL(t.type)} שלך!`, 'success');
-                            playSnd('turn');
-                        }
-                    }
-                    seatSigRef.current[t.docId] = { humans, active };
-                });
-                Object.keys(seatSigRef.current).forEach(id => { if (!seen[id]) delete seatSigRef.current[id]; });
-            }, [tablesDB, currentView]);
 
             useEffect(() => {
                 if (!fbReady || !dbUser?.uid) return;
@@ -1611,7 +1640,6 @@
 
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
-                    {!['rummy-table','poker-table','durak-table','shesh-table','president-table','yaniv-table','bridge-table','gin-table','twist-table','ofc-table'].includes(currentView) && <A11yWidget />}
                     {effUser && activeClub && effUser.status === 'approved' && !inTable && currentView !== 'clubs' && (
                         <nav className="bg-slate-900/80 backdrop-blur-xl px-4 py-3 z-40 shrink-0 border-b border-white/5 shadow-xl flex justify-between items-center">
                             <div className="flex items-center gap-2 sm:gap-3">
@@ -1649,7 +1677,7 @@
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
-                        {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} status={activeMem?.status} />}
+                        {currentView === 'pending' && <PendingView clubName={activeClub?.name} onBack={leaveToClubs} />}
                         {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onJoinBridge={(t) => changeView('bridge-table', t)} onJoinGin={(t) => changeView('gin-table', t)} onJoinTwist={(t) => changeView('twist-table', t)} onJoinOfc={(t) => changeView('ofc-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
                         {currentView === 'leaders' && activeClub && <LeadersView user={effUser} showToast={showToast} />}
@@ -1667,20 +1695,18 @@
                         {currentView === 'ofc-table' && <OFCTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('ofc'); changeView('lobby'); }} showToast={showToast} />}
                     </main>
 
-                    {/* חלון הודעת ברודקאסט - overlay עצמאי ברמת המסך (לא בתוך קונטיינר הטוסטים) כדי ש-fixed ימוקם ביחס לחלון ושהלחיצות ייקלטו */}
-                    {clubMsg && !inTable && (
-                        <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={dismissClubMsg}>
-                            <div onClick={e=>e.stopPropagation()} className="relative bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 pt-10 max-w-md w-full text-center shadow-2xl animate-pop-in my-auto max-h-[90vh] overflow-y-auto">
-                                <button onClick={dismissClubMsg} aria-label="סגור" className="absolute top-3 left-3 w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-700 text-slate-300 hover:text-white font-black flex items-center justify-center border border-white/10 leading-none">✕</button>
-                                <div className="text-4xl mb-2">📣</div>
-                                <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
-                                <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap break-words">{clubMsg.text}</div>
-                                <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
-                                {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
-                            </div>
-                        </div>
-                    )}
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
+                        {clubMsg && !inTable && (
+                            <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={dismissClubMsg}>
+                                <div onClick={e=>e.stopPropagation()} className="bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 max-w-md w-full text-center shadow-2xl animate-pop-in">
+                                    <div className="text-4xl mb-2">📣</div>
+                                    <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
+                                    <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap">{clubMsg.text}</div>
+                                    <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
+                                    {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
+                                </div>
+                            </div>
+                        )}
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>{t.msg}</div>
                         ))}
@@ -1713,10 +1739,51 @@
         /* ================================================================
            לוח המובילים - פודיום ודירוג פר-קלאב
            ================================================================ */
+        // פרופיל ציבורי - הישגים, דרגה, ניקוד וגביעים. נפתח בלחיצה על שחקן
+        function PublicProfileModal({ p, onClose }) {
+            if (!p) return null;
+            const stats = p.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+            const rank = playerRank(stats, p.joinedAt);
+            const score = playerScore(stats);
+            const winRate = (stats.gamesPlayed || 0) > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
+            const trophyList = Object.entries((stats.trophies || {})).filter(([g, n]) => (n || 0) > 0);
+            return ReactDOM.createPortal(
+                <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
+                    <div onClick={e => e.stopPropagation()} className="glass-panel w-full max-w-sm rounded-3xl px-6 py-7 text-center animate-pop-in relative">
+                        <img src={avatarUrl(p)} className="w-24 h-24 rounded-full mx-auto border-2 mb-3 bg-slate-800 object-cover" style={{ borderColor: rank.color }} />
+                        <h2 className="text-2xl font-black text-white truncate">{p.username || p.name || 'שחקן'}</h2>
+                        <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full font-black text-sm" style={{ color: rank.color, background: rank.color + '1f', border: '1px solid ' + rank.color + '66' }}>
+                            <span>{rank.icon}</span><span>{rank.name}</span>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-white">{stats.gamesPlayed || 0}</div><div className="text-[10px] text-slate-400 font-bold">ידיים</div></div>
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-emerald-400">{stats.gamesWon || 0}</div><div className="text-[10px] text-slate-400 font-bold">ניצחונות</div></div>
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-blue-400">{winRate}%</div><div className="text-[10px] text-slate-400 font-bold">אחוז</div></div>
+                        </div>
+                        <div className="mt-3 bg-gradient-to-b from-amber-500/10 to-transparent rounded-2xl py-3 border border-amber-500/20">
+                            <div className="text-2xl font-black text-gold-400" dir="ltr">{score.toLocaleString()}</div>
+                            <div className="text-[10px] text-amber-300/80 font-bold tracking-widest">ניקוד שחקן</div>
+                        </div>
+                        <div className="mt-4">
+                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">🏆 גביעי טורניר ({trophyTotal(stats)})</div>
+                            {trophyList.length ? (
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {trophyList.map(([g, n]) => (
+                                        <span key={g} className="text-[11px] font-black px-3 py-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-gold-400">🏆 {GAME_LABEL(g)} · {n}</span>
+                                    ))}
+                                </div>
+                            ) : <div className="text-slate-500 text-xs font-bold">עוד אין גביעים — קדימה לזכות! 💪</div>}
+                        </div>
+                        <button onClick={onClose} className="mt-6 px-6 py-2.5 rounded-xl font-bold text-sm text-slate-300 border border-white/10 hover:text-white">סגור</button>
+                    </div>
+                </div>, document.body);
+        }
+
         function LeadersView({ user, showToast }) {
+            const [profileP, setProfileP] = useState(null);
             const [mems, setMems] = useState(null);
             const [logAll, setLogAll] = useState(null);
-            const [ltab, setLtab] = useState('wins');   // wins | games | week — ללא כל נתון כספי
+            const [ltab, setLtab] = useState('profit');
             const [gtab, setGtab] = useState('all');
             useEffect(() => {
                 (async () => {
@@ -1739,8 +1806,6 @@
                 })();
             }, [needLog]);
 
-            // אווטאר עדכני מתוך החברות (מקור אמת יחיד) - כדי שהחלפת אווטאר תשתקף גם כאן
-            const memByUid = useMemo(() => { const o = {}; (mems || []).forEach(m => o[m.uid] = m); return o; }, [mems]);
             const rows = (() => {
                 if (needLog) {
                     const cutoff = ltab === 'week' ? Date.now() - 7 * 24 * 3600 * 1000 : 0;
@@ -1748,18 +1813,16 @@
                     (logAll || []).forEach(e => {
                         if (!e.uid || (e.at || 0) < cutoff) return;
                         if (gtab !== 'all' && e.game !== gtab) return;
-                        if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', games: 0, wins: 0 };
+                        if (!agg[e.uid]) agg[e.uid] = { uid: e.uid, username: e.username || '', profit: 0, games: 0, wins: 0 };
+                        agg[e.uid].profit = round2(agg[e.uid].profit + (Number(e.profit) || 0));
                         agg[e.uid].games++;
-                        if ((e.profit || 0) > 0) agg[e.uid].wins++; // ניצחון = יצא ברווח, בלי לחשוף סכום
+                        if ((e.profit || 0) > 0) agg[e.uid].wins++;
                     });
-                    return Object.values(agg).map(w => {
-                        const m = memByUid[w.uid] || {};
-                        return { ...w, photo: m.photo, avatarSeed: m.avatarSeed, metric: ltab === 'games' ? w.games : w.wins, sub: `${w.games} משחקים · ${w.wins} ניצחונות` };
-                    }).sort((a, b) => b.metric - a.metric);
+                    return Object.values(agg).map(w => ({ ...w, metric: ltab === 'wins' ? w.wins : w.profit, sub: `${w.games} משחקים · ${w.wins} ברווח` })).sort((a, b) => b.metric - a.metric);
                 }
                 const list = (mems || []).map(m => ({
                     uid: m.uid, username: m.username, photo: m.photo, avatarSeed: m.avatarSeed,
-                    metric: ltab === 'games' ? ((m.stats || {}).gamesPlayed || 0) : ((m.stats || {}).gamesWon || 0),
+                    metric: ltab === 'profit' ? round2((m.stats || {}).totalProfit || 0) : ((m.stats || {}).gamesWon || 0),
                     sub: `${(m.stats || {}).gamesPlayed || 0} משחקים · ${(m.stats || {}).gamesWon || 0} ניצחונות`
                 }));
                 return list.sort((a, b) => b.metric - a.metric);
@@ -1767,17 +1830,18 @@
             const top3 = rows.slice(0, 3);
             const rest = rows.slice(3, 25);
             const medal = ['🥇', '🥈', '🥉'];
-            const fmtM = (v) => ltab === 'games' ? `${v} 🎮` : `${v} 🏆`;
+            const fmtM = (v) => ltab === 'wins' ? `${v} 🏆` : formatMoney(v);
 
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
+                        {profileP && <PublicProfileModal p={profileP} onClose={() => setProfileP(null)} />}
                         <div className="text-center mb-6 mt-2">
                             <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-yellow-200 to-amber-400 tracking-wide"><i className="fa-solid fa-ranking-star ml-2 text-amber-400"></i>לוח המובילים</h2>
                             <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
                         </div>
                         <div className="flex justify-center gap-2 mb-3">
-                            {[['wins', 'ניצחונות'], ['games', 'הכי פעילים'], ['week', 'השבוע 🔥']].map(([k, l]) => (
+                            {[['profit', 'רווח כולל'], ['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
                                 <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
@@ -1794,26 +1858,26 @@
                             <React.Fragment>
                                 <div className="flex justify-center items-end gap-3 mb-8">
                                     {[1, 0, 2].map(i => top3[i] && (
-                                        <div key={i} className={`flex flex-col items-center ${i === 0 ? 'order-2' : i === 1 ? 'order-1' : 'order-3'}`}>
+                                        <div key={i} onClick={() => setProfileP(top3[i])} className={`flex flex-col items-center cursor-pointer hover:scale-105 transition-transform ${i === 0 ? 'order-2' : i === 1 ? 'order-1' : 'order-3'}`}>
                                             <div className="text-3xl mb-1">{medal[i]}</div>
                                             <div className={`rounded-full overflow-hidden border-2 ${i === 0 ? 'w-20 h-20 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]' : 'w-14 h-14 border-slate-600'}`}>
                                                 <img src={avatarUrl(top3[i])} className="w-full h-full object-cover bg-slate-800" />
                                             </div>
                                             <span className={`font-black mt-1.5 ${i === 0 ? 'text-white text-sm' : 'text-slate-300 text-xs'}`}>{top3[i].username}</span>
-                                            <span className="font-black text-xs text-amber-300" dir="ltr">{fmtM(top3[i].metric)}</span>
+                                            <span className={`font-black text-xs ${top3[i].metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(top3[i].metric)}</span>
                                         </div>
                                     ))}
                                 </div>
                                 <div className="glass-panel rounded-3xl divide-y divide-white/5 overflow-hidden">
                                     {rest.map((r, i) => (
-                                        <div key={r.uid} className={`flex items-center gap-3 px-4 py-3 ${r.uid === user.uid ? 'bg-emerald-500/10' : ''}`}>
+                                        <div key={r.uid} onClick={() => setProfileP(r)} className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors ${r.uid === user.uid ? 'bg-emerald-500/10' : ''}`}>
                                             <span className="text-slate-500 font-black w-6 text-center">{i + 4}</span>
                                             <img src={avatarUrl(r)} className="w-9 h-9 rounded-full bg-slate-800" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-white font-bold text-sm truncate">{r.username}{r.uid === user.uid ? ' (אתה)' : ''}</div>
                                                 <div className="text-slate-500 text-[10px] font-bold">{r.sub || ''}</div>
                                             </div>
-                                            <span className="font-black text-sm text-amber-300" dir="ltr">{fmtM(r.metric)}</span>
+                                            <span className={`font-black text-sm ${r.metric >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{fmtM(r.metric)}</span>
                                         </div>
                                     ))}
                                     {rest.length === 0 && <div className="text-center py-6 text-slate-600 font-bold text-sm">רק שלושה על הפודיום בינתיים 🏆</div>}
@@ -1918,11 +1982,10 @@
             , document.body);
         }
 
-        function PendingView({ clubName, onBack, status }) {
-            const isLeft = status === 'left';
+        function PendingView({ clubName, onBack }) {
             return <div className="h-full w-full aurora-bg text-slate-300 flex justify-center items-center font-bold text-xl flex-col gap-4">
-                <i className={`fa-solid ${isLeft ? 'fa-door-open text-rose-500' : 'fa-clock-rotate-left text-amber-500 animate-spin'} text-4xl`}></i>
-                <div className="text-center px-6">{isLeft ? <>עזבת את הקלאב{clubName ? <span className="text-rose-300"> "{clubName}"</span> : ''}. הנתונים שלך נשמרו — לחזרה פנה למנהל הקלאב.</> : <>ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</>}</div>
+                <i className="fa-solid fa-clock-rotate-left text-4xl text-amber-500 animate-spin"></i>
+                <div className="text-center">ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</div>
                 {onBack && <button onClick={onBack} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-sm font-bold px-6 py-2.5 rounded-xl">🏛️ חזרה לרשימת הקלאבים</button>}
                 <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-sm text-slate-500 underline font-normal">התנתק</button>
             </div>;
@@ -1943,6 +2006,34 @@
             { a: '#fb923c', b: '#7c2d12', glow: 'rgba(251,146,60,0.22)' },
         ];
         const clubHue = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CLUB_HUES[h % CLUB_HUES.length]; };
+        // מזהה קלאב בן 6 ספרות - נגזר דטרמיניסטית מה-id (יציב, ללא צורך במיגרציה)
+        const clubCode = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return String(100000 + (h % 900000)); };
+        // דרגת שחקן לפי ותק + מספר ידיים, וניקוד כולל
+        const RANK_TIERS = [
+            { min: 0, name: 'מתחיל', icon: '🌱', color: '#94a3b8' },
+            { min: 25, name: 'חובב', icon: '🎲', color: '#22d3ee' },
+            { min: 100, name: 'שחקן', icon: '♠️', color: '#34d399' },
+            { min: 300, name: 'מקצוען', icon: '🎯', color: '#a78bfa' },
+            { min: 800, name: 'מומחה', icon: '🔥', color: '#f59e0b' },
+            { min: 2000, name: 'אלוף', icon: '👑', color: '#f5c860' },
+            { min: 5000, name: 'אגדה', icon: '💎', color: '#f43f5e' }
+        ];
+        const trophyTotal = (stats) => { const t = (stats || {}).trophies || {}; return Object.values(t).reduce((a, b) => a + (Number(b) || 0), 0); };
+        const playerRank = (stats, joinedAt) => {
+            const games = (stats || {}).gamesPlayed || 0;
+            const weeks = joinedAt ? Math.floor((Date.now() - joinedAt) / (7 * 86400000)) : 0;
+            const pts = games + weeks * 5 + trophyTotal(stats) * 50;
+            let tier = RANK_TIERS[0];
+            for (const t of RANK_TIERS) if (pts >= t.min) tier = t;
+            const idx = RANK_TIERS.indexOf(tier);
+            const next = RANK_TIERS[idx + 1] || null;
+            return { ...tier, pts, next, toNext: next ? next.min - pts : 0 };
+        };
+        const playerScore = (stats) => {
+            const s = stats || {};
+            return Math.round((s.gamesWon || 0) * 10 + trophyTotal(s) * 250 + Math.max(0, s.totalProfit || 0) / 100 + (s.gamesPlayed || 0));
+        };
+        const botsAreActive = () => !(window.__club && window.__club.botsActive === false);
 
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
             const [newName, setNewName] = useState('');
@@ -1967,8 +2058,25 @@
             const god = isGodUser(user);
             const memOf = (cid) => myMems.find(m => m.clubId === cid);
             const myClubs = clubs.filter(c => { const m = memOf(c.id); return (m && m.status === 'approved') || god; });
-            const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status !== 'approved' && !god; });
+            const pendingClubs = clubs.filter(c => { const m = memOf(c.id); return m && m.status === 'pending' && !god; });
             const otherClubs = clubs.filter(c => !memOf(c.id) && !god);
+            const [searchCode, setSearchCode] = useState('');
+            const [foundClub, setFoundClub] = useState(null);
+            const [foundCount, setFoundCount] = useState(null);
+            const doClubSearch = async () => {
+                const code = searchCode.trim();
+                if (!/^\d{6}$/.test(code)) { setFoundClub(null); return showToast("הזן מזהה בן 6 ספרות", "error"); }
+                const hit = clubs.find(c => clubCode(c.id) === code);
+                if (!hit) { setFoundClub(null); setFoundCount(null); return showToast("לא נמצא קלאב עם המזהה הזה", "error"); }
+                setFoundClub(hit); setFoundCount(null);
+                try {
+                    const [memSnap, botSnap] = await Promise.all([
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", hit.id), window.fb.where("status", "==", "approved"))),
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true)))
+                    ]);
+                    setFoundCount(memSnap.size + botSnap.size);
+                } catch(e) { setFoundCount(null); }
+            };
 
             const [joinFor, setJoinFor] = useState(null);   // הקלאב שמבקשים להצטרף אליו
             const [agentCodeIn, setAgentCodeIn] = useState('');
@@ -2024,10 +2132,10 @@
                 if (nm.length < 2 || nm.length > 30) return showToast("שם קלאב בין 2 ל-30 תווים", "error");
                 setCreating(true);
                 try {
-                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now(), ownerSeeded: true });
+                    const cRef = await window.fb.addDoc(window.fb.collection(window.fb.db, "clubs"), { name: nm, ownerUid: user.uid, ownerName: user.username, createdAt: Date.now() });
                     await window.fb.setDoc(window.fb.doc(window.fb.db, "memberships", `${user.uid}_${cRef.id}`), { ...newMembership(user.uid, user), clubId: cRef.id, role: ROLES.CLUB_OWNER, status: 'approved', balance: 100000000 });
                     setNewName('');
-                    showToast(`הקלאב "${nm}" הוקם - אתה הבעלים! 👑`, "success");
+                    showToast(`הקלאב "${nm}" הוקם! מזהה לשיתוף: ${clubCode(cRef.id)} 👑`, "success");
                     onEnter({ id: cRef.id, name: nm, ownerUid: user.uid });
                 } catch(e) { showToast("שגיאה בהקמת הקלאב", "error"); }
                 setCreating(false);
@@ -2057,6 +2165,7 @@
                                         {isOwner && <span className="text-[9px] px-2 py-0.5 rounded-full font-black border" style={{ color: hue.a, borderColor: hue.a + '80', background: hue.a + '1f' }}>👑 שלך</span>}
                                     </div>
                                     <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span style={{ color: hue.a }}> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
+                                    <div className="text-[10px] text-slate-500 font-black tracking-wider mt-0.5" dir="ltr">🆔 {clubCode(c.id)}</div>
                                 </div>
                             </div>
                             {action}
@@ -2141,16 +2250,25 @@
                             </div>
                         )}
 
-                        {otherClubs.length > 0 && (
-                            <div className="mb-8">
-                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-globe ml-1"></i> כל הקלאבים</h3>
-                                <div className="flex flex-col gap-3">
-                                    {otherClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => requestJoin(c)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0 border transition-all" style={{ borderColor: clubHue(c.id).a + '66' }}>בקש להצטרף</button>
-                                    } />)}
-                                </div>
+                        <div className="mb-8">
+                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
+                            <div className="flex gap-2 mb-3">
+                                <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה קלאב (6 ספרות)" dir="ltr" maxLength={6} className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.3em] outline-none focus:border-emerald-500/60" />
+                                <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-6 rounded-xl font-black shadow-lg">חפש</button>
                             </div>
-                        )}
+                            {foundClub && (!memOf(foundClub.id) || memOf(foundClub.id).status === 'rejected') && (
+                                <ClubCard c={foundClub} action={
+                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                        <span className="text-[11px] text-slate-400 font-bold">{foundCount != null ? `👤 ${foundCount} שחקנים` : '…'}</span>
+                                        {memOf(foundClub.id) && memOf(foundClub.id).status === 'rejected' && <span className="text-[10px] text-rose-300 font-bold">בקשה קודמת נדחתה</span>}
+                                        <button onClick={() => requestJoin(foundClub)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2 rounded-xl font-bold text-sm border transition-all" style={{ borderColor: clubHue(foundClub.id).a + '66' }}>בקש להצטרף</button>
+                                    </div>
+                                } />
+                            )}
+                            {foundClub && memOf(foundClub.id) && ['pending', 'approved'].includes(memOf(foundClub.id).status) && (
+                                <div className="text-center text-slate-400 font-bold text-sm py-2">אתה כבר {memOf(foundClub.id).status === 'approved' ? 'חבר' : 'ממתין לאישור'} בקלאב הזה.</div>
+                            )}
+                        </div>
 
                         {joinFor && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJoinFor(null)}>
@@ -2191,28 +2309,13 @@
             const [avatarOpen, setAvatarOpen] = useState(false);
             const [avStyle, setAvStyle] = useState('adventurer');
             const [nameDraft, setNameDraft] = useState('');
-            // מעדכן את כל החברויות של המשתמש (בכל הקלאבים) כדי שהחלפת אווטאר/שם תשתקף בכל מקום, כולל לוח הדירוג
-            const propagateProfile = async (fields) => {
-                try {
-                    const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("uid", "==", user.uid));
-                    const snap = await window.fb.getDocs(q);
-                    for (const d of snap.docs) { try { await window.fb.updateDoc(d.ref, fields); } catch(e2) {} }
-                } catch(e) { try { await window.fb.updateDoc(memDoc(user.uid), fields); } catch(e3) {} }
-            };
-            const requestLeaveClub = async () => {
-                if (!window.confirm("לבקש לצאת מהקלאב?\n\nהבקשה תישלח לאישור מנהל הקלאב. הנתונים שלך (יתרה, היסטוריה, סטטיסטיקות) יישמרו במלואם לצורך התחשבנות ולא יימחקו.")) return;
-                try { await window.fb.updateDoc(memDoc(user.uid), { leaveRequested: true, leaveRequestedAt: Date.now() }); showToast("בקשת יציאה נשלחה למנהל הקלאב", "success"); } catch(e) { showToast("שגיאה בשליחת הבקשה", "error"); }
-            };
-            const cancelLeaveClub = async () => {
-                try { await window.fb.updateDoc(memDoc(user.uid), { leaveRequested: false, leaveRequestedAt: null }); showToast("בקשת היציאה בוטלה", "info"); } catch(e) {}
-            };
             const saveName = async () => {
                 const nm = nameDraft.trim();
                 if (nm.length < 2 || nm.length > 20) { showToast("שם בין 2 ל-20 תווים", "error"); return; }
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); await propagateProfile({ username: nm }); setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { username: nm }); try { await window.fb.updateDoc(memDoc(user.uid), { username: nm }); } catch(e2) {} setNameDraft(''); showToast("השם עודכן! ייכנס לשולחנות בכניסה הבאה", "success"); } catch(e) {}
             };
             const setSeed = async (seed) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); await propagateProfile({ avatarSeed: seed, photo: '' }); showToast("האווטאר עודכן בכל המקומות!", "success"); } catch(e) {}
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { avatarSeed: seed, photo: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { avatarSeed: seed, photo: '' }); } catch(e2) {} showToast("האווטאר עודכן! ייכנס לתוקף בשולחנות בכניסה הבאה", "success"); } catch(e) {}
             };
             const onPhotoPick = (e) => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2227,7 +2330,7 @@
                         ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
                         const data = c.toDataURL('image/jpeg', 0.82);
                         if (data.length > 70000) { showToast("התמונה מורכבת מדי - נסה תמונה אחרת", "error"); return; }
-                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); await propagateProfile({ photo: data, avatarSeed: '' }); showToast("התמונה הועלתה בכל המקומות!", "success"); } catch(err) {}
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", user.uid), { photo: data, avatarSeed: '' }); try { await window.fb.updateDoc(memDoc(user.uid), { photo: data, avatarSeed: '' }); } catch(e2) {} showToast("התמונה הועלתה!", "success"); } catch(err) {}
                     };
                     img.src = rd.result;
                 };
@@ -2244,8 +2347,7 @@
                 try {
                     const q = window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("uid", "==", user.uid));
                     const s = await window.fb.getDocs(q);
-                    // סינון לפי הקלאב הפעיל בזיכרון (בלי אינדקס מורכב) - הדוח האישי תואם ליתרה ולסטטיסטיקות של הקלאב
-                    setLogs(s.docs.map(d => d.data()).filter(l => (l.clubId || 'main') === CLUB_ID).sort((a, b) => (b.at || 0) - (a.at || 0)));
+                    setLogs(s.docs.map(d => d.data()).sort((a, b) => (b.at || 0) - (a.at || 0)));
                 } catch(e) { setLogs([]); }
                 setLogsLoading(false);
             };
@@ -2286,6 +2388,13 @@
                     <div className="max-w-4xl mx-auto animate-fade-in relative z-10">
                         <div className="glass-panel p-8 rounded-3xl text-center mb-6">
                             <img src={avatarUrl(user)} className="w-24 h-24 rounded-full mx-auto border-2 border-cyan-400/50 shadow-[0_0_25px_rgba(6,182,212,0.25)] mb-4 bg-slate-800" />
+                            {(() => { const rk = playerRank(user.stats, user.joinedAt); return (
+                                <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-sm" style={{ color: rk.color, background: rk.color + '1f', border: '1px solid ' + rk.color + '66' }}>{rk.icon} {rk.name}</span>
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black text-sm text-gold-400 bg-amber-500/10 border border-amber-500/30" dir="ltr">⭐ {playerScore(user.stats).toLocaleString()}</span>
+                                    {trophyTotal(user.stats) > 0 && <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30">🏆 {trophyTotal(user.stats)}</span>}
+                                </div>
+                            ); })()}
                             <button onClick={() => setAvatarOpen(!avatarOpen)} className="block mx-auto text-[10px] text-emerald-400 hover:text-emerald-300 font-bold mb-3 -mt-2 underline"><i className="fa-solid fa-camera ml-1"></i>החלף תמונה / אווטאר</button>
                             {avatarOpen && (
                                 <div className="bg-slate-950/60 rounded-2xl border border-white/10 p-4 mb-4 animate-pop-in">
@@ -2319,19 +2428,6 @@
                             {user.role === ROLES.MANAGER && (user.managedGames||[]).length > 0 && (
                                 <div className="flex justify-center gap-2 mt-3 flex-wrap">
                                     {(user.managedGames||[]).map(g => <span key={g} className="text-[10px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-3 py-1 rounded-full font-bold">{(GAMES.find(x=>x.id===g)||{}).label || g}</span>)}
-                                </div>
-                            )}
-                            {![ROLES.CLUB_OWNER, ROLES.SUPER_ADMIN].includes(user.role) && (
-                                <div className="mt-4 pt-4 border-t border-white/5">
-                                    {user.leaveRequested ? (
-                                        <div className="text-center">
-                                            <p className="text-amber-300 text-xs font-bold mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i>בקשת יציאה ממתינה לאישור מנהל הקלאב</p>
-                                            <button onClick={cancelLeaveClub} className="text-slate-400 hover:text-white text-xs font-bold underline">בטל בקשה</button>
-                                        </div>
-                                    ) : (
-                                        <button onClick={requestLeaveClub} className="text-rose-400/80 hover:text-rose-300 text-xs font-bold underline"><i className="fa-solid fa-door-open ml-1"></i>בקש לצאת מהקלאב</button>
-                                    )}
-                                    <p className="text-[10px] text-slate-600 font-bold mt-2">היציאה טעונה אישור מנהל · הנתונים שלך נשמרים לצורך התחשבנות</p>
                                 </div>
                             )}
                         </div>
@@ -2543,13 +2639,13 @@
             const [showCreateYnv, setShowCreateYnv] = useState(false);
             const [ynvOpts, setYnvOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreateYnv = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Math.max(0, Number(ynvOpts.buyIn) || 0), maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), yanivTableDoc(user.uid, { buyIn: Number(ynvOpts.buyIn) || 0, maxPlayers: Number(ynvOpts.maxPlayers) || 4, turnTime: YNV_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreateYnv(false); showToast("שולחן יניב נפתח!", "success");
             };
             const [showCreatePres, setShowCreatePres] = useState(false);
             const [presOpts, setPresOpts] = useState({ buyIn: 100, maxPlayers: 4 });
             const handleCreatePres = async () => {
-                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Math.max(0, Number(presOpts.buyIn) || 0), maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
+                await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), presTableDoc(user.uid, { buyIn: Number(presOpts.buyIn) || 0, maxPlayers: Number(presOpts.maxPlayers) || 4, turnTime: PRES_TIME, rakePercent: clubSettings?.rakePct ?? DEFAULT_RAKE_PCT }));
                 setShowCreatePres(false); showToast("שולחן פרזידנט נפתח!", "success");
             };
 
@@ -2592,9 +2688,7 @@
                         if (!snap.exists()) return;
                         const players = snap.data().players || {};
                         const humanUids = Object.keys(players).filter(u => !u.startsWith('bot_') && !players[u].isBot);
-                        // בפוקר הקופה יושבת ב-gameState.pots (לא בשדה pot העליון) - כוללים אותה בהחזר כדי שלא תושמד
-                        const gsPots = round2(((snap.data().gameState || {}).pots || []).reduce((s, p) => s + (Number(p.amount) || 0), 0));
-                        const potShare = round2(((snap.data().pot || 0) + gsPots) / Math.max(humanUids.length, 1));
+                        const potShare = round2((snap.data().pot || 0) / Math.max(humanUids.length, 1));
                         const refunds = [];
                         for (const uid of humanUids) {
                             const uSnap = await tr.get(memDoc(uid));
@@ -2617,40 +2711,6 @@
                         {arr.length > 6 && <span className="text-[10px] text-slate-400 font-bold pr-3">+{arr.length-6}</span>}
                     </div>
                 );
-            };
-
-            // שולחנות שאתה יושב בהם וממתין - כדי שתוכל לחזור אליהם או לעזוב מהלובי
-            const waitLabel = (t) => t.type === 'poker' ? '' : t.type === 'rummikub' ? (t.phase === 'waiting' ? 'ממתין' : '') : (t.status === 'setup' ? 'ממתין' : '');
-            const joinForType = { rummikub: onJoinRummy, poker: onJoinPoker, durak: onJoinDurak, shesh: onJoinShesh, president: onJoinPres, yaniv: onJoinYaniv, bridge: onJoinBridge, gin: onJoinGin, twist: onJoinTwist, ofc: onJoinOfc };
-            const myWaiting = (tables || []).filter(t => (t.clubId || 'main') === CLUB_ID && t.players && t.players[user.uid] && waitLabel(t) === 'ממתין');
-            const tableStakeLabel = (t) => t.type === 'rummikub' ? `${formatMoney(t.minBuyIn)}` : `${formatMoney((t.settings || {}).buyIn ?? (t.settings || {}).minBuyIn ?? 0)}`;
-            const leaveWaitingTable = async (t) => {
-                try {
-                    let deleted = false;
-                    await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const ref = window.fb.doc(window.fb.db, "tables", t.docId);
-                        const uRef = memDoc(user.uid);
-                        const [uSnap, snap] = [await tr.get(uRef), await tr.get(ref)]; // כל הקריאות לפני הכתיבות
-                        if (!snap.exists()) return;
-                        const d = snap.data();
-                        const pl = { ...(d.players || {}) };
-                        const me = pl[user.uid];
-                        if (!me) return;
-                        // החזר כל כניסה ששולמה מראש (OFC/רמיקוב גובים בישיבה) - בשלב ההמתנה אין קופה
-                        const refund = round2((me.stack || 0) + (me.bet || 0));
-                        delete pl[user.uid];
-                        const humans = Object.keys(pl).filter(u => !u.startsWith('bot_') && !pl[u].isBot);
-                        if (refund > 0 && uSnap.exists()) tr.update(uRef, { balance: round2((uSnap.data().balance || 0) + refund) });
-                        if (humans.length === 0) { tr.delete(ref); deleted = true; }
-                        else {
-                            const upd = { players: pl };
-                            if (d.hostUid === user.uid) { const first = Object.values(pl).sort((a, b) => ((a.seatIndex ?? a.seat ?? 0) - (b.seatIndex ?? b.seat ?? 0)))[0]; if (first) upd.hostUid = first.uid; }
-                            tr.update(ref, upd);
-                        }
-                    });
-                    if (deleted) spawnTwinTable(t); // שולחן שנסגר - נולד חדש במקומו (עם dedup)
-                    showToast("עזבת את השולחן", "info");
-                } catch(e) { showToast("שגיאה בעזיבה", "error"); }
             };
 
             return (
@@ -2676,22 +2736,6 @@
                                 <div className="text-2xl font-black text-white" dir="ltr"><Coin amount={user.balance} /></div>
                             </div>
                         </div>
-
-                        {myWaiting.length > 0 && (
-                            <div className="glass-panel rounded-2xl px-4 py-3 mb-5 border border-amber-500/30 animate-fade-in">
-                                <div className="text-[11px] font-black text-amber-300 mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה ממתין ליריב ב{myWaiting.length > 1 ? `-${myWaiting.length} שולחנות` : 'שולחן'} — נודיע לך כששחקן נכנס</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {myWaiting.map(t => (
-                                        <div key={t.docId} className="flex items-center gap-1.5 bg-slate-900/70 border border-amber-500/20 rounded-xl pl-1.5 pr-3 py-1.5">
-                                            <span className="text-xs font-bold text-white">{GAME_LABEL(t.type)} <span className="text-slate-400" dir="ltr">{tableStakeLabel(t)}</span></span>
-                                            <span className="text-[10px] text-slate-500">· {Object.keys(t.players || {}).length} יושבים</span>
-                                            <button onClick={() => (joinForType[t.type] || (() => {}))(t)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg shadow">חזור</button>
-                                            <button onClick={() => leaveWaitingTable(t)} title="עזוב את השולחן" className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-rose-800 text-slate-400 hover:text-white text-xs">✕</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
@@ -3441,7 +3485,7 @@
             const exportClubCSV = async () => {
                 setExporting(true);
                 try {
-                    const s = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID)));
+                    const s = await window.fb.getDocs(window.fb.collection(window.fb.db, "gameLog"));
                     let all = s.docs.map(d => d.data());
                     if (expFrom) all = all.filter(l => l.at >= new Date(expFrom).getTime());
                     if (expTo) all = all.filter(l => l.at <= new Date(expTo).getTime() + 24 * 3600 * 1000);
@@ -3494,28 +3538,9 @@
                 approveWith(uid, null);
             };
             const handleReject = async (u) => {
-                if (!window.confirm(`לדחות ולמחוק את ${u.username}?`)) return;
-                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "memberships", u.id)); showToast("הבקשה נדחתה", "info"); }
+                if (!window.confirm(`לדחות את ${u.username}? הקלאב ייעלם מהמסך שלו והוא לא יוכל לבקש שוב.`)) return;
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'rejected', rejectedAt: Date.now() }); showToast("הבקשה נדחתה", "info"); }
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
-            };
-
-            // אישור יציאה: השחקן מסומן "עזב" - הנתונים נשמרים לצורך התחשבנות, לא נמחקים
-            const approveLeave = async (u) => {
-                if (!window.confirm(`לאשר את יציאתו של ${u.username} מהקלאב?\n\nהשחקן יסומן כ"עזב" ולא יוכל לשחק, אך כל הנתונים שלו (יתרה ${formatMoney(u.balance || 0)}, היסטוריה, סטטיסטיקות) יישמרו לצורך התחשבנות. מחיקה סופית נעשית ידנית בלבד.`)) return;
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'left', leftAt: Date.now(), leaveRequested: false }); showToast(`${u.username} עזב את הקלאב · הנתונים נשמרו`, "info"); } catch(e) { showToast("שגיאה", "error"); }
-            };
-            const rejectLeave = async (u) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { leaveRequested: false, leaveRequestedAt: null }); showToast(`בקשת היציאה של ${u.username} נדחתה`, "info"); } catch(e) {}
-            };
-            const reinstateMember = async (u) => {
-                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'approved', leftAt: null }); showToast(`${u.username} הוחזר לפעילות`, "success"); } catch(e) {}
-            };
-            // מחיקה סופית - הדרך היחידה למחוק נתונים, ידנית ובאישור כפול, לבעלים בלבד
-            const deletePlayerPermanently = async (u) => {
-                if (!isOwner) return;
-                if (!window.confirm(`⚠️ מחיקה סופית של ${u.username} מהקלאב!\n\nכל הנתונים יימחקו לצמיתות (יתרה, היסטוריה, סטטיסטיקות) ולא ניתן יהיה להתחשבן איתו. בטוח?`)) return;
-                if (!window.confirm(`אישור אחרון: למחוק לצמיתות את ${u.username}?`)) return;
-                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "memberships", u.id)); showToast(`${u.username} נמחק לצמיתות`, "info"); } catch(e) { showToast("שגיאה במחיקה", "error"); }
             };
 
             const adjustBalance = async (target, isDeposit) => {
@@ -3603,10 +3628,13 @@
                     showToast("כל הבוטים נמחקו.", "info");
                 } catch(e) { showToast("שגיאה במחיקת בוטים", "error"); }
             };
+            const handleToggleBots = async () => {
+                const now = !(clubSettings?.botsActive === false); // currently active?
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { botsActive: !now }); showToast(!now ? "הבוטים הופעלו" : "הבוטים הושבתו (עדיין קיימים)", "info"); }
+                catch(e) { showToast("שגיאה", "error"); }
+            };
 
-            const pendingUsers = usersList.filter(u => u.status === 'pending' && !u.isBot);
-            const leaveRequests = usersList.filter(u => u.status === 'approved' && u.leaveRequested && !u.isBot);
-            const leftMembers = usersList.filter(u => u.status === 'left' && !u.isBot);
+            const pendingUsers = usersList.filter(u => u.status !== 'approved' && !u.isBot);
             const agents = usersList.filter(u => u.status === 'approved' && u.role === ROLES.AGENT && !u.isBot);
             const agentName = (uid) => (usersList.find(x => x.uid === uid) || {}).username || '';
             // השלמת קוד לסוכנים ותיקים שאין להם (אצל הבעלים בלבד)
@@ -3656,6 +3684,7 @@
                             {user.role === ROLES.SUPER_ADMIN && (
                                 <div className="flex gap-2">
                                     <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
+                                    <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
                                     <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת (משרתים את כל הקלאבים)</span>
                                     <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
                                 </div>
@@ -3774,62 +3803,6 @@
                                 ))}
                             </div>
                         </div>
-
-                        {/* בקשות יציאה מהקלאב (מנהל/בעלים) - הנתונים נשמרים, לא נמחקים */}
-                        {(isOwner || user.role === ROLES.MANAGER) && leaveRequests.length > 0 && (
-                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-rose-500/20">
-                                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                                    <span className="w-8 h-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center"><i className="fa-solid fa-door-open text-rose-400 text-sm"></i></span>
-                                    בקשות יציאה מהקלאב <span className="text-rose-400">({leaveRequests.length})</span>
-                                </h3>
-                                <div className="flex flex-col gap-2">
-                                    {leaveRequests.map(u => (
-                                        <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5">
-                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => setPlayerFile(u)} title="פתח תיק שחקן">
-                                                <img src={avatarUrl({ ...u, uid: u.id })} className="w-10 h-10 rounded-xl bg-slate-800 shrink-0" />
-                                                <div className="min-w-0">
-                                                    <div className="font-bold text-white truncate">{u.username} <span className="text-emerald-400 text-xs font-black" dir="ltr">{formatMoney(u.balance || 0)}</span></div>
-                                                    <div className="text-xs text-slate-400 truncate">ביקש לצאת · הנתונים יישמרו להתחשבנות</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2 shrink-0">
-                                                <button onClick={()=>approveLeave(u)} className="bg-gradient-to-b from-rose-500 to-rose-700 hover:from-rose-400 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg">אשר יציאה</button>
-                                                <button onClick={()=>rejectLeave(u)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 rounded-xl font-bold text-sm border border-white/10">דחה</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* שחקנים שעזבו - נשמרים להתחשבנות, נמחקים ידנית בלבד */}
-                        {(isOwner || user.role === ROLES.MANAGER) && leftMembers.length > 0 && (
-                            <div className="glass-panel p-6 rounded-3xl mb-6 border border-slate-500/20">
-                                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2 flex-wrap">
-                                    <span className="w-8 h-8 rounded-lg bg-slate-500/15 border border-slate-500/30 flex items-center justify-center"><i className="fa-solid fa-user-slash text-slate-400 text-sm"></i></span>
-                                    שחקנים שעזבו <span className="text-slate-400">({leftMembers.length})</span>
-                                    <span className="text-[10px] text-slate-500 font-bold mr-auto">הנתונים נשמרים · מחיקה ידנית בלבד</span>
-                                </h3>
-                                <div className="flex flex-col gap-2">
-                                    {leftMembers.map(u => (
-                                        <div key={u.id} className="flex items-center justify-between bg-slate-900/50 rounded-2xl p-3 border border-white/5">
-                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => setPlayerFile(u)} title="פתח תיק להתחשבנות">
-                                                <img src={avatarUrl({ ...u, uid: u.id })} className="w-10 h-10 rounded-xl bg-slate-800 shrink-0 grayscale" />
-                                                <div className="min-w-0">
-                                                    <div className="font-bold text-white truncate">{u.username} <span className="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-black">עזב</span></div>
-                                                    <div className="text-xs text-slate-400 truncate" dir="ltr">יתרה: {formatMoney(u.balance || 0)} · {u.email}</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2 shrink-0">
-                                                <button onClick={()=>adjustBalance(u, false)} title="התחשבן (משוך יתרה)" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-emerald-900 text-white font-black border border-white/10">−</button>
-                                                {isOwner && <button onClick={()=>reinstateMember(u)} title="החזר לפעילות" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 border border-white/10"><i className="fa-solid fa-rotate-left text-xs"></i></button>}
-                                                {isOwner && <button onClick={()=>deletePlayerPermanently(u)} title="מחק לצמיתות (רק אחרי התחשבנות)" className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-800 text-slate-400 hover:text-white border border-white/10"><i className="fa-solid fa-trash text-xs"></i></button>}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         {/* שחקנים: העברות צ'יפים + תפקידים */}
                         {playerFile && <PlayerFileModal mem={playerFile} agentName={agentName} canEdit={isOwner || canManageAny || playerFile.agentUid === user.uid} onClose={() => setPlayerFile(null)} showToast={showToast} />}
@@ -4071,6 +4044,7 @@
                             const t = tblSnap.data();
                             const playersCount = Object.keys(t.players || {}).length;
                             if (playersCount === 0 || playersCount >= t.maxPlayers || t.phase !== 'waiting') return;
+                            if (!botsAreActive()) return;
 
                             const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                             const botSnaps = await window.fb.getDocs(botQ);
@@ -4083,6 +4057,7 @@
                             const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: Number(t.minBuyIn), isBot: true } };
                             if (Object.keys(newPlayers).length === Number(t.maxPlayers)) {
                                 await window.fb.updateDoc(tblRef, buildDeal(newPlayers));
+                                spawnTwinTable(t); // התמלא בבוטים והמשחק התחיל - נפתח תאום ממתין חדש (עם dedup)
                             } else {
                                 await window.fb.updateDoc(tblRef, { players: newPlayers });
                             }
@@ -4671,7 +4646,6 @@
             /* ---------- עזיבת שולחן ---------- */
             const handleLeave = async () => {
                 if (!tableState?.players?.[user.uid]) { onLeave(); return; }
-                if (tableState.phase === 'waiting' && !tableState.tournamentId) { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (tableState.tournamentId) {
                     if (tableState.phase === 'playing' && !window.confirm("⚠️ עזיבה = פרישה מהטורניר (בלי החזר). בטוח?")) return;
                     try {
@@ -4802,12 +4776,7 @@
             return (
                 <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl">
 
-                    {tableState.phase === 'waiting' && isSeated && (
-                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין לשחקנים ({Object.keys(tableState.players || {}).length})</span>
-                        </div>
-                    )}
-                    {tableState.phase === 'waiting' && !isSeated && (
+                    {tableState.phase === 'waiting' && (
                         <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-8 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <h2 className="text-3xl font-black text-white mb-2">ממתין לשחקנים...</h2>
@@ -5704,6 +5673,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t) return;
                 const pl = t.players || {};
                 if (Object.keys(pl).length >= (setts.maxPlayers || 6)) return showToast("השולחן מלא", "error");
@@ -5784,6 +5754,7 @@
                         const count = Object.keys(pl).length;
                         const hasHuman = Object.values(pl).some(p => !p.isBot);
                         if (!hasHuman || count >= (t.settings.maxPlayers || 6)) return;
+                        if (!botsAreActive()) return;
 
                         const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                         const botSnaps = await window.fb.getDocs(botQ);
@@ -6122,7 +6093,8 @@
                             );
                         })()}
 
-                        <div className="poker-table w-full max-w-[440px] h-full max-h-[calc(100dvh-190px)] relative">
+                        <div className={"poker-table w-full max-w-[440px] h-full max-h-[calc(100dvh-190px)] relative" + (tableState.tournament && tableState.tournament.final ? " final-table" : "")}>
+                            {tableState.tournament && tableState.tournament.final && <div className="ft-banner" dir="ltr">FINAL TABLE</div>}
 
                             {/* מרכז: קופות, קלפים, מנצח */}
                             <div className="absolute left-1/2 top-[33%] -translate-x-1/2 flex gap-5 items-end z-10">
@@ -6137,7 +6109,11 @@
                             </div>
 
                             <div className="absolute left-1/2 top-[64%] -translate-x-1/2 text-center z-10 pointer-events-none w-[80%]">
-                                {gs.phase === 'waiting' && <div className="text-cyan-200/20 font-black text-xs tracking-[0.35em] uppercase">Rummikube Elite</div>}
+                                <div className="text-slate-300/40 font-bold text-[11px] leading-relaxed" dir="ltr">
+                                    <div>{(gs.currentGameType || setts.baseGameType || 'NLH') + ' ' + formatShort(setts.blinds) + '/' + formatShort(BB)}</div>
+                                    <div>{'Blinds ' + formatShort(setts.blinds) + '/' + formatShort(BB) + (Number(setts.ante) > 0 ? ' · Ante ' + formatShort(setts.ante) : '')}</div>
+                                    <div className="tracking-[0.15em] text-[9px] text-slate-400/30 uppercase mt-0.5">Rummikube Clubs</div>
+                                </div>
                                 {gs.phase === 'discard' && <div className="text-amber-300 font-black text-xs animate-pulse">🍍 Pineapple - זורקים קלף אחד...</div>}
                             </div>
 
@@ -6185,6 +6161,9 @@
                                                 </div>
                                             )}
 
+                                            {gs.phase === 'showdown' && gs.lastWinners && String(gs.lastWinners).split(', ').includes(p.name) && (
+                                                <div className="win-tag" dir="ltr">WIN{(gs.lastWinAmount || 0) > 0 ? ' +' + formatShort(gs.lastWinAmount) : ''}</div>
+                                            )}
                                             <div className={`player-pod ${isTurn ? 'active-glow' : ''} ${isMe ? 'w-16 h-16' : ''}`} style={{ backgroundImage: `url(${avatarUrl(p)})` }}>
                                                 {isTurn && (
                                                     <svg className="absolute inset-0 w-full h-full timer-ring" viewBox="0 0 40 40">
@@ -6549,10 +6528,10 @@
                             uSnaps[uid] = s;
                         }
                         for (const uid of Object.keys(uSnaps)) tr.update(uSnaps[uid].ref, { balance: round2((uSnaps[uid].data().balance || 0) - buyIn) });
-                        // חלוקה: הקלף התחתון (deck[0]) הוא השליט ונשאר בקופה עד סופה - לעולם לא מחלקים אותו
+                        // חלוקה
                         const deck = durakDeck(Number(tbl.settings.deckSize) || 36);
+                        for (let i = 0; i < 6; i++) for (const uid of uids) pl[uid].cards.push(deck.pop());
                         const trumpCard = deck[0]; const trumpSuit = trumpCard.suit;
-                        for (let i = 0; i < 6; i++) for (const uid of uids) { if (deck.length > 1) pl[uid].cards.push(deck.pop()); }
                         // המתחיל: בעל השליט הנמוך ביותר
                         let low = 99, attacker = uids[0];
                         uids.forEach(uid => pl[uid].cards.forEach(c => { if (c.suit === trumpSuit && c.v < low) { low = c.v; attacker = uid; } }));
@@ -6564,6 +6543,7 @@
                             lastResults: null, turnStartedAt: Date.now()
                         });
                     });
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהתחלת המשחק"); }
             };
 
@@ -6588,11 +6568,7 @@
                     const buyIn = Number(setts.buyIn) || 0;
                     let winners = soloWinnerUid ? [pl[soloWinnerUid]] : Object.values(pl).filter(p => p.out && !p.left && p.uid !== durakUid);
                     const share = winners.length ? Math.floor(((pot - rake) / winners.length) * 100) / 100 : 0;
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק ע"י לקוח אחר
                         const reads = {};
                         for (const w of winners) { const s = await tr.get(memDoc(w.uid)); if (s.exists()) reads[w.uid] = s; }
                         let durakSnap = null;
@@ -6619,12 +6595,7 @@
                             finishOrder: fo || [], turnUid: null, pot: 0,
                             lastResults: { durakName: durakUid ? pl[durakUid].name : null, winners: winners.map(w => w.name), share, rake, pot, solo: !!soloWinnerUid }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
-                    // שימור צ'יפים: חלקו של בוט מנצח לא ניתן לזיכוי (אין לו חברות) - עובר לקופת הבית במקום להישמד
-                    const durakBotShare = round2(winners.filter(w => w.isBot).length * share);
-                    if (durakBotShare > 0) creditRakeToClub(durakBotShare);
                     distributeRake(rake, Object.keys(pl));
                     logGameResult([
                         ...winners.filter(w => !w.isBot).map(w => ({ uid: w.uid, username: w.name, game: 'durak', profit: round2(share - (Number(setts.buyIn) || 0)) })),
@@ -6851,7 +6822,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing' && !t.players[user.uid].out) {
                     if (!window.confirm("⚠️ פרישה באמצע משחק דוראק = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -6891,7 +6861,7 @@
                 try {
                     const pl = { ...t.players }; delete pl[user.uid];
                     if (Object.keys(pl).length === 0 && t.status !== 'playing') {
-                        await window.fb.deleteDoc(tblRef());
+                        await window.fb.deleteDoc(tblRef()); spawnTwinTable(t);
                     } else {
                         const upd = { players: pl };
                         if (t.hostUid === user.uid) { const first = Object.values(pl).sort((a,b)=>a.seatIndex-b.seatIndex)[0]; if (first) upd.hostUid = first.uid; }
@@ -6902,6 +6872,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return toastErr("הבוטים מושבתים בקלאב");
                 const t = tableRef.current; if (!t || !['setup', 'showdown'].includes(t.status)) return;
                 if (Object.keys(t.players).length >= (setts.maxPlayers || 6)) return toastErr("השולחן מלא");
                 try {
@@ -6963,6 +6934,7 @@
                 if (!isSuperAdmin || !tableState || T.status !== 'setup') return;
                 const iv = setInterval(async () => {
                     const t = tableRef.current; if (!t || t.status !== 'setup') return;
+                    if (!botsAreActive()) return;
                     const pl = t.players || {};
                     const hasHuman = Object.values(pl).some(p => !p.isBot);
                     if (!hasHuman || Object.keys(pl).length >= (t.settings.maxPlayers || 6)) return;
@@ -7162,14 +7134,7 @@
                         </div>
 
                         {/* המתנה לשחקנים */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-blue-500/40">
                                     <i className="fa-solid fa-chess-king text-4xl text-blue-400 mb-2"></i>
@@ -7421,76 +7386,6 @@
             twist: { title: 'איך משחקים טוויסט 🌀', lines: ['הנח קלף שמתאים לקלף העליון בצורה או במספר. אפשר כמה קלפים מאותו מספר יחד!', '2 = היריב הבא לוקח 2 קלפים. אפשר לשרשר 2 משלך והעונש מצטבר!', '8 = עצור, הבא בתור מדלג. אס = הכיוון מתהפך.', 'נסיך (J) מונח על הכל ומחליף את הצבע לבחירתך - אבל אסור לסיים איתו את היד!', 'נשאר לך קלף אחד? המערכת מכריזה "טוויסט!" לכולם.', 'המרוקן ראשון את היד לוקח את הקופה.'] },
             ofc: { title: 'איך משחקים פוקר סיני OFC 🀄', lines: ['בנה 3 שורות: עליונה (3 קלפים), אמצעית (5), תחתונה (5). התחתונה חייבת להיות החזקה ביותר והעליונה החלשה - אחרת פאול (6- + כל הרויאלטיז ליריב)!', 'סיבוב ראשון: קבל 5 והנח את כולם. אחר כך: קבל 3, הנח 2, השלישי נזרק.', 'התוויות ליד השורות מראות לך את החוזק חי - ואדום מהבהב = אזהרת פאול.', 'רויאלטיז: בונוסים לידיים חזקות (פלאש בתחתונה 4, באמצעית 8, שלישייה למעלה 10-22...).', "ג'וקר 🃏 = כל קלף שתרצה - המערכת בוחרת עבורך את הטוב ביותר.", 'זוג מלכות+ למעלה בלי פאול = פנטזילנד! ביד הבאה תקבל 14-16 קלפים בבת אחת.', 'כמו פוקר: קנית סטאק בכניסה, כל משחקון משוחק על ערך קבוע (נקודה = עשירית ממנו), והסטאק שלך גדל וקטן. קם מתי שרוצים - הצ\'יפים חוזרים לארנק!'] },
         };
-        /* ===== וידג'ט נגישות (WCAG 2.0 AA / ת"י 5568) ===== */
-        function A11yWidget() {
-            const [open, setOpen] = useState(false);
-            const [stmt, setStmt] = useState(false);
-            const [s, setS] = useState(() => { try { return JSON.parse(localStorage.getItem('a11y') || '{}'); } catch(e) { return {}; } });
-            useEffect(() => {
-                const r = document.documentElement;
-                r.classList.toggle('a11y-contrast', !!s.contrast);
-                r.classList.toggle('a11y-noanim', !!s.noanim);
-                r.classList.toggle('a11y-links', !!s.links);
-                r.classList.toggle('a11y-readable', !!s.readable);
-                r.style.fontSize = s.fs ? (s.fs + '%') : '';
-                try { localStorage.setItem('a11y', JSON.stringify(s)); } catch(e) {}
-            }, [s]);
-            const set = (k, v) => setS(prev => ({ ...prev, [k]: v }));
-            const fs = s.fs || 100;
-            const Toggle = ({ k, label, icon }) => (
-                <button onClick={() => set(k, !s[k])} aria-pressed={!!s[k]} className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl border text-sm font-bold ${s[k] ? 'bg-sky-600 border-sky-400 text-white' : 'bg-slate-800 border-white/10 text-slate-200'}`}>
-                    <span>{icon} {label}</span><span>{s[k] ? '✓' : ''}</span>
-                </button>
-            );
-            return ReactDOM.createPortal(
-                <React.Fragment>
-                    <button className="a11y-fab" aria-label="פתיחת תפריט נגישות" title="נגישות" onClick={() => setOpen(o => !o)}>♿</button>
-                    {open && (
-                        <div dir="rtl" className="fixed inset-0 z-[99999] bg-black/50 flex items-stretch justify-start" onClick={() => setOpen(false)}>
-                            <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="תפריט נגישות" className="bg-slate-900 border-l border-white/10 h-full w-72 max-w-[85vw] p-4 overflow-y-auto shadow-2xl">
-                                <div className="flex items-center justify-between mb-4">
-                                    <span className="font-black text-white text-lg">♿ נגישות</span>
-                                    <button onClick={() => setOpen(false)} aria-label="סגירה" className="text-slate-400 hover:text-white w-8 h-8 text-xl">✕</button>
-                                </div>
-                                <div className="mb-3">
-                                    <div className="text-xs font-bold text-slate-400 mb-1.5">גודל טקסט: {fs}%</div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => set('fs', Math.max(80, fs - 10))} aria-label="הקטן טקסט" className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-black text-white">A−</button>
-                                        <button onClick={() => set('fs', 100)} className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-bold text-slate-300 text-sm">100%</button>
-                                        <button onClick={() => set('fs', Math.min(160, fs + 10))} aria-label="הגדל טקסט" className="flex-1 bg-slate-800 border border-white/10 rounded-xl py-2 font-black text-white">A+</button>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                    <Toggle k="contrast" label="ניגודיות גבוהה" icon="◑" />
-                                    <Toggle k="noanim" label="עצירת אנימציות" icon="⏸" />
-                                    <Toggle k="links" label="הדגשת קישורים" icon="🔗" />
-                                    <Toggle k="readable" label="גופן קריא" icon="🔤" />
-                                </div>
-                                <button onClick={() => setS({})} className="w-full mt-3 bg-slate-800 hover:bg-slate-700 border border-white/10 text-slate-300 rounded-xl py-2 font-bold text-sm">איפוס הגדרות</button>
-                                <button onClick={() => setStmt(true)} className="w-full mt-2 text-sky-400 hover:text-sky-300 underline text-xs font-bold">הצהרת נגישות</button>
-                            </div>
-                        </div>
-                    )}
-                    {stmt && (
-                        <div dir="rtl" className="fixed inset-0 z-[100000] bg-black/80 flex items-center justify-center p-4" onClick={() => setStmt(false)}>
-                            <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="הצהרת נגישות" className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto text-slate-200">
-                                <h2 className="text-xl font-black text-white mb-3">הצהרת נגישות</h2>
-                                <div className="space-y-2 text-sm leading-relaxed">
-                                    <p>אנו רואים חשיבות רבה במתן שירות שוויוני ונגיש לכלל המשתמשים, לרבות אנשים עם מוגבלות.</p>
-                                    <p>האתר פועל להנגשה בהתאם לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), תשע"ג-2013, ולתקן הישראלי ת"י 5568 המבוסס על הנחיות WCAG 2.0 ברמה AA.</p>
-                                    <p>באתר מוטמע תפריט נגישות המאפשר: הגדלה והקטנה של גודל הטקסט, מצב ניגודיות גבוהה, עצירת אנימציות, הדגשת קישורים וגופן קריא. האתר תומך בניווט מקלדת ובחיווי פוקוס ברור, ומכבד את העדפת המערכת לצמצום תנועה.</p>
-                                    <p>למרות מאמצינו, ייתכן שחלקים מסוימים באתר טרם הונגשו במלואם. אנו ממשיכים לשפר את הנגישות באופן שוטף.</p>
-                                    <p>נתקלת בבעיית נגישות? נשמח לעזור ולתקן בהקדם.</p>
-                                    <p className="font-bold text-white">רכז נגישות · יצירת קשר: aaci.yoni@gmail.com</p>
-                                    <p className="text-[11px] text-slate-500">עודכן: 2026</p>
-                                </div>
-                                <button onClick={() => setStmt(false)} className="mt-4 bg-sky-600 hover:bg-sky-500 text-white px-6 py-2.5 rounded-xl font-black">סגור</button>
-                            </div>
-                        </div>
-                    )}
-                </React.Fragment>
-            , document.body);
-        }
         function HelpButton({ game, cls }) {
             const [open, setOpen] = useState(false);
             const H = GAME_HELP[game];
@@ -7566,15 +7461,12 @@
                 ctx.fillText('✨ גרד כאן ✨', w / 2, h / 2 + 6);
                 ctx.globalCompositeOperation = 'destination-out';
             }, []);
-            const lastSndRef = useRef(0);
             const scratch = (e) => {
                 const cv = cvRef.current; if (!cv || doneRef.current) return;
                 const r = cv.getBoundingClientRect();
                 const x = (e.clientX - r.left), y = (e.clientY - r.top);
                 const ctx = cv.getContext('2d');
                 ctx.beginPath(); ctx.arc(x, y, 20, 0, 7); ctx.fill();
-                const now = (window.performance && performance.now) ? performance.now() : Date.now();
-                if (now - lastSndRef.current > 90) { lastSndRef.current = now; playSnd('scratch'); } // צליל גירוד מווסת
             };
             const checkDone = () => {
                 const cv = cvRef.current; if (!cv || doneRef.current) return;
@@ -7744,11 +7636,7 @@
                     const amount = round2(pot - rake);
                     const buyIn = Number(setts.buyIn) || 0;
                     const mars = !byForfeit && upd && (upd.off[oppC(winnerColor)] || 0) === 0;
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const wRef = memDoc(winnerUid);
                         const wSnap = await tr.get(wRef);
                         let lSnap = null, lRef = null;
@@ -7774,11 +7662,7 @@
                             board: upd ? upd.board : t.board, bar: upd ? upd.bar : t.bar, off: upd ? upd.off : t.off,
                             lastResults: { winnerName: (players[winnerUid] || {}).name || '', amount, rake, mars, byForfeit: !!byForfeit }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
-                    // שימור צ'יפים: בוט מנצח - הזכייה לקופת הבית במקום להישמד
-                    if ((players[winnerUid] || {}).isBot && amount > 0) creditRakeToClub(amount);
                     distributeRake(rake, [winnerUid, loserUid].filter(Boolean));
                     logGameResult([
                         ...(!players[winnerUid]?.isBot ? [{ uid: winnerUid, username: players[winnerUid]?.name, game: 'shesh', profit: round2(amount - buyIn) }] : []),
@@ -7822,6 +7706,7 @@
                             turn: a > b ? 'w' : 'b', turnStartedAt: Date.now(), lastResults: null
                         });
                     });
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { toastErr(typeof e === 'string' ? e : "שגיאה בהתחלה"); }
             };
 
@@ -7847,7 +7732,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע שש-בש = הפסד טכני והיריב לוקח את הקופה. בטוח?")) return;
                     await settleShesh(oppC(myColor), null, true);
@@ -7855,7 +7739,7 @@
                 try {
                     const t2 = tableRef.current;
                     const pl = { ...t2.players }; delete pl[user.uid];
-                    if (Object.keys(pl).length === 0) await window.fb.deleteDoc(tblRef());
+                    if (Object.keys(pl).length === 0) { await window.fb.deleteDoc(tblRef()); spawnTwinTable(t2); }
                     else {
                         const upd = { players: pl };
                         if (t2.hostUid === user.uid) { const first = Object.values(pl)[0]; if (first) upd.hostUid = first.uid; }
@@ -7866,6 +7750,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return toastErr("הבוטים מושבתים בקלאב");
                 const t = tableRef.current; if (!t || !['setup', 'showdown'].includes(t.status)) return;
                 if (Object.keys(t.players).length >= 2) return toastErr("השולחן מלא");
                 try {
@@ -7902,6 +7787,7 @@
                 if (!isSuperAdmin || !tableState || T.status !== 'setup') return;
                 const tm = setTimeout(() => {
                     const t = tableRef.current; if (!t || t.status !== 'setup') return;
+                    if (!botsAreActive()) return;
                     const pl = t.players || {};
                     if (Object.keys(pl).length === 1 && Object.values(pl).some(p => !p.isBot)) handleAddBot();
                 }, 4000);
@@ -8099,14 +7985,7 @@
                         </div>
 
                         {/* המתנה */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-amber-500/40">
                                     <i className="fa-solid fa-dice text-4xl text-amber-400 mb-2"></i>
@@ -8260,42 +8139,12 @@
         const ofcRoyalBot = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 25 : 15) : ev[0] === 7 ? 10 : ev[0] === 6 ? 6 : ev[0] === 5 ? 4 : ev[0] === 4 ? 2 : 0;
         const ofcRoyalMid = (ev) => ev[0] === 8 ? (ev[1] === 14 ? 50 : 30) : ev[0] === 7 ? 20 : ev[0] === 6 ? 12 : ev[0] === 5 ? 8 : ev[0] === 4 ? 4 : ev[0] === 3 ? 2 : 0;
         const ofcRoyalTop = (ev) => ev[0] === 3 ? (ev[1] - 2 + 10) : (ev[0] === 1 && ev[1] >= 6 ? ev[1] - 5 : 0); // 66=1..AA=9, שלישיות 222=10..AAA=22
-        const topAs5Of = (t) => [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // טופ להשוואה מול אמצע (זוג/שלישייה/גבוה)
-        // כל ערכי הג'וקר האפשריים בשורה (dedup לפי חוזק) - לבחירה משותפת חוקית
-        const ofcRowCands = (cards, isTop) => {
-            const fn = isTop ? ofcEval3 : ofcEval5;
-            const jok = (cards || []).filter(c => c.v === 0), rest = (cards || []).filter(c => c.v !== 0);
-            if (!jok.length) return [fn(cards || [])];
-            const seen = new Set(), out = [];
-            const add = e => { const k = e.join(','); if (!seen.has(k)) { seen.add(k); out.push(e); } };
-            if (jok.length === 1) { for (const r of OFC_ALL52) add(fn([...rest, r])); }
-            else { for (const r1 of OFC_ALL52) for (const r2 of OFC_ALL52) add(fn([...rest, r1, r2])); }
-            return out;
-        };
-        // הג'וקר "מתאים את עצמו לניצחון": קודם לוח חוקי (לא פאול), ואז מקסימום רויאלטיז - במשותף לכל השורות
-        const ofcResolve = (p) => {
-            let t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
-            let foul = ofcCmp(topAs5Of(t), m) > 0 || ofcCmp(m, b) > 0;
-            const hasJoker = [...(p.top || []), ...(p.mid || []), ...(p.bot || [])].some(c => c && c.v === 0);
-            if (foul && hasJoker) {
-                // הבחירה הבלתי-תלויה יצרה פאול - מחפשים שילוב ערכי ג'וקר שנשאר חוקי וממקסם רויאלטיז
-                const T = ofcRowCands(p.top || [], true), M = ofcRowCands(p.mid || [], false), B = ofcRowCands(p.bot || [], false);
-                let best = null, bestRoy = -Infinity;
-                for (const bb of B) for (const mm of M) {
-                    if (ofcCmp(mm, bb) > 0) continue;
-                    for (const tt of T) {
-                        if (ofcCmp(topAs5Of(tt), mm) > 0) continue;
-                        const roy = ofcRoyalTop(tt) + ofcRoyalMid(mm) + ofcRoyalBot(bb);
-                        if (roy > bestRoy) { bestRoy = roy; best = { t: tt, m: mm, b: bb }; }
-                    }
-                }
-                if (best) { t = best.t; m = best.m; b = best.b; foul = false; }
-            }
-            return { t, m, b, foul };
-        };
         // ניתוח לוח שלם: פאול + רויאלטיז + הכשרה לפנטזילנד
         const ofcBoard = (p) => {
-            const { t, m, b, foul } = ofcResolve(p);
+            const t = ofcEval3J(p.top || []), m = ofcEval5J(p.mid || []), b = ofcEval5J(p.bot || []);
+            const m5 = [m[0] >= 3 ? m[0] : m[0], ...m.slice(1)];
+            const topAs5 = [t[0] === 3 ? 3 : t[0], ...t.slice(1)]; // השוואת טופ מול אמצע: קטגוריות תואמות (זוג/שלישייה/גבוה)
+            const foul = ofcCmp(topAs5, m) > 0 || ofcCmp(m, b) > 0;
             const roy = foul ? 0 : ofcRoyalTop(t) + ofcRoyalMid(m) + ofcRoyalBot(b);
             let flNext = 0;
             if (!foul) {
@@ -8422,6 +8271,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= maxP) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -8461,6 +8311,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const cashOutSeat = async () => {
@@ -8487,7 +8338,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע משחקון = פאול אוטומטי במשחקון הזה. הסטאק שיישאר ייפדה לארנק. בטוח?")) return;
                     try {
@@ -8601,60 +8451,52 @@
                     if (posSum > 0) Object.entries(rawPos).forEach(([u, r]) => wins[u] = round2(Math.floor(distributable * (r / posSum) * 100) / 100));
                     const logEntries = [];
                     const cashouts = [];
-                    const baseStack = {}; parts.forEach(p => baseStack[p.uid] = p.stack || 0); // בסיס יציב ל-retry
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const humans = parts.filter(p => !p.isBot);
                         const reads = {};
                         for (const p of humans) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; }
-                        logEntries.length = 0; cashouts.length = 0; // איפוס לכל ניסיון retry
-                        // בונים מפת שחקנים חדשה מהבסיס - חסין retry (בלי מוטציה של pl)
-                        const stackOf = (u) => round2((baseStack[u] || 0) - (pays[u] || 0) + (wins[u] || 0));
-                        const outPl = {};
-                        parts.forEach(p => {
-                            const u = p.uid, stack = stackOf(u);
-                            if (!p.left && stack > 0.009) outPl[u] = { ...p, stack, flNext: boards[u].flNext || 0, pending: [] };
+                        // עדכון סטאקים: המשחקון עובר בין הערימות שעל השולחן
+                        Object.keys(pl).forEach(u => {
+                            pl[u].stack = round2((pl[u].stack || 0) - (pays[u] || 0) + (wins[u] || 0));
+                            pl[u].flNext = boards[u].flNext || 0;
+                            pl[u].pending = [];
                         });
                         for (const p of humans) {
                             const sm = reads[p.uid]; if (!sm) continue;
                             const delta = round2((wins[p.uid] || 0) - (pays[p.uid] || 0));
                             const st = sm.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                            const stackNow = stackOf(p.uid);
                             const memUpd = {
                                 'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
                                 'stats.gamesWon': (st.gamesWon || 0) + (pts[p.uid] > 0 ? 1 : 0),
                                 'stats.totalProfit': round2((st.totalProfit || 0) + delta)
                             };
                             // עוזב באמצע - פודה את מה שנשאר לו מיד
-                            if (p.left && stackNow > 0) {
-                                memUpd.balance = round2((sm.data().balance || 0) + stackNow);
+                            if (pl[p.uid].left && (pl[p.uid].stack || 0) > 0) {
+                                memUpd.balance = round2((sm.data().balance || 0) + pl[p.uid].stack);
                                 cashouts.push(p.name);
                             }
                             tr.update(sm.ref, memUpd);
                             logEntries.push({ uid: p.uid, username: p.name, game: 'ofc', profit: delta });
                         }
+                        // עוזבים ומרוששים יורדים מהשולחן
+                        Object.keys(pl).forEach(u => { if (pl[u].left || (pl[u].stack || 0) <= 0.009) delete pl[u]; });
                         tr.update(tblRef(), {
-                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: outPl,
+                            status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
                             lastResults: {
                                 rows: parts.map(p => ({
                                     uid: p.uid, name: p.name, pts: pts[p.uid], roy: boards[p.uid].roy, foul: boards[p.uid].foul, fl: boards[p.uid].flNext || 0,
                                     money: round2((wins[p.uid] || 0) - (pays[p.uid] || 0)),
-                                    stack: outPl[p.uid] ? outPl[p.uid].stack : 0, busted: !outPl[p.uid] && !p.left,
+                                    stack: pl[p.uid] ? pl[p.uid].stack : 0, busted: !pl[p.uid] && !boards[p.uid].left,
                                     hands: boards[p.uid].foul ? null : { t: ofcHandName(boards[p.uid].t, true), m: ofcHandName(boards[p.uid].m), b: ofcHandName(boards[p.uid].b) },
                                     isBot: !!p.isBot
                                 })).sort((a, b) => b.pts - a.pts),
                                 pv, stake, rake, endedAt: Date.now()
                             }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
-                    if (rake > 0) { distributeRake(rake, parts.filter(p => !p.isBot).map(p => p.uid)); }
+                    if (rake > 0) { creditRakeToClub(rake, CLUB_ID); distributeRake(rake, parts.filter(p => !p.isBot).map(p => p.uid)); }
                 } catch(e) {} finally { settlingRef.current = false; }
             };
 
@@ -8846,13 +8688,8 @@
                                 {(() => {
                                     const merged = (row) => [...(me[row] || []), ...Object.entries(stage).filter(([, r]) => r === row).map(([id]) => (me.pending || []).find(c => c.id === id)).filter(Boolean)];
                                     const tR = merged('top'), mR = merged('mid'), bR = merged('bot');
-                                    // כשהלוח מלא - מציגים את הפירוש שהסליקה תשתמש בו (ג'וקר מותאם לניצחון), כדי שהאזהרה תואמת לתוצאה
-                                    const full = tR.length === 3 && mR.length === 5 && bR.length === 5;
-                                    const rs = full ? ofcResolve({ top: tR, mid: mR, bot: bR }) : null;
-                                    const tE = rs ? rs.t : (tR.length === 3 ? ofcEval3J(tR) : null);
-                                    const mE = rs ? rs.m : (mR.length === 5 ? ofcEval5J(mR) : null);
-                                    const bE = rs ? rs.b : (bR.length === 5 ? ofcEval5J(bR) : null);
-                                    const foulTM = rs ? rs.foul : (tE && mE && ofcCmp(topAs5Of(tE), mE) > 0), foulMB = rs ? rs.foul : (mE && bE && ofcCmp(mE, bE) > 0);
+                                    const tE = tR.length === 3 ? ofcEval3J(tR) : null, mE = mR.length === 5 ? ofcEval5J(mR) : null, bE = bR.length === 5 ? ofcEval5J(bR) : null;
+                                    const foulTM = tE && mE && ofcCmp(tE, mE) > 0, foulMB = mE && bE && ofcCmp(mE, bE) > 0;
                                     const lbl = (ev, full, isTop, foul) => <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${foul ? 'text-rose-300 border-rose-500/70 bg-rose-500/15 animate-pulse' : full ? 'text-teal-200 border-teal-500/40 bg-teal-500/10' : 'text-slate-600 border-white/8'}`}>{full ? ofcHandName(ev, isTop) : '···'}</span>;
                                     return (
                                         <div className="space-y-1.5 mb-2">
@@ -8883,14 +8720,7 @@
                         )}
 
                         {/* Setup */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-teal-500/40">
                                     <i className="fa-solid fa-table-cells text-4xl text-teal-400 mb-2"></i>
@@ -9038,6 +8868,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= maxP) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -9086,12 +8917,12 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -9197,11 +9028,7 @@
                     const winner = pl[winnerUid];
                     const buyIn = Number(setts.buyIn) || 0;
                     const logEntries = [];
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false; logEntries.length = 0;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -9222,9 +9049,7 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, drawStack: 0,
                             lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, endedAt: Date.now() }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -9360,14 +9185,7 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-orange-500/40">
                                     <i className="fa-solid fa-arrows-spin text-4xl text-orange-400 mb-2"></i>
@@ -9612,6 +9430,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     if (list.length >= 2) return;
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
@@ -9662,12 +9481,12 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (['playing', 'hand_end'].includes(t.status)) {
                     if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני וויתור על דמי הכניסה. בטוח?")) return;
                     const oppP = Object.values(t.players).find(p => p.uid !== user.uid);
@@ -9784,11 +9603,7 @@
                     const winner = pl[winnerUid];
                     const logEntries = [];
                     const buyIn = Number(setts.buyIn) || 0;
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false; logEntries.length = 0;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -9809,9 +9624,7 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl, nextHandAt: null,
                             lastResults: { winnerUid, winnerName: winner ? winner.name : '', amount: winner && winner.isBot ? 0 : net, rake, byForfeit: !!byForfeit, scores: Object.values(pl).map(p => ({ name: p.name, score: p.score || 0 })), endedAt: Date.now() }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -9938,14 +9751,7 @@
                         {errMsg && <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-lime-500/40">
                                     <i className="fa-solid fa-layer-group text-4xl text-lime-400 mb-2"></i>
@@ -10133,6 +9939,7 @@
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 try {
                     const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                     const bs = await window.fb.getDocs(botQ);
@@ -10149,7 +9956,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing') {
                     if (!window.confirm("⚠️ פרישה באמצע = הפסד טכני לצמד שלך וויתור על דמי הכניסה. בטוח?")) return;
                     await settleBridge(null, brSide(t.players[user.uid].seat) === 'NS' ? 'EW' : 'NS', true);
@@ -10198,6 +10004,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
@@ -10328,11 +10135,7 @@
                     const share = humanWinners.length ? round2(Math.floor(net / humanWinners.length * 100) / 100) : 0;
                     const logEntries = [];
                     const buyIn = Number(setts.buyIn) || 0;
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false; logEntries.length = 0;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
@@ -10353,9 +10156,7 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, trick: [], turnSeat: null, players: pl,
                             lastResults: { contract: c, made, declTricks, need, score, winSide, byForfeit: !!byForfeit, pot, rake, winners: winners.map(w => ({ uid: w.uid, name: w.name, prize: w.isBot ? 0 : share })), endedAt: Date.now() }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
                     if (!humanWinners.length && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
@@ -10504,14 +10305,7 @@
                         {errMsg && <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-500 text-rose-200 text-xs font-bold rounded-xl px-4 py-2">{errMsg}</div>}
 
                         {/* Setup */}
-                        {T.status === 'setup' && isSeated && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                                <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                                {(isHost || isSuperAdmin) && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-lg whitespace-nowrap">התחל משחק</button>}
-                                {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">+בוט</button>}
-                            </div>
-                        )}
-                        {T.status === 'setup' && !isSeated && (
+                        {T.status === 'setup' && (
                             <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
                                 <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-indigo-500/40">
                                     <i className="fa-solid fa-diamond text-4xl text-indigo-400 mb-2"></i>
@@ -10679,7 +10473,7 @@
             const [errMsg, setErrMsg] = useState("");
             const [roundLeft, setRoundLeft] = useState(0);
             const [stayHide, setStayHide] = useState(false);
-            useEffect(() => { setStayHide(false); }, [tableState && tableState.status]);
+            useEffect(() => { setStayHide(false); }, [T.status]);
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
 
@@ -10740,6 +10534,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t || t.status !== 'setup') return;
                 if (Object.keys(t.players).length >= (Number(setts.maxPlayers) || 4)) return showToast("השולחן מלא", "error");
                 let seatIndex = 0;
@@ -10826,6 +10621,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
@@ -10995,11 +10791,7 @@
                     const prize = round2(pot - rake);
                     const buyIn = Number(setts.buyIn) || 0;
                     const logEntries = [];
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false; logEntries.length = 0;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const p of Object.values(pl)) { if (!p.isBot && !p.left) { const s = await tr.get(memDoc(p.uid)); if (s.exists()) reads[p.uid] = s; } }
                         for (const p of Object.values(pl)) {
@@ -11019,11 +10811,7 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
                             lastResults: { winnerName: (pl[winnerUid] || {}).name || '', amount: prize, rake, standings: standings.map(p => ({ uid: p.uid, name: p.name, score: p.score })), endedAt: Date.now(), lastRound: lastRound || null }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
-                    // שימור צ'יפים: בוט לוקח-הכל - הקופה לבית במקום להישמד
-                    if ((pl[winnerUid] || {}).isBot && prize > 0) creditRakeToClub(prize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.left).map(p => p.uid));
@@ -11099,7 +10887,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (['playing', 'round_end'].includes(t.status) && !t.players[user.uid].out) {
                     if (!window.confirm(t.tournamentId ? "⚠️ עזיבה = פרישה מהטורניר. בטוח?" : "⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -11275,16 +11062,8 @@
                         </div>
                     )}
 
-                    {/* Setup - seated player stays INSIDE the table */}
-                    {T.status === 'setup' && isSeated && (
-                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
-                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
-                        </div>
-                    )}
                     {/* Setup */}
-                    {T.status === 'setup' && !isSeated && (
+                    {T.status === 'setup' && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-bolt text-emerald-500 text-4xl mb-2"></i>
@@ -11493,6 +11272,7 @@
             };
 
             const handleAddBot = async () => {
+                if (!botsAreActive()) return showToast("הבוטים מושבתים בקלאב", "error");
                 const t = tableRef.current; if (!t || t.status !== 'setup') return;
                 const max = Number(setts.maxPlayers) || 4;
                 if (Object.keys(t.players).length >= max) return showToast("השולחן מלא", "error");
@@ -11534,6 +11314,7 @@
                         });
                     });
                     playSnd('deal');
+                    spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בהתחלה", "error"); }
             };
 
@@ -11685,11 +11466,7 @@
                     const buyIn = Number(setts.buyIn) || 0;
                     const ranks = fo.map((uid, i) => ({ uid, name: (pl[uid] || {}).name || '', rank: i + 1, prize: i < scheme.length ? round2(Math.floor(net * scheme[i]) / 100) : 0 }));
                     const logEntries = [];
-                    let didSettle = false;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        didSettle = false; logEntries.length = 0;
-                        const tSnap = await tr.get(tblRef());
-                        if (!tSnap.exists() || tSnap.data().status === 'showdown') return; // כבר סולק
                         const reads = {};
                         for (const r of ranks) { if (!(pl[r.uid] || {}).isBot) { const s = await tr.get(memDoc(r.uid)); if (s.exists()) reads[r.uid] = s; } }
                         for (const r of ranks) {
@@ -11708,12 +11485,7 @@
                             status: 'showdown', showdownAt: Date.now(), pot: 0, pile: [], turnUid: null, players: pl, finishOrder: fo,
                             lastResults: { ranks, pot, rake, endedAt: Date.now() }
                         });
-                        didSettle = true;
                     });
-                    if (!didSettle) return;
-                    // שימור צ'יפים: פרסי בוטים (לפי דירוג) לקופת הבית במקום להישמד
-                    const presBotPrize = round2(ranks.filter(r => (pl[r.uid] || {}).isBot).reduce((s, r) => s + (r.prize || 0), 0));
-                    if (presBotPrize > 0) creditRakeToClub(presBotPrize);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
                     distributeRake(rake, fo.filter(uid => !(pl[uid] || {}).isBot));
@@ -11724,7 +11496,6 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'setup') { onLeave(); return; } // בהמתנה: חזרה ללובי משאירה אותך יושב וממתין
                 if (t.status === 'playing' && (t.players[user.uid].cards || []).length > 0) {
                     if (!window.confirm(t.tournamentId ? "⚠️ עזיבה = פרישה מהטורניר. בטוח?" : "⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
@@ -11749,7 +11520,7 @@
                 }
                 try {
                     const pl = { ...t.players }; delete pl[user.uid];
-                    if (Object.keys(pl).length === 0 && t.status !== 'playing') await window.fb.deleteDoc(tblRef());
+                    if (Object.keys(pl).length === 0 && t.status !== 'playing') { await window.fb.deleteDoc(tblRef()); spawnTwinTable(t); }
                     else await window.fb.updateDoc(tblRef(), { players: pl });
                 } catch(e) {}
                 onLeave();
@@ -11906,16 +11677,8 @@
                         </div>
                     )}
 
-                    {/* Setup overlay - seated player stays INSIDE the table */}
-                    {T.status === 'setup' && isSeated && (
-                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] bg-slate-950/90 border border-amber-500/40 rounded-2xl px-3 py-2 flex items-center gap-2 backdrop-blur shadow-xl animate-fade-in max-w-[92vw]">
-                            <span className="text-amber-300 font-black text-xs whitespace-nowrap"><i className="fa-solid fa-hourglass-half ml-1"></i>אתה יושב בשולחן · ממתין ({Object.keys(players).length})</span>
-                            {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-black text-xs">התחל</button>}
-                            {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-purple-300 px-2 py-1 rounded-lg font-bold text-xs border border-white/10">+בוט</button>}
-                        </div>
-                    )}
                     {/* Setup overlay */}
-                    {T.status === 'setup' && !isSeated && (
+                    {T.status === 'setup' && (
                         <div className="absolute inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-purple-500 p-7 rounded-3xl text-center max-w-lg w-full shadow-2xl">
                                 <i className="fa-solid fa-chess-king text-purple-500 text-4xl mb-2"></i>
@@ -12007,6 +11770,7 @@
                         if (statsPatch.played) upd['stats.gamesPlayed'] = (st.gamesPlayed || 0) + 1;
                         if (statsPatch.won) upd['stats.gamesWon'] = (st.gamesWon || 0) + 1;
                         if (statsPatch.profit !== undefined) upd['stats.totalProfit'] = round2((st.totalProfit || 0) + statsPatch.profit);
+                        if (statsPatch.trophyGame) { const tt = st.trophies || {}; upd['stats.trophies.' + statsPatch.trophyGame] = (tt[statsPatch.trophyGame] || 0) + 1; }
                     }
                     tr.update(r, upd);
                 });
@@ -12156,7 +11920,7 @@
                 });
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
                     type: 'poker', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
-                    tournament: { name: tor.name, startedAt: tor.startedAt, levelMins: tor.levelMins || 5, anteFromLevel: 4, rebuyUntil: tor.rebuys ? 1 : -1, addonAt: tor.addon ? 2 : -1, startStack: Number(tor.startStack) || 1000, bounty: Number(tor.bounty) || 0, round, finished: false, tableWinner: null },
+                    tournament: { name: tor.name, startedAt: tor.startedAt, levelMins: tor.levelMins || 5, anteFromLevel: 4, rebuyUntil: tor.rebuys ? ((Number(tor.rebuyUntilLevel) || 2) - 1) : -1, addonAt: tor.addon ? ((Number(tor.addonLevel) || 3) - 1) : -1, startStack: Number(tor.startStack) || 1000, bounty: Number(tor.bounty) || 0, round, final: groups.length === 1, finished: false, tableWinner: null },
                     settings: { baseGameType: tor.pokerType || 'NLH', isDealerChoice: false, maxPlayers: tblSize, blinds: 5, actionTime: 25, minBuyInBB: 0, maxBuyInBB: 0, rakePercent: 0, autoStart: 2, straddle: false, ante: 0 },
                     players, chat: [], leftStacks: {},
                     gameState: { phase: 'waiting', deck: [], board: [], pots: [], highestBet: 0, minRaise: 10, dealerUid: null, dcUid: null, dcAnchor: null, currentGameType: tor.pokerType || 'NLH', activeTurnUid: null, turnStartedAt: null, lastWinners: null, lastWinAmount: 0, allInReveal: false }
@@ -12227,7 +11991,8 @@
                 for (let i = 0; i < ranked.length; i++) {
                     const prize = i < scheme.length ? round2(Math.floor(net * scheme[i] * 100) / 100) : 0;
                     results.push({ name: ranked[i].name, rank: ranked[i].rank, prize, bounties: ranked[i].bounties || 0 });
-                    if (prize > 0) await creditBalance(ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)) });
+                    if (prize > 0) await creditBalance(ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)), trophyGame: ranked[i].rank === 1 ? tor.game : null });
+                    else if (ranked[i].rank === 1 && !ranked[i].isBot) { try { await window.fb.updateDoc(memDoc(ranked[i].uid), { ['stats.trophies.' + tor.game]: ((((await window.fb.getDoc(memDoc(ranked[i].uid))).data() || {}).stats || {}).trophies || {})[tor.game] + 1 || 1 }); } catch(e) {} }
                     else if (!ranked[i].isBot) await creditBalance(ranked[i].uid, 0, { played: true, profit: -(ranked[i].paid || 0) });
                     if (!ranked[i].isBot) logGameResult([{ uid: ranked[i].uid, username: ranked[i].name, game: 'poker', profit: round2(prize - (ranked[i].paid || 0)) }], 'tournament:' + tor.id);
                 }
@@ -12277,8 +12042,10 @@
         /* ---------- לשונית הטורנירים בלובי ---------- */
         function TournamentsTab({ user, game, tournaments, tables, clubSettings, showToast, onJoinTable }) {
             const [showCreate, setShowCreate] = useState(false);
+            const [champTor, setChampTor] = useState(null);
+            const [soloChamp, setSoloChamp] = useState(null);
             const [tick, setTick] = useState(0);
-            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, addon: true, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
+            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
             const isAll = game === 'all';
             const effGame = isAll ? (opts.gameSel || 'poker') : game;
             const isPoker = effGame === 'poker';
@@ -12303,6 +12070,7 @@
                     startAt, maxPlayers: Math.max(2, Number(opts.maxPlayers) || 2),
                     levelMins: isPoker ? Number(opts.levelMins) : 0,
                     rebuys: isPoker ? !!opts.rebuys : false, addon: isPoker ? !!opts.addon : false,
+                    rebuyUntilLevel: isPoker ? Math.max(1, Number(opts.rebuyUntilLevel) || 2) : 0, addonLevel: isPoker ? Math.max(1, Number(opts.addonLevel) || 3) : 0,
                     startStack: isPoker ? Math.max(100, Number(opts.startStack) || 1000) : 1000,
                     payouts: payoutsArr, creatorUid: user.uid,
                     status: 'reg', players: {}, prizePool: addedPrize, feeTotal: 0, round: 0, createdAt: Date.now()
@@ -12324,12 +12092,170 @@
                 setShowCreate(false); showToast("הטורניר נפתח להרשמה! 🏆", "success");
             };
 
+            // כלי בדיקה (אדמין): מילוי טורניר בבוטים לבדיקת עומס/איזון
+            const fillBots = async (tor) => {
+                const ans = window.prompt("כמה בוטים להוסיף לטורניר?", "400");
+                if (ans === null) return;
+                const want = Math.max(1, Math.min(2000, parseInt(ans, 10) || 0));
+                if (!want) return;
+                try {
+                    showToast(`מכין ${want} בוטים...`, "info");
+                    const already = new Set(Object.keys(tor.players || {}));
+                    // בריכת בוטים קיימים שלא רשומים כבר
+                    const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    let avail = (await window.fb.getDocs(botQ)).docs
+                        .map(d => ({ uid: d.id, ...d.data() })).filter(b => !already.has(b.uid));
+                    // יצירת בוטים חסרים במקביל (מנות)
+                    const shortfall = want - avail.length;
+                    if (shortfall > 0) {
+                        showToast(`יוצר ${shortfall} בוטים חדשים...`, "info");
+                        for (let i = 0; i < shortfall; i += 25) {
+                            const batch = [];
+                            for (let j = i; j < Math.min(i + 25, shortfall); j++) {
+                                const name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] + Math.floor(Math.random() * 100000);
+                                batch.push(window.fb.addDoc(window.fb.collection(window.fb.db, "users"), {
+                                    username: name, email: `bot_${Date.now()}_${j}@rummikube.com`, role: ROLES.PLAYER,
+                                    status: 'approved', balance: 50000, isBot: true, managedGames: [],
+                                    stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
+                                }).then(ref => ({ uid: ref.id, username: name, avatarSeed: ref.id, photo: '' })));
+                            }
+                            avail = avail.concat(await Promise.all(batch));
+                        }
+                    }
+                    const chosen = avail.slice(0, want);
+                    const needCap = Object.keys(tor.players || {}).length + chosen.length;
+                    // הגדלת התקרה כדי להכיל את כולם
+                    await window.fb.updateDoc(tRef(tor.id), { maxPlayers: Math.max(Number(tor.maxPlayers) || 0, needCap) });
+                    // רישום במנות (בוטים בחינם - paid:0 - כדי לא לזייף את קופת הפרסים)
+                    for (let i = 0; i < chosen.length; i += 40) {
+                        const chunk = chosen.slice(i, i + 40);
+                        const upd = {};
+                        chunk.forEach(b => {
+                            upd[`players.${b.uid}`] = { uid: b.uid, name: b.username, photo: b.photo || '', avatarSeed: b.avatarSeed || b.uid, isBot: true, out: false, rank: null, bounties: 0, paid: 0, addon: false };
+                        });
+                        await window.fb.updateDoc(tRef(tor.id), upd);
+                        showToast(`נרשמו ${Math.min(i + 40, chosen.length)}/${chosen.length}...`, "info");
+                    }
+                    showToast(`✅ ${chosen.length} בוטים נרשמו! (סה"כ ${needCap} שחקנים)`, "success");
+                } catch(e) { showToast("שגיאה בהוספת בוטים: " + (e.message || e), "error"); }
+            };
+
+            // ניהול אדמין: הרצה מיידית / ביטול (עם החזר) / מחיקה
+            const runNow = async (tor) => {
+                const n = Object.keys(tor.players || {}).length;
+                if (n < 2) return showToast("צריך לפחות 2 שחקנים", "error");
+                if (!window.confirm(`להתחיל את "${tor.name}" עכשיו עם ${n} שחקנים? (מתעלם מהתאריך שנקבע)`)) return;
+                try {
+                    const snap = await window.fb.getDoc(tRef(tor.id));
+                    if (!snap.exists()) return;
+                    const fresh = { id: tor.id, ...snap.data() };
+                    if (fresh.status !== 'reg') return showToast("הטורניר כבר התחיל או הסתיים", "error");
+                    await tourStart(fresh);
+                    showToast("הטורניר יוצא לדרך! 🏆", "success");
+                } catch(e) { showToast("שגיאה בהרצה: " + (e.message || e), "error"); }
+            };
+            const cancelTour = async (tor) => {
+                if (!window.confirm(`לבטל את "${tor.name}"? דמי הכניסה יוחזרו לשחקנים והשולחנות ייסגרו.`)) return;
+                try {
+                    for (const p of Object.values(tor.players || {})) { if ((p.paid || 0) > 0 && !p.isBot) { try { await creditBalance(p.uid, p.paid); } catch(e2){} } }
+                    for (const tb of (tables || []).filter(x => x.tournamentId === tor.id)) { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", tb.docId || tb.id)); } catch(e2){} }
+                    await window.fb.updateDoc(tRef(tor.id), { status: 'cancelled' });
+                    showToast("הטורניר בוטל והכספים הוחזרו", "info");
+                } catch(e) { showToast("שגיאה בביטול: " + (e.message || e), "error"); }
+            };
+            const deleteTour = async (tor) => {
+                if (!window.confirm(`למחוק לצמיתות את "${tor.name}"? פעולה בלתי הפיכה.`)) return;
+                try {
+                    for (const tb of (tables || []).filter(x => x.tournamentId === tor.id)) { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", tb.docId || tb.id)); } catch(e2){} }
+                    await window.fb.deleteDoc(tRef(tor.id));
+                    showToast("הטורניר נמחק", "info");
+                } catch(e) { showToast("שגיאה במחיקה: " + (e.message || e), "error"); }
+            };
+
             const fmtCountdown = (ms) => {
                 if (ms <= 0) return "מתחיל...";
                 const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), sec = Math.floor((ms % 60000) / 1000);
                 return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
             };
             const sorted = [...myTours].sort((a, b) => (a.status === 'reg' ? 0 : a.status === 'running' ? 1 : 2) - (b.status === 'reg' ? 0 : b.status === 'running' ? 1 : 2) || (a.startAt || 0) - (b.startAt || 0));
+
+            /* ---------- מסך האלופים - שולחן הגמר ---------- */
+            const top3 = champTor ? (champTor.results || []).filter(r => r.rank >= 1 && r.rank <= 3).sort((a, b) => a.rank - b.rank) : [];
+            const champAv = (r) => { const p = Object.values((champTor || {}).players || {}).find(x => x.name === r.name) || {}; return p.photo || dicebearUrl(p.avatarSeed || r.name); };
+            const shareChamps = () => {
+                const med = ['🥇','🥈','🥉'];
+                const lines = top3.map(r => med[r.rank - 1] + ' ' + r.name + (r.prize > 0 ? ' — ' + formatMoney(r.prize) : ''));
+                const txt = '🏆 FINAL TABLE · ' + champTor.name + '\n' + lines.join('\n') + '\nRummikube Clubs';
+                if (navigator.share) navigator.share({ text: txt }).catch(() => {});
+                else { if (navigator.clipboard) navigator.clipboard.writeText(txt); showToast('הטקסט הועתק - הדבק ושלח לחברים 📋', 'success'); }
+            };
+            const champModal = champTor ? ReactDOM.createPortal(
+                <div dir="rtl" className="fixed inset-0 z-[330] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setChampTor(null)}>
+                    <div onClick={e => e.stopPropagation()} className="ft-champ w-full max-w-md rounded-3xl px-5 py-7 text-center animate-pop-in relative overflow-hidden">
+                        <div className="ft-rays"></div>
+                        <p className="text-[11px] font-black tracking-[0.5em] text-gold-400/90 relative" dir="ltr">FINAL TABLE</p>
+                        <h2 className="text-2xl font-black text-white mt-1 relative">🏆 {champTor.name}</h2>
+                        <p className="text-slate-400 text-xs font-bold mt-1 relative">{GAME_LABEL(champTor.game)}{champTor.finishedAt ? ' · ' + new Date(champTor.finishedAt).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''} · קופת פרסים {formatMoney(champTor.prizePool || 0)}</p>
+                        <div className="flex items-end justify-center gap-2 mt-8 relative">
+                            {[top3[1], top3[0], top3[2]].filter(Boolean).map(r => {
+                                const m = r.rank === 1 ? 'gold' : r.rank === 2 ? 'silver' : 'bronze';
+                                return (
+                                    <div key={r.rank} onClick={() => setSoloChamp(r)} className={'flex flex-col items-center flex-1 min-w-0 cursor-pointer hover:scale-105 transition-transform' + (r.rank === 1 ? ' -translate-y-5' : '')}>
+                                        <div className={'rounded-full overflow-hidden ring-2 ' + (r.rank === 1 ? 'w-24 h-24 ring-gold-400 shadow-[0_0_30px_rgba(245,200,96,0.4)]' : m === 'silver' ? 'w-16 h-16 ring-slate-300' : 'w-16 h-16 ring-amber-700')}>
+                                            <img src={champAv(r)} className="w-full h-full object-cover bg-slate-800" />
+                                        </div>
+                                        <div className={'brc brc-' + m + ' mt-3'} style={{ transform: r.rank === 1 ? 'scale(1)' : 'scale(0.82)' }}><div className="brc-band"></div><div className="brc-plate" dir="ltr">R<span className="brc-dot"></span></div></div>
+                                        <p className={'font-black mt-1.5 leading-tight truncate max-w-full ' + (r.rank === 1 ? 'text-white text-base' : 'text-slate-200 text-sm')}>{r.name}</p>
+                                        <p className={'text-[10px] font-black mt-0.5 ' + (m === 'gold' ? 'text-gold-400' : m === 'silver' ? 'text-slate-300' : 'text-amber-600')}>{r.rank === 1 ? 'אלוף הטורניר' : r.rank === 2 ? 'מקום שני' : 'מקום שלישי'}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold">{r.rank === 1 ? 'צמיד אליפות · זהב' : r.rank === 2 ? 'צמיד אליפות · כסף' : 'צמיד אליפות · ארד'}</p>
+                                        {r.prize > 0 && <p className="text-emerald-400 text-xs font-black mt-0.5" dir="ltr">+{formatMoney(r.prize)}</p>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-bold mt-5 relative">לחיצה על שחקן פותחת תעודת אלוף אישית 🏆</p>
+                        <div className="flex gap-2 mt-3 relative">
+                            <button onClick={shareChamps} className="flex-1 btn-raise py-3 rounded-xl font-black text-sm">📤 שתף לחברים</button>
+                            <button onClick={() => setChampTor(null)} className="px-6 py-3 rounded-xl font-bold text-sm text-slate-300 border border-white/10 hover:text-white">סגור</button>
+                        </div>
+                    </div>
+                </div>, document.body) : null;
+
+            /* ---------- תעודת אלוף אישית - לצילום מסך ושיתוף ---------- */
+            const sm = soloChamp ? (soloChamp.rank === 1 ? 'gold' : soloChamp.rank === 2 ? 'silver' : 'bronze') : 'gold';
+            const soloTitle = soloChamp ? (soloChamp.rank === 1 ? 'אלוף הטורניר' : soloChamp.rank === 2 ? 'מקום שני' : 'מקום שלישי') : '';
+            const shareSolo = () => {
+                const med = ['🥇','🥈','🥉'][soloChamp.rank - 1];
+                const txt = med + ' ' + soloChamp.name + ' — ' + soloTitle + ' בטורניר "' + champTor.name + '"' + (soloChamp.prize > 0 ? ' · זכייה ' + formatMoney(soloChamp.prize) : '') + '\nRummikube Clubs 🏆';
+                if (navigator.share) navigator.share({ text: txt }).catch(() => {});
+                else { if (navigator.clipboard) navigator.clipboard.writeText(txt); showToast('הטקסט הועתק - הדבק ושלח 📋', 'success'); }
+            };
+            const soloModal = (soloChamp && champTor) ? ReactDOM.createPortal(
+                <div dir="rtl" className="fixed inset-0 z-[340] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setSoloChamp(null)}>
+                    <div onClick={e => e.stopPropagation()} className={'ft-champ solo-' + sm + ' w-full max-w-sm rounded-3xl px-6 py-9 text-center animate-pop-in relative overflow-hidden'}>
+                        <div className="ft-rays"></div>
+                        <p className="text-[10px] font-black tracking-[0.45em] relative text-slate-400" dir="ltr">RUMMIKUBE CLUBS</p>
+                        <div className="text-6xl mt-4 relative trophy-pop">{soloChamp.rank === 1 ? '🏆' : soloChamp.rank === 2 ? '🥈' : '🥉'}</div>
+                        <div className={'w-28 h-28 mx-auto mt-4 rounded-full overflow-hidden relative ring-4 ' + (sm === 'gold' ? 'ring-gold-400 shadow-[0_0_40px_rgba(245,200,96,0.45)]' : sm === 'silver' ? 'ring-slate-300 shadow-[0_0_40px_rgba(203,213,225,0.30)]' : 'ring-amber-700 shadow-[0_0_40px_rgba(180,83,9,0.35)]')}>
+                            <img src={champAv(soloChamp)} className="w-full h-full object-cover bg-slate-800" />
+                        </div>
+                        <h2 className="text-3xl font-black text-white mt-4 relative">{soloChamp.name}</h2>
+                        <p className={'text-sm font-black mt-1 relative ' + (sm === 'gold' ? 'text-gold-400' : sm === 'silver' ? 'text-slate-300' : 'text-amber-600')}>{soloTitle}</p>
+                        <div className="flex justify-center mt-4 relative"><div className={'brc brc-' + sm}><div className="brc-band"></div><div className="brc-plate" dir="ltr">R<span className="brc-dot"></span></div></div></div>
+                        <p className="text-[10px] text-slate-500 font-bold relative">{sm === 'gold' ? 'צמיד אליפות · זהב' : sm === 'silver' ? 'צמיד אליפות · כסף' : 'צמיד אליפות · ארד'}</p>
+                        <div className="mt-5 pt-4 border-t border-white/10 relative">
+                            <p className="text-white font-black text-base">{champTor.name}</p>
+                            <p className="text-slate-400 text-xs font-bold mt-0.5">{GAME_LABEL(champTor.game)}{champTor.finishedAt ? ' · ' + new Date(champTor.finishedAt).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</p>
+                            {soloChamp.prize > 0 && <p className="text-emerald-400 font-black text-lg mt-1" dir="ltr">+{formatMoney(soloChamp.prize)}</p>}
+                            {soloChamp.bounties > 0 && <p className="text-rose-400 text-xs font-black mt-0.5">🎯 {soloChamp.bounties} באונטי</p>}
+                        </div>
+                        <div className="flex gap-2 mt-6 relative">
+                            <button onClick={shareSolo} className="flex-1 btn-raise py-3 rounded-xl font-black text-sm">📤 שתף</button>
+                            <button onClick={() => setSoloChamp(null)} className="px-5 py-3 rounded-xl font-bold text-sm text-slate-300 border border-white/10 hover:text-white">חזרה</button>
+                        </div>
+                        <p className="text-[9px] text-slate-600 font-bold mt-3 relative">📸 אפשר גם פשוט לצלם מסך ולשלוח</p>
+                    </div>
+                </div>, document.body) : null;
 
             return (
                 <div className="animate-fade-in">
@@ -12407,8 +12333,8 @@
                                     </select>
                                 </div>}
                                 {isPoker && <div className="flex flex-col gap-2 justify-end">
-                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.rebuys} onChange={e=>setOpts({...opts, rebuys: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">ריביי (עד רמה 2)</span></label>
-                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.addon} onChange={e=>setOpts({...opts, addon: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">אדאון (ברמה 3)</span></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.rebuys} onChange={e=>setOpts({...opts, rebuys: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">ריביי עד רמה</span><input type="number" min="1" max="12" value={opts.rebuyUntilLevel} onChange={e=>setOpts({...opts, rebuyUntilLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.rebuys} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.addon} onChange={e=>setOpts({...opts, addon: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">אדאון ברמה</span><input type="number" min="1" max="12" value={opts.addonLevel} onChange={e=>setOpts({...opts, addonLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.addon} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
                                 </div>}
                             </div>
                             <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
@@ -12483,10 +12409,15 @@
                                             </div>
                                         )}
                                         <div className="flex gap-2">
+                                            {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => fillBots(tor)} title="מלא בבוטים (בדיקה)" className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">🤖</button>}
+                                            {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => runNow(tor)} title="התחל עכשיו" className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">▶️</button>}
+                                            {['reg','running'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => cancelTour(tor)} title="בטל טורניר (החזר כספים)" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">✖️</button>}
+                                            {['cancelled','done'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => deleteTour(tor)} title="מחק טורניר לצמיתות" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">🗑️</button>}
                                             {tor.status === 'reg' && !me && <button onClick={() => tourRegister(tor, user, showToast)} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg">הירשם ({formatMoney(tourEntryOf(tor))})</button>}
                                             {tor.status === 'reg' && me && <button onClick={() => tourUnregister(tor, user, showToast)} className="flex-1 bg-slate-800 hover:bg-rose-900 text-slate-300 py-2.5 rounded-xl font-bold text-sm border border-white/10">רשום ✓ · בטל הרשמה</button>}
                                             {myTable && <button onClick={() => onJoinTable(myTable)} className="flex-1 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg animate-pulse">🎲 לשולחן שלי!</button>}
                                             {tor.status === 'running' && me && me.out && <span className="flex-1 text-center py-2.5 text-rose-300 font-bold text-sm">הודחת - מקום {me.rank}</span>}
+                                            {tor.status === 'done' && (tor.results || []).length > 0 && <button onClick={() => setChampTor(tor)} className="flex-1 ft-btn py-2.5 rounded-xl font-black text-sm">🏆 שולחן הגמר · מסך האלופים</button>}
                                         </div>
                                     </div>
                                 </div>
@@ -12494,6 +12425,8 @@
                         })}
                         {sorted.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין טורנירים כרגע. {canManageGame(user, 'poker') ? 'פתח את הראשון!' : ''}</div>}
                     </div>
+                    {champModal}
+                    {soloModal}
                 </div>
             );
         }

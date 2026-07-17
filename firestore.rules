@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // חייב להיות מחובר עם חשבון גוגל (שיטת ההתחברות היחידה באפליקציה)
+    function signedIn() { return request.auth != null; }
+
+    // יומני משחק/סוכנים — append-only: אפשר ליצור ולקרוא, אסור לערוך או למחוק
+    match /gameLog/{id}   { allow read, create: if signedIn(); allow update, delete: if false; }
+    match /agentLog/{id}  { allow read, create: if signedIn(); allow update, delete: if false; }
+
+    // ליבת הנתונים — כל גישה (קריאה/כתיבה/מחיקה) דורשת חשבון מחובר.
+    // זה חוסם לחלוטין גישה אנונימית מהאינטרנט, בלי לשבור אף פעולה של האפליקציה.
+    match /users/{id}        { allow read, write: if signedIn(); }
+    match /memberships/{id}  { allow read, write: if signedIn(); }
+    match /tables/{id}       { allow read, write: if signedIn(); }
+    match /clubs/{id}        { allow read, write: if signedIn(); }
+    match /tournaments/{id}  { allow read, write: if signedIn(); }
+    match /broadcasts/{id}   { allow read, write: if signedIn(); }
+
+    // כל דבר אחר שלא הוגדר במפורש — חסום
+    match /{document=**}     { allow read, write: if false; }
+  }
+}
