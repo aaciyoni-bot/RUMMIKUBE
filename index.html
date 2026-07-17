@@ -6002,11 +6002,12 @@
             if (loading || !tableState) return <div className="h-full flex items-center justify-center text-amber-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
 
             /* ---------- חישובי תצוגה ---------- */
-            const list = Object.values(players).sort((a,b) => a.seatIndex - b.seatIndex);
+            // מיון יציב: seatIndex + שובר-שוויון לפי uid, כדי שהמקומות לא יתחלפו בין snapshots
+            const list = Object.values(players).sort((a,b) => (a.seatIndex - b.seatIndex) || String(a.uid).localeCompare(String(b.uid)));
             let displayList = list;
             if (isSeated) {
                 const myIdx = list.findIndex(p => p.uid === user.uid);
-                displayList = [...list.slice(myIdx), ...list.slice(0, myIdx)]; // אני תמיד למטה במרכז
+                if (myIdx >= 0) displayList = [...list.slice(myIdx), ...list.slice(0, myIdx)]; // אני תמיד למטה במרכז
             }
             const N = Math.max(displayList.length, 2);
             // GOD בלבד: מי מחזיק את היד הכי חזקה כרגע ביד הנוכחית (יזכה אם יגיע לשואודאון)
