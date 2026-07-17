@@ -5823,6 +5823,19 @@
                 return () => clearInterval(interval);
             }, [gs.turnStartedAt, gs.activeTurnUid, gs.phase]);
 
+            /* ---------- דילוג מיידי על שחקן בסיט-אאוט בטורניר ----------
+               בטורניר שחקן בסיט-אאוט נשאר 'active' (הבליינדים ממשיכים), אבל אין
+               סיבה שכל השולחן יחכה לטיימר המלא שלו. ברגע שמגיע תורו — מדלגים מיד:
+               צ'ק אם אין מה להשלים (כבר שילם בליינד/מתאים), אחרת פולד. */
+            useEffect(() => {
+                if (!tableState?.tournamentId || !inBetting) return;
+                if (gs.activeTurnUid !== user.uid) return;
+                if (!myPlayer?.sitOut || myPlayer?.status !== 'active') return;
+                const toCall = round2(Math.max(0, (gs.highestBet || 0) - (myPlayer?.bet || 0)));
+                const tm = setTimeout(() => performAction(user.uid, toCall > 0 ? 'fold' : 'call', undefined, false), 300);
+                return () => clearTimeout(tm);
+            }, [gs.activeTurnUid, gs.phase, myPlayer?.sitOut, myPlayer?.status]);
+
             /* ---------- צ'אט ---------- */
             const [historyOpen, setHistoryOpen] = useState(false);
             const [histExpand, setHistExpand] = useState(null);
@@ -5937,9 +5950,11 @@
                                 g2.activeTurnUid = firstAfterDealer(g2, pl); g2.turnStartedAt = Date.now();
                                 await saveGame(g2, pl); return;
                             }
+                            // שחקן בסיט-אאוט בטורניר: מדלגים מיד, בלי להמתין לטיימר המלא
+                            const isSitSkip = t.tournamentId && actor.sitOut && actor.status === 'active';
                             const limit = ((Number(setts.actionTime) || 30) + 12) * 1000;
-                            if (stuckFor > limit) {
-                                // שחקן מנותק שלא הגיב - קיפול/צ'ק אוטומטי מהאדמין
+                            if (isSitSkip || stuckFor > limit) {
+                                // שחקן מנותק/בסיט-אאוט שלא הגיב - קיפול/צ'ק אוטומטי מהאדמין
                                 const toCall = round2(Math.max(0, (g.highestBet || 0) - (actor.bet || 0)));
                                 await performAction(g.activeTurnUid, toCall > 0 ? 'fold' : 'call');
                             }
