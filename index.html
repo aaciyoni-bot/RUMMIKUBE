@@ -234,6 +234,20 @@
         }
         @keyframes ledBreathe { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 
+        /* דסקטופ בלבד: שולחן קפסולה רחב (landscape). מובייל נשאר עגול ללא שינוי */
+        @media (min-width: 1024px) {
+            .poker-table {
+                max-width: min(960px, calc((100dvh - 230px) * 1.85)) !important;
+                height: auto !important;
+                aspect-ratio: 1.85 / 1;
+                border-radius: 26% / 50%;
+                margin: auto;
+            }
+            .poker-table::after { inset: 14px; }
+            .ft-banner { font-size: 26px; top: 18%; }
+            .player-spotlight { width: 200px; height: 200px; }
+        }
+
         .card-face {
             background: #ffffff;
             border: none; border-radius: 8px;
