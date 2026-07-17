@@ -2168,16 +2168,14 @@
                                 <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה קלאב (6 ספרות)" dir="ltr" maxLength={6} className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.3em] outline-none focus:border-emerald-500/60" />
                                 <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-6 rounded-xl font-black shadow-lg">חפש</button>
                             </div>
-                            {foundClub && !memOf(foundClub.id) && (
+                            {foundClub && (!memOf(foundClub.id) || memOf(foundClub.id).status === 'rejected') && (
                                 <ClubCard c={foundClub} action={
                                     <div className="flex flex-col items-end gap-2 shrink-0">
                                         <span className="text-[11px] text-slate-400 font-bold">{foundCount != null ? `👤 ${foundCount} שחקנים` : '…'}</span>
+                                        {memOf(foundClub.id) && memOf(foundClub.id).status === 'rejected' && <span className="text-[10px] text-rose-300 font-bold">בקשה קודמת נדחתה</span>}
                                         <button onClick={() => requestJoin(foundClub)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2 rounded-xl font-bold text-sm border transition-all" style={{ borderColor: clubHue(foundClub.id).a + '66' }}>בקש להצטרף</button>
                                     </div>
                                 } />
-                            )}
-                            {foundClub && memOf(foundClub.id) && memOf(foundClub.id).status === 'rejected' && (
-                                <div className="text-center text-rose-300 font-bold text-sm bg-rose-500/10 border border-rose-500/30 rounded-2xl py-4">בקשתך לקלאב זה נדחתה.</div>
                             )}
                             {foundClub && memOf(foundClub.id) && ['pending', 'approved'].includes(memOf(foundClub.id).status) && (
                                 <div className="text-center text-slate-400 font-bold text-sm py-2">אתה כבר {memOf(foundClub.id).status === 'approved' ? 'חבר' : 'ממתין לאישור'} בקלאב הזה.</div>
