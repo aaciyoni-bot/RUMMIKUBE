@@ -1067,12 +1067,12 @@
             return { chatArr, chatOpen, setChatOpen, bubbles, gifts, sendChat, mutedUids, toggleMuteUid, chatMuted, canModerate, toggleTableMute };
         }
 
-        function ChatPanel({ chat, meUid, onSend, onClose, className, targets = [], mutedUids = [], onToggleMuteUid, canModerate, chatMuted, onToggleTableMute }) {
+        function ChatPanel({ chat, meUid, onSend, onClose, className, targets = [], mutedUids = [], onToggleMuteUid, canModerate, chatMuted, onToggleTableMute, canSend = true }) {
             const [text, setText] = useState('');
             const [giftPick, setGiftPick] = useState(null);
             const listRef = useRef(null);
             useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [chat.length]);
-            const submit = () => { const t = text.trim(); if (!t) return; onSend(t, '', null, null); setText(''); };
+            const submit = () => { if (!canSend) return; const t = text.trim(); if (!t) return; onSend(t, '', null, null); setText(''); };
             const fireGift = (item, toUid) => { onSend('', '', item, toUid); setGiftPick(null); };
             const giftInfo = (m) => { const it = GIFT_ITEMS.find(g => g.id === m.gift); return it ? `${it.e} ${it.label}` : '🎁'; };
             const targetName = (uid) => uid === meUid ? 'אליך' : `ל${(targets.find(t => t.uid === uid) || {}).name || 'שחקן'}`;
@@ -1124,7 +1124,7 @@
                                 </div>
                             )}
                             <div className="flex gap-1.5 p-2 border-t border-white/5">
-                                <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{ if (e.key === 'Enter') submit(); }} placeholder="הודעה..." className="flex-1 bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500/50" />
+                                <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{ if (e.key === 'Enter') submit(); }} disabled={!canSend} placeholder={canSend ? "הודעה..." : "צופה — לא ניתן לכתוב"} className="flex-1 bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed" />
                                 <button onClick={submit} className="bg-emerald-600 hover:bg-emerald-500 text-white w-8 rounded-lg shrink-0"><i className="fa-solid fa-paper-plane text-xs"></i></button>
                             </div>
                         </React.Fragment>
@@ -6397,7 +6397,7 @@
                     <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className="absolute bottom-[128px] left-3 z-[60] w-11 h-11 rounded-2xl glass-panel text-slate-300 hover:text-white shadow-xl">
                         <i className="fa-solid fa-comment-dots"></i>
                     </button>
-                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-[128px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
+                    {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-[128px] left-3" targets={Object.values(players).filter(p => p.uid !== user.uid).map(p => ({ uid: p.uid, name: p.name }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} canSend={isSeated} />}
                     {isSeated && myPlayer?.sitOut && (
                         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[70] bg-amber-500/95 text-slate-900 font-black text-xs rounded-full px-4 py-2 shadow-xl cursor-pointer" onClick={toggleSitOut}>☕ אתה בסיט-אאוט - הקש כדי לחזור ✋</div>
                     )}
@@ -12166,6 +12166,7 @@
             const [showCreate, setShowCreate] = useState(false);
             const [champTor, setChampTor] = useState(null);
             const [soloChamp, setSoloChamp] = useState(null);
+            const [browseTables, setBrowseTables] = useState(null);
             const [tick, setTick] = useState(0);
             const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, mttMode: false, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
             const isAll = game === 'all';
@@ -12547,6 +12548,7 @@
                                         <div className="flex gap-2">
                                             {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => fillBots(tor)} title="מלא בבוטים (בדיקה)" className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">🤖</button>}
                                             {tor.status === 'reg' && canManageGame(user, tor.game) && <button onClick={() => runNow(tor)} title="התחל עכשיו" className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">▶️</button>}
+                                            {tor.status === 'running' && canManageGame(user, tor.game) && <button onClick={() => setBrowseTables(tor)} title="צפה בשולחנות" className="bg-gradient-to-b from-indigo-500 to-indigo-800 hover:from-indigo-400 text-white py-2.5 px-3.5 rounded-xl font-black text-sm shadow-lg">👁️</button>}
                                             {['reg','running'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => cancelTour(tor)} title="בטל טורניר (החזר כספים)" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">✖️</button>}
                                             {['cancelled','done'].includes(tor.status) && canManageGame(user, tor.game) && <button onClick={() => deleteTour(tor)} title="מחק טורניר לצמיתות" className="bg-slate-800 hover:bg-rose-900 text-rose-300 py-2.5 px-3.5 rounded-xl font-bold text-sm border border-white/10">🗑️</button>}
                                             {tor.status === 'reg' && !me && <button onClick={() => tourRegister(tor, user, showToast)} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg">הירשם ({formatMoney(tourEntryOf(tor))})</button>}
@@ -12563,6 +12565,37 @@
                     </div>
                     {champModal}
                     {soloModal}
+                    {browseTables && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setBrowseTables(null)}>
+                            <div onClick={e => e.stopPropagation()} className="glass-panel w-full max-w-lg rounded-3xl p-5 max-h-[85vh] overflow-y-auto">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-black text-white truncate">👁️ שולחנות · {browseTables.name}</h3>
+                                    <button onClick={() => setBrowseTables(null)} className="text-slate-400 hover:text-white shrink-0"><i className="fa-solid fa-xmark text-xl"></i></button>
+                                </div>
+                                {(() => {
+                                    const tbls = (tables || []).filter(tb => tb.tournamentId === browseTables.id);
+                                    if (!tbls.length) return <div className="text-center text-slate-500 py-8 font-bold">אין שולחנות פעילים כרגע</div>;
+                                    return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {tbls.map((tb, i) => {
+                                                const act = Object.values(tb.players || {}).filter(p => (p.stack || 0) > 0);
+                                                let leader = null; act.forEach(p => { if (!leader || p.stack > leader.stack) leader = p; });
+                                                return (
+                                                    <button key={tb.docId} onClick={() => { setBrowseTables(null); onJoinTable(tb); }} className="text-right bg-slate-950/60 hover:bg-slate-800 border border-white/10 rounded-2xl p-3 transition-colors">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-black text-white text-sm">שולחן {i + 1}{tb.tournament && tb.tournament.final ? ' 👑' : ''}</span>
+                                                            <span className="text-[11px] text-slate-400 font-bold">{act.length} שחקנים</span>
+                                                        </div>
+                                                        {leader && <div className="text-[10px] text-amber-300 font-bold mt-1 truncate">מוביל: {leader.name} · {formatMoney(leader.stack)}</div>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
+                                <p className="text-[10px] text-slate-500 font-bold text-center mt-3">לחיצה על שולחן פותחת אותו במצב צפייה 👀</p>
+                            </div>
+                        </div>, document.body)}
                 </div>
             );
         }
