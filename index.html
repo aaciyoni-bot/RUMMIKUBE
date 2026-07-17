@@ -1739,7 +1739,48 @@
         /* ================================================================
            לוח המובילים - פודיום ודירוג פר-קלאב
            ================================================================ */
+        // פרופיל ציבורי - הישגים, דרגה, ניקוד וגביעים. נפתח בלחיצה על שחקן
+        function PublicProfileModal({ p, onClose }) {
+            if (!p) return null;
+            const stats = p.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+            const rank = playerRank(stats, p.joinedAt);
+            const score = playerScore(stats);
+            const winRate = (stats.gamesPlayed || 0) > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
+            const trophyList = Object.entries((stats.trophies || {})).filter(([g, n]) => (n || 0) > 0);
+            return ReactDOM.createPortal(
+                <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
+                    <div onClick={e => e.stopPropagation()} className="glass-panel w-full max-w-sm rounded-3xl px-6 py-7 text-center animate-pop-in relative">
+                        <img src={avatarUrl(p)} className="w-24 h-24 rounded-full mx-auto border-2 mb-3 bg-slate-800 object-cover" style={{ borderColor: rank.color }} />
+                        <h2 className="text-2xl font-black text-white truncate">{p.username || p.name || 'שחקן'}</h2>
+                        <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full font-black text-sm" style={{ color: rank.color, background: rank.color + '1f', border: '1px solid ' + rank.color + '66' }}>
+                            <span>{rank.icon}</span><span>{rank.name}</span>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-white">{stats.gamesPlayed || 0}</div><div className="text-[10px] text-slate-400 font-bold">ידיים</div></div>
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-emerald-400">{stats.gamesWon || 0}</div><div className="text-[10px] text-slate-400 font-bold">ניצחונות</div></div>
+                            <div className="bg-slate-950/60 rounded-2xl py-3 border border-white/5"><div className="text-xl font-black text-blue-400">{winRate}%</div><div className="text-[10px] text-slate-400 font-bold">אחוז</div></div>
+                        </div>
+                        <div className="mt-3 bg-gradient-to-b from-amber-500/10 to-transparent rounded-2xl py-3 border border-amber-500/20">
+                            <div className="text-2xl font-black text-gold-400" dir="ltr">{score.toLocaleString()}</div>
+                            <div className="text-[10px] text-amber-300/80 font-bold tracking-widest">ניקוד שחקן</div>
+                        </div>
+                        <div className="mt-4">
+                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">🏆 גביעי טורניר ({trophyTotal(stats)})</div>
+                            {trophyList.length ? (
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {trophyList.map(([g, n]) => (
+                                        <span key={g} className="text-[11px] font-black px-3 py-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-gold-400">🏆 {GAME_LABEL(g)} · {n}</span>
+                                    ))}
+                                </div>
+                            ) : <div className="text-slate-500 text-xs font-bold">עוד אין גביעים — קדימה לזכות! 💪</div>}
+                        </div>
+                        <button onClick={onClose} className="mt-6 px-6 py-2.5 rounded-xl font-bold text-sm text-slate-300 border border-white/10 hover:text-white">סגור</button>
+                    </div>
+                </div>, document.body);
+        }
+
         function LeadersView({ user, showToast }) {
+            const [profileP, setProfileP] = useState(null);
             const [mems, setMems] = useState(null);
             const [logAll, setLogAll] = useState(null);
             const [ltab, setLtab] = useState('profit');
@@ -1794,6 +1835,7 @@
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
+                        {profileP && <PublicProfileModal p={profileP} onClose={() => setProfileP(null)} />}
                         <div className="text-center mb-6 mt-2">
                             <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-yellow-200 to-amber-400 tracking-wide"><i className="fa-solid fa-ranking-star ml-2 text-amber-400"></i>לוח המובילים</h2>
                             <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
@@ -1816,7 +1858,7 @@
                             <React.Fragment>
                                 <div className="flex justify-center items-end gap-3 mb-8">
                                     {[1, 0, 2].map(i => top3[i] && (
-                                        <div key={i} className={`flex flex-col items-center ${i === 0 ? 'order-2' : i === 1 ? 'order-1' : 'order-3'}`}>
+                                        <div key={i} onClick={() => setProfileP(top3[i])} className={`flex flex-col items-center cursor-pointer hover:scale-105 transition-transform ${i === 0 ? 'order-2' : i === 1 ? 'order-1' : 'order-3'}`}>
                                             <div className="text-3xl mb-1">{medal[i]}</div>
                                             <div className={`rounded-full overflow-hidden border-2 ${i === 0 ? 'w-20 h-20 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]' : 'w-14 h-14 border-slate-600'}`}>
                                                 <img src={avatarUrl(top3[i])} className="w-full h-full object-cover bg-slate-800" />
@@ -1828,7 +1870,7 @@
                                 </div>
                                 <div className="glass-panel rounded-3xl divide-y divide-white/5 overflow-hidden">
                                     {rest.map((r, i) => (
-                                        <div key={r.uid} className={`flex items-center gap-3 px-4 py-3 ${r.uid === user.uid ? 'bg-emerald-500/10' : ''}`}>
+                                        <div key={r.uid} onClick={() => setProfileP(r)} className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors ${r.uid === user.uid ? 'bg-emerald-500/10' : ''}`}>
                                             <span className="text-slate-500 font-black w-6 text-center">{i + 4}</span>
                                             <img src={avatarUrl(r)} className="w-9 h-9 rounded-full bg-slate-800" />
                                             <div className="flex-1 min-w-0">
@@ -1966,6 +2008,31 @@
         const clubHue = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CLUB_HUES[h % CLUB_HUES.length]; };
         // מזהה קלאב בן 6 ספרות - נגזר דטרמיניסטית מה-id (יציב, ללא צורך במיגרציה)
         const clubCode = (id) => { let h = 0; for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return String(100000 + (h % 900000)); };
+        // דרגת שחקן לפי ותק + מספר ידיים, וניקוד כולל
+        const RANK_TIERS = [
+            { min: 0, name: 'מתחיל', icon: '🌱', color: '#94a3b8' },
+            { min: 25, name: 'חובב', icon: '🎲', color: '#22d3ee' },
+            { min: 100, name: 'שחקן', icon: '♠️', color: '#34d399' },
+            { min: 300, name: 'מקצוען', icon: '🎯', color: '#a78bfa' },
+            { min: 800, name: 'מומחה', icon: '🔥', color: '#f59e0b' },
+            { min: 2000, name: 'אלוף', icon: '👑', color: '#f5c860' },
+            { min: 5000, name: 'אגדה', icon: '💎', color: '#f43f5e' }
+        ];
+        const trophyTotal = (stats) => { const t = (stats || {}).trophies || {}; return Object.values(t).reduce((a, b) => a + (Number(b) || 0), 0); };
+        const playerRank = (stats, joinedAt) => {
+            const games = (stats || {}).gamesPlayed || 0;
+            const weeks = joinedAt ? Math.floor((Date.now() - joinedAt) / (7 * 86400000)) : 0;
+            const pts = games + weeks * 5 + trophyTotal(stats) * 50;
+            let tier = RANK_TIERS[0];
+            for (const t of RANK_TIERS) if (pts >= t.min) tier = t;
+            const idx = RANK_TIERS.indexOf(tier);
+            const next = RANK_TIERS[idx + 1] || null;
+            return { ...tier, pts, next, toNext: next ? next.min - pts : 0 };
+        };
+        const playerScore = (stats) => {
+            const s = stats || {};
+            return Math.round((s.gamesWon || 0) * 10 + trophyTotal(s) * 250 + Math.max(0, s.totalProfit || 0) / 100 + (s.gamesPlayed || 0));
+        };
         const botsAreActive = () => !(window.__club && window.__club.botsActive === false);
 
         function ClubsView({ user, clubs, myMems, onEnter, showToast }) {
@@ -2321,6 +2388,13 @@
                     <div className="max-w-4xl mx-auto animate-fade-in relative z-10">
                         <div className="glass-panel p-8 rounded-3xl text-center mb-6">
                             <img src={avatarUrl(user)} className="w-24 h-24 rounded-full mx-auto border-2 border-cyan-400/50 shadow-[0_0_25px_rgba(6,182,212,0.25)] mb-4 bg-slate-800" />
+                            {(() => { const rk = playerRank(user.stats, user.joinedAt); return (
+                                <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-sm" style={{ color: rk.color, background: rk.color + '1f', border: '1px solid ' + rk.color + '66' }}>{rk.icon} {rk.name}</span>
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black text-sm text-gold-400 bg-amber-500/10 border border-amber-500/30" dir="ltr">⭐ {playerScore(user.stats).toLocaleString()}</span>
+                                    {trophyTotal(user.stats) > 0 && <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30">🏆 {trophyTotal(user.stats)}</span>}
+                                </div>
+                            ); })()}
                             <button onClick={() => setAvatarOpen(!avatarOpen)} className="block mx-auto text-[10px] text-emerald-400 hover:text-emerald-300 font-bold mb-3 -mt-2 underline"><i className="fa-solid fa-camera ml-1"></i>החלף תמונה / אווטאר</button>
                             {avatarOpen && (
                                 <div className="bg-slate-950/60 rounded-2xl border border-white/10 p-4 mb-4 animate-pop-in">
@@ -11696,6 +11770,7 @@
                         if (statsPatch.played) upd['stats.gamesPlayed'] = (st.gamesPlayed || 0) + 1;
                         if (statsPatch.won) upd['stats.gamesWon'] = (st.gamesWon || 0) + 1;
                         if (statsPatch.profit !== undefined) upd['stats.totalProfit'] = round2((st.totalProfit || 0) + statsPatch.profit);
+                        if (statsPatch.trophyGame) { const tt = st.trophies || {}; upd['stats.trophies.' + statsPatch.trophyGame] = (tt[statsPatch.trophyGame] || 0) + 1; }
                     }
                     tr.update(r, upd);
                 });
@@ -11916,7 +11991,8 @@
                 for (let i = 0; i < ranked.length; i++) {
                     const prize = i < scheme.length ? round2(Math.floor(net * scheme[i] * 100) / 100) : 0;
                     results.push({ name: ranked[i].name, rank: ranked[i].rank, prize, bounties: ranked[i].bounties || 0 });
-                    if (prize > 0) await creditBalance(ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)) });
+                    if (prize > 0) await creditBalance(ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)), trophyGame: ranked[i].rank === 1 ? tor.game : null });
+                    else if (ranked[i].rank === 1 && !ranked[i].isBot) { try { await window.fb.updateDoc(memDoc(ranked[i].uid), { ['stats.trophies.' + tor.game]: ((((await window.fb.getDoc(memDoc(ranked[i].uid))).data() || {}).stats || {}).trophies || {})[tor.game] + 1 || 1 }); } catch(e) {} }
                     else if (!ranked[i].isBot) await creditBalance(ranked[i].uid, 0, { played: true, profit: -(ranked[i].paid || 0) });
                     if (!ranked[i].isBot) logGameResult([{ uid: ranked[i].uid, username: ranked[i].name, game: 'poker', profit: round2(prize - (ranked[i].paid || 0)) }], 'tournament:' + tor.id);
                 }
