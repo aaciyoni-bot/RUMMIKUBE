@@ -12025,24 +12025,47 @@
         const mttDelTable = async (docId) => { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", docId)); } catch(e) {} };
 
         const mttOrchestrate = async (tor, myTables, rakePct) => {
-            const aliveP = Object.values(tor.players || {}).filter(p => !p.out);
-            // סיום: נשאר אלוף אחד
-            if (aliveP.length <= 1) {
-                for (const tb of myTables) await mttDelTable(tb.docId);
-                await tourFinalize(tor, (aliveP[0] || {}).uid || null, rakePct);
-                return;
-            }
             if (!myTables.length) return;
-            // מידע לכל שולחן: שחקנים פעילים (סטאק>0) והאם בין ידיים
+            // מקור אמת יחיד: שחקנים עם סטאק>0 בשולחנות בפועל (לא דגלי out שמתעדכנים לאט)
             let info = myTables.map(tb => ({ tb, act: Object.values(tb.players || {}).filter(p => (p.stack || 0) > 0), idle: mttIdle(tb) }));
             info.forEach(it => it.count = it.act.length);
             // מחיקת שולחנות ריקים לגמרי (כולם נפלו/הועברו)
             for (const it of info) if (it.count === 0) await mttDelTable(it.tb.docId);
             let live = info.filter(it => it.count > 0);
-            if (!live.length) return;
+            const rankAlive = Object.values(tor.players || {}).filter(p => !p.out);
+            if (!live.length) { await tourFinalize(tor, (rankAlive[0] || {}).uid || null, rakePct); return; }
+            const totalActive = live.reduce((s, it) => s + it.count, 0);
+            // סיום: נשאר אלוף אחד (לפי סטאקים אמיתיים)
+            if (totalActive <= 1) {
+                const champ = live[0].act[0];
+                for (const it of live) await mttDelTable(it.tb.docId);
+                await tourFinalize(tor, (champ || {}).uid || null, rakePct);
+                return;
+            }
+            // ריפוי עצמי: שולחן שתפח מעל 9 פעילים -> מפזרים עודף לשולחן עם מקום (תקרה קשיחה)
+            const over = live.find(it => it.count > MTT_SEATS && it.idle);
+            if (over) {
+                const dst = live.find(it => it !== over && it.count < MTT_SEATS && it.idle);
+                if (dst) {
+                    const mover = over.act[over.act.length - 1];
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (trx) => {
+                            const sRef = window.fb.doc(window.fb.db, "tables", over.tb.docId), dRef = window.fb.doc(window.fb.db, "tables", dst.tb.docId);
+                            const [sS, dS] = [await trx.get(sRef), await trx.get(dRef)];
+                            if (!sS.exists() || !dS.exists()) return;
+                            const sp = (sS.data().players || {})[mover.uid]; if (!sp || (sp.stack || 0) <= 0) return;
+                            if (Object.values(dS.data().players || {}).filter(p => (p.stack || 0) > 0).length >= MTT_SEATS) return;
+                            const sPl = { ...sS.data().players }; delete sPl[mover.uid];
+                            trx.update(sRef, { players: sPl });
+                            trx.update(dRef, { players: { ...dS.data().players, [mover.uid]: mttEntry(sp, mttFreeSeat(dS.data().players)) } });
+                        });
+                    } catch(e) {}
+                    return;
+                }
+            }
 
-            // שולחן גמר: כשנשארו <=9 שחקנים - מאחדים לשולחן אחד
-            if (aliveP.length <= MTT_SEATS) {
+            // שולחן גמר: כשנשארו <=9 פעילים - מאחדים לשולחן אחד
+            if (totalActive <= MTT_SEATS) {
                 if (live.length === 1 && (live[0].tb.tournament || {}).final) return; // כבר שולחן גמר יחיד
                 if (!live.every(it => it.idle)) return; // מאחדים רק כשכל השולחנות בין ידיים
                 const seatPlayers = {}; let si = 0;
@@ -12073,6 +12096,7 @@
                             const [sS, dS] = [await trx.get(sRef), await trx.get(dRef)];
                             if (!sS.exists() || !dS.exists()) return;
                             const sp = (sS.data().players || {})[mover.uid]; if (!sp || (sp.stack || 0) <= 0) return;
+                            if (Object.values(dS.data().players || {}).filter(p => (p.stack || 0) > 0).length >= MTT_SEATS) return;
                             trx.update(dRef, { players: { ...dS.data().players, [mover.uid]: mttEntry(sp, mttFreeSeat(dS.data().players)) } });
                             trx.delete(sRef);
                         });
@@ -12089,6 +12113,7 @@
                         const [sS, dS] = [await trx.get(sRef), await trx.get(dRef)];
                         if (!sS.exists() || !dS.exists()) return;
                         const sp = (sS.data().players || {})[mover.uid]; if (!sp || (sp.stack || 0) <= 0) return;
+                        if (Object.values(dS.data().players || {}).filter(p => (p.stack || 0) > 0).length >= MTT_SEATS) return;
                         const sPl = { ...sS.data().players }; delete sPl[mover.uid];
                         trx.update(sRef, { players: sPl });
                         trx.update(dRef, { players: { ...dS.data().players, [mover.uid]: mttEntry(sp, mttFreeSeat(dS.data().players)) } });
