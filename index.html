@@ -5510,7 +5510,12 @@
                     }
                 }
                 const alive = Object.values(pl).filter(q => (q.stack || 0) > 0);
-                if (alive.length === 1) return { tournament: { ...tour, finished: true, tableWinner: alive[0].uid } };
+                if (alive.length === 1) {
+                    // MTT: שולחן לא-סופי עם שחקן יחיד לא מסתיים - הוא ממתין שהמתזמן יעביר אותו לשולחן אחר.
+                    // רק שולחן הגמר (tour.final) מסיים = אלוף.
+                    if (tour.mttMode && !tour.final) return {};
+                    return { tournament: { ...tour, finished: true, tableWinner: alive[0].uid } };
+                }
                 return {};
             };
 
@@ -11820,7 +11825,7 @@
         const tourSeedRound = async (tor, uids, round) => {
             const shuffled = [...uids];
             for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
-            const tblSize = TOUR_SIZES[tor.game] || TOUR_SIZE;
+            const tblSize = tor.mttMode ? 9 : (TOUR_SIZES[tor.game] || TOUR_SIZE);
             const nTables = Math.ceil(shuffled.length / tblSize);
             const groups = Array(nTables).fill(0).map(() => []);
             shuffled.forEach((uid, i) => groups[i % nTables].push(uid));
@@ -12001,12 +12006,93 @@
         };
 
         // המתזמן: רץ אצל הסופר-אדמין - מזניק טורנירים בזמנם ומקדם סבבים
+        /* ============ מנוע MTT: צמצום רציף, איזון שולחנות, שולחן גמר ============ */
+        const MTT_SEATS = 9;
+        const mttFreeSeat = (playersObj) => { const taken = new Set(Object.values(playersObj || {}).map(p => p.seatIndex)); let s = 0; while (taken.has(s)) s++; return s; };
+        const mttEntry = (src, seatIndex) => ({ uid: src.uid, name: src.name || '', photo: src.photo || '', avatarSeed: src.avatarSeed || '', seatIndex, stack: src.stack, bet: 0, status: 'active', cards: [], hasActed: false, actionText: '', isBot: !!src.isBot, buyTotal: src.buyTotal || 0 });
+        const mttIdle = (tb) => !tb.gameState || ['waiting', 'showdown'].includes(tb.gameState.phase);
+        const mttDelTable = async (docId) => { try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", docId)); } catch(e) {} };
+
+        const mttOrchestrate = async (tor, myTables, rakePct) => {
+            const aliveP = Object.values(tor.players || {}).filter(p => !p.out);
+            // סיום: נשאר אלוף אחד
+            if (aliveP.length <= 1) {
+                for (const tb of myTables) await mttDelTable(tb.docId);
+                await tourFinalize(tor, (aliveP[0] || {}).uid || null, rakePct);
+                return;
+            }
+            if (!myTables.length) return;
+            // מידע לכל שולחן: שחקנים פעילים (סטאק>0) והאם בין ידיים
+            let info = myTables.map(tb => ({ tb, act: Object.values(tb.players || {}).filter(p => (p.stack || 0) > 0), idle: mttIdle(tb) }));
+            info.forEach(it => it.count = it.act.length);
+            // מחיקת שולחנות ריקים לגמרי (כולם נפלו/הועברו)
+            for (const it of info) if (it.count === 0) await mttDelTable(it.tb.docId);
+            let live = info.filter(it => it.count > 0);
+            if (!live.length) return;
+
+            // שולחן גמר: כשנשארו <=9 שחקנים - מאחדים לשולחן אחד
+            if (aliveP.length <= MTT_SEATS) {
+                if (live.length === 1 && (live[0].tb.tournament || {}).final) return; // כבר שולחן גמר יחיד
+                if (!live.every(it => it.idle)) return; // מאחדים רק כשכל השולחנות בין ידיים
+                const seatPlayers = {}; let si = 0;
+                live.forEach(it => it.act.forEach(p => { seatPlayers[p.uid] = mttEntry(p, si++); }));
+                const keep = live[0].tb;
+                for (let i = 1; i < live.length; i++) await mttDelTable(live[i].tb.docId);
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", keep.docId), {
+                        players: seatPlayers,
+                        tournament: { ...keep.tournament, final: true },
+                        gameState: { ...(keep.gameState || {}), phase: 'waiting', board: [], pots: [], highestBet: 0, activeTurnUid: null, turnStartedAt: null, lastWinners: null, allInReveal: false }
+                    });
+                } catch(e) {}
+                return;
+            }
+
+            // איזון: לא לתת פער של 2+ בין שולחנות, ולפרק שולחנות שהצטמצמו ל-1
+            live.sort((a, b) => a.count - b.count);
+            const smallest = live[0], largest = live[live.length - 1];
+            // פירוק שולחן עם שחקן יחיד -> העברה לשולחן הכי קטן שיש בו מקום
+            if (smallest.count === 1 && smallest.idle && live.length > 1) {
+                const dst = live.find(it => it !== smallest && it.count < MTT_SEATS && it.idle);
+                if (dst) {
+                    const mover = smallest.act[0];
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (trx) => {
+                            const sRef = window.fb.doc(window.fb.db, "tables", smallest.tb.docId), dRef = window.fb.doc(window.fb.db, "tables", dst.tb.docId);
+                            const [sS, dS] = [await trx.get(sRef), await trx.get(dRef)];
+                            if (!sS.exists() || !dS.exists()) return;
+                            const sp = (sS.data().players || {})[mover.uid]; if (!sp || (sp.stack || 0) <= 0) return;
+                            trx.update(dRef, { players: { ...dS.data().players, [mover.uid]: mttEntry(sp, mttFreeSeat(dS.data().players)) } });
+                            trx.delete(sRef);
+                        });
+                    } catch(e) {}
+                    return;
+                }
+            }
+            // איזון עדין: מעבירים שחקן אחד מהגדול לקטן אם הפער >=2
+            if (largest.count - smallest.count >= 2 && largest.idle && smallest.count < MTT_SEATS) {
+                const mover = largest.act[largest.act.length - 1];
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (trx) => {
+                        const sRef = window.fb.doc(window.fb.db, "tables", largest.tb.docId), dRef = window.fb.doc(window.fb.db, "tables", smallest.tb.docId);
+                        const [sS, dS] = [await trx.get(sRef), await trx.get(dRef)];
+                        if (!sS.exists() || !dS.exists()) return;
+                        const sp = (sS.data().players || {})[mover.uid]; if (!sp || (sp.stack || 0) <= 0) return;
+                        const sPl = { ...sS.data().players }; delete sPl[mover.uid];
+                        trx.update(sRef, { players: sPl });
+                        trx.update(dRef, { players: { ...dS.data().players, [mover.uid]: mttEntry(sp, mttFreeSeat(dS.data().players)) } });
+                    });
+                } catch(e) {}
+            }
+        };
+
         const tourOrchestrate = async (tours, tables, rakePct) => {
             for (const tor of tours || []) {
                 try {
                     if (tor.status === 'reg' && tor.startAt && Date.now() >= tor.startAt) { await tourStart(tor); continue; }
                     if (tor.status !== 'running') continue;
                     const myTables = (tables || []).filter(tb => tb.tournamentId === tor.id);
+                    if (tor.mttMode) { await mttOrchestrate(tor, myTables, rakePct); continue; }
                     if (!myTables.length) continue;
                     if (!myTables.every(tb => tb.tournament && tb.tournament.finished)) continue;
                     const winners = myTables.map(tb => tb.tournament.tableWinner).filter(Boolean);
@@ -12044,7 +12130,7 @@
             const [champTor, setChampTor] = useState(null);
             const [soloChamp, setSoloChamp] = useState(null);
             const [tick, setTick] = useState(0);
-            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
+            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, mttMode: false, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
             const isAll = game === 'all';
             const effGame = isAll ? (opts.gameSel || 'poker') : game;
             const isPoker = effGame === 'poker';
@@ -12070,6 +12156,7 @@
                     levelMins: isPoker ? Number(opts.levelMins) : 0,
                     rebuys: isPoker ? !!opts.rebuys : false, addon: isPoker ? !!opts.addon : false,
                     rebuyUntilLevel: isPoker ? Math.max(1, Number(opts.rebuyUntilLevel) || 2) : 0, addonLevel: isPoker ? Math.max(1, Number(opts.addonLevel) || 3) : 0,
+                    mttMode: isPoker ? !!opts.mttMode : false,
                     startStack: isPoker ? Math.max(100, Number(opts.startStack) || 1000) : 1000,
                     payouts: payoutsArr, creatorUid: user.uid,
                     status: 'reg', players: {}, prizePool: addedPrize, feeTotal: 0, round: 0, createdAt: Date.now()
@@ -12334,6 +12421,7 @@
                                 {isPoker && <div className="flex flex-col gap-2 justify-end">
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.rebuys} onChange={e=>setOpts({...opts, rebuys: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">ריביי עד רמה</span><input type="number" min="1" max="12" value={opts.rebuyUntilLevel} onChange={e=>setOpts({...opts, rebuyUntilLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.rebuys} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
                                     <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.addon} onChange={e=>setOpts({...opts, addon: e.target.checked})} className="accent-purple-500 w-4 h-4" /><span className="text-white text-xs font-bold">אדאון ברמה</span><input type="number" min="1" max="12" value={opts.addonLevel} onChange={e=>setOpts({...opts, addonLevel: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))})} disabled={!opts.addon} className="w-14 bg-slate-900 text-white border border-slate-700 rounded-lg p-1 text-center font-bold disabled:opacity-40" /></label>
+                                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={opts.mttMode} onChange={e=>setOpts({...opts, mttMode: e.target.checked})} className="accent-amber-500 w-4 h-4" /><span className="text-amber-300 text-xs font-black">🏆 מנוע MTT אמיתי (שולחן גמר 9)</span></label>
                                 </div>}
                             </div>
                             <div className="flex justify-between items-center pt-3 border-t border-white/5 flex-wrap gap-2">
