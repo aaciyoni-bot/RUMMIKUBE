@@ -1674,6 +1674,17 @@
                         </nav>
                     )}
 
+                    {clubMsg && !inTable && currentView !== 'clubs' && (
+                        <div className="shrink-0 bg-gradient-to-l from-amber-600/25 via-amber-500/10 to-transparent border-b border-amber-500/30 px-4 py-2.5 flex items-start gap-3 z-30">
+                            <div className="text-2xl shrink-0 mt-0.5">📣</div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-amber-400 font-black text-[10px] uppercase tracking-widest mb-0.5">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
+                                <div className="text-white font-bold text-sm leading-snug whitespace-pre-wrap break-words">{clubMsg.text}</div>
+                            </div>
+                            <button onClick={dismissClubMsg} title="סגור" className="shrink-0 w-8 h-8 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-rose-700 flex items-center justify-center border border-white/5"><i className="fa-solid fa-xmark"></i></button>
+                        </div>
+                    )}
+
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
@@ -1696,17 +1707,6 @@
                     </main>
 
                     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm">
-                        {clubMsg && !inTable && (
-                            <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={dismissClubMsg}>
-                                <div onClick={e=>e.stopPropagation()} className="bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-3xl p-7 max-w-md w-full text-center shadow-2xl animate-pop-in">
-                                    <div className="text-4xl mb-2">📣</div>
-                                    <div className="text-amber-400 font-black text-xs uppercase tracking-widest mb-1">הודעה מ{clubMsg.clubName || 'הקלאב'}{clubMsg.by ? ` · ${clubMsg.by}` : ''}</div>
-                                    <div className="text-white font-bold text-lg leading-relaxed my-4 whitespace-pre-wrap">{clubMsg.text}</div>
-                                    <button onClick={dismissClubMsg} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-10 py-3 rounded-xl font-black shadow-lg">הבנתי 👍</button>
-                                    {('Notification' in window) && Notification.permission === 'default' && <p className="text-[10px] text-slate-500 font-bold mt-3">בלחיצה תתבקש לאשר התראות - כדי לקבל הודעות גם כשהאתר ברקע</p>}
-                                </div>
-                            </div>
-                        )}
                         {toasts.map(t => (
                             <div key={t.id} className={`animate-fade-in px-6 py-3 rounded-2xl font-bold text-sm text-center border backdrop-blur-md ${t.type === 'error' ? 'bg-rose-900/95 border-rose-500 text-white' : 'bg-slate-800/95 border-emerald-500/50 text-emerald-400'}`}>{t.msg}</div>
                         ))}
