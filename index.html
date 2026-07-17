@@ -5753,11 +5753,14 @@
                 if (!tableState || gs.phase !== 'waiting') return;
                 const eligible = Object.values(players).filter(p => p.stack > 0);
                 const humans = eligible.filter(p => !p.isBot).sort((a,b) => a.seatIndex - b.seatIndex);
-                if (eligible.length >= (setts.autoStart || 2) && humans[0]?.uid === user.uid) {
+                // מי מתחיל את היד: האדם הראשון בשולחן. אם אין בני-אדם (שולחן בוטים בלבד)
+                // והצופה הוא סופר-אדמין — הוא מתחיל, כדי שאפשר יהיה לצפות בבוטים משחקים.
+                const iStart = humans[0]?.uid === user.uid || (humans.length === 0 && isSuperAdmin);
+                if (eligible.length >= (setts.autoStart || 2) && iStart) {
                     const tm = setTimeout(() => startHand(), 1600);
                     return () => clearTimeout(tm);
                 }
-            }, [gs.phase, playersCount]);
+            }, [gs.phase, playersCount, isSuperAdmin]);
 
             /* ---------- בוטים מצטרפים אוטומטית לפוקר (רץ אצל הסופר-אדמין, כמו ברמי) ----------
                מצטרפים כשיש לפחות אדם אחד בשולחן, בהפסקות בין ידיים, עד שהשולחן מתמלא. */
