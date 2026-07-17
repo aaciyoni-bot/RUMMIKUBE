@@ -2148,7 +2148,7 @@
                 return (
                     <div className="rounded-3xl p-[1.5px] transition-transform hover:-translate-y-0.5"
                          style={{ background: `linear-gradient(135deg, ${hue.a}66, rgba(255,255,255,0.04) 35%, rgba(255,255,255,0.04) 65%, ${hue.a}44)`, boxShadow: `0 12px 32px ${hue.glow}` }}>
-                        <div className="bg-slate-900/95 rounded-[22px] p-5 flex items-center justify-between gap-3 flex-wrap">
+                        <div className="bg-slate-900/95 rounded-[22px] p-3.5 flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3 min-w-0">
                                 {(isOwner || god) && c.id !== 'main' && (
                                     <button onClick={(e) => { e.stopPropagation(); deleteClub(c); }} title="מחק קלאב" className="w-9 h-9 rounded-full bg-slate-800/80 text-slate-500 hover:text-white hover:bg-rose-700 border border-white/5 flex items-center justify-center shrink-0 transition-colors">
@@ -2177,15 +2177,14 @@
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
-                        <div className="text-center mb-8 mt-6">
-                            <h1 className="logo-shine text-4xl sm:text-5xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.3)]">RUMMIKUBE</h1>
-                            <p className="text-slate-300 text-[11px] sm:text-xs font-bold tracking-[0.2em] mt-2">רמיקוב · פוקר · דוראק · שש-בש · פרזידנט · יניב</p>
-                            <p className="text-emerald-400/80 text-[10px] sm:text-[11px] font-black tracking-[0.3em] uppercase mt-1">משחקים בין חברים וטורנירים</p>
-                            <p className="text-slate-400 text-sm font-bold mt-5">היי {user.username} 👋 בחר קלאב, בקש להצטרף, או הקם אחד משלך</p>
-                            <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-xs text-slate-500 underline font-bold mt-2">התנתק</button>
+                        <div className="text-center mb-5 mt-2">
+                            <h1 className="logo-shine text-3xl sm:text-4xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.3)]">RUMMIKUBE</h1>
+                            <p className="text-slate-300 text-[10px] sm:text-xs font-bold tracking-[0.2em] mt-1.5">רמיקוב · פוקר · דוראק · שש-בש · פרזידנט · יניב</p>
+                            <p className="text-slate-400 text-xs font-bold mt-3">היי {user.username} 👋 בחר קלאב או הקם משלך</p>
+                            <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-[11px] text-slate-500 underline font-bold mt-1.5">התנתק</button>
                             {(canInstall || (isIOS && !isStandalone)) && (
-                                <div className="mt-4">
-                                    <button onClick={() => { if (canInstall) doInstall(); else setIosGuide(true); }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-[0_8px_24px_rgba(6,182,212,0.35)]">
+                                <div className="mt-3">
+                                    <button onClick={() => { if (canInstall) doInstall(); else setIosGuide(true); }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2 rounded-xl font-black text-xs shadow-[0_8px_24px_rgba(6,182,212,0.35)]">
                                         📲 התקן כאפליקציה
                                     </button>
                                 </div>
@@ -2228,8 +2227,8 @@
                         </div>
 
                         {myClubs.length > 0 && (
-                            <div className="mb-8">
-                                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
+                            <div className="mb-4">
+                                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
                                 <div className="flex flex-col gap-3">
                                     {myClubs.map(c => <ClubCard key={c.id} c={c} action={
                                         <button onClick={() => onEnter(c)} className="text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0 hover:brightness-110 transition-all"
@@ -2240,8 +2239,8 @@
                         )}
 
                         {pendingClubs.length > 0 && (
-                            <div className="mb-8">
-                                <h3 className="text-sm font-black text-amber-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-hourglass-half ml-1"></i> ממתין לאישור</h3>
+                            <div className="mb-4">
+                                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i> ממתין לאישור</h3>
                                 <div className="flex flex-col gap-3">
                                     {pendingClubs.map(c => <ClubCard key={c.id} c={c} action={
                                         <span className="text-amber-400 text-xs font-black bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-xl shrink-0">⏳ בהמתנה</span>
@@ -2250,11 +2249,11 @@
                             </div>
                         )}
 
-                        <div className="mb-8">
-                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
-                            <div className="flex gap-2 mb-3">
-                                <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה קלאב (6 ספרות)" dir="ltr" maxLength={6} className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.3em] outline-none focus:border-emerald-500/60" />
-                                <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-6 rounded-xl font-black shadow-lg">חפש</button>
+                        <div className="mb-4">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
+                            <div className="flex gap-2 mb-2">
+                                <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה 6 ספרות" dir="ltr" maxLength={6} className="flex-1 min-w-0 bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-white font-black text-center tracking-[0.2em] text-sm outline-none focus:border-emerald-500/60" />
+                                <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-5 rounded-xl font-black text-sm shadow-lg shrink-0">חפש</button>
                             </div>
                             {foundClub && (!memOf(foundClub.id) || memOf(foundClub.id).status === 'rejected') && (
                                 <ClubCard c={foundClub} action={
