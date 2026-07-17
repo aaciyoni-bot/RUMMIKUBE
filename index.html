@@ -12217,10 +12217,11 @@
 
             // כלי בדיקה (אדמין): מילוי טורניר בבוטים לבדיקת עומס/איזון
             const fillBots = async (tor) => {
-                const ans = window.prompt("כמה בוטים להוסיף לטורניר?", "400");
-                if (ans === null) return;
-                const want = Math.max(1, Math.min(2000, parseInt(ans, 10) || 0));
-                if (!want) return;
+                const cur = Object.keys(tor.players || {}).length;
+                const room = (Number(tor.maxPlayers) || 0) - cur;
+                if (room <= 0) return showToast(`הטורניר מלא (${cur}/${tor.maxPlayers})`, "error");
+                if (!window.confirm(`להוסיף ${room} בוטים? (ימלא עד המקסימום ${tor.maxPlayers} שהגדרת)`)) return;
+                const want = room;
                 try {
                     showToast(`מכין ${want} בוטים...`, "info");
                     const already = new Set(Object.keys(tor.players || {}));
@@ -12246,9 +12247,6 @@
                         }
                     }
                     const chosen = avail.slice(0, want);
-                    const needCap = Object.keys(tor.players || {}).length + chosen.length;
-                    // הגדלת התקרה כדי להכיל את כולם
-                    await window.fb.updateDoc(tRef(tor.id), { maxPlayers: Math.max(Number(tor.maxPlayers) || 0, needCap) });
                     // רישום במנות (בוטים בחינם - paid:0 - כדי לא לזייף את קופת הפרסים)
                     for (let i = 0; i < chosen.length; i += 40) {
                         const chunk = chosen.slice(i, i + 40);
@@ -12259,7 +12257,7 @@
                         await window.fb.updateDoc(tRef(tor.id), upd);
                         showToast(`נרשמו ${Math.min(i + 40, chosen.length)}/${chosen.length}...`, "info");
                     }
-                    showToast(`✅ ${chosen.length} בוטים נרשמו! (סה"כ ${needCap} שחקנים)`, "success");
+                    showToast(`✅ ${chosen.length} בוטים נרשמו! (סה"כ ${cur + chosen.length}/${tor.maxPlayers})`, "success");
                 } catch(e) { showToast("שגיאה בהוספת בוטים: " + (e.message || e), "error"); }
             };
 
