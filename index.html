@@ -12467,7 +12467,7 @@
                                                 <p className="text-slate-400 text-xs font-bold mt-0.5" dir="ltr">
                                                     {tourEntryOf(tor) === 0 && <span className="text-amber-400 font-black">🎁 FREEROLL · </span>}{tor.game === 'poker' ? (tor.pokerType || 'NLH') : GAME_LABEL(tor.game)} · Buy-in {formatMoney(tor.buyIn)}{tor.bounty > 0 ? ` + ${formatMoney(tor.bounty)} bounty` : ''}{tor.game === 'poker' ? ` · סטאק ${Number(tor.startStack) || 1000}` : ' · נוק-אאוט'} · פרסים {(tor.payouts && tor.payouts.length ? tor.payouts : [50,30,20]).join('/')}%
                                                 </p>
-                                                <p className="text-slate-500 text-[10px] font-bold mt-0.5">{tor.rebuys ? 'ריביי ✓ ' : ''}{tor.addon ? 'אדאון ✓ ' : ''}{tor.bounty > 0 ? 'באונטי ✓' : ''}</p>
+                                                <p className="text-slate-500 text-[10px] font-bold mt-0.5">{tor.mttMode ? '🏆 MTT · ' : ''}{tor.rebuys ? 'ריביי ✓ ' : ''}{tor.addon ? 'אדאון ✓ ' : ''}{tor.bounty > 0 ? 'באונטי ✓' : ''}</p>
                                             </div>
                                             {tor.status === 'reg' && <span className="text-[10px] text-emerald-400 font-black bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full">הרשמה פתוחה</span>}
                                             {tor.status === 'running' && <span className="text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full animate-pulse">● LIVE · סבב {tor.round}</span>}
@@ -12478,6 +12478,20 @@
                                             <span className="text-slate-300"><i className="fa-solid fa-users ml-1 text-slate-500"></i>{tor.status === 'running' ? `${alive}/${count} שרדו` : `${count}/${tor.maxPlayers} נרשמו`}</span>
                                             <span className="text-amber-400"><i className="fa-solid fa-sack-dollar ml-1"></i>קופת פרסים: {formatMoney(tor.prizePool || 0)}</span>
                                         </div>
+                                        {tor.status === 'running' && isGodUser(user) && (() => {
+                                            const tbls = (tables || []).filter(tb => tb.tournamentId === tor.id);
+                                            let leader = null;
+                                            tbls.forEach(tb => Object.values(tb.players || {}).forEach(p => { if ((p.stack || 0) > 0 && (!leader || p.stack > leader.stack)) leader = p; }));
+                                            return (
+                                                <div className="bg-purple-950/40 rounded-xl border border-purple-500/30 px-3 py-2 mb-3 text-[11px] font-bold">
+                                                    <div className="flex items-center justify-between text-purple-200">
+                                                        <span>👁️ GOD · {tor.mttMode ? '🏆 MTT' : 'רגיל'}</span>
+                                                        <span>{tbls.length} שולחנות · {alive} חיים</span>
+                                                    </div>
+                                                    {leader && <div className="mt-1 text-amber-300 font-black flex items-center justify-between"><span>👑 מוביל (הולך לנצח): {leader.name}</span><span dir="ltr">{formatMoney(leader.stack)}</span></div>}
+                                                </div>
+                                            );
+                                        })()}
                                         {tor.status === 'reg' && (
                                             <div className="bg-slate-950/60 rounded-xl border border-white/5 px-3 py-2 mb-3 text-center">
                                                 <span className="text-[10px] text-slate-400 font-bold block">יוצא לדרך בעוד</span>
