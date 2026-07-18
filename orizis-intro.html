@@ -1,0 +1,32 @@
+<!-- ═══ ORIZIS INTRO · standalone module · copy this whole block into any product ═══ -->
+<div id="orizis-intro">
+  <style>
+    #orizis-intro { position: fixed; inset: 0; z-index: 999999; background: #05070f; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.45s ease; }
+    #orizis-intro.oi-out { opacity: 0; pointer-events: none; }
+    #orizis-intro .oi-mark { font-family: 'Heebo', Arial, sans-serif; font-weight: 900; font-size: clamp(38px, 9vw, 72px); letter-spacing: 0.22em; margin-right: -0.22em; background: linear-gradient(100deg, #64748b 0%, #f8fafc 28%, #e3ae4e 50%, #f8fafc 72%, #64748b 100%); background-size: 240% auto; -webkit-background-clip: text; background-clip: text; color: transparent; opacity: 0; animation: oiShine 1.9s ease forwards, oiRise 0.9s cubic-bezier(0.22,1,0.36,1) forwards; }
+    #orizis-intro .oi-sub { font-family: 'Heebo', Arial, sans-serif; font-weight: 700; font-size: clamp(10px, 2.2vw, 14px); letter-spacing: 0.55em; margin-right: -0.55em; color: #64748b; margin-top: 14px; opacity: 0; animation: oiFade 0.7s ease 0.55s forwards; }
+    #orizis-intro .oi-line { width: 0; height: 1px; background: linear-gradient(90deg, transparent, #e3ae4e, transparent); margin-top: 22px; animation: oiLine 1.1s ease 0.35s forwards; }
+    #orizis-intro .oi-load { display: flex; align-items: center; gap: 8px; margin-top: 26px; color: #475569; font-family: 'Heebo', Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.2em; opacity: 0; animation: oiFade 0.7s ease 0.9s forwards; }
+    #orizis-intro .oi-spin { width: 14px; height: 14px; border: 2px solid rgba(227,174,78,0.25); border-top-color: #e3ae4e; border-radius: 50%; animation: oiSpin 0.9s linear infinite; }
+    @keyframes oiSpin { to { transform: rotate(360deg); } }
+    @keyframes oiShine { from { background-position: 200% center; } to { background-position: -40% center; } }
+    @keyframes oiRise { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+    @keyframes oiFade { to { opacity: 1; } }
+    @keyframes oiLine { to { width: min(320px, 60vw); } }
+  </style>
+  <div class="oi-mark">ORIZIS</div>
+  <div class="oi-line"></div>
+  <div class="oi-sub">TECHNOLOGY</div>
+  <div class="oi-load"><div class="oi-spin"></div>LOADING</div>
+  <script>
+    (function () {
+      var el = document.getElementById('orizis-intro');
+      var done = false;
+      function out() { if (done) return; done = true; el.classList.add('oi-out'); setTimeout(function () { el.remove(); }, 500); }
+      el.addEventListener('click', out);
+      el.addEventListener('touchstart', out, { passive: true });
+      setTimeout(out, 1300);
+    })();
+  </script>
+</div>
+<!-- ═══ /ORIZIS INTRO ═══ -->
