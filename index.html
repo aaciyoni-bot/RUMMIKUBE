@@ -193,6 +193,11 @@
         }
         .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
+        /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
+        .rummy-rotate-hint { display: none; }
+        @media (orientation: portrait) and (max-width: 900px) {
+            .rummy-rotate-hint { display: inline-flex; }
+        }
         .rack-slot { min-height: 36px; position: relative; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
@@ -3695,19 +3700,25 @@
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-5xl mx-auto animate-fade-in relative z-10">
-                        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-                            <div>
-                                <h2 className="text-2xl sm:text-3xl font-black text-white">ניהול מועדון</h2>
-                                <p className="text-sm text-slate-400 font-bold">יתרות · תפקידים · הגדרות · בוטים</p>
-                            </div>
-                            {user.role === ROLES.SUPER_ADMIN && (
-                                <div className="flex gap-2">
-                                    <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
-                                    <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
-                                    <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת (משרתים את כל הקלאבים)</span>
-                                    <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
+                        <div className="relative overflow-hidden rounded-3xl mb-6 border border-emerald-500/20 bg-gradient-to-l from-emerald-600/15 via-slate-900/50 to-transparent p-5 sm:p-6">
+                            <div className="absolute -left-8 -top-10 w-40 h-40 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+                            <div className="flex items-center justify-between flex-wrap gap-3 relative">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0"><i className="fa-solid fa-shield-halved text-emerald-400 text-xl"></i></span>
+                                    <div>
+                                        <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">ניהול מועדון</h2>
+                                        <p className="text-sm text-slate-400 font-bold">{(window.__club || {}).name ? (window.__club.name + ' · ') : ''}יתרות · תפקידים · הגדרות · בוטים</p>
+                                    </div>
                                 </div>
-                            )}
+                                {user.role === ROLES.SUPER_ADMIN && (
+                                    <div className="flex gap-2 flex-wrap items-center">
+                                        <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
+                                        <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
+                                        <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת</span>
+                                        <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -4866,6 +4877,10 @@
 
                     {/* מרכז */}
                     <div className="flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
+
+                        <div className="rummy-rotate-hint absolute top-1 left-1/2 -translate-x-1/2 z-[90] items-center gap-2 bg-slate-900/90 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur pointer-events-none shadow-lg">
+                            <i className="fa-solid fa-rotate"></i> סובב לרוחב למרווח גדול יותר
+                        </div>
 
                         {showError && <div className="absolute bottom-[220px] sm:bottom-[250px] left-1/2 transform -translate-x-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 animate-fade-in text-center max-w-[90%] text-sm">{showError}</div>}
 
