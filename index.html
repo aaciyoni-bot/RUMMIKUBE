@@ -595,17 +595,21 @@
         const ROLE_LABELS = { super_admin: 'סופר-אדמין', club_owner: 'בעל מועדון', manager: 'מנהל', agent: 'סוכן', player: 'שחקן' };
 
         // רשימת המשחקים בקלאב - מוכן גם למשחקים העתידיים
+        // RUMMY_ONLY: the site shows ONLY Rummy. All other games' code is kept intact
+        // (tables/engines/components) but hidden from the UI — flip this to false to
+        // bring the full multi-game lobby back without losing anything.
+        const RUMMY_ONLY = true;
         const GAMES = [
             { id: 'rummikub', label: 'רמיקוב', live: true },
-            { id: 'poker', label: 'פוקר', live: true },
-            { id: 'durak', label: 'דוראק', live: true },
-            { id: 'yaniv', label: 'יניב', live: true },
-            { id: 'bridge', label: "ברידג'", live: true },
-            { id: 'gin', label: "ג'ין רמי", live: true },
-            { id: 'twist', label: 'טוויסט', live: true },
-            { id: 'ofc', label: 'פוקר סיני', live: true },
-            { id: 'president', label: 'פרזידנט', live: true },
-            { id: 'shesh', label: 'שש-בש', live: true },
+            { id: 'poker', label: 'פוקר', live: !RUMMY_ONLY },
+            { id: 'durak', label: 'דוראק', live: !RUMMY_ONLY },
+            { id: 'yaniv', label: 'יניב', live: !RUMMY_ONLY },
+            { id: 'bridge', label: "ברידג'", live: !RUMMY_ONLY },
+            { id: 'gin', label: "ג'ין רמי", live: !RUMMY_ONLY },
+            { id: 'twist', label: 'טוויסט', live: !RUMMY_ONLY },
+            { id: 'ofc', label: 'פוקר סיני', live: !RUMMY_ONLY },
+            { id: 'president', label: 'פרזידנט', live: !RUMMY_ONLY },
+            { id: 'shesh', label: 'שש-בש', live: !RUMMY_ONLY },
         ];
 
         // GOD MODE - אך ורק שני המיילים האלה (כניסה דרך גוגל)
@@ -640,7 +644,7 @@
         };
         const EMOJI_AV_BG = ['16243c,0e7490','1f1533,6b21a8','33200e,b45309','0e2b22,0f766e','2b0f18,9f1239','101d33,1d4ed8','1c2230,3b475e','132810,3f6212'];
         const dicebearUrl = (seed) => {
-            let style = 'avataaars', sd = String(seed || 'x');
+            let style = 'notionists', sd = String(seed || 'x');
             if (sd.startsWith('emoji::')) {
                 const parts = sd.split('::');
                 const em = parts[1] || '🙂';
@@ -659,16 +663,16 @@
             return dicebearUrl(x);
         };
         const AVATAR_STYLES = [
+            { id: 'notionists', label: 'פורטרט' },
             { id: 'adventurer', label: 'אנימה' },
-            { id: 'lorelei', label: 'נשים' },
-            { id: 'micah', label: 'גברים' },
-            { id: 'avataaars', label: 'אנשים' },
+            { id: 'micah', label: 'מודרני' },
+            { id: 'lorelei', label: 'קלאסי' },
+            { id: 'open-peeps', label: 'סקיצה' },
+            { id: 'thumbs', label: 'חמוד' },
             { id: 'emoji-animals', label: 'חיות' },
             { id: 'emoji-elements', label: 'אלמנטים' },
             { id: 'bottts', label: 'רובוטים' },
-            { id: 'open-peeps', label: 'דמויות' },
             { id: 'pixel-art', label: 'פיקסל' },
-            { id: 'notionists', label: 'סקיצה' },
         ];
         const AVATAR_SEEDS = ['Leo','Maya','Rocky','Ziv','Nova','Ace','Luna','Rex','Miko','Dana','Tigra','Boss','Dino','Draco','Neko','Kuro','Pika','Fox','Wolf','Simba'];
         const EMOJI_SETS = {
@@ -1859,7 +1863,7 @@
                                 <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
-                        <div className="flex justify-center gap-1.5 mb-7 flex-wrap">
+                        <div className={`justify-center gap-1.5 mb-7 flex-wrap ${RUMMY_ONLY ? 'hidden' : 'flex'}`}>
                             {[['all', 'הכל 🏆'], ['rummikub', 'רמיקוב'], ['poker', 'פוקר'], ['durak', 'דוראק'], ['shesh', 'שש-בש'], ['president', 'פרזידנט'], ['yaniv', 'יניב'], ['bridge', "ברידג'"], ['gin', "ג'ין"], ['twist', 'טוויסט'], ['ofc', 'סיני']].map(([k, l]) => (
                                 <button key={k} onClick={() => setGtab(k)} className={`px-3 py-1.5 rounded-full font-bold text-xs border transition-colors ${gtab === k ? 'bg-amber-500/20 border-amber-400/60 text-amber-300' : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'}`}>{l}</button>
                             ))}
@@ -2417,7 +2421,7 @@
                                         ))}
                                     </div>
                                     <div className="flex flex-wrap justify-center gap-2 mb-3 max-h-44 overflow-y-auto">
-                                        {(EMOJI_SETS[avStyle] || AVATAR_SEEDS.map(sd => avStyle === 'avataaars' ? sd : (avStyle + '::' + sd))).map(full => (
+                                        {(EMOJI_SETS[avStyle] || AVATAR_SEEDS.map(sd => avStyle === 'notionists' ? sd : (avStyle + '::' + sd))).map(full => (
                                             <img key={full} src={dicebearUrl(full)} onClick={() => setSeed(full)}
                                                  className={`w-12 h-12 rounded-full bg-slate-800 cursor-pointer border-2 transition-all hover:scale-110 ${user.avatarSeed === full ? 'border-cyan-400 shadow-[0_0_10px_#06b6d4]' : 'border-transparent'}`} />
                                         ))}
@@ -2539,6 +2543,8 @@
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
             const [showCreateDurak, setShowCreateDurak] = useState(false);
             const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4, bluff: false });
+            // Rummy-only: never leave the rummy view (other game sections stay in code, just unreachable).
+            React.useEffect(() => { if (RUMMY_ONLY && tab !== 'rummikub') setTab('rummikub'); }, [tab]);
 
             const rummyTables = tables.filter(t => t.type === 'rummikub' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const pokerTables = tables.filter(t => t.type === 'poker' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
@@ -2750,7 +2756,7 @@
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
+                        {!RUMMY_ONLY && (<div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 mb-8 w-full">
                             {[
                                 { id: 'rummikub', label: 'רמיקוב', icon: 'fa-border-all', c: 'emerald', n: rummyTables.length },
                                 { id: 'poker', label: 'פוקר', suit: '♠', c: 'rose', n: pokerTables.length },
@@ -2770,7 +2776,7 @@
                                     <span className="cube-count">{g.n} שולחנות</span>
                                 </button>
                             ))}
-                        </div>
+                        </div>)}
 
                         {scrOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!scr || scr.revealed) && setScrOpen(false)}>
