@@ -1,7 +1,7 @@
 /* Rummikube Clubs - Service Worker
    אסטרטגיה: רשת-קודם. תמיד מנסים להביא את הגרסה הטרייה מהשרת,
    והמטמון משמש רק כגיבוי לחוסר-חיבור. כך פריסות חדשות מגיעות מיידית. */
-const CACHE = 'rummikube-shell-v3';
+const CACHE = 'rummikube-shell-v4';
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
