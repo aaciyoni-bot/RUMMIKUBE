@@ -194,10 +194,7 @@
         .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
-        .rummy-rotate-hint { display: none; }
-        @media (orientation: portrait) and (max-width: 900px) {
-            .rummy-rotate-hint { display: inline-flex; }
-        }
+        @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
         .rack-slot { min-height: 36px; position: relative; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
@@ -4074,6 +4071,29 @@
             const endingRef = useRef(false);
             const liveRef = useRef(null);
             useEffect(() => { liveRef.current = tableState; }, [tableState]);
+            // Rummy plays best in landscape. On platforms that allow it (installed PWA / Android),
+            // lock to landscape on entering the table; unlock on leave. (iOS Safari can't lock —
+            // there the rotate prompt below asks the player to turn the device.)
+            const [needRotate, setNeedRotate] = useState(false);
+            useEffect(() => {
+                let locked = false;
+                try {
+                    const so = window.screen && window.screen.orientation;
+                    if (so && so.lock) { so.lock('landscape').then(() => { locked = true; }).catch(() => {}); }
+                } catch (e) {}
+                const check = () => {
+                    const portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+                    setNeedRotate(!!portrait && Math.min(window.innerWidth, window.innerHeight) < 820);
+                };
+                check();
+                window.addEventListener('resize', check);
+                window.addEventListener('orientationchange', check);
+                return () => {
+                    window.removeEventListener('resize', check);
+                    window.removeEventListener('orientationchange', check);
+                    try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {}
+                };
+            }, []);
 
             const isGod = isGodUser(user);
             const me = tableState?.players?.[user.uid];
@@ -4838,6 +4858,15 @@
             return (
                 <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl">
 
+                    {needRotate && (
+                        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
+                            <div className="text-6xl" style={{ animation: 'rotateHint 2s ease-in-out infinite' }}>📱</div>
+                            <div className="text-emerald-300 text-2xl font-black">סובב את המכשיר לרוחב</div>
+                            <p className="text-slate-400 text-sm font-bold max-w-xs leading-relaxed">רמיקוב משוחק לרוחב — כך תקבל לוח רחב ומרווח עם כל האבנים בשורה אחת.</p>
+                            <button onClick={(e) => { e.stopPropagation(); setNeedRotate(false); }} className="mt-2 text-slate-500 hover:text-white underline text-xs font-bold">המשך בפורטרייט בכל זאת</button>
+                        </div>
+                    )}
+
                     {tableState.phase === 'waiting' && (
                         <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-slate-900 border border-emerald-500 p-8 rounded-3xl text-center max-w-lg w-full shadow-2xl">
@@ -4909,10 +4938,6 @@
 
                     {/* מרכז */}
                     <div className="flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
-
-                        <div className="rummy-rotate-hint absolute top-1 left-1/2 -translate-x-1/2 z-[90] items-center gap-2 bg-slate-900/90 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur pointer-events-none shadow-lg">
-                            <i className="fa-solid fa-rotate"></i> סובב לרוחב למרווח גדול יותר
-                        </div>
 
                         {showError && <div className="absolute bottom-[220px] sm:bottom-[250px] left-1/2 transform -translate-x-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 animate-fade-in text-center max-w-[90%] text-sm">{showError}</div>}
 
