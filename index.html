@@ -251,9 +251,9 @@
         }
 
         .card-face {
-            background: #ffffff;
-            border: none; border-radius: 8px;
-            box-shadow: 0 3px 10px rgba(2,6,23,0.45);
+            background: linear-gradient(155deg, #ffffff 0%, #fafafa 46%, #f1f0ec 100%);
+            border: none; border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(2,6,23,0.45), inset 0 0 0 1px rgba(0,0,0,0.045);
             font-family: 'Rubik', sans-serif;
         }
         .card-back {
@@ -596,12 +596,29 @@
         };
         const SUIT_LIGHT_COL = { '♠': '#111827', '♥': '#dc2626', '♦': '#dc2626', '♣': '#111827' };
         const SUIT_DARK_COL = { '♠': '#e2e8f0', '♥': '#fb7185', '♦': '#fb7185', '♣': '#e2e8f0' };
-        const SuitGlyph = ({ s, color, dark, size }) => {
+        const SUIT_IS_RED = { '♥': true, '♦': true };
+        // גרדיאנטים לצורת הקלף המושלמת: אדום־בורדו לב/יהלום, פחם לעלה/תלתן
+        const SuitGlyph = ({ s, color, dark, size, grad }) => {
             const p = SUIT_GLYPH_PATHS[s];
             if (!p) return <span>{s}</span>;
-            const fill = color || (dark ? SUIT_DARK_COL[s] : SUIT_LIGHT_COL[s]);
+            const isRed = !!SUIT_IS_RED[s];
+            const fill = grad ? (isRed ? 'url(#pcGRed)' : 'url(#pcGBlk)') : (color || (dark ? SUIT_DARK_COL[s] : SUIT_LIGHT_COL[s]));
             return (
-                <svg viewBox="0 0 24 24" style={{ width: size || '1em', height: size || '1em', display: 'inline-block', verticalAlign: '-0.1em', flex: 'none', filter: 'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.15))' }}>
+                <svg viewBox="0 0 24 24" style={{ width: size || '1em', height: size || '1em', display: 'inline-block', verticalAlign: '-0.1em', flex: 'none', filter: grad ? 'drop-shadow(0 0.6px 0.7px rgba(0,0,0,0.28))' : 'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.15))' }}>
+                    {grad && (
+                        <defs>
+                            <linearGradient id="pcGRed" x1="0" y1="0" x2="0.3" y2="1">
+                                <stop offset="0" stopColor="#c31c20"/>
+                                <stop offset="0.52" stopColor="#8f1114"/>
+                                <stop offset="1" stopColor="#350709"/>
+                            </linearGradient>
+                            <linearGradient id="pcGBlk" x1="0" y1="0" x2="0.3" y2="1">
+                                <stop offset="0" stopColor="#6f6f6f"/>
+                                <stop offset="0.5" stopColor="#2b2b2b"/>
+                                <stop offset="1" stopColor="#0e0e0e"/>
+                            </linearGradient>
+                        </defs>
+                    )}
                     <path d={p} fill={fill} />
                 </svg>
             );
@@ -1375,12 +1392,17 @@
                     : size === 'sm' ? { w: 'w-7', h: '2.6rem', rank: '0.95rem', big: '1.35rem' }
                     : { w: 'w-9 sm:w-10', h: '3.4rem', rank: '1.25rem', big: '1.75rem' };
             if (!card || hidden) return <div className={`${D.w} card-back shadow-md`} style={{ height: D.h }}></div>;
-            const col = SUIT_COLORS[card.suit] || '#111827';
+            const isRed = card.suit === '♥' || card.suit === '♦';
+            const rankCol = isRed ? '#8f1114' : '#141414';
+            const showPip = size !== 'sm';
             return (
                 <div className={`${D.w} card-face relative overflow-hidden`} style={{ height: D.h }} dir="ltr">
-                    <div className="absolute leading-none font-bold" style={{ top: '4%', left: '8%', fontSize: D.rank, color: col, letterSpacing: '-0.05em', fontFamily: "'Rubik', sans-serif", fontWeight: 700 }}>{card.val}</div>
-                    <div className="absolute inset-x-0 bottom-[3%] flex justify-center pointer-events-none">
-                        <SuitGlyph s={card.suit} color={col} size={D.big}/>
+                    <div className="absolute flex flex-col items-center leading-none pointer-events-none" style={{ top: '5%', left: '7%' }}>
+                        <span style={{ fontSize: D.rank, color: rankCol, letterSpacing: '-0.05em', fontFamily: "'Rubik', sans-serif", fontWeight: 800, lineHeight: 0.85 }}>{card.val}</span>
+                        {showPip && <span style={{ marginTop: '1px' }}><SuitGlyph s={card.suit} grad size={`calc(${D.rank} * 0.58)`}/></span>}
+                    </div>
+                    <div className="absolute inset-x-0 flex justify-center pointer-events-none" style={{ bottom: '6%' }}>
+                        <SuitGlyph s={card.suit} grad size={D.big}/>
                     </div>
                 </div>
             );
@@ -8712,7 +8734,7 @@
                         {jk ? (
                             <React.Fragment><span className={`${tiny ? 'text-xs' : 'text-lg sm:text-xl'} leading-none`}>★</span>{!tiny && <span className="text-[7px] leading-none tracking-widest">WILD</span>}</React.Fragment>
                         ) : (
-                            <React.Fragment><span className="leading-none">{ofcName(c.v)}</span><span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span></React.Fragment>
+                            <React.Fragment><span className="leading-none">{ofcName(c.v)}</span><span className="leading-none"><SuitGlyph s={c.suit} grad size="1.2em"/></span></React.Fragment>
                         )}
                     </div>
                 );
@@ -9272,7 +9294,7 @@
             const TCard = ({ c, sel, onClick, small }) => (
                 <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : 'border-slate-400'} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'} ${[1, 2, 8, 11].includes(c.v) ? 'ring-1 ring-orange-400/70' : ''}`}>
                     <span className="leading-none">{twName(c.v)}</span>
-                    <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
+                    <span className="leading-none"><SuitGlyph s={c.suit} grad size="1.2em"/></span>
                 </div>
             );
             const selRank = selected.length ? ((me?.cards || []).find(c => c.id === selected[0]) || {}).v : null;
@@ -9838,7 +9860,7 @@
             const GCard = ({ c, sel, meld, onClick, small }) => (
                 <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-11 h-16 sm:w-12 sm:h-[4.4rem] text-sm'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 transition-transform border ${meld ? 'border-emerald-500 ring-1 ring-emerald-400/60' : 'border-slate-400'} ${sel ? '-translate-y-3 ring-2 ring-amber-400 border-amber-400' : ''} ${onClick ? 'cursor-pointer hover:-translate-y-1.5' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
                     <span className="leading-none">{ginName(c.v)}</span>
-                    <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
+                    <span className="leading-none"><SuitGlyph s={c.suit} grad size="1.2em"/></span>
                 </div>
             );
             const res = T.lastResults;
@@ -10370,7 +10392,7 @@
             const BCard = ({ c, onClick, dim, small }) => (
                 <div onClick={onClick} className={`${small ? 'w-8 h-11 text-[11px]' : 'w-10 h-14 sm:w-12 sm:h-16 text-sm sm:text-base'} rounded-lg card-face shadow-md flex flex-col items-center justify-center font-black shrink-0 ${onClick ? 'cursor-pointer hover:-translate-y-1.5 transition-transform' : ''} ${dim ? 'opacity-40' : ''} ${c.suit === '♥' || c.suit === '♦' ? 'text-rose-600' : 'text-slate-900'}`}>
                     <span className="leading-none">{brRankName(c.v)}</span>
-                    <span className="leading-none"><SuitGlyph s={c.suit} size="1.2em"/></span>
+                    <span className="leading-none"><SuitGlyph s={c.suit} grad size="1.2em"/></span>
                 </div>
             );
             const CardBacks = ({ n }) => (
@@ -11102,7 +11124,7 @@
                 return (
                     <div onClick={onClick} className={`${small ? 'w-8 h-11' : 'w-11 h-16 sm:w-14 sm:h-20'} card-face shrink-0 ${color} flex flex-col items-center justify-center font-black transition-all ${onClick ? 'cursor-pointer active:scale-95' : ''} ${sel ? 'ring-2 ring-emerald-400 -translate-y-3 shadow-[0_10px_20px_rgba(6,182,212,0.5)] z-30' : ''} ${glow ? 'ring-2 ring-emerald-400 animate-pulse' : ''} ${dim ? 'opacity-35' : ''}`} style={{ marginLeft: small ? '-8px' : '-13px' }} dir="ltr">
                         <span className={`${small ? 'text-xs' : 'text-lg sm:text-xl'} leading-none`}>{c.joker ? '★' : c.val}</span>
-                        {!c.joker && <span className="text-xs leading-none"><SuitGlyph s={c.suit} size="1.35em"/></span>}
+                        {!c.joker && <span className="text-xs leading-none"><SuitGlyph s={c.suit} grad size="1.35em"/></span>}
                     </div>
                 );
             };
@@ -11740,7 +11762,7 @@
                 return (
                     <div onClick={onClick} className={`${small ? 'w-9 h-12 sm:w-10 sm:h-14' : 'w-11 h-16 sm:w-14 sm:h-20'} card-face shrink-0 ${color} flex flex-col items-center justify-center font-black transition-all ${onClick ? 'cursor-pointer' : ''} ${sel ? 'ring-2 ring-purple-400 -translate-y-3 shadow-[0_10px_20px_rgba(168,85,247,0.5)] z-30' : ''}`} style={{ marginLeft: '-14px' }} dir="ltr">
                         <span className={`${small ? 'text-sm' : 'text-lg sm:text-xl'} leading-none`}>{c.joker ? '★' : c.val}</span>
-                        {!c.joker && <span className="text-xs leading-none"><SuitGlyph s={c.suit} size="1.35em"/></span>}
+                        {!c.joker && <span className="text-xs leading-none"><SuitGlyph s={c.suit} grad size="1.35em"/></span>}
                     </div>
                 );
             };
