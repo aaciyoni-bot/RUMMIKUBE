@@ -6643,7 +6643,7 @@
 
             const toastErr = (m) => showToast(m, 'error');
             const clonePlayers = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v, cards: [...(v.cards || [])] }); return o; };
-            const activeList = (pl) => Object.values(pl).filter(p => !p.out && !p.left).sort((a, b) => a.seatIndex - b.seatIndex);
+            const activeList = (pl) => Object.values(pl).filter(p => !p.out && !p.left && !p.waiting).sort((a, b) => a.seatIndex - b.seatIndex);
             const nextActive = (pl, uid) => {
                 const arr = activeList(pl); if (!arr.length) return null;
                 const seat = pl[uid]?.seatIndex ?? -1;
@@ -6698,7 +6698,7 @@
                         if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
                         const buyIn = Number(tbl.settings.buyIn) || 0;
                         const pl = {};
-                        Object.entries(tbl.players).forEach(([k, v]) => pl[k] = { ...v, cards: [], out: false, left: false });
+                        Object.entries(tbl.players).forEach(([k, v]) => pl[k] = { ...v, cards: [], out: false, left: false, waiting: false });
                         const uids = Object.values(pl).sort((a, b) => a.seatIndex - b.seatIndex).map(p => p.uid);
                         // גביית Buy-in מכל השחקנים בטרנזקציה
                         const uSnaps = {};
@@ -6747,7 +6747,7 @@
                     const pot = t.pot || 0;
                     const rake = round2(pot * ((Number(setts.rakePercent) || 0) / 100));
                     const buyIn = Number(setts.buyIn) || 0;
-                    let winners = soloWinnerUid ? [pl[soloWinnerUid]] : Object.values(pl).filter(p => p.out && !p.left && p.uid !== durakUid);
+                    let winners = soloWinnerUid ? [pl[soloWinnerUid]] : Object.values(pl).filter(p => p.out && !p.left && !p.waiting && p.uid !== durakUid);
                     const share = winners.length ? Math.floor(((pot - rake) / winners.length) * 100) / 100 : 0;
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const reads = {};
@@ -6813,7 +6813,7 @@
                 for (const uid of order) { const p = pl[uid]; if (!p) continue; while (p.cards.length < 6 && deck.length) p.cards.push(deck.pop()); }
                 // מי שנשאר בלי קלפים כשהקופה ריקה - יצא בשלום
                 const fo = [...(t.finishOrder || [])];
-                Object.values(pl).forEach(p => { if (!p.out && !p.left && deck.length === 0 && p.cards.length === 0) { p.out = true; if (!fo.includes(p.uid)) fo.push(p.uid); } });
+                Object.values(pl).forEach(p => { if (!p.out && !p.left && !p.waiting && deck.length === 0 && p.cards.length === 0) { p.out = true; if (!fo.includes(p.uid)) fo.push(p.uid); } });
                 const remain = activeList(pl);
                 if (remain.length <= 1) { await settle(pl, remain[0]?.uid || null, null, deck, discard, fo); return; }
                 // תפקידים לסיבוב הבא
@@ -6986,14 +6986,15 @@
                         const [uSnap, tSnap] = [await tr.get(uRef), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
-                        if (!['setup', 'showdown'].includes(t.status)) throw "המשחק כבר רץ - חכה לסיבוב הבא";
                         if (t.players[user.uid]) throw "אתה כבר בשולחן";
                         if (Object.keys(t.players).length >= (t.settings.maxPlayers || 6)) throw "השולחן מלא";
                         if ((uSnap.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק יתרה לדמי הכניסה";
                         let seatIndex = 0;
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, out: false, left: false } });
+                        // מצטרפים באמצע יד - יושבים בשולחן וממתינים לסיבוב הבא (כמו בפוקר)
+                        const waiting = t.status === 'playing';
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, out: false, left: false, waiting } });
                         if (Object.keys(t.players).length + 1 >= (t.settings.maxPlayers || 6)) becameFull = true;
                     });
                     if (becameFull) spawnTwinTable(tableRef.current);
@@ -7003,7 +7004,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'playing' && !t.players[user.uid].out) {
+                if (t.status === 'playing' && !t.players[user.uid].out && !t.players[user.uid].waiting) {
                     if (!window.confirm("⚠️ פרישה באמצע משחק דוראק = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
                         const pl = clonePlayers(t.players);
@@ -7279,9 +7280,10 @@
                                         <div className={`relative flex flex-col items-center ${p.out || p.left ? 'opacity-45' : ''}`}>
                                             {ch.bubbles[p.uid] && <div className="chat-bubble">{ch.bubbles[p.uid]}</div>}
                                             {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g'+gi} className="gift-fx">{g.giftE}</div>)}
-                                            {isAtt && !p.out && <div className="action-badge badge-blind">⚔ תוקף</div>}
-                                            {isDef && !p.out && <div className="action-badge badge-fold">🛡 מגן</div>}
-                                            {p.out && <div className="action-badge badge-call">✓ סיים</div>}
+                                            {p.waiting && <div className="action-badge badge-call">⌛ ממתין</div>}
+                                            {isAtt && !p.out && !p.waiting && <div className="action-badge badge-blind">⚔ תוקף</div>}
+                                            {isDef && !p.out && !p.waiting && <div className="action-badge badge-fold">🛡 מגן</div>}
+                                            {p.out && !p.waiting && <div className="action-badge badge-call">✓ סיים</div>}
 
                                             {oppFan && !topSeat && (
                                                 <div className="flex mb-[-8px] z-0" dir="ltr">
@@ -7374,7 +7376,7 @@
 
                     {/* היד שלי + פעולות */}
                     <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-3 pt-2 pb-3 z-40 min-h-[135px] flex flex-col justify-end gap-2">
-                        {isSeated && T.status === 'playing' && !me.out && (
+                        {isSeated && T.status === 'playing' && !me.out && !me.waiting && (
                             <div className="flex justify-center" dir="ltr">
                                 {[...(me.cards || [])].sort((a, b) => ((a.suit === T.trumpSuit ? 100 : 0) + a.v) - ((b.suit === T.trumpSuit ? 100 : 0) + b.v)).map((c, ci) => {
                                     const clickable = canIDefend || canIAdd || canTransfer;
@@ -7389,7 +7391,7 @@
                             </div>
                         )}
                         <div className="flex justify-center items-center gap-2.5 min-h-[44px]">
-                            {T.status === 'playing' && !me?.out && isSeated ? (
+                            {T.status === 'playing' && !me?.out && isSeated && !me?.waiting ? (
                                 <React.Fragment>
                                     {blindPending && (
                                         <React.Fragment>
@@ -7424,9 +7426,13 @@
                                         : T.turnUid ? `ממתין ל${players[T.turnUid]?.name || '...'}` : ''}
                                     </span>
                                 </React.Fragment>
+                            ) : !isSeated && ['playing', 'showdown'].includes(T.status) && Object.keys(players).length < (setts.maxPlayers || 6) ? (
+                                <button onClick={handleJoin} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white px-8 py-3 rounded-xl font-black text-sm shadow-lg active:scale-95 transition-transform">
+                                    🪑 שב והמתן לסיבוב ({formatMoney(setts.buyIn)})
+                                </button>
                             ) : (
-                                <span className="text-[11px] font-bold text-slate-500">
-                                    {T.status === 'playing' && me?.out ? '✓ סיימת את הקלפים - ממתין לסוף המשחק' : T.status === 'setup' ? '' : ''}
+                                <span className="text-[11px] font-bold text-slate-400">
+                                    {me?.waiting ? '⌛ ממתין לסיבוב הבא — תצטרף אוטומטית' : T.status === 'playing' && me?.out ? '✓ סיימת את הקלפים - ממתין לסוף המשחק' : ''}
                                 </span>
                             )}
                         </div>
@@ -8444,7 +8450,7 @@
                         tr.update(ms.ref, { balance: round2((ms.data().balance || 0) - buyIn) }); // קונים סטאק - פעם אחת
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         let seatIndex = 0; while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, stack: buyIn, top: [], mid: [], bot: [], pending: [], flC: 0, flNext: 0, isBot: false, left: false } });
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, stack: buyIn, top: [], mid: [], bot: [], pending: [], flC: 0, flNext: 0, isBot: false, left: false, waiting: t.status === 'playing' } });
                         becameFull = Object.keys(t.players).length + 1 >= mx;
                     });
                     playSnd('chip');
@@ -8478,7 +8484,7 @@
                         const tbl = snap.data();
                         if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
                         const base = {};
-                        Object.entries(tbl.players).forEach(([k, v]) => { if ((v.stack || 0) > 0) base[k] = { ...v, top: [], mid: [], bot: [], pending: [], disc: [], flC: v.flNext || 0, flNext: 0, left: false }; });
+                        Object.entries(tbl.players).forEach(([k, v]) => { if ((v.stack || 0) > 0) base[k] = { ...v, top: [], mid: [], bot: [], pending: [], disc: [], flC: v.flNext || 0, flNext: 0, left: false, waiting: false }; });
                         const active = Object.values(base);
                         if (active.length < 2) throw "צריך לפחות 2 שחקנים עם צ'יפים בסטאק";
                         const deck = ofcDeck();
@@ -8563,7 +8569,7 @@
                         pl[uid].disc = [...(pl[uid].disc || []), ...dropped];
                         let deck = [...(tt.deck || [])];
                         let street = tt.street;
-                        const order = Object.values(pl).filter(q => !q.left && (q.stack || 0) > 0).sort((a, b) => a.seatIndex - b.seatIndex);
+                        const order = Object.values(pl).filter(q => !q.left && !q.waiting && (q.stack || 0) > 0).sort((a, b) => a.seatIndex - b.seatIndex);
                         const findNext = (st) => order.find(q => placedCount(q) < targetFor(q, st));
                         let nxt = order.filter(q => q.seatIndex > pl[uid].seatIndex).find(q => placedCount(q) < targetFor(q, street)) || null;
                         if (!nxt) {
@@ -8594,7 +8600,7 @@
                 try {
                     const t = tableRef.current; if (!t) return;
                     const pl = clonePl(t.players);
-                    const parts = Object.values(pl);
+                    const parts = Object.values(pl).filter(p => !p.waiting); // ממתינים לסיבוב הבא לא נכללים בניקוד היד הנוכחית
                     const boards = {};
                     parts.forEach(p => {
                         const full = placedCount(p) === 13 && !p.left;
@@ -8639,7 +8645,7 @@
                         // עדכון סטאקים: המשחקון עובר בין הערימות שעל השולחן
                         Object.keys(pl).forEach(u => {
                             pl[u].stack = round2((pl[u].stack || 0) - (pays[u] || 0) + (wins[u] || 0));
-                            pl[u].flNext = boards[u].flNext || 0;
+                            pl[u].flNext = (boards[u] && boards[u].flNext) || 0;
                             pl[u].pending = [];
                         });
                         for (const p of humans) {
@@ -8857,7 +8863,7 @@
                         )}
 
                         {/* הלוח שלי */}
-                        {isSeated && (
+                        {isSeated && !me.waiting && (
                             <div className={`mt-auto bg-slate-900/80 rounded-3xl p-3 border ${isMyTurn ? 'border-teal-400/60 shadow-[0_0_25px_rgba(45,212,191,0.15)]' : 'border-white/8'}`}>
                                 <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
                                     <span className="text-[11px] font-black text-white">{user.username}</span>
@@ -8897,6 +8903,20 @@
                                         </div>
                                     </React.Fragment>
                                 )}
+                            </div>
+                        )}
+
+                        {/* מצטרף באמצע - יושב וממתין לסיבוב הבא (כמו בפוקר) */}
+                        {isSeated && me.waiting && (
+                            <div className="mt-auto bg-slate-900/80 rounded-3xl p-4 border border-teal-500/30 text-center">
+                                <span className="text-teal-300 font-black text-sm">⌛ ממתין לסיבוב הבא — תיכנס אוטומטית עם הסטאק שלך</span>
+                            </div>
+                        )}
+                        {!isSeated && ['playing', 'showdown'].includes(T.status) && list.length < maxP && (
+                            <div className="mt-auto flex justify-center pb-1">
+                                <button onClick={handleJoin} className="bg-gradient-to-b from-teal-500 to-teal-700 hover:from-teal-400 text-white px-8 py-3 rounded-2xl font-black shadow-lg active:scale-95 transition-transform">
+                                    🪑 שב והמתן לסיבוב ({formatMoney(setts.buyIn)})
+                                </button>
                             </div>
                         )}
 
