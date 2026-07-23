@@ -532,6 +532,11 @@
     </script>
 </head>
 <body class="bg-slate-950 h-full w-full">
+<!-- Card suit gradients — defined ONCE (iOS Safari breaks on duplicate SVG gradient IDs) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="pcGRed" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#c31c20"/><stop offset="0.52" stop-color="#8f1114"/><stop offset="1" stop-color="#350709"/></linearGradient>
+  <linearGradient id="pcGBlk" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#6f6f6f"/><stop offset="0.5" stop-color="#2b2b2b"/><stop offset="1" stop-color="#0e0e0e"/></linearGradient>
+</defs></svg>
 <!-- ═══ ORIZIS INTRO · standalone module · copy this whole block into any product ═══ -->
 <div id="orizis-intro">
   <style>
@@ -605,20 +610,6 @@
             const fill = grad ? (isRed ? 'url(#pcGRed)' : 'url(#pcGBlk)') : (color || (dark ? SUIT_DARK_COL[s] : SUIT_LIGHT_COL[s]));
             return (
                 <svg viewBox="0 0 24 24" style={{ width: size || '1em', height: size || '1em', display: 'inline-block', verticalAlign: '-0.1em', flex: 'none', filter: grad ? 'drop-shadow(0 0.6px 0.7px rgba(0,0,0,0.28))' : 'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.15))' }}>
-                    {grad && (
-                        <defs>
-                            <linearGradient id="pcGRed" x1="0" y1="0" x2="0.3" y2="1">
-                                <stop offset="0" stopColor="#c31c20"/>
-                                <stop offset="0.52" stopColor="#8f1114"/>
-                                <stop offset="1" stopColor="#350709"/>
-                            </linearGradient>
-                            <linearGradient id="pcGBlk" x1="0" y1="0" x2="0.3" y2="1">
-                                <stop offset="0" stopColor="#6f6f6f"/>
-                                <stop offset="0.5" stopColor="#2b2b2b"/>
-                                <stop offset="1" stopColor="#0e0e0e"/>
-                            </linearGradient>
-                        </defs>
-                    )}
                     <path d={p} fill={fill} />
                 </svg>
             );
