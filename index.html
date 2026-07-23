@@ -2649,6 +2649,7 @@
             // 80% ראשון · 10% שני · מדורג · האחרון 1 ל-200 סיבובים
             const BONUS_W = [800, 100, 35, 25, 18, 12, 5, 5];
             const [bonusOpen, setBonusOpen] = useState(false);
+            const [giftOpen, setGiftOpen] = useState(false);
             // כרטיס גירוד שבועי
             const SCR_HOURS = 7 * 24;
             const [scrOpen, setScrOpen] = useState(false);
@@ -2793,10 +2794,7 @@
                                 </div>
                             </div>
                             {bonusEnabled && (
-                                <BonusButton emoji="🎫" label="גירוד שבועי" readyText="גרד! ✨" lastAt={user.lastScratchAt} hours={SCR_HOURS} onClick={() => { setScrOpen(true); setScr(null); }} />
-                            )}
-                            {bonusEnabled && (
-                                <BonusButton emoji="🎁" label="בונוס יומי" readyText="סובב! 🎰" lastAt={user.lastBonusAt} hours={22} onClick={() => { setBonusOpen(true); setBonusSpin(null); }} />
+                                <button onClick={() => setGiftOpen(true)} aria-label="בונוסים" className={`relative w-12 h-12 rounded-2xl border shadow-lg text-2xl flex items-center justify-center ${(scratchReady || bonusReady) ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-white border-amber-300 animate-pulse' : 'bg-slate-800/80 border-white/10 text-slate-300'}`}>🎁{(scratchReady || bonusReady) && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border border-slate-900">!</span>}</button>
                             )}
                             <div className="bg-gradient-to-l from-emerald-600/20 to-transparent border border-emerald-500/30 rounded-2xl px-5 py-3 text-left">
                                 <div className="text-[10px] text-emerald-300 font-bold uppercase tracking-widest">הארנק שלי</div>
@@ -2826,6 +2824,26 @@
                             ))}
                         </div>)}
 
+                        {giftOpen && bonusEnabled && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setGiftOpen(false)}>
+                                <div onClick={e => e.stopPropagation()} className="glass-panel rounded-3xl p-5 w-full max-w-xs animate-pop-in border border-amber-500/40">
+                                    <h3 className="text-lg font-black text-white mb-1 text-center">🎁 בונוסים</h3>
+                                    <p className="text-slate-400 text-[11px] font-bold mb-4 text-center">בחר איזה פרס לממש</p>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => { setGiftOpen(false); setScr(null); setScrOpen(true); }} className={`flex items-center gap-3 p-3 rounded-2xl border ${scratchReady ? 'bg-amber-500/15 border-amber-400/60' : 'bg-slate-800/60 border-white/10'}`}>
+                                            <span className="text-2xl">🎫</span>
+                                            <div className="flex-1 text-right"><div className="text-white font-black text-sm">כרטיס גירוד</div><div className={`text-[10px] font-bold ${scratchReady ? 'text-emerald-300' : 'text-slate-400'}`}>{scratchReady ? 'מוכן עכשיו ✨' : 'בהמתנה'}</div></div>
+                                            {scratchReady && <span className="text-emerald-400 text-lg">←</span>}
+                                        </button>
+                                        <button onClick={() => { setGiftOpen(false); setBonusSpin(null); setBonusOpen(true); }} className={`flex items-center gap-3 p-3 rounded-2xl border ${bonusReady ? 'bg-amber-500/15 border-amber-400/60' : 'bg-slate-800/60 border-white/10'}`}>
+                                            <span className="text-2xl">🎰</span>
+                                            <div className="flex-1 text-right"><div className="text-white font-black text-sm">גלגל יומי</div><div className={`text-[10px] font-bold ${bonusReady ? 'text-emerald-300' : 'text-slate-400'}`}>{bonusReady ? 'מוכן עכשיו 🎰' : 'בהמתנה'}</div></div>
+                                            {bonusReady && <span className="text-emerald-400 text-lg">←</span>}
+                                        </button>
+                                    </div>
+                                    <button onClick={() => setGiftOpen(false)} className="w-full mt-3 text-slate-400 hover:text-white text-xs font-bold">סגור</button>
+                                </div>
+                            </div>, document.body)}
                         {scrOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!scr || scr.revealed) && setScrOpen(false)}>
                                 <div onClick={e=>e.stopPropagation()} className="rounded-3xl p-[3px] max-w-sm w-full shadow-2xl" style={{ background: 'linear-gradient(135deg, #f5e7b8, #b8912f 30%, #f7edc9 50%, #a07d24 70%, #eadaa4)' }}>
