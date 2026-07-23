@@ -732,9 +732,8 @@
                 }
                 const t = window.Tone.now();
                 switch(type) {
-                    case 'deal': // רשרוש נייר עדין בחלוקה, בלי מלודיה
-                        SND.nz.triggerAttackRelease('8n', t);
-                        SND.nz.triggerAttackRelease('16n', t + 0.13);
+                    case 'deal': // חלוקת אריחי שנהב — כמה נקישות רכות
+                        [0, 0.08, 0.16, 0.24].forEach((d) => { SND.m.triggerAttackRelease('C3', '32n', t + d, 0.5); SND.bell.triggerAttackRelease('C6', '64n', t + d + 0.004, 0.18); });
                         break;
                     case 'chip': // צ'יפ מונח ברכות
                         SND.m.triggerAttackRelease('A2', '16n', t);
@@ -760,8 +759,19 @@
                     case 'msg': // בליפ רך
                         SND.bell.triggerAttackRelease('G4', '32n', t);
                         break;
-                    case 'tile': // נקישת הנחה רכה
-                        SND.m.triggerAttackRelease('G2', '32n', t);
+                    case 'tile': // אריח שנהב מונח על השולחן — נקישה חדה, בהירה ומספקת
+                        SND.m.triggerAttackRelease('C3', '32n', t, 0.95);
+                        SND.bell.triggerAttackRelease('C6', '32n', t + 0.004, 0.4);
+                        SND.nz.triggerAttackRelease('32n', t, 0.3);
+                        break;
+                    case 'draw': // שליפת אריח מהבריכה — החלקה קצרה ונחיתה
+                        SND.nz.triggerAttackRelease('16n', t, 0.4);
+                        SND.m.triggerAttackRelease('A2', '32n', t + 0.07, 0.75);
+                        SND.bell.triggerAttackRelease('A5', '64n', t + 0.075, 0.22);
+                        break;
+                    case 'meld': // רצף/קבוצה חוקית הושלמה — אישור נעים
+                        SND.bell.triggerAttackRelease('E5', '16n', t, 0.5);
+                        SND.bell.triggerAttackRelease('B5', '8n', t + 0.1, 0.4);
                         break;
                     case 'dice': // גלגול רך
                         [['C2', 0], ['E2', 0.06], ['G2', 0.12], ['C3', 0.18]].forEach(([n, d]) => SND.m.triggerAttackRelease(n, '32n', t + d));
@@ -4567,6 +4577,7 @@
             /* ---------- משיכה מהקופה ---------- */
             const handleDraw = async (isTimeout = false) => {
                 if (tableState?.currentTurn !== user.uid || tableState.phase !== 'playing') return;
+                if (!isTimeout) playSnd('draw');
                 const snapRack = [...startTurnRack];
                 const snapBoard = startTurnBoard;
                 try {
