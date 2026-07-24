@@ -5331,6 +5331,16 @@
             };
 
             const finishEarlyWin = async (g, pl, winnerUid) => {
+                // מחזירים למנצח את חלק ההימור שלא נענה לפני בניית הקופה, כדי שלא ייגבה
+                // רייק על צ'יפים שאיש לא השווה (אול-אין שפרשו מולו). לא-נענה = ההימור של
+                // המנצח פחות ההימור הגבוה ביותר של שחקן אחר.
+                const w = pl[winnerUid];
+                if (w) {
+                    let maxOther = 0;
+                    Object.values(pl).forEach(q => { if (q.uid !== winnerUid && (q.bet || 0) > maxOther) maxOther = q.bet || 0; });
+                    const uncalled = round2(Math.max(0, (w.bet || 0) - maxOther));
+                    if (uncalled > 0) { w.stack = round2(w.stack + uncalled); w.bet = round2((w.bet || 0) - uncalled); }
+                }
                 gatherBetsToPots(g, pl);
                 const pot = round2((g.pots || []).reduce((s, p) => s + p.amount, 0));
                 const rakeFrac = (Number(setts.rakePercent) || 0) / 100;
@@ -5376,8 +5386,9 @@
                     let bestS = -1; let winners = [];
                     elig.forEach(uid => { const sc = scores[uid] || 0; if (sc > bestS) { bestS = sc; winners = [uid]; } else if (sc === bestS) winners.push(uid); });
                     let amount = pot.amount;
-                    // רייק על כל הקופה שנצברה — כולל כל צד-פוט, לא רק הקופה הראשית
-                    { const r = round2(amount * rakeFrac); rakeTotal = round2(rakeTotal + r); amount = round2(amount - r); }
+                    // רייק על כל פוט מתמודד (2+ זכאים) — כולל צד-פוטים אמיתיים — אך לעולם
+                    // לא על פוט עם זכאי יחיד, שהוא הימור שלא נענה וחוזר לשחקן בלי רייק
+                    if (elig.length >= 2) { const r = round2(amount * rakeFrac); rakeTotal = round2(rakeTotal + r); amount = round2(amount - r); }
                     const share = Math.floor((amount / winners.length) * 100) / 100;
                     winTotal = round2(winTotal + share * winners.length);
                     winners.forEach(uid => { pl[uid].stack = round2(pl[uid].stack + share); pl[uid].actionText = 'WINNER'; winnerNames.add(pl[uid].name); });
