@@ -7309,26 +7309,17 @@
                             })}
                         </div>
 
-                        {/* המתנה לשחקנים */}
+                        {/* המתנה לשחקנים — באנר לא-חוסם, כמו בפוקר: יושבים בתוך השולחן */}
                         {T.status === 'setup' && (
-                            <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm text-center animate-pop-in border border-blue-500/40">
-                                    <i className="fa-solid fa-chess-king text-4xl text-blue-400 mb-2"></i>
-                                    <h3 className="text-xl font-black text-white mb-1">ממתין לשחקנים...</h3>
-                                    <p className="text-slate-400 text-xs font-bold mb-4" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {Object.keys(players).length}/{setts.maxPlayers || 6}</p>
-                                    <div className="flex justify-center gap-3 mb-5 flex-wrap">
-                                        {list.map(p => (
-                                            <div key={p.uid} className="flex flex-col items-center">
-                                                <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-blue-500'}`} />
-                                                <span className="text-[10px] text-white font-bold mt-1 max-w-[60px] truncate">{p.name}</span>
-                                            </div>
-                                        ))}
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[70] w-[94%] max-w-sm pointer-events-none">
+                                <div className="glass-panel rounded-2xl px-4 py-3 text-center border border-blue-500/40 backdrop-blur pointer-events-auto">
+                                    <div className="text-sm font-black text-white">ממתין לשחקנים... <span className="text-blue-300" dir="ltr">{Object.keys(players).length}/{setts.maxPlayers || 6}</span></div>
+                                    <div className="text-[10px] text-slate-400 font-bold mb-2.5" dir="ltr">Buy-in {formatMoney(setts.buyIn)}</div>
+                                    <div className="flex gap-2 justify-center">
+                                        {!isSeated && <button onClick={handleJoin} className="flex-1 bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg">הצטרף ({formatMoney(setts.buyIn)})</button>}
+                                        {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-2.5 rounded-xl font-black text-sm shadow-lg"><i className="fa-solid fa-play ml-1"></i>התחל</button>}
+                                        <button onClick={onLeave} className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-sm font-bold border border-white/10">ללובי</button>
                                     </div>
-                                    {!isSeated && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
-                                    {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && (
-                                        <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>
-                                    )}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
