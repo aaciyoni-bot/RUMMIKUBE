@@ -898,6 +898,16 @@
             } catch(err) {}
         };
 
+        // מספר שולחן ידידותי ויציב הנגזר ממזהה השולחן (אותו שולחן = אותו מספר תמיד)
+        const tableCode = (tid) => {
+            if (!tid) return '—';
+            const s = String(tid);
+            if (s.startsWith('tournament:')) return 'טורניר';
+            let h = 0;
+            for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+            return '#' + (h % 1000000).toString().padStart(6, '0');
+        };
+
         // ייצוא CSV (עם BOM לעברית תקינה באקסל)
         const downloadCSV = (rows, filename) => {
             const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -2056,6 +2066,23 @@
                                     <span className="text-amber-300 font-black text-xs">כל הזמנים</span>
                                     <span className="text-[11px] text-slate-400 font-bold">{lifetime.gamesPlayed || 0} משחקים · {lifetime.gamesWon || 0} ניצחונות · <span className={`${(lifetime.totalProfit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-black`} dir="ltr">{(lifetime.totalProfit || 0) > 0 ? '+' : ''}{formatMoney(lifetime.totalProfit || 0)}</span></span>
                                 </div>
+                                {/* פירוט מלא: כל משחק, מספר השולחן שבו שיחק, ותוצאה */}
+                                <div className="bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                    <div className="text-slate-300 font-black text-xs mb-2">פירוט משחקים ({(log || []).length}) · שולחן ותוצאה</div>
+                                    <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                                        {[...(log || [])].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 300).map((e, i) => (
+                                            <div key={i} className="flex items-center justify-between text-[11px] bg-slate-900/50 rounded-lg px-2.5 py-1.5 border border-white/5">
+                                                <span className="text-slate-400 font-bold">
+                                                    <span className="text-slate-500 ml-1.5">{new Date(e.at).toLocaleDateString('he-IL')} {new Date(e.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    {GAME_HEB[e.game] || e.game}
+                                                    <span className="text-cyan-400/80 font-mono font-black mr-1.5" dir="ltr">{tableCode(e.tableId)}</span>
+                                                </span>
+                                                <span className={`font-black ${(e.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(e.profit || 0) >= 0 ? '+' : ''}{formatMoney(e.profit)}</span>
+                                            </div>
+                                        ))}
+                                        {(log || []).length === 0 && <div className="text-slate-500 text-[11px] font-bold py-2">אין משחקים עדיין.</div>}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -2446,12 +2473,12 @@
             });
 
             const exportMyCSV = () => {
-                const rows = [['תאריך', 'שעה', 'משחק', 'רווח/הפסד']];
+                const rows = [['תאריך', 'שעה', 'משחק', 'שולחן', 'רווח/הפסד']];
                 filtered.forEach(l => {
                     const d = new Date(l.at);
-                    rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), GAME_LABEL(l.game), l.profit]);
+                    rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), GAME_LABEL(l.game), tableCode(l.tableId), l.profit]);
                 });
-                rows.push([]); rows.push(['סה"כ', '', filtered.length + ' משחקים', round2(filtered.reduce((s, l) => s + (l.profit || 0), 0))]);
+                rows.push([]); rows.push(['סה"כ', '', filtered.length + ' משחקים', '', round2(filtered.reduce((s, l) => s + (l.profit || 0), 0))]);
                 downloadCSV(rows, `my-report-${new Date().toISOString().slice(0,10)}.csv`);
             };
 
@@ -2582,6 +2609,7 @@
                                                 <span className="font-bold text-slate-300">
                                                     <span className="text-slate-500 text-xs ml-2">{new Date(l.at).toLocaleDateString('he-IL')} {new Date(l.at).toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}</span>
                                                     {GAME_LABEL(l.game)}
+                                                    <span className="text-cyan-400/80 text-[11px] font-mono font-black mr-2" dir="ltr">{tableCode(l.tableId)}</span>
                                                 </span>
                                                 <span className={`font-black ${(l.profit||0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(l.profit||0) >= 0 ? '+' : ''}{formatMoney(l.profit)}</span>
                                             </div>
