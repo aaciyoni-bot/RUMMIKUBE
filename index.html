@@ -7709,9 +7709,23 @@
             const synthRef = useRef(null);
 
             const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
+            const isGod = isGodUser(user);
             const tblRef = () => window.fb.doc(window.fb.db, "tables", tableDocId);
             const toastErr = (m) => showToast(m, 'error');
             const save = async (data) => { try { await window.fb.updateDoc(tblRef(), data); } catch(e) {} };
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown)
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return toastErr("אפשר להעיף רק בין משחקים");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { toastErr("שגיאה בהעפה"); }
+            };
 
             const T = tableState || {};
             const setts = T.settings || {};
@@ -8181,7 +8195,10 @@
                                     <p className="text-slate-400 text-xs font-bold mb-4" dir="ltr">Buy-in: {formatMoney(setts.buyIn)} · {Object.keys(players).length}/2</p>
                                     <div className="flex justify-center gap-4 mb-5">
                                         {list.map(p => (
-                                            <div key={p.uid} className="flex flex-col items-center">
+                                            <div key={p.uid} className="flex flex-col items-center relative">
+                                                {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                    <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                                )}
                                                 <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-amber-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[70px] truncate">{p.name}</span>
                                             </div>
@@ -9032,7 +9049,7 @@
             const effSuit = T.curSuit || (top ? top.suit : null);
 
             const nextUid = (fromUid, pl, dir, skip) => {
-                const arr = Object.values(pl).filter(p => !p.left).sort((a, b) => (a.seatIndex || 0) - (b.seatIndex || 0));
+                const arr = Object.values(pl).filter(p => !p.left && !p.waiting).sort((a, b) => (a.seatIndex || 0) - (b.seatIndex || 0));
                 if (!arr.length) return null;
                 let i = arr.findIndex(p => p.uid === fromUid);
                 if (i === -1) i = 0;
@@ -9062,7 +9079,9 @@
                         if (!ms.exists() || (ms.data().balance || 0) < (Number(t.settings.buyIn) || 0)) throw "אין מספיק צ'יפים";
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         let seatIndex = 0; while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, left: false } });
+                        // מצטרפים באמצע משחק - יושבים בשולחן וממתינים למשחק הבא (כמו בפוקר)
+                        const waiting = (t.status === 'playing');
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, left: false, waiting } });
                         becameFull = Object.keys(t.players).length + 1 >= mx;
                     });
                     playSnd('chip');
@@ -9097,7 +9116,7 @@
                         if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
                         const buyIn = Number(tbl.settings.buyIn) || 0;
                         const base = {};
-                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], left: false, twist: false });
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], left: false, twist: false, waiting: false });
                         const humans = Object.keys(base).filter(u => !base[u].isBot);
                         const reads = {};
                         for (const u of humans) {
@@ -9122,15 +9141,29 @@
                     spawnTwinTable(t); // המשחק התחיל - השולחן יצא מרשימת ההמתנה, נפתח תאום חדש (עם dedup)
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
             };
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown)
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return showToast("אפשר להעיף רק בין משחקים", "error");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { showToast("שגיאה בהעפה", "error"); }
+            };
+
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (t.status === 'playing') {
+                if (t.status === 'playing' && !t.players[user.uid].waiting) {
                     if (!window.confirm("⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
                         const pl = clonePl(t.players);
                         pl[user.uid].left = true; pl[user.uid].cards = [];
-                        const remain = Object.values(pl).filter(p => !p.left);
+                        const remain = Object.values(pl).filter(p => !p.left && !p.waiting);
                         if (remain.length <= 1) {
                             if (remain.length === 1) { await window.fb.updateDoc(tblRef(), { players: pl }); await settleTwist(remain[0].uid, true); }
                             else await window.fb.deleteDoc(tblRef());
@@ -9232,7 +9265,7 @@
                     const logEntries = [];
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const reads = {};
-                        for (const p of Object.values(pl)) { if (!p.isBot) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
+                        for (const p of Object.values(pl)) { if (!p.isBot && !p.waiting) { const sm = await tr.get(memDoc(p.uid)); if (sm.exists()) reads[p.uid] = sm; } }
                         for (const p of Object.values(pl)) {
                             const sm = reads[p.uid]; if (!sm) continue;
                             const won = p.uid === winnerUid;
@@ -9255,7 +9288,7 @@
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
-                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot).map(p => p.uid));
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.waiting).map(p => p.uid));
                 } catch(e) {} finally { settlingRef.current = false; }
             };
 
@@ -9351,10 +9384,13 @@
                                     <img src={avatarUrl(p)} className="w-9 h-9 rounded-full bg-slate-800 shrink-0" />
                                     <div className="min-w-0">
                                         <div className="text-[11px] font-black text-white truncate max-w-[70px]">{p.name}</div>
-                                        <div className="text-[9px] text-slate-400 font-bold">{(p.cards || []).length} קלפים {p.twist && !p.left && <span className="text-orange-300 font-black animate-pulse">· טוויסט!</span>}</div>
+                                        <div className="text-[9px] text-slate-400 font-bold">{p.waiting ? <span className="text-cyan-300 font-black">⌛ ממתין</span> : <React.Fragment>{(p.cards || []).length} קלפים {p.twist && !p.left && <span className="text-orange-300 font-black animate-pulse">· טוויסט!</span>}</React.Fragment>}</div>
                                     </div>
                                     {T.turnUid === p.uid && T.status === 'playing' && <span className="text-amber-300 font-mono font-black text-xs">{timeLeft}</span>}
                                     {godView && <div className="absolute -bottom-9 right-0 flex" dir="ltr">{(p.cards || []).slice(0, 10).map(c => <div key={c.id} className="-ml-4 first:ml-0"><TCard c={c} small /></div>)}</div>}
+                                    {(isSuperAdmin || isGod) && ['setup', 'showdown'].includes(T.status) && (
+                                        <button onClick={(e) => { e.stopPropagation(); kickPlayer(p.uid); }} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -9396,7 +9432,10 @@
                                     <p className="text-[10px] text-slate-500 font-bold mb-4">2 = קח שתיים (משורשר) · 8 = עצור · נסיך מחליף צבע · אס הופך כיוון · אסור לסיים בנסיך</p>
                                     <div className="flex justify-center gap-3 mb-5 flex-wrap">
                                         {list.map(p => (
-                                            <div key={p.uid} className="flex flex-col items-center">
+                                            <div key={p.uid} className="flex flex-col items-center relative">
+                                                {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                    <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                                )}
                                                 <img src={avatarUrl(p)} className={`w-11 h-11 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-orange-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[64px] truncate">{p.name}</span>
                                             </div>
@@ -9445,7 +9484,13 @@
 
                     {/* היד שלי */}
                     <div className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-white/5 px-2 py-2 z-40">
-                        {isSeated && T.status === 'playing' && (
+                        {isSeated && me && me.waiting && T.status === 'playing' && (
+                            <div className="text-center py-3"><span className="text-cyan-300 font-black text-sm">⌛ ממתין למשחק הבא — תצורף אוטומטית</span></div>
+                        )}
+                        {!isSeated && T.status === 'playing' && list.length < maxP && (
+                            <div className="text-center pb-2"><button onClick={handleJoin} className="bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 text-white px-6 py-2.5 rounded-2xl font-black text-sm shadow-lg">🪑 שב והמתן למשחק ({formatMoney(setts.buyIn)})</button></div>
+                        )}
+                        {isSeated && me && !me.waiting && T.status === 'playing' && (
                             <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
                                 {isMyTurn ? (
                                     <React.Fragment>
@@ -9598,6 +9643,19 @@
             const isSuperAdmin = user.role === ROLES.SUPER_ADMIN;
             const isGod = isGodUser(user);
             const isMyTurn = T.status === 'playing' && T.turnUid === user.uid;
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown)
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return showToast("אפשר להעיף רק בין משחקים", "error");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { showToast("שגיאה בהעפה", "error"); }
+            };
             const ch = useTableChat(tableState, tableDocId, user, 'gin', showToast);
             useEffect(() => { setResHide(false); }, [tableState && tableState.status]);
             const stayLeft = useShowdownSweep(tableState, () => tblRef(), 2, null);
@@ -9830,7 +9888,7 @@
                     if (winner && winner.isBot && net > 0) creditRakeToClub(net, CLUB_ID);
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
-                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot).map(p => p.uid));
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.waiting).map(p => p.uid));
                 } catch(e) {} finally { settlingRef.current = false; }
             };
 
@@ -9962,7 +10020,10 @@
                                     <p className="text-[10px] text-slate-500 font-bold mb-4">מלדים: שלשות/רביעיות או רצפים · Knock עד 10 עודף · ג'ין = בונוס 25 · אנדרקאט = 25 למגן</p>
                                     <div className="flex justify-center gap-4 mb-5">
                                         {list.map(p => (
-                                            <div key={p.uid} className="flex flex-col items-center">
+                                            <div key={p.uid} className="flex flex-col items-center relative">
+                                                {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                    <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                                )}
                                                 <img src={avatarUrl(p)} className={`w-12 h-12 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-lime-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[70px] truncate">{p.name}</span>
                                             </div>
@@ -10085,6 +10146,19 @@
             const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(''), 3500); };
             const clonePl = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v }); return o; };
             const cloneHands = (h) => { const o = {}; [0, 1, 2, 3].forEach(i => o[i] = [...((h || {})[i] || [])]); return o; };
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown)
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return showToast("אפשר להעיף רק בין משחקים", "error");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { showToast("שגיאה בהעפה", "error"); }
+            };
 
             useEffect(() => {
                 if (!tableDocId) { showToast("השולחן לא נמצא", "error"); onLeave(); return; }
@@ -10516,7 +10590,10 @@
                                     <p className="text-[10px] text-slate-500 font-bold mb-4">צפון+דרום נגד מזרח+מערב · הצמד המנצח מתחלק בקופה</p>
                                     <div className="flex justify-center gap-3 mb-5 flex-wrap">
                                         {list.map(p => (
-                                            <div key={p.uid} className="flex flex-col items-center">
+                                            <div key={p.uid} className="flex flex-col items-center relative">
+                                                {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                    <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                                )}
                                                 <img src={avatarUrl(p)} className={`w-11 h-11 rounded-xl bg-slate-800 border-2 ${p.isBot ? 'border-purple-500' : 'border-indigo-500'}`} />
                                                 <span className="text-[10px] text-white font-bold mt-1 max-w-[64px] truncate">{p.name}</span>
                                                 <span className="text-[9px] text-slate-500 font-bold">{BR_SEATS[p.seat]}</span>
@@ -10704,7 +10781,7 @@
             const mySum = ynvSum(me?.cards);
             const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(""), 3500); };
             const clonePl = (pl) => { const o = {}; Object.entries(pl || {}).forEach(([k, v]) => o[k] = { ...v, cards: [...(v.cards || [])] }); return o; };
-            const actives = (pl) => Object.values(pl).filter(p => !p.out && !p.left).sort((a, b) => a.seatIndex - b.seatIndex);
+            const actives = (pl) => Object.values(pl).filter(p => !p.out && !p.left && !p.waiting).sort((a, b) => a.seatIndex - b.seatIndex);
             const nextActive = (fromUid, pl) => {
                 const all = actives(pl);
                 if (!all.length) return null;
@@ -10720,7 +10797,6 @@
                         const [uSnap, tSnap] = [await tr.get(memDoc(user.uid)), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
-                        if (t.status !== 'setup') throw "המשחק כבר התחיל";
                         if (t.players[user.uid]) throw "אתה כבר בשולחן";
                         const max = Number(t.settings.maxPlayers) || 4;
                         if (Object.keys(t.players).length >= max) throw "השולחן מלא";
@@ -10728,7 +10804,9 @@
                         let seatIndex = 0;
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], score: 0, isBot: false, out: false, left: false } });
+                        // מצטרפים באמצע משחק - יושבים בשולחן וממתינים למשחק הבא (כמו בפוקר)
+                        const waiting = (t.status === 'playing' || t.status === 'round_end');
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], score: 0, isBot: false, out: false, left: false, waiting } });
                         if (Object.keys(t.players).length + 1 >= max) becameFull = true;
                     });
                     if (becameFull) spawnTwinTable(tableRef.current);
@@ -10793,7 +10871,7 @@
                         const buyIn = Number(tbl.settings.buyIn) || 0;
                         const max = Number(tbl.settings.maxPlayers) || 4;
                         const base = {};
-                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], score: 0, out: false, left: false });
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], score: 0, out: false, left: false, waiting: false });
                         // שיבוץ ממתינים: מי שאין לו יתרה יורד מהרשימה
                         let wl = [...(tbl.waitlist || [])];
                         const stillWaiting = [];
@@ -10979,7 +11057,7 @@
                 settlingRef.current = true;
                 try {
                     const t = tableRef.current; if (!t) return;
-                    const standings = Object.values(pl).filter(p => !p.left).sort((a, b) => (a.score || 0) - (b.score || 0));
+                    const standings = Object.values(pl).filter(p => !p.left && !p.waiting).sort((a, b) => (a.score || 0) - (b.score || 0));
                     if (t.tournamentId) {
                         await window.fb.updateDoc(tblRef(), {
                             status: 'showdown', showdownAt: Date.now(), pot: 0, turnUid: null, players: pl,
@@ -10995,7 +11073,7 @@
                     const logEntries = [];
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const reads = {};
-                        for (const p of Object.values(pl)) { if (!p.isBot && !p.left) { const s = await tr.get(memDoc(p.uid)); if (s.exists()) reads[p.uid] = s; } }
+                        for (const p of Object.values(pl)) { if (!p.isBot && !p.left && !p.waiting) { const s = await tr.get(memDoc(p.uid)); if (s.exists()) reads[p.uid] = s; } }
                         for (const p of Object.values(pl)) {
                             const s = reads[p.uid]; if (!s) continue;
                             const st = s.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
@@ -11016,8 +11094,22 @@
                     });
                     playSnd('win');
                     if (logEntries.length) logGameResult(logEntries, tableDocId);
-                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.left).map(p => p.uid));
+                    distributeRake(rake, Object.values(pl).filter(p => !p.isBot && !p.left && !p.waiting).map(p => p.uid));
                 } catch(e) {} finally { settlingRef.current = false; }
+            };
+
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown), אין צ'יפים על הכף לפני החלוקה
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return showToast("אפשר להעיף רק בין משחקים", "error");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { showToast("שגיאה בהעפה", "error"); }
             };
 
             /* ---------- מהלך אוטומטי ובוטים ---------- */
@@ -11089,7 +11181,7 @@
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
-                if (['playing', 'round_end'].includes(t.status) && !t.players[user.uid].out) {
+                if (['playing', 'round_end'].includes(t.status) && !t.players[user.uid].out && !t.players[user.uid].waiting) {
                     if (!window.confirm(t.tournamentId ? "⚠️ עזיבה = פרישה מהטורניר. בטוח?" : "⚠️ פרישה באמצע = ויתור על דמי הכניסה. בטוח?")) return;
                     try {
                         const pl = clonePl(t.players);
@@ -11183,9 +11275,13 @@
                                     {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g' + gi} className="gift-fx">{g.giftE}</div>)}
                                     <img src={avatarUrl(p)} className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-800 border-2 ${isTurn ? 'border-emerald-400' : 'border-slate-700'}`} />
                                     <span className="text-[10px] font-bold text-white mt-1 max-w-[76px] truncate">{p.name}</span>
-                                    {p.left ? <span className="text-[9px] text-rose-400 font-black">פרש</span>
+                                    {p.waiting ? <span className="text-[9px] text-cyan-300 font-black">⌛ ממתין</span>
+                                    : p.left ? <span className="text-[9px] text-rose-400 font-black">פרש</span>
                                     : p.out ? <span className="text-[9px] text-rose-400 font-black">הודח 💀</span>
                                     : <span className="text-[9px] text-slate-400 font-bold">🂠 {(p.cards || []).length} · <span className="text-rose-300">{p.score || 0} נק'</span></span>}
+                                    {(isSuperAdmin || isGod) && ['setup', 'showdown'].includes(T.status) && (
+                                        <button onClick={(e) => { e.stopPropagation(); kickPlayer(p.uid); }} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -11217,8 +11313,14 @@
                         {T.pendingThrow && <div className="mt-2 text-[10px] text-slate-500 font-bold">הזריקה שלך על השולחן - עכשיו משוך קלף</div>}
                     </div>
 
+                    {/* שחקן שהצטרף באמצע - יושב וממתין למשחק הבא */}
+                    {isSeated && me.waiting && ['playing', 'round_end'].includes(T.status) && (
+                        <div className="shrink-0 z-30 bg-slate-900/90 border-t border-cyan-500/40 py-3 text-center">
+                            <span className="text-cyan-300 font-black text-sm">⌛ ממתין למשחק הבא — תצורף אוטומטית</span>
+                        </div>
+                    )}
                     {/* פעולות + היד שלי */}
-                    {isSeated && isPlaying && !me.out && !me.left && (
+                    {isSeated && isPlaying && !me.out && !me.left && !me.waiting && (
                         <div className="shrink-0 z-30">
                             <div className="flex items-center justify-center gap-2 pb-1.5 px-2 flex-wrap">
                                 <div className={`px-3 py-1 rounded-full font-black font-mono text-sm border-2 bg-slate-950/95 ${isMyTurn ? (timeLeft <= 8 ? 'text-rose-400 border-rose-500 animate-pulse' : 'text-white border-emerald-500') : 'text-slate-500 border-slate-700'}`}>{timeLeft.toString().padStart(2, '0')}</div>
@@ -11258,7 +11360,9 @@
                     {!isSeated && T.status !== 'setup' && (
                         <div className="shrink-0 z-30 bg-slate-900/90 border-t border-white/10 py-3 px-3 flex items-center justify-center gap-3 flex-wrap">
                             <span className="text-slate-400 text-xs font-bold">👁️ מצב צפייה</span>
-                            {(T.waitlist || []).find(w => w.uid === user.uid)
+                            {Object.keys(players).length < (Number(setts.maxPlayers) || 4)
+                                ? <button onClick={handleJoin} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg">🪑 שב והמתן לסיבוב ({formatMoney(setts.buyIn)})</button>
+                                : (T.waitlist || []).find(w => w.uid === user.uid)
                                 ? <button onClick={leaveWaitlist} className="bg-slate-800 hover:bg-slate-700 text-amber-300 px-5 py-2 rounded-xl font-bold text-xs border border-amber-500/40">⏳ אתה {(T.waitlist || []).findIndex(w => w.uid === user.uid) + 1} בתור · צא מהרשימה</button>
                                 : <button onClick={joinWaitlist} className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg">🪑 הצטרף לרשימת ההמתנה ({(T.waitlist || []).length})</button>}
                         </div>
@@ -11273,7 +11377,10 @@
                                 <p className="text-slate-400 text-xs font-bold mb-5" dir="ltr">Buy-in {formatMoney(setts.buyIn)} · המנצח לוקח הכל · עד {setts.maxPlayers} שחקנים</p>
                                 <div className="flex justify-center gap-3 mb-6 flex-wrap">
                                     {Object.values(players).sort((a, b) => a.seatIndex - b.seatIndex).map(p => (
-                                        <div key={p.uid} className="flex flex-col items-center">
+                                        <div key={p.uid} className="flex flex-col items-center relative">
+                                            {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                            )}
                                             <img src={avatarUrl(p)} className="w-14 h-14 rounded-full bg-slate-800 border border-white/10 mb-1" />
                                             <span className="text-white font-bold text-xs">{p.name}</span>
                                         </div>
@@ -11388,8 +11495,9 @@
         // חלוקת כל החפיסה לפי מושבים + מיון עולה
         const presDealAll = (players) => {
             const d = presDeck();
-            const order = Object.values(players).sort((a, b) => a.seatIndex - b.seatIndex).map(p => p.uid);
-            const np = {}; order.forEach(uid => np[uid] = { ...players[uid], cards: [], passed: false, rank: null, left: false });
+            // רק שחקנים שאינם 'ממתינים' מקבלים קלפים; ממתינים נשארים בשולחן עם 0 קלפים עד המשחק הבא
+            const order = Object.values(players).filter(p => !p.waiting).sort((a, b) => a.seatIndex - b.seatIndex).map(p => p.uid);
+            const np = {}; Object.keys(players).forEach(uid => np[uid] = { ...players[uid], cards: [], passed: false, rank: null, left: false });
             let i = 0;
             while (d.length > 0) { np[order[i % order.length]].cards.push(d.pop()); i++; }
             order.forEach(uid => np[uid].cards.sort((a, b) => a.v - b.v));
@@ -11438,9 +11546,9 @@
             const turnTime = Number(setts.turnTime) || PRES_TIME;
             const flashErr = (m) => { setErrMsg(m); setTimeout(() => setErrMsg(""), 3500); };
 
-            const activeWithCards = (pl) => Object.values(pl).filter(p => !p.left && (p.cards || []).length > 0).sort((a, b) => a.seatIndex - b.seatIndex);
+            const activeWithCards = (pl) => Object.values(pl).filter(p => !p.left && !p.waiting && (p.cards || []).length > 0).sort((a, b) => a.seatIndex - b.seatIndex);
             const nextActive = (fromUid, pl, skipPassed = true) => {
-                const all = Object.values(pl).filter(p => !p.left).sort((a, b) => a.seatIndex - b.seatIndex);
+                const all = Object.values(pl).filter(p => !p.left && !p.waiting).sort((a, b) => a.seatIndex - b.seatIndex);
                 const idx = Math.max(0, all.findIndex(p => p.uid === fromUid));
                 for (let k = 1; k <= all.length; k++) {
                     const c = all[(idx + k) % all.length];
@@ -11458,7 +11566,6 @@
                         const [uSnap, tSnap] = [await tr.get(memDoc(user.uid)), await tr.get(tblRef())];
                         if (!tSnap.exists()) throw "השולחן לא קיים";
                         const t = tSnap.data();
-                        if (t.status !== 'setup') throw "המשחק כבר התחיל";
                         if (t.players[user.uid]) throw "אתה כבר בשולחן";
                         const max = Number(t.settings.maxPlayers) || 4;
                         if (Object.keys(t.players).length >= max) throw "השולחן מלא";
@@ -11466,7 +11573,9 @@
                         let seatIndex = 0;
                         const taken = new Set(Object.values(t.players).map(p => p.seatIndex));
                         while (taken.has(seatIndex)) seatIndex++;
-                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, passed: false, rank: null, left: false } });
+                        // מצטרפים באמצע משחק - יושבים בשולחן וממתינים למשחק הבא (כמו בפוקר)
+                        const waiting = (t.status === 'playing');
+                        tr.update(tblRef(), { [`players.${user.uid}`]: { uid: user.uid, name: user.username, photo: user.photo || '', avatarSeed: user.avatarSeed || '', seatIndex, cards: [], isBot: false, passed: false, rank: null, left: false, waiting } });
                         if (Object.keys(t.players).length + 1 >= max) becameFull = true;
                     });
                     if (becameFull) spawnTwinTable(tableRef.current);
@@ -11498,7 +11607,7 @@
                         if (!['setup', 'showdown'].includes(tbl.status)) throw "המשחק כבר רץ";
                         const buyIn = Number(tbl.settings.buyIn) || 0;
                         const base = {};
-                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [] });
+                        Object.entries(tbl.players).forEach(([k, v]) => base[k] = { ...v, cards: [], waiting: false });
                         const uids = Object.keys(base);
                         const uSnaps = {};
                         for (const uid of uids) {
@@ -11695,6 +11804,20 @@
             };
 
             /* ---------- עזיבה ---------- */
+            // אדמין מעיף שחקן מהשולחן — רק בין משחקים (setup/showdown)
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return showToast("אפשר להעיף רק בין משחקים", "error");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { showToast("שגיאה בהעפה", "error"); }
+            };
+
             const handleLeave = async () => {
                 const t = tableRef.current;
                 if (!t || !t.players[user.uid]) { onLeave(); return; }
@@ -11821,10 +11944,14 @@
                                     {ch.gifts.filter(g => g.to === p.uid).map((g, gi) => <div key={'g' + gi} className="gift-fx">{g.giftE}</div>)}
                                     <img src={avatarUrl(p)} className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-800 border-2 ${isTurn ? 'border-purple-400' : 'border-slate-700'}`} />
                                     <span className="text-[10px] font-bold text-white mt-1 max-w-[76px] truncate">{p.name}</span>
-                                    {p.rank ? <span className="text-[9px] text-amber-300 font-black">{presRankLabel(p.rank, total)}</span>
+                                    {p.waiting ? <span className="text-[9px] text-cyan-300 font-black">⌛ ממתין</span>
+                                    : p.rank ? <span className="text-[9px] text-amber-300 font-black">{presRankLabel(p.rank, total)}</span>
                                     : p.left ? <span className="text-[9px] text-rose-400 font-black">פרש</span>
                                     : p.passed ? <span className="text-[9px] text-rose-400 font-black bg-rose-500/10 border border-rose-500/40 px-1.5 rounded-full">PASS</span>
                                     : <span className="text-[9px] text-slate-400 font-bold">🂠 {(p.cards || []).length}</span>}
+                                    {(isSuperAdmin || isGod) && ['setup', 'showdown'].includes(T.status) && (
+                                        <button onClick={(e) => { e.stopPropagation(); kickPlayer(p.uid); }} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -11846,8 +11973,14 @@
                         </div>
                     </div>
 
+                    {/* שחקן שהצטרף באמצע - יושב וממתין למשחק הבא */}
+                    {isSeated && isPlaying && me.waiting && (
+                        <div className="shrink-0 z-30 bg-slate-900/90 border-t border-cyan-500/40 py-3 text-center">
+                            <span className="text-cyan-300 font-black text-sm">⌛ ממתין למשחק הבא — תצורף אוטומטית</span>
+                        </div>
+                    )}
                     {/* פעולות + היד שלי */}
-                    {isSeated && isPlaying && (me.cards || []).length > 0 && (
+                    {isSeated && isPlaying && !me.waiting && (me.cards || []).length > 0 && (
                         <div className="shrink-0 z-30">
                             <div className="flex items-center justify-center gap-2 pb-1.5 px-2">
                                 <div className={`px-3 py-1 rounded-full font-black font-mono text-sm border-2 bg-slate-950/95 ${isMyTurn ? (timeLeft <= 8 ? 'text-rose-400 border-rose-500 animate-pulse' : 'text-white border-purple-500') : 'text-slate-500 border-slate-700'}`}>{timeLeft.toString().padStart(2, '0')}</div>
@@ -11872,10 +12005,16 @@
                             </div>
                         </div>
                     )}
-                    {isSeated && isPlaying && (me.cards || []).length === 0 && me.rank && (
+                    {isSeated && isPlaying && !me.waiting && (me.cards || []).length === 0 && me.rank && (
                         <div className="shrink-0 z-30 bg-slate-900/90 border-t-4 border-amber-500 py-4 text-center">
                             <span className="text-amber-300 font-black text-lg">סיימת! {presRankLabel(me.rank, total)} (מקום {me.rank})</span>
                             <div className="text-slate-500 text-xs font-bold mt-1">ממתינים שהשאר יסיימו...</div>
+                        </div>
+                    )}
+                    {!isSeated && T.status === 'playing' && Object.keys(players).length < (Number(setts.maxPlayers) || 4) && (
+                        <div className="shrink-0 z-30 bg-slate-900/90 border-t border-white/10 py-3 px-3 flex items-center justify-center gap-3 flex-wrap">
+                            <span className="text-slate-400 text-xs font-bold">👁️ מצב צפייה</span>
+                            <button onClick={handleJoin} className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg">🪑 שב והמתן למשחק ({formatMoney(setts.buyIn)})</button>
                         </div>
                     )}
 
@@ -11888,7 +12027,10 @@
                                 <p className="text-slate-400 text-xs font-bold mb-5" dir="ltr">Buy-in {formatMoney(setts.buyIn)} · עד {setts.maxPlayers} שחקנים · נגבה בהתחלה</p>
                                 <div className="flex justify-center gap-3 mb-6 flex-wrap">
                                     {Object.values(players).sort((a, b) => a.seatIndex - b.seatIndex).map(p => (
-                                        <div key={p.uid} className="flex flex-col items-center">
+                                        <div key={p.uid} className="flex flex-col items-center relative">
+                                            {(isSuperAdmin || isGod) && p.uid !== user.uid && (
+                                                <button onClick={() => kickPlayer(p.uid)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                            )}
                                             <img src={avatarUrl(p)} className="w-14 h-14 rounded-full bg-slate-800 border border-white/10 mb-1" />
                                             <span className="text-white font-bold text-xs">{p.name}</span>
                                         </div>
