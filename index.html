@@ -5412,9 +5412,9 @@
                 if (g.activeTurnUid !== actorUid || !BETTING.includes(g.phase)) return;
                 const pl = clonePlayers(t.players);
                 const p = pl[actorUid]; if (!p || p.status !== 'active') return;
-                // סיט-אאוט אוטומטי: שתי החמצות טיימר רצופות
+                // סיט-אאוט אוטומטי: יד אחת שהוחמצה (מתבטל אם השחקן שיחק)
                 p.missed = autoTimeout ? (p.missed || 0) + 1 : 0;
-                if (autoTimeout && p.missed >= 2 && !p.sitOut) { p.sitOut = true; p.sitOutAt = Date.now(); p.sitAuto = true; }
+                if (autoTimeout && p.missed >= 1 && !p.sitOut) { p.sitOut = true; p.sitOutAt = Date.now(); p.sitAuto = true; }
 
                 if (type === 'fold') { p.status = 'folded'; p.actionText = 'Fold'; p.hasActed = true; }
                 else if (type === 'call') {
