@@ -7,6 +7,7 @@
  * or edit their own balance through the bonus wheel.
  */
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 
@@ -162,4 +163,42 @@ exports.claimWeeklyScratch = onCall(async (request) => {
     tx.update(clubRef, {scratch: sc});
     return {prize, fromBank: false};
   });
+});
+
+// ── Balance watchdog (DETECTION ONLY — never changes a balance) ──
+// A membership balance INCREASE that isn't explained by a game result, a bonus,
+// or an approved deposit is recorded in `securityAlerts` for the owner to review
+// (viewable in the Firebase console). Legit admin top-ups also appear here, so
+// it doubles as an audit log of every chip injection. It NEVER blocks or
+// reverts anything, so it cannot disrupt play or the owner's admin tools.
+// WATCHDOG_MIN_ALERT is tunable — raise/lower it to match your stakes.
+const WATCHDOG_MIN_ALERT = 100000;
+exports.balanceWatchdog = onDocumentUpdated("memberships/{id}", async (event) => {
+  try {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const b0 = Number(before.balance) || 0;
+    const b1 = Number(after.balance) || 0;
+    const delta = round2(b1 - b0);
+    if (delta < WATCHDOG_MIN_ALERT) return; // decreases + normal-sized increases ignored
+    // Explained by a legitimate reason recorded in the SAME write?
+    const played = ((after.stats || {}).gamesPlayed || 0) > ((before.stats || {}).gamesPlayed || 0);
+    const bonus = Number(after.lastBonusAt) !== Number(before.lastBonusAt) ||
+                  Number(after.lastScratchAt) !== Number(before.lastScratchAt);
+    const deposit = !!before.depositReq && !after.depositReq;
+    if (played || bonus || deposit) return;
+    const id = event.params.id;
+    const us = id.indexOf("_");
+    const clubId = us >= 0 ? id.slice(us + 1) : (after.clubId || "main");
+    await db.collection("securityAlerts").add({
+      type: "unexplained_balance_increase",
+      membershipId: id,
+      uid: after.uid || (us >= 0 ? id.slice(0, us) : id),
+      username: after.username || "",
+      clubId,
+      before: b0, after: b1, delta,
+      at: Date.now(),
+      reviewed: false,
+    });
+  } catch (e) { /* detection is best-effort — never blocks a write */ }
 });
