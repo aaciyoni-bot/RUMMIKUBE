@@ -7063,6 +7063,20 @@
                 } catch(e) {}
             };
 
+            // אדמין מעיף שחקן מהשולחן — רק בין ידיים (setup/showdown), אין צ'יפים על הכף בדוראק לפני חלוקה
+            const kickPlayer = async (uid) => {
+                const t = tableRef.current; if (!t) return;
+                if (!['setup', 'showdown'].includes(t.status)) return toastErr("אפשר להעיף רק בין ידיים");
+                const p = (t.players || {})[uid]; if (!p || uid === user.uid) return;
+                if (!window.confirm(`להעיף את ${p.name} מהשולחן?`)) return;
+                try {
+                    const pl = { ...(t.players || {}) };
+                    delete pl[uid];
+                    await window.fb.updateDoc(tblRef(), { players: pl });
+                    showToast(`${p.name} הועף מהשולחן`, "info");
+                } catch (e) { toastErr("שגיאה בהעפה"); }
+            };
+
             /* ---------- מוח בוטים + אכיפת טיימאאוט (אצל הסופר-אדמין) ---------- */
             useEffect(() => {
                 if (!isSuperAdmin || !tableState) return;
@@ -7294,6 +7308,9 @@
                                                 )}
                                             </div>
                                             {T.hostUid === p.uid && <div className="absolute -left-3 top-0 w-5 h-5 rounded-full bg-amber-400 text-slate-900 text-[9px] font-black flex items-center justify-center shadow-lg z-30">★</div>}
+                                            {(isSuperAdmin || isGod) && !isMe && ['setup', 'showdown'].includes(T.status) && (
+                                                <button onClick={(e) => { e.stopPropagation(); kickPlayer(p.uid); }} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black flex items-center justify-center border border-rose-300 shadow z-40" title="העף מהשולחן">✕</button>
+                                            )}
                                             <div className="text-[10px] font-bold text-white mt-1 max-w-[74px] truncate text-center">{isMe ? 'אתה' : p.name}</div>
                                             <div className="stack-capsule text-slate-200 font-black text-[10px]" dir="ltr">🂠 {(p.cards || []).length}</div>
                                             {oppFan && topSeat && (
