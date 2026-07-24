@@ -160,6 +160,22 @@
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         @keyframes popIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
         .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        /* ===== Premium bonus wheel + scratch ===== */
+        @keyframes bulbPulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+        @keyframes goldGlow { 0%,100%{box-shadow:0 0 0 0 rgba(245,200,96,0)} 50%{box-shadow:0 0 42px 8px rgba(245,200,96,.55)} }
+        @keyframes sheenSweep { 0%{transform:translateX(-120%) skewX(-18deg)} 100%{transform:translateX(240%) skewX(-18deg)} }
+        .wheel-bulb-wrap { position:absolute; left:50%; top:50%; }
+        .wheel-bulb { width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
+            background:radial-gradient(circle at 35% 30%, #fff6d8, #f5c860 55%, #a9791f);
+            box-shadow:0 0 7px rgba(245,200,96,.9); animation:bulbPulse 1.6s ease-in-out infinite; }
+        .wheel-win { animation:goldGlow 1.1s ease-in-out infinite; }
+        .metal-gold { background:linear-gradient(145deg,#fff2c8 0%,#e7bf62 22%,#b8912f 48%,#8a6a1e 62%,#e7c977 84%,#fbe6b4 100%); }
+        .scratch-shine { position:absolute; inset:0; overflow:hidden; pointer-events:none; border-radius:inherit; }
+        .scratch-shine::after { content:''; position:absolute; top:0; bottom:0; left:0; width:38%;
+            background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent); animation:sheenSweep 3.2s ease-in-out infinite; }
+        .guilloche { background-image:
+            repeating-radial-gradient(circle at 50% 42%, rgba(245,200,96,.05) 0 2px, transparent 2px 7px),
+            repeating-conic-gradient(from 0deg at 50% 42%, rgba(245,200,96,.05) 0 3deg, transparent 3deg 9deg); }
         @keyframes flashRed { 0%, 100% { border-color: rgba(239, 68, 68, 0.3); box-shadow: none; } 50% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239,68,68,0.5); } }
         .board-invalid-group { animation: flashRed 1.5s infinite; border: 2px solid #ef4444 !important; background: rgba(239, 68, 68, 0.12); }
         @keyframes trophyPop { 0% { transform: scale(0) rotate(-20deg); } 70% { transform: scale(1.2) rotate(5deg); } 100% { transform: scale(1) rotate(0); } }
@@ -2889,13 +2905,14 @@
                             </div>, document.body)}
                         {scrOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!scr || scr.revealed) && setScrOpen(false)}>
-                                <div onClick={e=>e.stopPropagation()} className="rounded-3xl p-[3px] max-w-sm w-full shadow-2xl" style={{ background: 'linear-gradient(135deg, #f5e7b8, #b8912f 30%, #f7edc9 50%, #a07d24 70%, #eadaa4)' }}>
-                                    <div className="bg-gradient-to-b from-slate-900 to-slate-950 rounded-[21px] p-5 text-center">
+                                <div onClick={e=>e.stopPropagation()} className="rounded-3xl p-[3px] max-w-sm w-full shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative scratch-shine" style={{ background: 'linear-gradient(135deg, #f5e7b8, #b8912f 30%, #f7edc9 50%, #a07d24 70%, #eadaa4)' }}>
+                                    <div className="guilloche bg-gradient-to-b from-slate-900 to-slate-950 rounded-[21px] p-5 text-center relative overflow-hidden">
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-[9px] font-black text-amber-300/80 tracking-[0.25em] uppercase">Rummikube</span>
                                             <span className="text-[9px] font-black text-amber-300/80 tracking-[0.25em] uppercase">Lucky 3</span>
                                         </div>
-                                        <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-300 to-yellow-500 mb-0.5">🎫 הגירוד השבועי</h3>
+                                        <div className="mx-auto mb-1.5 w-11 h-11 rounded-full metal-gold flex items-center justify-center text-xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_3px_8px_rgba(0,0,0,0.5)]">🎫</div>
+                                        <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-300 to-yellow-500 mb-0.5">הגירוד השבועי</h3>
                                         <p className="text-slate-400 text-[11px] font-bold mb-4">3 סמלים זהים = זכייה · הפרס מקופת הקלאב ישר ליתרה</p>
                                         {!scr && (
                                             scratchReady
@@ -2903,12 +2920,16 @@
                                                 : <div className="text-slate-400 font-bold text-sm py-4">הכרטיס הבא בעוד <span className="text-amber-300 font-black"><BonusCountdown lastAt={user.lastScratchAt} hours={SCR_HOURS} /></span> ⏳</div>
                                         )}
                                         {scr && (
-                                            <div className="relative mx-auto rounded-xl overflow-hidden border border-white/10" style={{ width: '100%', maxWidth: 290 }}>
-                                                <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-950" style={{ minHeight: 190 }}>
+                                            <div className="relative mx-auto rounded-xl overflow-hidden" style={{ width: '100%', maxWidth: 290, boxShadow: 'inset 0 0 0 2px rgba(245,200,96,0.35), inset 0 0 18px rgba(0,0,0,0.6)' }}>
+                                                <div className="grid grid-cols-3 gap-2 p-3" style={{ minHeight: 190, background: 'radial-gradient(circle at 50% 40%, #10192b, #060a14)' }}>
                                                     {scr.grid.map((sym, i) => {
                                                         const winSym = { 10: '🍀', 15: '💎', 200: '👑', 400: '💰' }[scr.prize];
+                                                        const isWin = scr.revealed && sym === winSym;
                                                         return (
-                                                            <div key={i} className={`aspect-square rounded-lg flex items-center justify-center text-3xl bg-gradient-to-b from-slate-800 to-slate-900 border ${scr.revealed && sym === winSym ? 'border-amber-400 ring-2 ring-amber-400/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse' : 'border-white/10'}`}>{sym}</div>
+                                                            <div key={i} className={`aspect-square rounded-lg flex items-center justify-center text-3xl transition-all ${isWin ? 'border-2 border-amber-300 ring-2 ring-amber-400/70 shadow-[0_0_18px_rgba(245,200,96,0.6)] animate-pulse' : 'border border-amber-500/15'}`}
+                                                                 style={{ background: isWin ? 'radial-gradient(circle at 50% 35%, #3a2f12, #14100a)' : 'linear-gradient(160deg,#1b2338,#0c1220)', boxShadow: isWin ? undefined : 'inset 0 1px 1px rgba(255,255,255,0.06), inset 0 -3px 6px rgba(0,0,0,0.5)' }}>
+                                                                <span className="drop-shadow">{sym}</span>
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -2931,23 +2952,37 @@
                         {bonusOpen && bonusEnabled && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => (!bonusSpin || bonusSpin.done) && setBonusOpen(false)}>
                                 <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-7 text-center max-w-sm w-full shadow-2xl">
-                                    <h3 className="text-2xl font-black text-amber-400 mb-1">🎁 גלגל הבונוס היומי</h3>
+                                    <h3 className="text-2xl font-black mb-1 text-transparent bg-clip-text bg-gradient-to-b from-yellow-100 via-amber-300 to-yellow-500 drop-shadow-[0_1px_0_rgba(0,0,0,0.4)]">🎁 גלגל הבונוס היומי</h3>
                                     <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הפרס משולם מקופת הקלאב ישר ליתרה</p>
                                     <div className="relative w-64 h-64 mx-auto mb-6">
-                                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 text-amber-400 text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">▼</div>
-                                        <div className="w-full h-full rounded-full border-4 border-amber-500/70 shadow-2xl relative overflow-hidden"
-                                             style={{
-                                                 background: 'conic-gradient(#161f33 0deg 45deg, #0c1322 45deg 90deg, #161f33 90deg 135deg, #0c1322 135deg 180deg, #161f33 180deg 225deg, #0c1322 225deg 270deg, #161f33 270deg 315deg, #713f12 315deg 360deg)',
-                                                 transform: `rotate(${bonusSpin ? bonusSpin.deg : 0}deg)`,
-                                                 transition: bonusSpin ? 'transform 4s cubic-bezier(0.15, 0.9, 0.25, 1)' : 'none'
-                                             }}>
-                                            {BONUS_SEGS.map((v, i) => (
-                                                <div key={i} className="absolute left-1/2 top-1/2 origin-top-left" style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
-                                                    <span className={`absolute font-black text-xs ${i === 7 ? 'text-amber-300' : 'text-slate-200'}`} style={{ transform: 'translate(-50%, -104px) rotate(0deg)' }} dir="ltr">{v >= 1000 ? (v/1000) + 'K' : v}</span>
+                                        {/* טבעת נורות מסביב */}
+                                        {[...Array(16)].map((_, i) => (
+                                            <div key={'b' + i} className="wheel-bulb-wrap" style={{ transform: `rotate(${i * 22.5}deg) translateY(-125px)` }}><div className="wheel-bulb" style={{ animationDelay: `${(i % 4) * 0.2}s` }}></div></div>
+                                        ))}
+                                        {/* מחוון תלת-ממד */}
+                                        <div className="absolute left-1/2 -translate-x-1/2 -top-2 z-30" style={{ width: 0, height: 0, borderLeft: '13px solid transparent', borderRight: '13px solid transparent', borderTop: '26px solid #f5c860', filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.7))' }}></div>
+                                        {/* מסגרת מתכת + זוהר בזכייה */}
+                                        <div className={`absolute inset-0 rounded-full p-[7px] metal-gold shadow-[0_10px_30px_rgba(0,0,0,0.6)] ${bonusSpin && bonusSpin.done ? 'wheel-win' : ''}`}>
+                                            <div className="w-full h-full rounded-full overflow-hidden relative" style={{ boxShadow: 'inset 0 0 0 3px #1c130a, inset 0 0 22px rgba(0,0,0,0.7)' }}>
+                                                {/* פני הגלגל המסתובבים */}
+                                                <div className="absolute inset-0 rounded-full"
+                                                     style={{
+                                                         background: 'repeating-conic-gradient(rgba(255,244,208,0.55) 0deg 0.7deg, transparent 0.7deg 45deg), conic-gradient(#e8c56e 0deg 45deg, #16213a 45deg 90deg, #e8c56e 90deg 135deg, #16213a 135deg 180deg, #e8c56e 180deg 225deg, #16213a 225deg 270deg, #e8c56e 270deg 315deg, #16213a 315deg 360deg)',
+                                                         transform: `rotate(${bonusSpin ? bonusSpin.deg : 0}deg)`,
+                                                         transition: bonusSpin ? 'transform 4s cubic-bezier(0.15, 0.9, 0.25, 1)' : 'none'
+                                                     }}>
+                                                    {BONUS_SEGS.map((v, i) => (
+                                                        <div key={i} className="absolute left-1/2 top-1/2 origin-top-left" style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
+                                                            <span className="absolute font-black text-sm tracking-tight" style={{ transform: 'translate(-50%, -100px)', color: i % 2 === 0 ? '#2a1c06' : '#f6dc94', textShadow: i % 2 === 0 ? '0 1px 0 rgba(255,255,255,0.25)' : '0 1px 3px rgba(0,0,0,0.6)' }} dir="ltr">{v >= 1000 ? (v / 1000) + 'K' : v}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                                {/* ברק זכוכית קבוע */}
+                                                <div className="absolute inset-0 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle at 34% 26%, rgba(255,255,255,0.28), rgba(255,255,255,0) 42%)' }}></div>
+                                            </div>
                                         </div>
-                                        <div className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 border-2 border-amber-200 flex items-center justify-center text-2xl shadow-lg z-10">🎁</div>
+                                        {/* ציר מרכזי מתכתי */}
+                                        <div className="absolute inset-0 m-auto w-16 h-16 rounded-full metal-gold flex items-center justify-center text-2xl z-20 shadow-[0_4px_10px_rgba(0,0,0,0.6)]" style={{ boxShadow: 'inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -3px 5px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)' }}><span className="drop-shadow">🎁</span></div>
                                     </div>
                                     {bonusSpin && bonusSpin.done && <div className="text-emerald-400 font-black text-2xl mb-1 animate-pop-in">+{formatMoney(bonusSpin.prize)} 🎉</div>}
                                     {bonusSpin && bonusSpin.done && <div className="text-[11px] text-slate-400 font-bold mb-3">הסיבוב הבא בעוד <span className="text-amber-300 font-black"><BonusCountdown lastAt={user.lastBonusAt || Date.now()} hours={22} /></span></div>}
