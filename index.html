@@ -4938,7 +4938,7 @@
                                     })}
                                 </div>
                                 {!isSeated && <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-black w-full text-lg shadow-lg">התיישב בשולחן ({formatMoney(tableState.minBuyIn)})</button>}
-                                <button onClick={handleLeave} className="mt-4 text-slate-400 hover:text-white underline text-sm font-bold">חזרה ללובי</button>
+                                <button onClick={onLeave} className="mt-4 text-slate-400 hover:text-white underline text-sm font-bold">חזרה ללובי</button>
                             </div>
                         </div>
                     )}
@@ -8191,7 +8191,7 @@
                                     {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && (
                                         <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>
                                     )}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
@@ -8941,7 +8941,7 @@
                                     {!isSeated && list.length < maxP && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-teal-500 to-teal-700 hover:from-teal-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">שב עם סטאק {formatMoney(setts.buyIn)}</button>}
                                     {isSuperAdmin && list.length < maxP && <button onClick={handleAddBot} className="w-full bg-slate-800 hover:bg-slate-700 text-purple-300 py-2.5 rounded-xl font-bold text-sm border border-white/10 mb-2"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט ({list.length}/{maxP})</button>}
                                     {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
@@ -9405,7 +9405,7 @@
                                     {!isSeated && list.length < maxP && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
                                     {isSuperAdmin && list.length < maxP && <button onClick={handleAddBot} className="w-full bg-slate-800 hover:bg-slate-700 text-purple-300 py-2.5 rounded-xl font-bold text-sm border border-white/10 mb-2"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט ({list.length}/{maxP})</button>}
                                     {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק ({list.length})</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
@@ -9971,7 +9971,7 @@
                                     {!isSeated && list.length < 2 && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-lime-500 to-lime-700 hover:from-lime-400 text-slate-900 py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
                                     {isSuperAdmin && list.length < 2 && <button onClick={handleAddBot} className="w-full bg-slate-800 hover:bg-slate-700 text-purple-300 py-2.5 rounded-xl font-bold text-sm border border-white/10 mb-2"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט</button>}
                                     {(isHost || isSuperAdmin) && list.length >= 2 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
@@ -10526,7 +10526,7 @@
                                     {!isSeated && list.length < 4 && <button onClick={handleJoin} className="w-full bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2">הצטרף ({formatMoney(setts.buyIn)})</button>}
                                     {isSuperAdmin && list.length < 4 && <button onClick={handleAddBot} className="w-full bg-slate-800 hover:bg-slate-700 text-purple-300 py-2.5 rounded-xl font-bold text-sm border border-white/10 mb-2"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט ({list.length}/4)</button>}
                                     {(isHost || isSuperAdmin) && list.length >= 4 && <button onClick={startGame} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-2"><i className="fa-solid fa-play ml-2"></i>התחל משחק</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs font-bold underline">חזרה ללובי</button>
                                 </div>
                             </div>
                         )}
@@ -11289,7 +11289,7 @@
                                     {!isSeated && (T.waitlist || []).find(w => w.uid === user.uid) && <button onClick={leaveWaitlist} className="bg-slate-800 hover:bg-slate-700 text-amber-300 py-3 rounded-xl font-bold border border-amber-500/40">⏳ ברשימה ({(T.waitlist || []).findIndex(w => w.uid === user.uid) + 1}) · צא מהרשימה</button>}
                                     {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-700 hover:bg-emerald-600 text-white py-3 rounded-xl font-black">התחל משחק ({Object.keys(players).length} שחקנים)</button>}
                                     {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 py-2 rounded-xl font-bold text-sm border border-white/10"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white underline text-sm font-bold mt-1">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white underline text-sm font-bold mt-1">חזרה ללובי</button>
                                 </div>
                             </div>
                         </div>
@@ -11901,7 +11901,7 @@
                                     {!isSeated && <button onClick={handleJoin} className="bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl font-black text-lg shadow-lg">שב בשולחן</button>}
                                     {(isHost || isSuperAdmin) && Object.keys(players).length >= 2 && <button onClick={startGame} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-black">התחל משחק ({Object.keys(players).length} שחקנים)</button>}
                                     {(isHost || isSuperAdmin) && <button onClick={handleAddBot} className="bg-slate-800 hover:bg-slate-700 text-purple-300 py-2 rounded-xl font-bold text-sm border border-white/10"><i className="fa-solid fa-robot ml-1"></i>הוסף בוט</button>}
-                                    <button onClick={handleLeave} className="text-slate-400 hover:text-white underline text-sm font-bold mt-1">חזרה ללובי</button>
+                                    <button onClick={onLeave} className="text-slate-400 hover:text-white underline text-sm font-bold mt-1">חזרה ללובי</button>
                                 </div>
                             </div>
                         </div>
