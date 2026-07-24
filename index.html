@@ -560,11 +560,13 @@
   <script>
     (function () {
       var el = document.getElementById('orizis-intro');
-      var done = false;
-      function out() { if (done) return; done = true; el.classList.add('oi-out'); setTimeout(function () { el.remove(); }, 500); }
+      var done = false, start = Date.now();
+      // ev = a tap. Ignore taps in the first 900ms so the launch/ghost tap can't
+      // dismiss the splash the instant it appears. The auto-timer (no ev) always fires.
+      function out(ev) { if (done) return; if (ev && Date.now() - start < 900) return; done = true; el.classList.add('oi-out'); setTimeout(function () { el.remove(); }, 500); }
       el.addEventListener('click', out);
       el.addEventListener('touchstart', out, { passive: true });
-      setTimeout(out, 3200);
+      setTimeout(function () { out(); }, 3200);
     })();
   </script>
 </div>
