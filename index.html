@@ -12208,6 +12208,37 @@
             } catch(e) {}
         };
 
+        // תשלום פרס טורניר אטומי ואידמפוטנטי: מזכה יתרה ומסמן את הזוכה כ"שולם"
+        // באותה טרנזקציה. ריצה חוזרת (למשל אחרי קריסת דפדפן באמצע הסיום) מדלגת על
+        // מי שכבר שולם ומשלמת רק את היתר — לעולם לא פעמיים.
+        const payTourPrize = async (torId, uid, amt, statsPatch) => {
+            if (!uid) return;
+            try {
+                await window.fb.runTransaction(window.fb.db, async (tr) => {
+                    const tr_ref = tRef(torId);
+                    const tSnap = await tr.get(tr_ref);
+                    if (!tSnap.exists()) return;
+                    const paid = tSnap.data().paidPrizes || {};
+                    if (paid[uid]) return; // כבר שולם — אידמפוטנטי
+                    const mRef = memDoc(uid);
+                    const mSnap = await tr.get(mRef);
+                    if (mSnap.exists() && (amt || statsPatch)) {
+                        const upd = {};
+                        if (amt) upd.balance = round2((mSnap.data().balance || 0) + amt);
+                        if (statsPatch) {
+                            const st = mSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
+                            if (statsPatch.played) upd['stats.gamesPlayed'] = (st.gamesPlayed || 0) + 1;
+                            if (statsPatch.won) upd['stats.gamesWon'] = (st.gamesWon || 0) + 1;
+                            if (statsPatch.profit !== undefined) upd['stats.totalProfit'] = round2((st.totalProfit || 0) + statsPatch.profit);
+                            if (statsPatch.trophyGame) { const tt = st.trophies || {}; upd['stats.trophies.' + statsPatch.trophyGame] = (tt[statsPatch.trophyGame] || 0) + 1; }
+                        }
+                        if (Object.keys(upd).length) tr.update(mRef, upd);
+                    }
+                    tr.update(tr_ref, { [`paidPrizes.${uid}`]: true });
+                });
+            } catch (e) {}
+        };
+
         const tourRegister = async (tor, user, showToast) => {
             const entry = tourEntryOf(tor);
             try {
@@ -12422,12 +12453,15 @@
                 for (let i = 0; i < ranked.length; i++) {
                     const prize = i < scheme.length ? round2(Math.floor(net * scheme[i] * 100) / 100) : 0;
                     results.push({ name: ranked[i].name, rank: ranked[i].rank, prize, bounties: ranked[i].bounties || 0 });
-                    if (prize > 0) await creditBalance(ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)), trophyGame: ranked[i].rank === 1 ? tor.game : null });
-                    else if (ranked[i].rank === 1 && !ranked[i].isBot) { try { await window.fb.updateDoc(memDoc(ranked[i].uid), { ['stats.trophies.' + tor.game]: ((((await window.fb.getDoc(memDoc(ranked[i].uid))).data() || {}).stats || {}).trophies || {})[tor.game] + 1 || 1 }); } catch(e) {} }
-                    else if (!ranked[i].isBot) await creditBalance(ranked[i].uid, 0, { played: true, profit: -(ranked[i].paid || 0) });
+                    if (prize > 0) await payTourPrize(tor.id, ranked[i].uid, prize, { played: true, won: ranked[i].rank === 1, profit: round2(prize - (ranked[i].paid || 0)), trophyGame: ranked[i].rank === 1 ? tor.game : null });
+                    else if (ranked[i].rank === 1 && !ranked[i].isBot) await payTourPrize(tor.id, ranked[i].uid, 0, { played: true, won: true, profit: round2(0 - (ranked[i].paid || 0)), trophyGame: tor.game });
+                    else if (!ranked[i].isBot) await payTourPrize(tor.id, ranked[i].uid, 0, { played: true, profit: -(ranked[i].paid || 0) });
                     if (!ranked[i].isBot) logGameResult([{ uid: ranked[i].uid, username: ranked[i].name, game: 'poker', profit: round2(prize - (ranked[i].paid || 0)) }], 'tournament:' + tor.id);
                 }
-                distributeRake(rake, entrants.map(p => p.uid));
+                // חלוקת רייק פעם אחת בלבד — נעילה אטומית כדי שקריסה+ריצה חוזרת לא תחלק פעמיים
+                let doRake = false;
+                try { await window.fb.runTransaction(window.fb.db, async (tr) => { const s = await tr.get(tRef(tor.id)); if (s.exists() && !s.data().rakeDistributed) { tr.update(tRef(tor.id), { rakeDistributed: true }); doRake = true; } }); } catch(e) {}
+                if (doRake) distributeRake(rake, entrants.map(p => p.uid));
                 await window.fb.updateDoc(tRef(tor.id), { status: 'done', players: pl, results, finishedAt: Date.now() });
             } catch(e) {}
         };
