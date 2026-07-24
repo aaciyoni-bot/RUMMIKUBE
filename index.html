@@ -5376,7 +5376,8 @@
                     let bestS = -1; let winners = [];
                     elig.forEach(uid => { const sc = scores[uid] || 0; if (sc > bestS) { bestS = sc; winners = [uid]; } else if (sc === bestS) winners.push(uid); });
                     let amount = pot.amount;
-                    if (idx === 0) { const r = round2(amount * rakeFrac); rakeTotal = round2(rakeTotal + r); amount = round2(amount - r); }
+                    // רייק על כל הקופה שנצברה — כולל כל צד-פוט, לא רק הקופה הראשית
+                    { const r = round2(amount * rakeFrac); rakeTotal = round2(rakeTotal + r); amount = round2(amount - r); }
                     const share = Math.floor((amount / winners.length) * 100) / 100;
                     winTotal = round2(winTotal + share * winners.length);
                     winners.forEach(uid => { pl[uid].stack = round2(pl[uid].stack + share); pl[uid].actionText = 'WINNER'; winnerNames.add(pl[uid].name); });
