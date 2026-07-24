@@ -2954,22 +2954,25 @@
                                 <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-7 text-center max-w-sm w-full shadow-2xl">
                                     <h3 className="text-2xl font-black mb-1 text-transparent bg-clip-text bg-gradient-to-b from-yellow-100 via-amber-300 to-yellow-500 drop-shadow-[0_1px_0_rgba(0,0,0,0.4)]">🎁 גלגל הבונוס היומי</h3>
                                     <p className="text-slate-400 text-xs font-bold mb-5">סיבוב אחד ב-24 שעות · הפרס משולם מקופת הקלאב ישר ליתרה</p>
-                                    <div className="relative w-64 h-64 mx-auto mb-6">
-                                        {/* טבעת נורות מסביב */}
-                                        {[...Array(16)].map((_, i) => (
-                                            <div key={'b' + i} className="wheel-bulb-wrap" style={{ transform: `rotate(${i * 22.5}deg) translateY(-125px)` }}><div className="wheel-bulb" style={{ animationDelay: `${(i % 4) * 0.2}s` }}></div></div>
+                                    <div className="relative mx-auto mb-6" style={{ width: 264, height: 264 }}>
+                                        {/* מסילת נורות שקועה */}
+                                        <div className="absolute rounded-full" style={{ inset: '-6px', background: 'radial-gradient(closest-side, transparent 78%, #0b0f1a 80%, #05070d 100%)', boxShadow: 'inset 0 0 0 2px rgba(245,200,96,0.25), 0 0 24px rgba(0,0,0,0.6)' }}></div>
+                                        {/* טבעת 18 נורות */}
+                                        {[...Array(18)].map((_, i) => (
+                                            <div key={'b' + i} className="wheel-bulb-wrap" style={{ transform: `rotate(${i * 20}deg) translateY(-130px)` }}><div className="wheel-bulb" style={{ animationDelay: `${(i % 4) * 0.2}s` }}></div></div>
                                         ))}
-                                        {/* מחוון תלת-ממד */}
-                                        <div className="absolute left-1/2 -translate-x-1/2 -top-2 z-30" style={{ width: 0, height: 0, borderLeft: '13px solid transparent', borderRight: '13px solid transparent', borderTop: '26px solid #f5c860', filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.7))' }}></div>
+                                        {/* מחוון מתכתי + פקק */}
+                                        <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '-12px', zIndex: 30, width: 26, height: 34, background: 'linear-gradient(180deg,#fff2c8,#e7bf62 45%,#a9791f)', clipPath: 'polygon(50% 100%, 0 0, 100% 0)', borderRadius: '3px 3px 0 0', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.75))' }}></div>
+                                        <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '-18px', zIndex: 31, width: 16, height: 16, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #fff6d8, #e7bf62 60%, #8a6a1e)', boxShadow: '0 2px 4px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.6)' }}></div>
                                         {/* מסגרת מתכת + זוהר בזכייה */}
                                         <div className={`absolute inset-0 rounded-full p-[7px] metal-gold shadow-[0_10px_30px_rgba(0,0,0,0.6)] ${bonusSpin && bonusSpin.done ? 'wheel-win' : ''}`}>
                                             <div className="w-full h-full rounded-full overflow-hidden relative" style={{ boxShadow: 'inset 0 0 0 3px #1c130a, inset 0 0 22px rgba(0,0,0,0.7)' }}>
                                                 {/* פני הגלגל המסתובבים */}
                                                 <div className="absolute inset-0 rounded-full"
                                                      style={{
-                                                         background: 'repeating-conic-gradient(rgba(255,244,208,0.55) 0deg 0.7deg, transparent 0.7deg 45deg), conic-gradient(#e8c56e 0deg 45deg, #16213a 45deg 90deg, #e8c56e 90deg 135deg, #16213a 135deg 180deg, #e8c56e 180deg 225deg, #16213a 225deg 270deg, #e8c56e 270deg 315deg, #16213a 315deg 360deg)',
+                                                         background: 'repeating-conic-gradient(rgba(255,247,214,0.85) 0deg 1deg, transparent 1deg 45deg), conic-gradient(#f0cf74 0deg 45deg, #5c101f 45deg 90deg, #f0cf74 90deg 135deg, #5c101f 135deg 180deg, #f0cf74 180deg 225deg, #5c101f 225deg 270deg, #f0cf74 270deg 315deg, #5c101f 315deg 360deg)',
                                                          transform: `rotate(${bonusSpin ? bonusSpin.deg : 0}deg)`,
-                                                         transition: bonusSpin ? 'transform 4s cubic-bezier(0.15, 0.9, 0.25, 1)' : 'none'
+                                                         transition: bonusSpin ? 'transform 4.7s cubic-bezier(0.13, 0.86, 0.2, 1)' : 'none'
                                                      }}>
                                                     {BONUS_SEGS.map((v, i) => (
                                                         <div key={i} className="absolute left-1/2 top-1/2 origin-top-left" style={{ transform: `rotate(${i * 45 + 22.5}deg)` }}>
@@ -2977,12 +2980,14 @@
                                                         </div>
                                                     ))}
                                                 </div>
+                                                {/* ורנייט לעומק */}
+                                                <div className="absolute inset-0 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, transparent 46%, rgba(0,0,0,0.35) 100%)' }}></div>
                                                 {/* ברק זכוכית קבוע */}
                                                 <div className="absolute inset-0 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle at 34% 26%, rgba(255,255,255,0.28), rgba(255,255,255,0) 42%)' }}></div>
                                             </div>
                                         </div>
-                                        {/* ציר מרכזי מתכתי */}
-                                        <div className="absolute inset-0 m-auto w-16 h-16 rounded-full metal-gold flex items-center justify-center text-2xl z-20 shadow-[0_4px_10px_rgba(0,0,0,0.6)]" style={{ boxShadow: 'inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -3px 5px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)' }}><span className="drop-shadow">🎁</span></div>
+                                        {/* ציר מרכזי כיפתי עם הלוגו */}
+                                        <div className="absolute inset-0 m-auto rounded-full flex items-center justify-center font-black text-2xl" style={{ width: 62, height: 62, zIndex: 20, color: '#3a2a08', background: 'radial-gradient(circle at 38% 30%, #fff7dd, #eaca70 42%, #b8912f 72%, #7c5e17)', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.7), inset 0 -4px 7px rgba(0,0,0,0.4), 0 5px 12px rgba(0,0,0,0.65), 0 0 0 4px #1b130a' }}>R</div>
                                     </div>
                                     {bonusSpin && bonusSpin.done && <div className="text-emerald-400 font-black text-2xl mb-1 animate-pop-in">+{formatMoney(bonusSpin.prize)} 🎉</div>}
                                     {bonusSpin && bonusSpin.done && <div className="text-[11px] text-slate-400 font-bold mb-3">הסיבוב הבא בעוד <span className="text-amber-300 font-black"><BonusCountdown lastAt={user.lastBonusAt || Date.now()} hours={22} /></span></div>}
@@ -7718,7 +7723,14 @@
                     ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.55)' : 'rgba(146,113,32,0.35)';
                     ctx.beginPath(); ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 1.6 + 0.4, 0, 7); ctx.fill();
                 }
-                ctx.fillStyle = 'rgba(90,66,20,0.85)';
+                // וורדמארק מותג על הציפוי — כל אתר והלוגו שלו
+                ctx.save();
+                ctx.fillStyle = 'rgba(90,66,20,0.16)';
+                ctx.font = '800 11px Arial, sans-serif';
+                ctx.textAlign = 'center';
+                for (let yy = 22; yy < h; yy += 26) for (let xx = 0; xx < w + 90; xx += 92) ctx.fillText('RUMMIKUBE', xx, yy);
+                ctx.restore();
+                ctx.fillStyle = 'rgba(90,66,20,0.9)';
                 ctx.font = '900 17px Heebo, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('✨ גרד כאן ✨', w / 2, h / 2 + 6);
