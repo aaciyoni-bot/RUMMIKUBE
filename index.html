@@ -1416,12 +1416,10 @@
             const showPip = size !== 'sm';
             return (
                 <div className={`${D.w} card-face relative overflow-hidden`} style={{ height: D.h }} dir="ltr">
-                    <div className="absolute flex flex-col items-center leading-none pointer-events-none" style={{ top: '5%', left: '7%' }}>
-                        <span style={{ fontSize: D.rank, color: rankCol, letterSpacing: '-0.05em', fontFamily: "'Rubik', sans-serif", fontWeight: 800, lineHeight: 0.85 }}>{card.val}</span>
-                        {showPip && <span style={{ marginTop: '1px' }}><SuitGlyph s={card.suit} grad size={`calc(${D.rank} * 0.58)`}/></span>}
-                    </div>
-                    <div className="absolute inset-x-0 flex justify-center pointer-events-none" style={{ bottom: '6%' }}>
-                        <SuitGlyph s={card.suit} grad size={D.big}/>
+                    {/* אינדקס בפינה בלבד — דרגה + צורה אחת (קריא במניפה, בלי כפילות של הצורה) */}
+                    <div className="absolute flex flex-col items-center leading-none pointer-events-none" style={{ top: '7%', left: '9%' }}>
+                        <span style={{ fontSize: `calc(${D.rank} * 1.15)`, color: rankCol, letterSpacing: '-0.06em', fontFamily: "'Rubik', sans-serif", fontWeight: 800, lineHeight: 0.82 }}>{card.val}</span>
+                        <span style={{ marginTop: '3px' }}><SuitGlyph s={card.suit} grad size={`calc(${D.rank} * ${size === 'sm' ? 0.85 : 0.78})`}/></span>
                     </div>
                 </div>
             );
@@ -6427,11 +6425,15 @@
                                                 )}
                                             </div>
 
-                                            {gs.dealerUid === p.uid && <div className="absolute -left-3 top-0 w-5 h-5 rounded-full bg-white text-slate-900 text-[9px] font-black flex items-center justify-center shadow-lg border border-slate-300 z-30">D</div>}
-                                            {setts.isDealerChoice && gs.dcUid === p.uid && <div className="absolute -right-3 top-0 w-5 h-5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg border border-rose-300 z-30">DC</div>}
+                                            {gs.dealerUid === p.uid && <div className="dealer-btn absolute -left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white text-slate-900 text-[9px] font-black flex items-center justify-center shadow-lg border border-slate-300 z-30">D</div>}
+                                            {setts.isDealerChoice && gs.dcUid === p.uid && <div className="absolute -right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg border border-rose-300 z-30">DC</div>}
 
                                             <div className="text-[10px] font-bold text-white mt-1 max-w-[70px] truncate text-center">{isMe ? 'אתה' : p.name}</div>
                                             <div className="stack-capsule text-gold-400 font-black text-[11px]" dir="ltr">{formatShort(p.stack)}</div>
+                                            {/* חשיפה: שם היד של כל שחקן ליד האווטאר — נשאר עד היד הבאה */}
+                                            {gs.phase === 'showdown' && !hidden && (p.cards || []).length > 0 && (gs.board || []).length >= 3 && (
+                                                <div className="mt-0.5 text-[9px] font-black text-amber-100 bg-amber-950/80 border border-amber-500/50 rounded-full px-2 py-0.5 whitespace-nowrap shadow-lg z-30">{handName(bestScoreNow(p.cards, gs.board || [], gs.currentGameType))}</div>
+                                            )}
 
                                             {showCards && !isMe && topSeat && (
                                                 <div className="flex gap-0.5 mt-1 z-20" dir="ltr">
