@@ -14,6 +14,16 @@ service cloud.firestore {
     match /users/{id}        { allow read, write: if signedIn(); }
     match /memberships/{id}  { allow read, write: if signedIn(); }
     match /tables/{id}       { allow read, write: if signedIn(); }
+
+    // נתונים פרטיים של מנוע-שרת: שחקן קורא רק את האריחים הפרטיים שלו.
+    // הלקוח לעולם לא כותב כאן — רק Cloud Functions (admin SDK עוקף את החוקים).
+    match /tables/{id}/priv/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // קונפיג לאדמין בלבד — אין שום גישת לקוח.
+    match /admin/{doc=**} { allow read, write: if false; }
     match /clubs/{id}        { allow read, write: if signedIn(); }
     match /tournaments/{id}  { allow read, write: if signedIn(); }
     match /broadcasts/{id}   { allow read, write: if signedIn(); }
