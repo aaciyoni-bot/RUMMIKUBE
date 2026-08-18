@@ -78,6 +78,15 @@ const check = (name, cond, extra) => {
   if (out) check("  the extended run is legal", API.validateGroup(out.board[0].tiles));
 }
 
+// ---- 5b. a run must stay in order after a lay-off -----------------------
+{
+  const board = [{id: "g1", x: 30, y: 30, tiles: [T(RED, 5), T(RED, 6)]}];
+  const out = API.rkBotTurn(rack(T(RED, 7)), board, true);
+  const vals = out ? out.board[0].tiles.map((t) => t.val) : [];
+  check("a laid-off run reads in order (5,6,7 not 7,5,6)",
+    JSON.stringify(vals) === JSON.stringify([5, 6, 7]), JSON.stringify(vals));
+}
+
 // ---- 6. never breaks a meld on the table ---------------------------------
 {
   const board = [{id: "g1", x: 30, y: 30, tiles: [T(BLU, 5), T(BLU, 6), T(BLU, 7)]}];

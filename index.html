@@ -168,24 +168,45 @@
         /* ===== רמיקוב: לוח עתידני כהה ===== */
         #felt-board {
             touch-action: pan-x pan-y;
-            border: 1px solid rgba(34,211,238,0.28);
-            box-shadow: inset 0 0 60px rgba(0,0,0,0.6), inset 0 0 30px rgba(34,211,238,0.06), 0 0 26px rgba(34,211,238,0.08);
+            border: 3px solid #3b2a1a;
+            box-shadow: inset 0 0 70px rgba(0,0,0,0.42), inset 0 3px 0 rgba(255,255,255,0.10), 0 10px 26px rgba(0,0,0,0.55);
             background:
-                url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2064%2064'%3E%3Ctext%20x%3D'30'%20y%3D'43'%20font-family%3D'Arial%2Csans-serif'%20font-weight%3D'900'%20font-size%3D'36'%20text-anchor%3D'middle'%20fill%3D'rgba(103%2C232%2C249%2C0.07)'%3ER%3C%2Ftext%3E%3Ccircle%20cx%3D'46'%20cy%3D'40'%20r%3D'4'%20fill%3D'rgba(34%2C211%2C238%2C0.09)'%2F%3E%3C%2Fsvg%3E") center / 130px no-repeat,
-                radial-gradient(ellipse at 50% 26%, rgba(34,211,238,0.05), transparent 62%),
-                repeating-linear-gradient(0deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                repeating-linear-gradient(90deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                linear-gradient(165deg, #0c1730 0%, #081020 55%, #060b16 100%);
+                radial-gradient(ellipse at 50% 8%, rgba(255,255,255,0.09), transparent 60%),
+                repeating-linear-gradient(48deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 5px),
+                repeating-linear-gradient(-48deg, rgba(255,255,255,0.028) 0 2px, transparent 2px 5px),
+                linear-gradient(168deg, #17714a 0%, #0f5c39 46%, #0a4229 100%);
         }
         /* אבן רמיקוב: שנהב תלת-ממדי */
+        /* The Rummikub tile: warm ivory body, a raised face inset from the rim,
+           the number in its colour and the dot under it that every real tile
+           carries. Proportions follow the physical tile (roughly 2:3). */
         .rummy-tile {
-            background: linear-gradient(155deg, #fffef6 0%, #f7f2e3 52%, #ece5d0 100%);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 9px 20px rgba(0,0,0,0.35), inset 0 1px 1px #ffffff, inset -1px -2px 3px rgba(120,110,85,0.20);
-            border-bottom: 5px solid #c9c1a9; border-right: 1px solid #ded7c2; border-radius: 9px;
+            position: relative;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 26%),
+                linear-gradient(168deg, #fdf9ec 0%, #f6efdc 48%, #ebe2c9 100%);
+            border-radius: 14%/9%;
+            border-bottom: 4px solid #bdb197;
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.95),
+                inset 0 -1px 0 rgba(150,138,110,0.35),
+                inset 2px 0 2px -1px rgba(255,255,255,0.6),
+                inset -2px 0 2px -1px rgba(150,138,110,0.25),
+                0 2px 3px rgba(0,0,0,0.45), 0 7px 14px rgba(0,0,0,0.30);
             font-family: 'Rubik', sans-serif; font-weight: 900;
+            line-height: 1; letter-spacing: -0.02em;
             transition: transform 0.1s ease, box-shadow 0.1s ease; user-select: none;
-            text-shadow: 0 1px 1px rgba(0,0,0,0.15); touch-action: none;
+            touch-action: none; overflow: hidden;
         }
+        /* the number sits high; the dot beneath it is the tile's signature */
+        .rummy-tile > .rk-num { display: block; transform: translateY(-11%); }
+        .rummy-tile::after {
+            content: ''; position: absolute; left: 50%; bottom: 16%;
+            width: 13%; aspect-ratio: 1; border-radius: 50%;
+            transform: translateX(-50%); background: currentColor; opacity: 0.92;
+        }
+        .rummy-tile.rk-joker > .rk-num { transform: none; font-size: 1.5em; }
+        .rummy-tile.rk-joker::after { display: none; }
         .rummy-tile:active, .rummy-tile.dragging { box-shadow: 0 20px 30px rgba(0,0,0,0.65), 0 0 24px rgba(34,211,238,0.25); transform: scale(1.1) translateY(-8px); z-index: 999; }
         .board-tile { width: calc(2.25rem * var(--board-scale, 1)); height: calc(3.5rem * var(--board-scale, 1)); font-size: calc(1.25rem * var(--board-scale, 1)); margin: 0 calc(2px * var(--board-scale, 1)); }
         @media (min-width: 640px) {
@@ -206,6 +227,18 @@
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
         .rack-slot { min-height: 36px; position: relative; }
+        /* A rack is a tray you stand tiles on — it should not look like a
+           spreadsheet. Empty positions are just tray, with no outline. */
+        .rk-rack {
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0) 18%),
+                repeating-linear-gradient(92deg, rgba(0,0,0,0.05) 0 3px, transparent 3px 9px),
+                linear-gradient(180deg, #6d4d2f 0%, #593d24 55%, #402b19 100%);
+            border-top: 3px solid #8a6640;
+            box-shadow: inset 0 2px 0 rgba(255,255,255,0.16), inset 0 -14px 26px rgba(0,0,0,0.45), 0 -12px 30px rgba(0,0,0,0.55);
+        }
+        .rk-rack .rack-slot { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+        .rk-rack .rack-slot.rk-hot { background: rgba(255,255,255,0.10) !important; border-radius: 8px; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
             .rack-slot { min-height: 64px; }
@@ -962,7 +995,7 @@
            לוגיקת רמיקוב
            ================================================================ */
         const generateDeck = () => {
-            const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#0c1322'];
+            const colors = ['#d02b26', '#12579f', '#e2820b', '#16171b']; // red, blue, orange, black — the physical set
             let d = [];
             for (let set=0; set<2; set++) { for(let c=0; c<4; c++) { for(let v=1; v<=13; v++) d.push({id:`t_${set}_${c}_${v}_${Math.random().toString(36).slice(2,8)}`, val:v, color:colors[c]}); } }
             d.push({id:`j1_${Math.random().toString(36).slice(2,8)}`, val:'☻', color:'#ef4444'});
@@ -1147,7 +1180,10 @@
         const rkLayOff = (tile, groupTiles) => {
             for (let i = 0; i <= groupTiles.length; i++) {
                 const attempt = [...groupTiles.slice(0, i), tile, ...groupTiles.slice(i)];
-                if (validateGroup(attempt)) return attempt;
+                // A run is valid whatever order it is stored in, so taking the
+                // first position that validates left melds reading 7,5,6 on the
+                // table. Sort the result so a run always reads in order.
+                if (validateGroup(attempt)) return autoSortRun(attempt);
             }
             return null;
         };
@@ -5142,7 +5178,7 @@
                                          className={`flex board-group hover:bg-emerald-500/10 ${hoverTarget === `board-group-${groupObj.id}` ? 'border-2 border-emerald-400 rounded-xl bg-emerald-500/15' : !validateGroup(groupObj.tiles) ? 'board-invalid-group rounded-xl' : isMyNewGroup ? 'border-2 border-dashed border-emerald-500/50 rounded-xl' : 'border-2 border-transparent rounded-xl'}`}
                                          style={{ direction: 'ltr' }}>
                                         {groupObj.tiles.map((t, tIdx) => (
-                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.color }}>{t.val}</div>
+                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${t.val === RK_JOKER ? 'rk-joker' : ''} ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.color }}><span className="rk-num">{t.val}</span></div>
                                         ))}
                                     </div>
                                 )})}
@@ -5175,7 +5211,7 @@
                             </div>
                         )}
                         {isSeated && isPlaying && (
-                            <div className="h-48 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="rk-rack h-48 sm:h-52 shrink-0 mx-2 md:mx-4 rounded-t-3xl flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
@@ -5185,9 +5221,9 @@
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
                                         return (
-                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center border border-slate-800/50 rounded bg-slate-950/30 ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-900/30 border-emerald-500/50 shadow-inner' : ''}`}>
+                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'rk-hot' : ''}`}>
                                                 {tile && (
-                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[92%] h-[95%] flex items-center justify-center text-lg sm:text-2xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: tile.color }}>{tile.val}</div>
+                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[92%] h-[95%] flex items-center justify-center text-lg sm:text-2xl z-10 cursor-grab active:cursor-grabbing ${tile.val === RK_JOKER ? 'rk-joker' : ''} ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: tile.color }}><span className="rk-num">{tile.val}</span></div>
                                                 )}
                                             </div>
                                         );
@@ -5245,7 +5281,7 @@
                                     <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({(p.cards||[]).filter(c=>c).length} אבנים · {rackPenalty(p.cards)} נק')</span></div>
                                     <div className="flex flex-wrap gap-1" dir="ltr">
                                         {(p.cards||[]).filter(c=>c).map(t => (
-                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: t.color }}>{t.val}</div>
+                                            <div key={t.id} className={`rummy-tile w-6 h-9 flex items-center justify-center text-xs ${t.val === RK_JOKER ? 'rk-joker' : ''}`} style={{ color: t.color }}><span className="rk-num">{t.val}</span></div>
                                         ))}
                                     </div>
                                 </div>
@@ -5259,8 +5295,8 @@
                     {ch.gifts.filter(g => g.to === user.uid).map((g, gi) => <div key={'sg'+gi} className="fixed left-1/2 top-1/3 -translate-x-1/2 text-6xl z-[500] pointer-events-none" style={{ animation: 'giftBoom 2s ease-out forwards' }}>{g.giftE}</div>)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: t.color }}>{t.val}</div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}><span className="rk-num">{dragData.tile.val}</span></div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5 ${t.val === RK_JOKER ? 'rk-joker' : ''}`} style={{ color: t.color }}><span className="rk-num">{t.val}</span></div>))}</div>}
                 </div>
             );
         }
