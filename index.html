@@ -191,7 +191,17 @@
         @media (min-width: 640px) {
             .board-tile { width: calc(2.75rem * var(--board-scale, 1)); height: calc(4rem * var(--board-scale, 1)); font-size: calc(1.75rem * var(--board-scale, 1)); }
         }
-        .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
+        .board-group { padding: calc(0.45rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.18s, border-color 0.18s; }
+        /* The table surface. Melds used to float at free x/y and land on top of
+           each other — a meld could vanish under another one. They now flow in
+           rows like the physical table, so nothing can ever be hidden. */
+        /* the table surface itself is styled by #felt-board above */
+        .rk-felt-flow {
+            display: flex; flex-wrap: wrap; align-content: flex-start;
+            gap: calc(0.55rem * var(--board-scale, 1)) calc(0.7rem * var(--board-scale, 1));
+            padding: calc(0.7rem * var(--board-scale, 1));
+            min-width: 100%; min-height: 100%; direction: ltr;
+        }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
@@ -1047,6 +1057,145 @@
             }
             return tiles;
         };
+
+        /* ===== BOT-BRAIN-START — a Rummikub player, not a tile-drawer =====
+         * The bot used to draw one tile and pass, every single turn, forever.
+         * This finds real melds: runs (same colour, consecutive) and sets (same
+         * number, different colours), uses jokers to fill gaps, respects the
+         * 30-point opening, and once it has opened it also lays single tiles
+         * off onto melds already on the table.
+         * Pure functions over plain data so they can be unit-tested outside the
+         * browser — see bot.test.js.
+         * ================================================================== */
+        const RK_JOKER = '\u263b';
+        const rkIsJoker = (t) => !!t && t.val === RK_JOKER;
+        const rkVal = (t) => Number(t.val);
+
+        // Every run of >=3 that can be built from one colour, longest first.
+        // Jokers are spent only to bridge a gap we cannot fill with real tiles.
+        const rkRunsFrom = (tiles, jokers) => {
+            const out = [];
+            const byColor = {};
+            tiles.forEach((t) => { (byColor[t.color] = byColor[t.color] || []).push(t); });
+            Object.values(byColor).forEach((group) => {
+                const byVal = {};
+                group.forEach((t) => { (byVal[rkVal(t)] = byVal[rkVal(t)] || []).push(t); });
+                const vals = Object.keys(byVal).map(Number).sort((a, b) => a - b);
+                for (let i = 0; i < vals.length; i++) {
+                    for (let j = i; j < vals.length; j++) {
+                        const lo = vals[i], hi = vals[j];
+                        const span = hi - lo + 1;
+                        let have = 0; const picked = []; const missing = [];
+                        for (let v = lo; v <= hi; v++) {
+                            if (byVal[v]) { picked.push(byVal[v][0]); have++; } else missing.push(v);
+                        }
+                        if (span < 3) continue;
+                        if (missing.length > jokers) continue;
+                        if (have < 2) continue; // a run of joker+joker+one tile is not worth breaking a joker for
+                        out.push({tiles: picked, jokersUsed: missing.length, span});
+                    }
+                }
+            });
+            return out;
+        };
+
+        // Every set of >=3 same-number tiles in distinct colours.
+        const rkSetsFrom = (tiles, jokers) => {
+            const out = [];
+            const byVal = {};
+            tiles.forEach((t) => { (byVal[rkVal(t)] = byVal[rkVal(t)] || []).push(t); });
+            Object.values(byVal).forEach((group) => {
+                const seen = {};
+                group.forEach((t) => { if (!seen[t.color]) seen[t.color] = t; });
+                const picked = Object.values(seen);
+                if (picked.length >= 3) out.push({tiles: picked, jokersUsed: 0, span: picked.length});
+                else if (picked.length === 2 && jokers > 0) out.push({tiles: picked, jokersUsed: 1, span: 3});
+            });
+            return out;
+        };
+
+        // Greedily choose non-overlapping melds, richest first. Returns the
+        // chosen melds (with jokers substituted in) and the tiles left over.
+        const rkChooseMelds = (rackTiles) => {
+            const jokers = rackTiles.filter(rkIsJoker);
+            const reals = rackTiles.filter((t) => t && !rkIsJoker(t));
+            let jokersLeft = jokers.length;
+            const cands = [...rkRunsFrom(reals, jokersLeft), ...rkSetsFrom(reals, jokersLeft)];
+            // score a candidate by the points it books, favouring fewer jokers
+            const scoreOf = (c) => {
+                const withJ = [...c.tiles, ...jokers.slice(0, c.jokersUsed)];
+                return groupPoints(withJ) - c.jokersUsed * 12;
+            };
+            cands.sort((a, b) => scoreOf(b) - scoreOf(a));
+            const used = new Set();
+            const chosen = [];
+            cands.forEach((c) => {
+                if (c.jokersUsed > jokersLeft) return;
+                if (c.tiles.some((t) => used.has(t.id))) return;
+                const withJ = [...c.tiles, ...jokers.slice(jokers.length - jokersLeft, jokers.length - jokersLeft + c.jokersUsed)];
+                if (!validateGroup(withJ)) return;
+                c.tiles.forEach((t) => used.add(t.id));
+                jokersLeft -= c.jokersUsed;
+                chosen.push(autoSortRun(withJ));
+            });
+            const leftover = rackTiles.filter((t) => t && !used.has(t.id) &&
+                !chosen.some((g) => g.some((x) => x.id === t.id)));
+            return {melds: chosen, leftover};
+        };
+
+        // Can this single tile join a meld already on the table?
+        const rkLayOff = (tile, groupTiles) => {
+            for (let i = 0; i <= groupTiles.length; i++) {
+                const attempt = [...groupTiles.slice(0, i), tile, ...groupTiles.slice(i)];
+                if (validateGroup(attempt)) return attempt;
+            }
+            return null;
+        };
+
+        /* The bot's whole turn, as pure data in -> data out.
+         * Returns {board, rack, played} when it can play, or null to draw. */
+        const rkBotTurn = (rackIn, boardIn, hasDropped) => {
+            const rack = (rackIn || []).slice();
+            const board = JSON.parse(JSON.stringify(boardIn || []));
+            const held = rack.filter(Boolean);
+            if (!held.length) return null;
+
+            const {melds} = rkChooseMelds(held);
+            const laidIds = new Set();
+            const newGroups = [];
+
+            if (!hasDropped) {
+                // Opening: only tiles from our own rack count, and they must
+                // reach 30 points together. Take the richest melds until we do.
+                const sorted = [...melds].sort((a, b) => groupPoints(b) - groupPoints(a));
+                let total = 0; const take = [];
+                sorted.forEach((m) => { if (total < FIRST_MELD_MIN) { take.push(m); total += groupPoints(m); } });
+                if (total < FIRST_MELD_MIN) return null; // cannot open yet — draw
+                take.forEach((m) => { newGroups.push(m); m.forEach((t) => laidIds.add(t.id)); });
+            } else {
+                melds.forEach((m) => { newGroups.push(m); m.forEach((t) => laidIds.add(t.id)); });
+                // then push singles onto melds already on the table
+                held.forEach((t) => {
+                    if (laidIds.has(t.id)) return;
+                    for (const g of board) {
+                        const merged = rkLayOff(t, g.tiles);
+                        if (merged) { g.tiles = merged; laidIds.add(t.id); return; }
+                    }
+                });
+            }
+            if (!laidIds.size) return null;
+
+            // place the new melds on free ground so nothing lands on top of
+            // anything else (the board arranger tidies it properly afterwards)
+            let nx = 18, ny = 18;
+            newGroups.forEach((tiles, i) => {
+                board.push({id: 'g_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 6), x: nx, y: ny, tiles});
+                nx += 26; if (nx > 80) { nx = 18; ny += 22; }
+            });
+            const outRack = rack.map((t) => (t && laidIds.has(t.id) ? null : t));
+            return {board, rack: outRack, played: laidIds.size};
+        };
+        /* ===== BOT-BRAIN-END ===== */
 
         // האם שתי אבנים שכנות "קשורות משחקית" (לצורך בחירת בלוק בלחיצה ארוכה)
         const tilesChain = (a, b) => {
@@ -4164,6 +4313,35 @@
                                 const currentTbl = tblSnap.data();
                                 if (currentTbl.currentTurn !== currentUid || currentTbl.phase !== 'playing') return;
 
+                                const uids = Object.keys(currentTbl.players).sort();
+                                const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
+                                const botP = currentTbl.players[currentUid] || {};
+
+                                // FIRST: try to actually play. Only draw if there is no move.
+                                const plan = rkBotTurn(botP.cards || [], currentTbl.board || [], !!botP.hasDropped);
+                                if (plan) {
+                                    const tilesLeft = plan.rack.filter(Boolean).length;
+                                    if (tilesLeft === 0) {
+                                        // the bot went out — settle the round with it as the winner
+                                        await window.fb.updateDoc(tblRef, {
+                                            board: plan.board,
+                                            [`players.${currentUid}.cards`]: plan.rack,
+                                            [`players.${currentUid}.hasDropped`]: true
+                                        });
+                                        endGame(plan.board, currentUid);
+                                        return;
+                                    }
+                                    await window.fb.updateDoc(tblRef, {
+                                        board: plan.board,
+                                        [`players.${currentUid}.cards`]: plan.rack,
+                                        [`players.${currentUid}.hasDropped`]: true,
+                                        currentTurn: nextTurn, turnStartedAt: Date.now(),
+                                        turnSnapBoard: JSON.parse(JSON.stringify(plan.board)),
+                                        turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])]
+                                    });
+                                    return;
+                                }
+
                                 const newDeck = [...(currentTbl.deck || [])];
                                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                                 const newRack = [...(currentTbl.players[currentUid].cards || [])];
@@ -4171,11 +4349,9 @@
                                     const emptyIdx = newRack.findIndex(t=>t===null);
                                     if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
                                 }
-                                const uids = Object.keys(currentTbl.players).sort();
-                                const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
                                 await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: currentTbl.board || [], turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])] });
                             } catch(e) {}
-                        }, 4000);
+                        }, 1800 + Math.random() * 1400);
                         return () => clearTimeout(botTimer);
                     }
                 }
@@ -4595,15 +4771,19 @@
             };
 
             /* ---------- סיום משחק והתחשבנות ---------- */
-            const endGame = async (finalBoard) => {
+            // The winner is whoever emptied their rack — me by default, or a bot when
+            // one of them goes out. Everything downstream reads winUid, never winUid.
+            const endGame = async (finalBoard, winnerUid) => {
+                const winUid = winnerUid || user.uid;
+                const winName = (tableState?.players?.[winUid] || {}).username || user.username;
                 if (endingRef.current) return;
                 if (tableState?.tournamentId) {
                     endingRef.current = true;
                     try {
                         await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                            phase: 'showdown', winner: user.uid, board: finalBoard,
-                            lastResults: { winnerName: user.username, details: {}, pot: 0, rake: 0, tournament: true },
-                            tournament: { ...tableState.tournament, finished: true, tableWinner: user.uid }
+                            phase: 'showdown', winner: winUid, board: finalBoard,
+                            lastResults: { winnerName: winName, details: {}, pot: 0, rake: 0, tournament: true },
+                            tournament: { ...tableState.tournament, finished: true, tableWinner: winUid }
                         });
                     } catch(e) {} finally { endingRef.current = false; }
                     return;
@@ -4632,10 +4812,10 @@
                         else if (ownerUid0) { adminRef = memDoc(ownerUid0); adminSnap = await t.get(adminRef); }
 
                         const players = JSON.parse(JSON.stringify(tbl.players));
-                        players[user.uid].cards = [];
+                        players[winUid].cards = [];
                         let totalPot = 0; const details = {};
                         Object.entries(players).forEach(([uid, p]) => {
-                            if (uid === user.uid) return;
+                            if (uid === winUid) return;
                             const penalty = rackPenalty(p.cards);
                             const pay = Math.min(round2(penalty * stakesNum), p.stack || 0);
                             players[uid].stack = round2((p.stack || 0) - pay);
@@ -4645,22 +4825,22 @@
                         totalPot = round2(totalPot);
                         const rake = round2(totalPot * rakeFrac);
                         const winnerProfit = round2(totalPot - rake);
-                        players[user.uid].stack = round2((players[user.uid].stack || 0) + winnerProfit);
+                        players[winUid].stack = round2((players[winUid].stack || 0) + winnerProfit);
                         logEntries = [
-                            ...(players[user.uid].isBot ? [] : [{ uid: user.uid, username: players[user.uid].username, game: 'rummikub', profit: winnerProfit }]),
+                            ...(players[winUid].isBot ? [] : [{ uid: winUid, username: players[winUid].username, game: 'rummikub', profit: winnerProfit }]),
                             ...Object.entries(details).filter(([duid]) => !players[duid]?.isBot).map(([duid, d]) => ({ uid: duid, username: d.username, game: 'rummikub', profit: -d.pay }))
                         ];
                         rakeInfo = { rake, uids: Object.keys(players) };
 
                         t.update(tblRef, {
-                            players, board: finalBoard, phase: 'showdown', winner: user.uid, currentTurn: null,
-                            lastResults: { winnerName: players[user.uid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now() }
+                            players, board: finalBoard, phase: 'showdown', winner: winUid, currentTurn: null,
+                            lastResults: { winnerName: players[winUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now() }
                         });
 
                         for (const [uid, snap] of Object.entries(userSnaps)) {
                             if (!snap.exists()) continue;
                             const st = snap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                            const isWinner = uid === user.uid;
+                            const isWinner = uid === winUid;
                             const delta = isWinner ? winnerProfit : -(details[uid]?.pay || 0);
                             const upd = {
                                 'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
@@ -4953,14 +5133,14 @@
                              </div>
                         )}
 
-                        <div id="felt-board" data-drop="board-new" className="flex-1 relative m-2 md:m-4 rounded-3xl border-2 border-emerald-900/60 overflow-auto shadow-[inset_0_0_80px_rgba(0,0,0,0.7)]">
-                            <div className="min-w-full min-h-full relative">
+                        <div id="felt-board" data-drop="board-new" className="rk-felt flex-1 relative m-2 md:m-4 rounded-3xl overflow-auto">
+                            <div className="rk-felt-flow">
                                 {board.map((groupObj) => {
                                     const isMyNewGroup = isMyTurn && !hasDropped && !startIdsSet.has(groupObj.id);
                                     return (
                                     <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`}
-                                         className={`absolute flex board-group hover:bg-emerald-500/10 ${hoverTarget === `board-group-${groupObj.id}` ? 'border-2 border-emerald-400 rounded-xl bg-emerald-500/15' : !validateGroup(groupObj.tiles) ? 'board-invalid-group rounded-xl' : isMyNewGroup ? 'border-2 border-dashed border-emerald-500/50 rounded-xl' : 'border-2 border-transparent rounded-xl'}`}
-                                         style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)', direction: 'ltr' }}>
+                                         className={`flex board-group hover:bg-emerald-500/10 ${hoverTarget === `board-group-${groupObj.id}` ? 'border-2 border-emerald-400 rounded-xl bg-emerald-500/15' : !validateGroup(groupObj.tiles) ? 'board-invalid-group rounded-xl' : isMyNewGroup ? 'border-2 border-dashed border-emerald-500/50 rounded-xl' : 'border-2 border-transparent rounded-xl'}`}
+                                         style={{ direction: 'ltr' }}>
                                         {groupObj.tiles.map((t, tIdx) => (
                                             <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.color }}>{t.val}</div>
                                         ))}
