@@ -685,13 +685,13 @@ exports.ramiSettle = onCall(async (request) => {
     }
     if (ownerRef && ownerData && rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + rake - totalCuts), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)});
     for (const [aUid, amt] of Object.entries(agentCuts)) { const ad = agentData[aUid]; if (ad) tx.update(agentRefs[aUid], {balance: round2((Number(ad.balance) || 0) + amt), agentProfits: round2((Number(ad.agentProfits) || 0) + amt)}); }
-    return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId};
+    return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId, winHand: (players[winnerUid].cards || []).filter(Boolean)};
   });
   try {
     const rows = [];
     if (!out.winnerIsBot) rows.push({uid: winnerUid, username: out.winnerName, profit: out.winnerProfit, rake: out.rake});
     for (const [duid, d] of Object.entries(out.details)) rows.push({uid: duid, username: d.username, profit: -d.pay});
-    for (const r of rows) { if (!r.uid) continue; await db.collection("gameLog").add({uid: r.uid, username: r.username || "", game: "rami", clubId: out.clubId, profit: round2(r.profit || 0), rake: round2(r.rake || 0), tableId, at: Date.now()}); }
+    for (const r of rows) { if (!r.uid) continue; await db.collection("gameLog").add({uid: r.uid, username: r.username || "", game: "rami", clubId: out.clubId, profit: round2(r.profit || 0), rake: round2(r.rake || 0), tableId, at: Date.now(), winnerName: out.winnerName || "", winHand: out.winHand || []}); }
     if (out.rake > 0) await db.collection("agentLog").add({clubId: out.clubId, agentUid: "club", kind: "club", amount: round2(out.rake), at: Date.now()});
     for (const [aUid, amt] of Object.entries(out.agentCuts)) await db.collection("agentLog").add({agentUid: aUid, clubId: out.clubId, amount: round2(amt), at: Date.now()});
   } catch (e) { /* לוג בלבד */ }

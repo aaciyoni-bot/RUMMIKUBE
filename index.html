@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v41';
+        const APP_VER = 'v42';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -3420,6 +3420,7 @@
             const [fFrom, setFFrom] = useState('');
             const [fTo, setFTo] = useState('');
             const [rowsShown, setRowsShown] = useState(50);
+            const [expandedLog, setExpandedLog] = useState(null);
 
             const loadLogs = async () => {
                 setLogsLoading(true);
@@ -3580,16 +3581,40 @@
                                         {filtered.length === 0 && <div className="text-slate-500 text-sm font-bold py-4">אין תוצאות בטווח שנבחר.</div>}
                                     </div>
                                     <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pl-1">
-                                        {filtered.slice(0, rowsShown).map((l, i) => (
-                                            <div key={i} className="flex items-center justify-between bg-slate-900/60 rounded-xl px-4 py-2 border border-white/5 text-sm">
-                                                <span className="font-bold text-slate-300">
-                                                    <span className="text-slate-500 text-xs ml-2">{new Date(l.at).toLocaleDateString('he-IL')} {new Date(l.at).toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}</span>
-                                                    {GAME_LABEL(l.game)}
-                                                    {l.tableId && <span className="text-slate-600 font-mono text-[10px] mr-1.5" dir="ltr">{tableCode(l.tableId)}</span>}
-                                                </span>
-                                                <span className={`font-black ${(l.profit||0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(l.profit||0) >= 0 ? '+' : ''}{formatMoney(l.profit)}</span>
-                                            </div>
-                                        ))}
+                                        {filtered.slice(0, rowsShown).map((l, i) => {
+                                            const hasHand = l.game === 'rami' && Array.isArray(l.winHand) && l.winHand.length > 0;
+                                            const open = expandedLog === i;
+                                            return (
+                                                <div key={i} className="flex flex-col">
+                                                    <div onClick={() => hasHand && setExpandedLog(open ? null : i)} className={`flex items-center justify-between bg-slate-900/60 rounded-xl px-4 py-2 border border-white/5 text-sm ${hasHand ? 'cursor-pointer hover:border-emerald-500/40' : ''}`}>
+                                                        <span className="font-bold text-slate-300">
+                                                            <span className="text-slate-500 text-xs ml-2">{new Date(l.at).toLocaleDateString('he-IL')} {new Date(l.at).toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}</span>
+                                                            {GAME_LABEL(l.game)}
+                                                            {l.tableId && <span className="text-slate-600 font-mono text-[10px] mr-1.5" dir="ltr">{tableCode(l.tableId)}</span>}
+                                                            {hasHand && <span className="text-emerald-400/80 text-[10px] mr-1.5 font-black">🔍 {open ? 'הסתר' : 'היד הזוכה'}</span>}
+                                                        </span>
+                                                        <span className={`font-black ${(l.profit||0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(l.profit||0) >= 0 ? '+' : ''}{formatMoney(l.profit)}</span>
+                                                    </div>
+                                                    {open && hasHand && (() => {
+                                                        const wp = bestPartition(l.winHand.filter(Boolean));
+                                                        const melds = wp.melds || [];
+                                                        return (
+                                                            <div className="bg-slate-950/60 rounded-xl mt-1 mb-1 p-2 border border-emerald-500/20">
+                                                                <div className="text-[10px] font-black text-slate-400 mb-1.5 text-right">🏆 {l.winnerName || 'המנצח'} ירד עם היד ({l.winHand.length} אבנים):</div>
+                                                                <div className="flex flex-col gap-1">
+                                                                    {melds.map((m, mi) => {
+                                                                        const nums = m.map(x => x.val).filter(v => v !== '☻');
+                                                                        const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
+                                                                        const label = isGroup ? (m.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
+                                                                        return <div key={mi} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/25 rounded-lg p-1"><span className="text-[9px] font-black text-emerald-300 w-11 text-center shrink-0">{label}</span><div className="flex flex-wrap gap-0.5 justify-center flex-1">{m.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div></div>;
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            );
+                                        })}
                                         {filtered.length > rowsShown && (
                                             <button onClick={()=>setRowsShown(n => n + 100)} className="mt-1 py-2 rounded-xl bg-slate-800/80 border border-white/10 text-slate-300 hover:text-white font-bold text-xs">
                                                 הצג עוד ({filtered.length - rowsShown} נותרו)
