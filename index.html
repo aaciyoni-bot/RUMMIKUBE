@@ -1424,6 +1424,117 @@
             return out;
         };
 
+        /* ===== מוח הבוטים =====
+           מוצא מלדים זרים מתוך אבני המגש: רצפים קודם (שווים יותר בדרך כלל),
+           אחר-כך שלישיות מהנותר, ולבסוף השלמות ג'וקר לזוגות. כל אבן פעם אחת. */
+        const botFindMelds = (tiles) => {
+            const used = new Set();
+            const melds = [];
+            const regs = tiles.filter(t => t.val !== '☻');
+            const jokers = tiles.filter(t => t.val === '☻');
+
+            // רצפים: פר צבע, ערכים ייחודיים עולים, חותכים כל רצף של 3+
+            const byColor = {};
+            regs.forEach(t => { (byColor[t.color] = byColor[t.color] || []).push(t); });
+            Object.values(byColor).forEach(arr => {
+                const uniq = [];
+                const seen = new Set();
+                [...arr].sort((a, b) => Number(a.val) - Number(b.val)).forEach(t => {
+                    if (!seen.has(Number(t.val))) { seen.add(Number(t.val)); uniq.push(t); }
+                });
+                let run = [];
+                const flush = () => { if (run.length >= 3) { run.forEach(t => used.add(t.id)); melds.push(run); } run = []; };
+                uniq.forEach(t => {
+                    if (run.length && Number(t.val) !== Number(run[run.length - 1].val) + 1) flush();
+                    run.push(t);
+                });
+                flush();
+            });
+
+            // שלישיות/רביעיות מהאבנים שנותרו: אותו ערך, צבעים שונים
+            const byVal = {};
+            regs.filter(t => !used.has(t.id)).forEach(t => { (byVal[t.val] = byVal[t.val] || []).push(t); });
+            Object.values(byVal).forEach(arr => {
+                const distinct = [];
+                const colors = new Set();
+                arr.forEach(t => { if (!colors.has(t.color)) { colors.add(t.color); distinct.push(t); } });
+                if (distinct.length >= 3) { distinct.slice(0, 4).forEach(t => used.add(t.id)); melds.push(distinct.slice(0, 4)); }
+            });
+
+            // ג'וקרים משלימים זוגות: קודם זוג-ערך (שלישייה), אחרת זוג-רצף
+            let jk = jokers.slice();
+            if (jk.length) {
+                const free = () => regs.filter(t => !used.has(t.id));
+                Object.values(byVal).forEach(arr => {
+                    if (!jk.length) return;
+                    const d = arr.filter(t => !used.has(t.id));
+                    const colors = new Set();
+                    const pair = d.filter(t => !colors.has(t.color) && colors.add(t.color) !== null);
+                    if (pair.length === 2) { pair.forEach(t => used.add(t.id)); melds.push([...pair, jk.pop()]); }
+                });
+                if (jk.length) {
+                    const byC2 = {};
+                    free().forEach(t => { (byC2[t.color] = byC2[t.color] || []).push(t); });
+                    Object.values(byC2).some(arr => {
+                        const sorted = [...arr].sort((a, b) => Number(a.val) - Number(b.val));
+                        for (let i = 0; i < sorted.length - 1; i++) {
+                            const a = sorted[i], b = sorted[i + 1];
+                            const gap = Number(b.val) - Number(a.val);
+                            if ((gap === 1 || gap === 2) && jk.length) {
+                                used.add(a.id); used.add(b.id);
+                                melds.push([a, b, jk.pop()]);
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                }
+            }
+            return melds;
+        };
+
+        /* הרחבות: אבנים בודדות שמצטרפות לקבוצות קיימות על הלוח -
+           רביעי לשלישייה, או קצה לרצף. סבבים חמדניים עד שאין מה להוסיף. */
+        const botFindExtensions = (tiles, board) => {
+            const exts = [];
+            const pool = tiles.filter(t => t.val !== '☻'); // ג'וקר לא מתבזבז על הרחבה
+            const groups = board.map(g => ({ id: g.id, tiles: [...g.tiles] }));
+            let moved = true;
+            while (moved) {
+                moved = false;
+                for (const t of pool) {
+                    if (exts.some(e => e.tile.id === t.id)) continue;
+                    for (const g of groups) {
+                        if (g.tiles.length >= 13) continue;
+                        const trial = [...g.tiles, t];
+                        if (!validateGroup(trial)) continue;
+                        g.tiles.push(t);
+                        exts.push({ tile: t, groupId: g.id });
+                        moved = true;
+                        break;
+                    }
+                    if (moved) break;
+                }
+            }
+            return exts;
+        };
+
+        /* תכנון תור: לפני הורדה ראשונה - רק מלדים משלו בשווי 30+;
+           אחריה - מלדים חדשים + הרחבות. אין כלום => null (משיכה). */
+        const botPlanMove = (rackArr, board, hasDropped) => {
+            const tiles = rackArr.filter(Boolean);
+            const melds = botFindMelds(tiles);
+            if (!hasDropped) {
+                const pts = melds.reduce((s, m) => s + groupPoints(m), 0);
+                if (melds.length === 0 || pts < FIRST_MELD_MIN) return null;
+                return { melds, exts: [] };
+            }
+            const usedIds = new Set(melds.flat().map(t => t.id));
+            const exts = botFindExtensions(tiles.filter(t => !usedIds.has(t.id)), board);
+            if (melds.length === 0 && exts.length === 0) return null;
+            return { melds, exts };
+        };
+
         // האם שתי אבנים שכנות "קשורות משחקית" (לצורך בחירת בלוק בלחיצה ארוכה)
         const tilesChain = (a, b) => {
             if (!a || !b) return false;
@@ -5048,6 +5159,8 @@
                     const currentUid = tableState.currentTurn;
                     const currentPlayer = tableState.players?.[currentUid];
                     if (currentPlayer && currentPlayer.isBot) {
+                        // "חושב" 2.5-5 שניות ואז משחק באמת: הורדה ראשונה של 30+,
+                        // מלדים חדשים, הרחבות ללוח - ורק אם אין כלום, מושך.
                         const botTimer = setTimeout(async () => {
                             try {
                                 const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -5056,18 +5169,52 @@
                                 const currentTbl = tblSnap.data();
                                 if (currentTbl.currentTurn !== currentUid || currentTbl.phase !== 'playing') return;
 
-                                const newDeck = [...(currentTbl.deck || [])];
-                                const tile = newDeck.length > 0 ? newDeck.pop() : null;
-                                const newRack = [...(currentTbl.players[currentUid].cards || [])];
-                                if(tile) {
-                                    const emptyIdx = newRack.findIndex(t=>t===null);
-                                    if(emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
-                                }
+                                const bot = currentTbl.players[currentUid];
+                                const rack = bot.cards || [];
+                                const board = currentTbl.board || [];
+                                const plan = botPlanMove(rack, board, !!bot.hasDropped);
                                 const uids = Object.keys(currentTbl.players).sort();
                                 const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
-                                await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: currentTbl.board || [], turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])] });
+
+                                if (plan) {
+                                    const usedIds = new Set([...plan.melds.flat(), ...plan.exts.map(e => e.tile)].map(t => t.id));
+                                    const newRack = rack.map(t => (t && usedIds.has(t.id)) ? null : t);
+                                    let newBoard = board.map(g => ({ ...g, tiles: [...g.tiles] }));
+                                    plan.exts.forEach(e => {
+                                        const g = newBoard.find(x => x.id === e.groupId);
+                                        if (g) { g.tiles.push(e.tile); g.tiles = autoSortRun(g.tiles); }
+                                    });
+                                    plan.melds.forEach(m => newBoard.push(newBoardGroup(autoSortRun([...m]))));
+
+                                    // רשת ביטחון: הלוח כולו חייב להיות חוקי אחרי המהלך
+                                    if (newBoard.every(g => validateGroup(g.tiles))) {
+                                        if (newRack.filter(Boolean).length === 0) {
+                                            await settleWin(currentUid, newBoard); // הבוט סיים - זכה
+                                            return;
+                                        }
+                                        await window.fb.updateDoc(tblRef, {
+                                            board: newBoard,
+                                            [`players.${currentUid}.cards`]: newRack,
+                                            [`players.${currentUid}.hasDropped`]: true,
+                                            [`players.${currentUid}.missed`]: 0,
+                                            currentTurn: nextTurn, turnStartedAt: Date.now(),
+                                            turnSnapBoard: newBoard, turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])]
+                                        });
+                                        return;
+                                    }
+                                }
+
+                                // אין מהלך - משיכה מהקופה והעברת תור
+                                const newDeck = [...(currentTbl.deck || [])];
+                                const tile = newDeck.length > 0 ? newDeck.pop() : null;
+                                const newRack = [...rack];
+                                if (tile) {
+                                    const emptyIdx = newRack.findIndex(t => t === null);
+                                    if (emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                                }
+                                await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, [`players.${currentUid}.missed`]: 0, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: currentTbl.board || [], turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])] });
                             } catch(e) {}
-                        }, 4000);
+                        }, 2500 + Math.random() * 2500);
                         return () => clearTimeout(botTimer);
                     }
                 }
@@ -5661,15 +5808,18 @@
             };
 
             /* ---------- סיום משחק והתחשבנות ---------- */
-            const endGame = async (finalBoard) => {
+            /* התחשבנות ניצחון - מוכללת: הזוכה יכול להיות השחקן המקומי או בוט
+               (מוח הבוטים רץ אצל הסופר-אדמין וסוגר עבורם את המשחק). */
+            const settleWin = async (winnerUid, finalBoard) => {
                 if (endingRef.current) return;
                 if (tableState?.tournamentId) {
                     endingRef.current = true;
                     try {
+                        const wName = (tableState.players?.[winnerUid] || {}).username || '';
                         await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), {
-                            phase: 'showdown', winner: user.uid, board: finalBoard,
-                            lastResults: { winnerName: user.username, details: {}, pot: 0, rake: 0, tournament: true },
-                            tournament: { ...tableState.tournament, finished: true, tableWinner: user.uid }
+                            phase: 'showdown', winner: winnerUid, board: finalBoard,
+                            lastResults: { winnerName: wName, details: {}, pot: 0, rake: 0, tournament: true },
+                            tournament: { ...tableState.tournament, finished: true, tableWinner: winnerUid }
                         });
                     } catch(e) {} finally { endingRef.current = false; }
                     return;
@@ -5684,6 +5834,7 @@
                         if (!tblSnap.exists()) throw "table gone";
                         const tbl = tblSnap.data();
                         if (tbl.phase !== 'playing') throw "already ended";
+                        if (!tbl.players?.[winnerUid]) throw "winner gone";
                         const stakesNum = Number(tbl.stakes) || 0.1;
 
                         const userRefs = {}; const userSnaps = {};
@@ -5698,10 +5849,10 @@
                         else if (ownerUid0) { adminRef = memDoc(ownerUid0); adminSnap = await t.get(adminRef); }
 
                         const players = JSON.parse(JSON.stringify(tbl.players));
-                        players[user.uid].cards = [];
+                        players[winnerUid].cards = [];
                         let totalPot = 0; const details = {};
                         Object.entries(players).forEach(([uid, p]) => {
-                            if (uid === user.uid) return;
+                            if (uid === winnerUid) return;
                             const penalty = rackPenalty(p.cards);
                             const pay = Math.min(round2(penalty * stakesNum), p.stack || 0);
                             players[uid].stack = round2((p.stack || 0) - pay);
@@ -5711,22 +5862,22 @@
                         totalPot = round2(totalPot);
                         const rake = round2(totalPot * rakeFrac);
                         const winnerProfit = round2(totalPot - rake);
-                        players[user.uid].stack = round2((players[user.uid].stack || 0) + winnerProfit);
+                        players[winnerUid].stack = round2((players[winnerUid].stack || 0) + winnerProfit);
                         logEntries = [
-                            ...(players[user.uid].isBot ? [] : [{ uid: user.uid, username: players[user.uid].username, game: 'rummikub', profit: winnerProfit }]),
+                            ...(players[winnerUid].isBot ? [] : [{ uid: winnerUid, username: players[winnerUid].username, game: 'rummikub', profit: winnerProfit }]),
                             ...Object.entries(details).filter(([duid]) => !players[duid]?.isBot).map(([duid, d]) => ({ uid: duid, username: d.username, game: 'rummikub', profit: -d.pay }))
                         ];
                         rakeInfo = { rake, uids: Object.keys(players) };
 
                         t.update(tblRef, {
-                            players, board: finalBoard, phase: 'showdown', winner: user.uid, currentTurn: null,
-                            lastResults: { winnerName: players[user.uid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now() }
+                            players, board: finalBoard, phase: 'showdown', winner: winnerUid, currentTurn: null,
+                            lastResults: { winnerName: players[winnerUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now() }
                         });
 
                         for (const [uid, snap] of Object.entries(userSnaps)) {
                             if (!snap.exists()) continue;
                             const st = snap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                            const isWinner = uid === user.uid;
+                            const isWinner = uid === winnerUid;
                             const delta = isWinner ? winnerProfit : -(details[uid]?.pay || 0);
                             const upd = {
                                 'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
@@ -5751,6 +5902,7 @@
                 } catch(e) {
                 } finally { endingRef.current = false; }
             };
+            const endGame = (finalBoard) => settleWin(user.uid, finalBoard);
 
             /* ---------- סיום תור ---------- */
             const handleEndTurn = async () => {
