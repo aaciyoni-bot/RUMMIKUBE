@@ -969,9 +969,11 @@
             { id: 'shesh', label: 'שש-בש', live: !RUMMY_ONLY },
         ];
 
-        // GOD MODE - אך ורק שני המיילים האלה (כניסה דרך גוגל)
-        const GOD_EMAILS = ['aaci.yoni@gmail.com', 'info.bagso@gmail.com'];
+        // GOD MODE - אך ורק המייל הזה (כניסה דרך גוגל)
+        const GOD_EMAILS = ['aaci.yoni@gmail.com'];
         const SUPER_ADMIN_EMAIL = 'aaci.yoni@gmail.com';
+        // מוסיף-בוטים ידני בלבד (כפתור "הוסף בוט") — בלי GOD MODE
+        const BOT_ADDER_EMAILS = ['liorabrgel1991@gmail.com'];
 
         const DEFAULT_RAKE_PCT = 6;   // ברירת מחדל בלבד - ניתן לעריכה בהגדרות המועדון
         const TURN_SECONDS = 60;
@@ -981,7 +983,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v43';
+        const APP_VER = 'v44';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1031,6 +1033,7 @@
         const BOT_NAMES = BOT_NAMES_RM;
 
         const isGodUser = (u) => u && GOD_EMAILS.includes((u.email || '').toLowerCase().trim());
+        const isBotAdder = (u) => u && BOT_ADDER_EMAILS.includes((u.email || '').toLowerCase().trim());
         // מי רשאי לנהל משחק מסוים: אדמין/בעלים - הכל; מנהל - רק משחקים שסומנו לו
         const canManageGame = (u, gameId) => {
             if (!u) return false;
@@ -7134,6 +7137,10 @@
             const part = useMemo(() => bestPartition(myHand), [handKey]);
             const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
             const uids = t ? Object.keys(t.players || {}).sort() : [];
+            // מי מריץ את מהלכי-הבוטים הקיימים: השחקן-האנושי עם ה-uid הקטן ביותר בשולחן
+            // (או GOD/מוסיף-בוטים אם אין אנושיים). כך בוטים שנוספו ידנית אכן משחקים.
+            const seatedHumans = t ? Object.keys(t.players || {}).filter(u => t.players[u] && !t.players[u].isBot).sort() : [];
+            const isBotDriver = !!(t && (user.uid === seatedHumans[0] || ((isGodUser(user) || isBotAdder(user)) && seatedHumans.length === 0)));
 
             // ── מגש גמיש: כל קומבינציה נשארת בשורה אחת, רווח קטן ביניהן + הדגשת אבן שנמשכה ──
             const [order, setOrder] = useState([]);
@@ -7399,34 +7406,35 @@
                 })();
             }, [myTurn, timeLeft, t && t.turnPhase]);
 
-            // ── מוח הבוטים + חלוקה, רץ רק בדפדפן של GOD ──
+            // הוספת בוט ידנית — כפתור זמין רק ל-BOT_ADDER (או GOD). בוטים לא נכנסים אוטומטית.
+            const addBotBusyRef = useRef(false);
+            const handleAddBot = async () => {
+                if (addBotBusyRef.current) return; addBotBusyRef.current = true;
+                try {
+                    if (typeof ensureBotBank === 'function') await ensureBotBank();
+                    const ref = window.fb.doc(window.fb.db, "tables", tableDocId);
+                    const snap = await window.fb.getDoc(ref); if (!snap.exists()) return;
+                    const cur = snap.data();
+                    const n = Object.keys(cur.players || {}).length;
+                    if (n >= Number(cur.maxPlayers) || cur.phase !== 'waiting') { showToast('אי אפשר להוסיף בוט עכשיו', 'error'); return; }
+                    const bq = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const bs = await window.fb.getDocs(bq); if (bs.empty) { showToast('אין בוטים זמינים', 'error'); return; }
+                    const avail = bs.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !cur.players[b.id]);
+                    if (!avail.length) { showToast('אין בוט פנוי', 'error'); return; }
+                    const bot = avail[Math.floor(Math.random() * avail.length)];
+                    const buyIn = round2(Number(cur.minBuyIn) || 0);
+                    const players = { ...cur.players, [bot.id]: { username: bot.username, cards: [], stack: buyIn, isBot: true, missed: 0 } };
+                    const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
+                    if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank, 1, cur.timeBank), bank }); spawnTwinTable(cur); }
+                    else await window.fb.updateDoc(ref, { players, bank });
+                } catch (e) { showToast('שגיאה בהוספת בוט', 'error'); }
+                finally { addBotBusyRef.current = false; }
+            };
+
+            // ── מוח הבוטים: מריץ מהלכי-בוטים קיימים (רק אצל המנהיג). בוטים לא נכנסים אוטומטית ──
             useEffect(() => {
-                if (!isGodUser(user) || !t || t.phase === 'showdown') return;
-                if (typeof ensureBotBank === 'function') ensureBotBank();
-                if (t.phase === 'waiting') {
-                    const iv = setInterval(async () => {
-                        try {
-                            const ref = window.fb.doc(window.fb.db, "tables", tableDocId);
-                            const snap = await window.fb.getDoc(ref); if (!snap.exists()) return;
-                            const cur = snap.data();
-                            const n = Object.keys(cur.players || {}).length;
-                            if (n === 0 || n >= cur.maxPlayers || cur.phase !== 'waiting') return;
-                            if (typeof botsAreActive === 'function' && !botsAreActive()) return;
-                            const bq = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
-                            const bs = await window.fb.getDocs(bq); if (bs.empty) return;
-                            const avail = bs.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !cur.players[b.id]);
-                            if (!avail.length) return;
-                            const bot = avail[Math.floor(Math.random() * avail.length)];
-                            const buyIn = round2(Number(cur.minBuyIn) || 0);
-                            const players = { ...cur.players, [bot.id]: { username: bot.username, cards: [], stack: buyIn, isBot: true, missed: 0 } };
-                            const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
-                            if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank, 1, cur.timeBank), bank }); spawnTwinTable(cur); }
-                            else await window.fb.updateDoc(ref, { players, bank });
-                        } catch (e) {}
-                    }, 3000);
-                    return () => clearInterval(iv);
-                }
-                if (t.phase === 'playing') {
+                if (!isBotDriver || !t || t.phase !== 'playing') return;
+                {
                     const cu = t.currentTurn; const cp = t.players?.[cu];
                     if (!cp || !cp.isBot) return;
                     const think = 2500 + Math.random() * 2500;
@@ -7467,17 +7475,17 @@
                     }, think);
                     return () => clearTimeout(tm);
                 }
-            }, [t && t.phase, t && t.currentTurn, tableDocId]);
+            }, [t && t.phase, t && t.currentTurn, tableDocId, isBotDriver]);
 
-            // GOD מאשר פריש עבור הבוטים (בוטים תמיד מסכימים) — אחד בכל פעם
+            // המנהיג מאשר פריש עבור הבוטים (בוטים תמיד מסכימים) — אחד בכל פעם
             useEffect(() => {
-                if (!isGodUser(user) || !t || t.phase !== 'playing' || !t.freshReq) return;
+                if (!isBotDriver || !t || t.phase !== 'playing' || !t.freshReq) return;
                 const seated = Object.keys(t.players || {});
                 const pendingBot = seated.find(u => t.players[u].isBot && !(t.freshReq.approvals || {})[u]);
                 if (!pendingBot) return;
                 const tm = setTimeout(() => respondFresh(true, pendingBot), 800);
                 return () => clearTimeout(tm);
-            }, [t && t.freshReq, t && t.phase]);
+            }, [t && t.freshReq, t && t.phase, isBotDriver]);
 
             // תפוגה אוטומטית להצעת פריש תקועה: אם אף אחד לא סגר תוך 40 שנ' — מתבטלת,
             // כדי שהמודל לא ייתקע ולא יופיע כשלא מצפים לו.
@@ -7503,8 +7511,7 @@
                             <div className="glass-panel rounded-3xl p-4 sm:p-6 text-center">
                                 <div className="text-3xl mb-1">🃏</div>
                                 <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
-                                <p className="text-slate-400 font-bold text-xs mb-0.5" dir="rtl">סכום המשחק {formatMoney(t.minBuyIn)} ₪ · המפסיד מפסיד את הסכום</p>
-                                <p className="text-slate-500 font-bold text-[11px] mb-3" dir="rtl">{rakeTxt}</p>
+                                <p className="text-slate-400 font-bold text-xs mb-3" dir="rtl">דמי כניסה: {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪</p>
                                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
                                     {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
                                     {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1 text-sm font-bold text-slate-600">מקום פנוי</span>)}
@@ -7512,6 +7519,9 @@
                                 {!isSeated
                                     ? <button onClick={handleSit} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black text-lg shadow-lg">התיישב בשולחן ({formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪)</button>
                                     : <div className="text-emerald-400 font-black py-2">אתה בפנים · ממתין לשחקנים…</div>}
+                                {(isBotAdder(user) || isGodUser(user)) && uids.length < (Number(t.maxPlayers) || 4) && (
+                                    <button onClick={handleAddBot} className="w-full mt-2 bg-purple-600/80 hover:bg-purple-500 text-white py-2.5 rounded-2xl font-black border border-purple-400/30">➕ הוסף בוט</button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -7586,7 +7596,7 @@
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
-                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">מפסיד מפסיד {formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> ×{freshMult}</span>}</div>
+                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
                         <div className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ ${timeLeft}s` : `תורך ${timeLeft}s`) : `תור ${turnName}`}</div>
                     </div>
 
