@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v37';
+        const APP_VER = 'v38';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7110,46 +7110,75 @@
             const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
             const uids = t ? Object.keys(t.players || {}).sort() : [];
 
-            // ── סידור-יד ידני (גרירה) + הדגשת האבן שנמשכה זה עתה ──
-            const [order, setOrder] = useState([]);
+            // ── מגש-סידור עם משבצות ריקות (כמו מגש רמי אמיתי) + הדגשת אבן שנמשכה ──
+            const SLOT_COUNT = 24; // 4 שורות × 6 — הרבה משבצות ריקות לסידור בקבוצות עם רווחים
+            const [slots, setSlots] = useState(() => Array(SLOT_COUNT).fill(null));
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
-            const rowRef = useRef(null);
-            const prevIdsRef = useRef([]);
+            const gridRef = useRef(null);
+            const prevIdsRef = useRef(null); // null = טרם אותחל (כניסה ראשונה — בלי הבהוב)
             const handIds = myHand.filter(Boolean).map(x => x.id);
-            useEffect(() => {
-                setOrder(prev => { const kept = prev.filter(id => handIds.includes(id)); const added = handIds.filter(id => !kept.includes(id)); return [...kept, ...added]; });
-                const added = handIds.find(id => !prevIdsRef.current.includes(id));
-                prevIdsRef.current = handIds;
-                if (added) { setFlashId(added); const tm = setTimeout(() => setFlashId(null), 1600); return () => clearTimeout(tm); }
-            }, [handKey]);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
-            const orderedTiles = order.map(id => tileById[id]).filter(Boolean);
-            // הדגשה לפי הסידור שלך: כל רצף אבנים סמוכות שמרכיב קומבינציה חוקית
-            // (רצף 234 או שלישייה 777) נדלק בירוק — מה שאתה מסדר הוא מה שמואר.
-            const meldIds = (() => {
-                const s = new Set(); let i = 0;
-                while (i < orderedTiles.length) {
-                    let best = 0;
-                    for (let len = Math.min(orderedTiles.length - i, 13); len >= 3; len--) { if (validateGroup(orderedTiles.slice(i, i + len))) { best = len; break; } }
-                    if (best >= 3) { for (let k = i; k < i + best; k++) s.add(orderedTiles[k].id); i += best; } else i++;
+            useEffect(() => {
+                // סנכרון משבצות: אבנים נשארות במקומן, אבנים שיצאו מתפנות, אבנים חדשות למשבצת פנויה
+                setSlots(prev => {
+                    const arr = prev.slice(); const present = new Set(handIds);
+                    for (let i = 0; i < arr.length; i++) if (arr[i] && !present.has(arr[i])) arr[i] = null;
+                    const placed = new Set(arr.filter(Boolean));
+                    for (const id of handIds) { if (placed.has(id)) continue; let sl = arr.indexOf(null); if (sl < 0) arr.push(id); else arr[sl] = id; placed.add(id); }
+                    return arr;
+                });
+                // הבהוב רק על אבן שהרגע נמשכה: היד גדלה בדיוק באחת (14→15). לא בכניסה/חלוקה-מחדש/תור-יריב.
+                const prev = prevIdsRef.current;
+                let cleanup;
+                if (prev !== null && handIds.length === prev.length + 1) {
+                    const added = handIds.filter(id => !prev.includes(id));
+                    if (added.length === 1) { setFlashId(added[0]); const tm = setTimeout(() => setFlashId(null), 1600); cleanup = () => clearTimeout(tm); }
                 }
+                prevIdsRef.current = handIds;
+                return cleanup;
+            }, [handKey]);
+            // הדגשה + הפרדה: כל קבוצה מופרדת-ברווח נבדקת; תת-רצף חוקי (רצף 234 / שלישייה 777) נדלק בירוק
+            const meldIds = (() => {
+                const s = new Set(); let run = [];
+                const flush = () => {
+                    let i = 0;
+                    while (i < run.length) {
+                        let best = 0;
+                        for (let len = Math.min(run.length - i, 13); len >= 3; len--) { if (validateGroup(run.slice(i, i + len).map(x => x.t))) { best = len; break; } }
+                        if (best >= 3) { for (let k = i; k < i + best; k++) s.add(run[k].id); i += best; } else i++;
+                    }
+                    run = [];
+                };
+                slots.forEach(id => { if (id && tileById[id]) run.push({ id, t: tileById[id] }); else flush(); });
+                flush();
                 return s;
             })();
-            const autoArrange = () => setOrder([...(part.melds || []).flat(), ...[...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || (a.val === '☻' ? 99 : Number(a.val)) - (b.val === '☻' ? 99 : Number(b.val)))].map(x => x.id));
-            const onTileDown = (id) => { dragIdRef.current = id; dragMovedRef.current = false; setDragId(id); };
-            const onRowMove = (e) => {
-                const did = dragIdRef.current; if (!did || !rowRef.current) return;
-                const px = e.touches ? e.touches[0].clientX : e.clientX;
-                const py = e.touches ? e.touches[0].clientY : e.clientY;
-                const kids = [...rowRef.current.querySelectorAll('[data-tid]')];
-                let targetId = null;
-                for (const k of kids) { const r = k.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) { targetId = k.getAttribute('data-tid'); break; } }
-                if (targetId && targetId !== did) { dragMovedRef.current = true; setOrder(prev => { const cur = [...prev]; const from = cur.indexOf(did); const to = cur.indexOf(targetId); if (from < 0 || to < 0) return prev; cur.splice(from, 1); cur.splice(to, 0, did); return cur; }); }
+            // "סדר לי": פורש קומבינציות למגש עם רווח-מפריד בין כל קבוצה, ולבסוף הלא-מסודרות
+            const autoArrange = () => {
+                const arr = Array(SLOT_COUNT).fill(null); let p = 0;
+                (part.melds || []).forEach(m => { m.forEach(x => { if (p < arr.length) arr[p++] = x.id; }); if (p < arr.length && p % 6 !== 0) p++; else if (p < arr.length) p += 0; });
+                const left = [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b));
+                if (p < arr.length && arr[Math.max(0, p - 1)]) p++; // רווח לפני הלא-מסודרות
+                left.forEach(x => { if (p < arr.length) arr[p++] = x.id; });
+                handIds.forEach(id => { if (!arr.includes(id)) arr.push(id); }); // ביטחון: לא לאבד אבן
+                setSlots(arr);
             };
-            const onTileUp = () => { const did = dragIdRef.current; const moved = dragMovedRef.current; dragIdRef.current = null; dragMovedRef.current = false; setDragId(null); if (!moved && did && myTurn && t && t.turnPhase === 'discard') doDiscard(did); };
+            const onTileDown = (e, id) => { dragIdRef.current = id; dragMovedRef.current = false; setDragId(id); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} };
+            const onTileMove = (e) => {
+                const did = dragIdRef.current; if (!did || !gridRef.current) return;
+                const px = e.clientX, py = e.clientY;
+                const cells = [...gridRef.current.querySelectorAll('[data-slot]')];
+                let target = -1;
+                for (const c of cells) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) { target = Number(c.getAttribute('data-slot')); break; } }
+                if (target < 0) return;
+                const from = slots.indexOf(did); if (from < 0 || from === target) return;
+                dragMovedRef.current = true;
+                setSlots(prev => { const f = prev.indexOf(did); if (f < 0 || f === target) return prev; const arr = prev.slice(); if (arr[target] == null) { arr[target] = did; arr[f] = null; } else { const tmp = arr[target]; arr[target] = did; arr[f] = tmp; } return arr; });
+            };
+            const onTileUp = () => { const did = dragIdRef.current, moved = dragMovedRef.current; dragIdRef.current = null; dragMovedRef.current = false; setDragId(null); if (!moved && did && myTurn && t && t.turnPhase === 'discard') doDiscard(did); };
 
             // נעילת-מסך: שהמסך לא ייכבה/יתעמעם באמצע המשחק
             useEffect(() => {
@@ -7481,23 +7510,29 @@
                         {!myTurn && <span className="text-slate-500">ממתין לתור של {turnName}…</span>}
                     </div>
 
-                    {/* המדף שלי — האזור הגדול: אבנים גדולות, גרירה חופשית, קומבינציות בירוק */}
+                    {/* המדף שלי — מגש עם משבצות ריקות: גררו אבנים למקומות הריקים לסידור בקבוצות */}
                     <div className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1">
                         <div className="shrink-0 flex items-center justify-between px-2 py-1">
                             <span className="text-[11px] text-slate-400 font-bold">היד שלך ({myHand.filter(Boolean).length}){part.leftoverPoints > 0 ? <span className="text-slate-500"> · לא-מסודר {part.leftoverPoints}</span> : <span className="text-emerald-400 font-black"> · מסודרת ✓</span>}</span>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">✨ סדר לי</button>
                         </div>
-                        <div ref={rowRef} onPointerMove={onRowMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                            className="flex-1 min-h-0 overflow-y-auto flex flex-wrap gap-1.5 items-start content-start justify-center px-2 pb-2">
-                            {orderedTiles.map(tile => {
-                                const inMeld = meldIds.has(tile.id);
-                                const flash = flashId === tile.id;
-                                const dragging = dragId === tile.id;
+                        <div ref={gridRef}
+                            style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.3rem', alignContent: 'start', touchAction: 'none' }}
+                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                            {slots.map((id, idx) => {
+                                const tile = id ? tileById[id] : null;
+                                if (!tile) return <div key={idx} data-slot={idx} className="rounded-lg border-2 border-dashed border-white/10" style={{ minHeight: '3.95rem' }}></div>;
+                                const inMeld = meldIds.has(id);
+                                const flash = flashId === id;
+                                const dragging = dragId === id;
                                 return (
-                                    <div key={tile.id} data-tid={tile.id} onPointerDown={() => onTileDown(tile.id)}
-                                        style={{ touchAction: 'none', transform: dragging ? 'translateY(-7px) scale(1.06)' : 'none', transition: 'transform 0.12s', WebkitUserSelect: 'none', userSelect: 'none' }}
-                                        className={`rounded-lg ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/60' : (inMeld ? 'ring-2 ring-emerald-400/70' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
-                                        <RamiTile tile={tile} big />
+                                    <div key={idx} data-slot={idx} className="flex items-center justify-center">
+                                        <div data-tid={id}
+                                            onPointerDown={(e) => onTileDown(e, id)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
+                                            style={{ touchAction: 'none', transform: dragging ? 'scale(1.1)' : 'none', transition: 'transform 0.12s', WebkitUserSelect: 'none', userSelect: 'none' }}
+                                            className={`rounded-lg ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/70' : (inMeld ? 'ring-2 ring-emerald-400/80' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                            <RamiTile tile={tile} />
+                                        </div>
                                     </div>
                                 );
                             })}
