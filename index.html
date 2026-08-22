@@ -835,7 +835,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
@@ -845,7 +845,11 @@
             projectId: "rummikube-5c138"
         };
         const app = initializeApp(firebaseConfig);
-        window.fb = { auth: getAuth(app), db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
+        const auth = getAuth(app);
+        // התחברות מתמשכת: שהמשתמש יישאר מחובר בין ביקורים ולא יצטרך אישור מגוגל כל פעם.
+        // מנסים IndexedDB (עמיד יותר ב-iOS/PWA) ונופלים ל-localStorage.
+        try { setPersistence(auth, indexedDBLocalPersistence).catch(() => { setPersistence(auth, browserLocalPersistence).catch(() => {}); }); } catch (e) {}
+        window.fb = { auth, db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -977,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v30';
+        const APP_VER = 'v31';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2163,7 +2167,7 @@
             const [activeTable, setActiveTable] = useState(null);
             const [toasts, setToasts] = useState([]);
             const [clubSettings, setClubSettings] = useState({ rakePct: DEFAULT_RAKE_PCT });
-            const [lobbyTab, setLobbyTab] = useState('rummikub'); // זוכר באיזה טאב היית (רמי/פוקר)
+            const [lobbyTab, setLobbyTab] = useState('rami'); // ברירת מחדל: רמי (זוכר באיזה טאב היית)
             const [clubsList, setClubsList] = useState([]);
             const [myMems, setMyMems] = useState([]);
             const [activeClub, setActiveClubState] = useState(null);   // מסמך הקלאב הפעיל
@@ -4371,16 +4375,12 @@
                                         <p className="text-slate-400 text-xs font-bold mb-4" dir="rtl">מי שלא יורד מפסיד את סכום המשחק ({formatMoney(buyIn)} ₪) למי שירד. פריש מכפיל ×2.</p>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                             <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">זמן חשיבה בתור</label>
-                                                <select value={ramiOpts.turnSeconds} onChange={e => setRamiOpts({ ...ramiOpts, turnSeconds: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="rtl">
-                                                    <option value={30}>30 שניות</option><option value={45}>45 שניות</option><option value={60}>60 שניות</option><option value={90}>90 שניות</option><option value={120}>2 דקות</option>
-                                                </select>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">זמן חשיבה בתור (שניות)</label>
+                                                <input type="number" min="15" max="300" step="5" inputMode="numeric" value={ramiOpts.turnSeconds} onChange={e => setRamiOpts({ ...ramiOpts, turnSeconds: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="60" />
                                             </div>
                                             <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן (Time Bank)</label>
-                                                <select value={ramiOpts.timeBank} onChange={e => setRamiOpts({ ...ramiOpts, timeBank: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="rtl">
-                                                    <option value={0}>ללא</option><option value={15}>15 שניות</option><option value={30}>30 שניות</option><option value={60}>60 שניות</option><option value={120}>2 דקות</option>
-                                                </select>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן — שניות (0 = ללא)</label>
+                                                <input type="number" min="0" max="300" step="5" inputMode="numeric" value={ramiOpts.timeBank} onChange={e => setRamiOpts({ ...ramiOpts, timeBank: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="30" />
                                             </div>
                                         </div>
                                         {/* עמלת רייק: אחוז מהקופה או עמלה קבועה בכניסה */}
