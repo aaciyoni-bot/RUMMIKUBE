@@ -891,6 +891,9 @@
         // נראים בשום מקום - לובי, מודלים ופאנל הניהול - בלי למחוק את הקוד.
         const BONUSES_ENABLED = false;
         const FIRST_MELD_MIN = 30;
+        // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
+        // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
+        const APP_VER = 'v20';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1300,9 +1303,9 @@
            ולכן אסור לגעת בו — שולחנות חיים מכילים אותו. המיפוי כאן הוא
            תצוגתי בלבד: מברירת-המחדל הדהויה של Tailwind אל דיו הדפוס הקלאסי. */
         const TILE_INK = {
-            '#ef4444': '#c62828',   /* אדום  */
+            '#ef4444': '#c11f1f',   /* אדום - עמוק, רחוק מהכתום */
             '#3b82f6': '#1257a8',   /* כחול  */
-            '#f59e0b': '#e05a00',   /* כתום  */
+            '#f59e0b': '#ef8300',   /* כתום - ענברי בהיר, רחוק מהאדום */
             '#0c1322': '#14161c'    /* שחור  */
         };
         const inkOf = (c) => TILE_INK[c] || c;
@@ -2847,6 +2850,7 @@
                             <p className="tagline text-emerald-400/80 text-[11px] sm:text-xs font-black tracking-[0.2em] mt-1.5">משחקים וטורנירים בין חברים</p>
                             <p className="text-slate-400 text-xs font-bold mt-3">היי {user.username} 👋 בחר קלאב או הקם משלך</p>
                             <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-[11px] text-slate-500 underline font-bold mt-1.5">התנתק</button>
+                            <div className="text-[9px] text-slate-600 font-bold mt-1 tracking-widest" dir="ltr">{APP_VER}</div>
                             {(canInstall || (isIOS && !isStandalone)) && (
                                 <div className="mt-3">
                                     <button onClick={() => { if (canInstall) doInstall(); else setIosGuide(true); }} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2 rounded-xl font-black text-xs shadow-[0_8px_24px_rgba(6,182,212,0.35)]">
