@@ -543,11 +543,11 @@ function ramiBestPartition(hand) {
 }
 
 // חלוקת סבב רמי: 14 אבנים לכל אחד, אבן אחת נפתחת לערימת-הזריקה.
-function ramiDeal(players, bank) {
+function ramiDeal(players, bank, timeBank) {
   const d = generateDeck();
   const uids = Object.keys(players).sort();
   const np = {};
-  uids.forEach((uid) => { np[uid] = {...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0}; });
+  uids.forEach((uid) => { np[uid] = {...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0, tb: Math.max(0, Number(timeBank) || 0)}; });
   const discard = [d.pop()];
   return {players: np, deck: d, discard, phase: "playing", currentTurn: uids[0], turnPhase: "draw", drawnThisTurn: false, turnStartedAt: Date.now(), winner: null, lastResults: null, freshMult: 1, freshReq: null};
 }
@@ -602,7 +602,7 @@ exports.ramiSit = onCall(async (request) => {
     const players = {...(t.players || {}), [uid]: {username: m.username || "", photo: m.photo || "", avatarSeed: m.avatarSeed || "", cards: [], stack: buyIn, isBot: false, missed: 0}};
     const bank = {...(t.bank || {}), [uid]: buyIn};
     tx.update(memRef, {balance: round2(bal - total)});
-    if (Object.keys(players).length === max) { tx.update(tRef, {...ramiDeal(players, bank), bank}); return true; }
+    if (Object.keys(players).length === max) { tx.update(tRef, {...ramiDeal(players, bank, t.timeBank), bank}); return true; }
     tx.update(tRef, {players, bank});
     return false;
   });
@@ -717,7 +717,7 @@ exports.ramiNewRound = onCall(async (request) => {
     const eligible = {}; const eBank = {};
     for (const [u, p] of Object.entries(t.players || {})) if ((bank[u] || 0) > 0) { eligible[u] = p; eBank[u] = round2(bank[u]); }
     if (Object.keys(eligible).length < 2) throw new HttpsError("failed-precondition", "אין מספיק שחקנים עם צ'יפים");
-    tx.update(tRef, {...ramiDeal(eligible, eBank), bank: eBank});
+    tx.update(tRef, {...ramiDeal(eligible, eBank, t.timeBank), bank: eBank});
   });
   return {ok: true};
 });

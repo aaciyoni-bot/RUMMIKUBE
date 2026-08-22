@@ -977,7 +977,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v29';
+        const APP_VER = 'v30';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1319,6 +1319,8 @@
             maxPlayers: Number(o.maxPlayers) || 4,
             minBuyIn: round2(Number(o.minBuyIn) || 0),
             stakes: Number(o.stakes) || 0.1,
+            turnSeconds: Math.max(15, Math.min(300, Number(o.turnSeconds) || 60)),
+            timeBank: Math.max(0, Math.min(300, Number(o.timeBank) || 0)),
             rakeMode: o.rakeMode === 'flat' ? 'flat' : 'pct',
             rakePct: o.rakePct == null || o.rakePct === '' ? null : Number(o.rakePct),
             rakeFee: round2(Number(o.rakeFee) || 0),
@@ -1328,11 +1330,11 @@
         });
         // חלוקת סבב רמי בצד-הלקוח (רק GOD מפעיל, כשהשולחן מתמלא בבוטים) — זהה לשרת.
         // freshMult נשמר בין חלוקות של אותה יד (פריש מחלק-מחדש ומכפיל); mult פרמטר.
-        const ramiDealC = (players, bank, mult) => {
+        const ramiDealC = (players, bank, mult, timeBank) => {
             const d = generateDeck();
             const uids = Object.keys(players).sort();
             const np = {};
-            uids.forEach(uid => { np[uid] = { ...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0 }; });
+            uids.forEach(uid => { np[uid] = { ...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0, tb: Math.max(0, Number(timeBank) || 0) }; });
             return { players: np, deck: d, discard: [d.pop()], phase: 'playing', currentTurn: uids[0], turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now(), winner: null, lastResults: null, freshMult: mult || 1, freshReq: null };
         };
         const RAMI_FRESH_CAP = 8;
@@ -3527,13 +3529,27 @@
             const [ratab, setRatab] = useState('all'); // סינון שולחנות הרמי לפי גודל
             const [showCreateRami, setShowCreateRami] = useState(false);
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
-            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            // תבניות (טמפלטים) שמורות מקומית לכל קלאב — כמו ב-POKERTEN
+            const RAMI_TPL_KEY = `rummi_rami_tpls_${CLUB_ID}`;
+            const [ramiTpls, setRamiTpls] = useState(() => { try { return JSON.parse(localStorage.getItem(RAMI_TPL_KEY) || '[]'); } catch (e) { return []; } });
+            const [ramiTplName, setRamiTplName] = useState('');
+            const persistRamiTpls = (arr) => { setRamiTpls(arr); try { localStorage.setItem(RAMI_TPL_KEY, JSON.stringify(arr)); } catch (e) {} };
+            const saveRamiTpl = () => {
+                const nm = (ramiTplName.trim()) || `${ramiOpts.maxPlayers} שחקנים · ${formatMoney(ramiOpts.buyIn)}₪${ramiOpts.rakeMode === 'flat' ? ' +' + ramiOpts.rakeFee : ' · ' + (ramiOpts.rakePct || 0) + '%'}`;
+                persistRamiTpls([...ramiTpls.filter(x => x.name !== nm), { name: nm, opts: { ...ramiOpts } }]);
+                setRamiTplName(''); showToast('התבנית נשמרה: ' + nm, 'success');
+            };
+            const loadRamiTpl = (tp) => { setRamiOpts(prev => ({ ...prev, ...tp.opts })); showToast('נטענה תבנית: ' + tp.name, 'info'); };
+            const delRamiTpl = (nm) => persistRamiTpls(ramiTpls.filter(x => x.name !== nm));
             const handleCreateRami = async () => {
                 try {
                     const buyIn = Math.max(1, round2(Number(ramiOpts.buyIn) || 0));
                     const doc = ramiTableDoc({
                         maxPlayers: Math.min(4, Math.max(2, Number(ramiOpts.maxPlayers) || 4)),
                         minBuyIn: buyIn, stakes: buyIn,
+                        turnSeconds: Math.max(15, Math.min(300, Number(ramiOpts.turnSeconds) || 60)),
+                        timeBank: Math.max(0, Math.min(300, Number(ramiOpts.timeBank) || 0)),
                         rakeMode: ramiOpts.rakeMode,
                         rakePct: ramiOpts.rakeMode === 'pct' ? (ramiOpts.rakePct === '' ? null : Math.max(0, Math.min(20, Number(ramiOpts.rakePct)))) : null,
                         rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0
@@ -4329,6 +4345,17 @@
                                     const fee = Math.max(0, round2(Number(ramiOpts.rakeFee) || 0));
                                     return (
                                     <div className="glass-panel p-6 rounded-2xl mb-6 border border-emerald-500/30 animate-pop-in">
+                                        {ramiTpls.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 items-center pb-4 mb-4 border-b border-white/10">
+                                                <span className="text-[11px] font-black text-emerald-300 uppercase tracking-widest shrink-0"><i className="fa-solid fa-bookmark ml-1"></i>תבניות</span>
+                                                {ramiTpls.map(tp => (
+                                                    <span key={tp.name} className="inline-flex items-center gap-1 bg-slate-800 border border-emerald-500/30 rounded-full pr-1 pl-3 py-1">
+                                                        <button onClick={() => loadRamiTpl(tp)} className="text-xs font-bold text-white hover:text-emerald-300">{tp.name}</button>
+                                                        <button onClick={() => delRamiTpl(tp.name)} className="w-5 h-5 rounded-full text-slate-500 hover:text-rose-400 text-xs">✕</button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
                                             <div>
                                                 <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שחקנים</label>
@@ -4342,6 +4369,20 @@
                                             </div>
                                         </div>
                                         <p className="text-slate-400 text-xs font-bold mb-4" dir="rtl">מי שלא יורד מפסיד את סכום המשחק ({formatMoney(buyIn)} ₪) למי שירד. פריש מכפיל ×2.</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">זמן חשיבה בתור</label>
+                                                <select value={ramiOpts.turnSeconds} onChange={e => setRamiOpts({ ...ramiOpts, turnSeconds: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="rtl">
+                                                    <option value={30}>30 שניות</option><option value={45}>45 שניות</option><option value={60}>60 שניות</option><option value={90}>90 שניות</option><option value={120}>2 דקות</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן (Time Bank)</label>
+                                                <select value={ramiOpts.timeBank} onChange={e => setRamiOpts({ ...ramiOpts, timeBank: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="rtl">
+                                                    <option value={0}>ללא</option><option value={15}>15 שניות</option><option value={30}>30 שניות</option><option value={60}>60 שניות</option><option value={120}>2 דקות</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                         {/* עמלת רייק: אחוז מהקופה או עמלה קבועה בכניסה */}
                                         <div className="bg-slate-950/50 border border-white/10 rounded-2xl p-4 mb-4">
                                             <div className="text-slate-300 text-xs font-black mb-3 uppercase tracking-widest">עמלת רייק</div>
@@ -4365,7 +4406,11 @@
                                                     : `כל שחקן משלם בכניסה ${formatMoney(buyIn)} + ${formatMoney(fee)} עמלה = ${formatMoney(buyIn + fee)} ₪. אין עמלה על היד.`}
                                             </p>
                                         </div>
-                                        <div className="flex justify-end gap-3 pt-1 border-t border-white/5">
+                                        <div className="flex items-center gap-2 mb-3 pt-3 border-t border-white/5">
+                                            <input value={ramiTplName} onChange={e => setRamiTplName(e.target.value)} placeholder="שם תבנית (לא חובה)" className="flex-1 bg-slate-900 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 font-bold" />
+                                            <button onClick={saveRamiTpl} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-4 py-2 rounded-xl font-bold text-sm border border-emerald-500/30"><i className="fa-solid fa-bookmark ml-1"></i>שמור תבנית</button>
+                                        </div>
+                                        <div className="flex justify-end gap-3">
                                             <button onClick={() => setShowCreateRami(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                             <button onClick={handleCreateRami} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
                                         </div>
@@ -6994,6 +7039,8 @@
             const meP = t && t.players && t.players[user.uid];
             const isSeated = !!meP;
             const myTurn = !!(t && t.currentTurn === user.uid && t.phase === 'playing');
+            const turnSecs = (t && Number(t.turnSeconds)) || TURN_SECONDS;
+            const myTb = (meP && Number(meP.tb)) || 0;
             const myHand = (meP && meP.cards) || [];
             const handKey = myHand.map(x => x && x.id).join(',');
             const part = useMemo(() => bestPartition(myHand), [handKey]);
@@ -7049,7 +7096,12 @@
                 const [tile] = hand.splice(idx, 1);
                 const u = Object.keys(cur.players).sort();
                 const next = u[(u.indexOf(user.uid) + 1) % u.length];
-                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
+                // ניכוי בנק-הזמן: כמה שניות מעבר לזמן-החשיבה הבסיסי נצרכו בתור הזה
+                const baseS = Number(cur.turnSeconds) || TURN_SECONDS;
+                const tbNow = Number((cur.players[user.uid] || {}).tb) || 0;
+                const elapsed = Math.floor((Date.now() - (cur.turnStartedAt || Date.now())) / 1000);
+                const tbLeft = Math.max(0, tbNow - Math.max(0, elapsed - baseS));
+                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, [`players.${user.uid}.tb`]: tbLeft, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
             });
 
             const doGoOut = async () => {
@@ -7087,7 +7139,7 @@
                 const seated = Object.keys(cur.players || {});
                 if (seated.every(u => approvals[u])) {
                     const nm = Math.min(RAMI_FRESH_CAP, (Number(cur.freshMult) || 1) * 2);
-                    return { ...ramiDealC(cur.players, cur.bank || {}, nm) };
+                    return { ...ramiDealC(cur.players, cur.bank || {}, nm, cur.timeBank) };
                 }
                 return { freshReq: { ...req, approvals } };
             });
@@ -7097,8 +7149,9 @@
 
             // טיימר תור
             useEffect(() => {
-                if (!t || t.phase !== 'playing') { setTimeLeft(TURN_SECONDS); return; }
-                const tick = () => setTimeLeft(Math.max(0, TURN_SECONDS - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
+                if (!t || t.phase !== 'playing') { setTimeLeft(turnSecs); return; }
+                const curTb = Number((t.players[t.currentTurn] || {}).tb) || 0;
+                const tick = () => setTimeLeft(Math.max(0, (turnSecs + curTb) - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
             }, [t && t.turnStartedAt, t && t.phase]);
 
@@ -7135,7 +7188,7 @@
                             const buyIn = round2(Number(cur.minBuyIn) || 0);
                             const players = { ...cur.players, [bot.id]: { username: bot.username, cards: [], stack: buyIn, isBot: true, missed: 0 } };
                             const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
-                            if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank), bank }); spawnTwinTable(cur); }
+                            if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank, 1, cur.timeBank), bank }); spawnTwinTable(cur); }
                             else await window.fb.updateDoc(ref, { players, bank });
                         } catch (e) {}
                     }, 3000);
@@ -7267,7 +7320,7 @@
                             <div className="text-center">
                                 <div className="text-[11px] text-slate-400 font-bold" dir="rtl">המפסיד מפסיד {formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
                             </div>
-                            <div className={`text-sm font-black px-3 py-1 rounded-full ${myTurn ? 'bg-emerald-500/20 text-emerald-300 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך · ${timeLeft}s` : `תור ${turnName}`}</div>
+                            <div className={`text-sm font-black px-3 py-1 rounded-full ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ בנק זמן · ${timeLeft}s` : `תורך · ${timeLeft}s`) : `תור ${turnName}`}</div>
                         </div>
 
                         {/* יריבים */}
