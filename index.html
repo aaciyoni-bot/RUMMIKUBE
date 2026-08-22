@@ -175,9 +175,10 @@
             --felt-1: #1d3f74;        /* נייבי מואר  */
             --felt-2: #12274a;
             --felt-3: #091730;        /* נייבי עמוק  */
-            --rack-hi: #2c4166;       /* שפת המגש    */
-            --rack-2: #182742;
-            --rack-3: #0c1729;        /* בסיס המגש   */
+            --rack-hi: #dcc6a4;       /* בוק בהיר — שפת המגש  */
+            --rack-2: #c2a67f;
+            --rack-3: #9e8259;        /* בוק כהה — בסיס המגש  */
+            --rack-lip: #8c6538;      /* הקנט הקדמי           */
             --accent:  #10b981;       /* אמרלד — תור פעיל, יעד תקין */
         }
         #felt-board {
@@ -238,9 +239,9 @@
                 0 0 1.1em rgba(90,160,255,0.5);
             z-index: 999;
         }
-        .board-tile { width: calc(2.4rem * var(--board-scale, 1)); height: calc(3.3rem * var(--board-scale, 1)); font-size: calc(1.55rem * var(--board-scale, 1)); margin: 0 calc(1.5px * var(--board-scale, 1)); }
+        .board-tile { width: calc(2.5rem * var(--board-scale, 1)); height: calc(3rem * var(--board-scale, 1)); font-size: calc(1.55rem * var(--board-scale, 1)); margin: 0 calc(1.5px * var(--board-scale, 1)); }
         @media (min-width: 640px) {
-            .board-tile { width: calc(2.9rem * var(--board-scale, 1)); height: calc(3.95rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(3rem * var(--board-scale, 1)); height: calc(3.6rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
         }
         /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
            מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
@@ -268,26 +269,36 @@
         }
         @keyframes caretPulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
         /* ===== המגש: מעמד עץ אגוז ===== */
-        /* המגש: מדף כחול-אפור כהה, מוגבה מעט מעל השולחן */
+        /* המגש: מעמד עץ בוק בהיר, מוגבה מעל השולחן, עם קנט קדמי */
         .rummy-rack {
+            position: relative;
             background:
-                linear-gradient(180deg, rgba(160,200,255,0.14), transparent 12%),
-                linear-gradient(180deg, var(--rack-hi) 0%, var(--rack-2) 42%, var(--rack-3) 100%);
-            border-top: 2px solid rgba(160,200,255,0.30);
-            box-shadow: 0 -16px 38px rgba(0,0,0,0.62), inset 0 12px 20px -12px rgba(0,0,0,0.7);
+                linear-gradient(180deg, rgba(255,246,225,0.35), transparent 10%),
+                repeating-linear-gradient(90deg, rgba(120,80,40,0.05) 0 2px, transparent 2px 9px), /* סיבי העץ */
+                linear-gradient(180deg, var(--rack-hi) 0%, var(--rack-2) 46%, var(--rack-3) 100%);
+            border-top: 2px solid rgba(255,240,210,0.55);
+            box-shadow: 0 -16px 38px rgba(0,0,0,0.6), inset 0 -14px 22px -10px rgba(90,60,25,0.55);
+        }
+        /* הקנט שעליו נשענות האבנים בשורה התחתונה */
+        .rummy-rack::after {
+            content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 0.55rem;
+            background: linear-gradient(180deg, var(--rack-lip), rgba(80,55,28,0.9));
+            box-shadow: inset 0 1px 0 rgba(255,240,210,0.35);
+            pointer-events: none;
         }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
         /* משבצת ריקה = חריץ שקוע בעץ. משבצת מלאה לא מציירת כלום — האבן היא הכל. */
         .rack-slot { min-height: 36px; position: relative; border-radius: 7px; }
+        /* משטח המגש חלק — משבצת ריקה רק נרמזת, בלי רשת חריצים */
         .rack-slot.is-empty {
-            background: linear-gradient(180deg, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.18) 55%, rgba(160,200,255,0.06) 100%);
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(160,200,255,0.16);
+            background: linear-gradient(180deg, rgba(90,60,25,0.13), transparent 70%);
+            box-shadow: inset 0 1px 2px rgba(70,45,18,0.22);
         }
         .rack-slot.is-hover { background: rgba(16,185,129,0.24); box-shadow: inset 0 0 0 2px rgba(16,185,129,0.8); }
         /* האבן במגש שומרת על פרופורציית אבן אמיתית בכל גודל מסך */
-        .rack-slot .rummy-tile { height: 94%; width: auto; aspect-ratio: 3 / 4; }
+        .rack-slot .rummy-tile { height: 94%; width: auto; aspect-ratio: 5 / 6; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
             .rack-slot { min-height: 64px; }
