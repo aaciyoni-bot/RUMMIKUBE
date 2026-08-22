@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v31';
+        const APP_VER = 'v32';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7022,9 +7022,17 @@
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
+            const [wrongOrient, setWrongOrient] = useState(false);
+            const [orientDismiss, setOrientDismiss] = useState(false);
             const sitBusyRef = useRef(false);
             const actingRef = useRef(false);
             const fnErr = (e) => (e && e.message && !/internal|deadline|unavailable/i.test(e.message)) ? e.message : "שגיאה בפעולה, נסה שוב";
+            // רמי נוח יותר לאורך: מזהים רוחב-נמוך (טלפון שכוב) ומציעים לסובב
+            useEffect(() => {
+                const check = () => setWrongOrient(window.innerWidth > window.innerHeight && window.innerHeight < 520);
+                check(); window.addEventListener('resize', check); window.addEventListener('orientationchange', check);
+                return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); };
+            }, []);
 
             useEffect(() => {
                 if (!tableDocId) { onLeave(); return; }
@@ -7255,21 +7263,21 @@
             // ── מסך המתנה ──
             if (t.phase === 'waiting') {
                 return (
-                    <div className="flex-1 overflow-y-auto aurora-bg p-4 sm:p-8">
+                    <div className="absolute inset-0 overflow-y-auto aurora-bg p-3 sm:p-6">
                         <div className="max-w-lg mx-auto">
-                            <button onClick={onLeave} className="text-slate-400 hover:text-white font-bold text-sm mb-4"><i className="fa-solid fa-arrow-right ml-1"></i> חזרה ללובי</button>
-                            <div className="glass-panel rounded-3xl p-6 text-center">
-                                <div className="text-4xl mb-2">🃏</div>
-                                <h2 className="text-2xl font-black text-white mb-1">שולחן רמי</h2>
-                                <p className="text-slate-400 font-bold text-sm mb-1" dir="rtl">סכום המשחק {formatMoney(t.minBuyIn)} ₪ · המפסיד מפסיד את הסכום</p>
-                                <p className="text-slate-500 font-bold text-xs mb-5" dir="rtl">{rakeTxt}</p>
-                                <div className="flex flex-wrap justify-center gap-2 mb-6">
-                                    {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1.5 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
-                                    {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1.5 text-sm font-bold text-slate-600">מקום פנוי</span>)}
+                            <button onClick={onLeave} className="text-slate-400 hover:text-white font-bold text-sm mb-2"><i className="fa-solid fa-arrow-right ml-1"></i> חזרה ללובי</button>
+                            <div className="glass-panel rounded-3xl p-4 sm:p-6 text-center">
+                                <div className="text-3xl mb-1">🃏</div>
+                                <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
+                                <p className="text-slate-400 font-bold text-xs mb-0.5" dir="rtl">סכום המשחק {formatMoney(t.minBuyIn)} ₪ · המפסיד מפסיד את הסכום</p>
+                                <p className="text-slate-500 font-bold text-[11px] mb-3" dir="rtl">{rakeTxt}</p>
+                                <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                                    {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
+                                    {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1 text-sm font-bold text-slate-600">מקום פנוי</span>)}
                                 </div>
                                 {!isSeated
-                                    ? <button onClick={handleSit} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black text-lg shadow-lg">התיישב בשולחן ({formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪)</button>
-                                    : <div className="text-emerald-400 font-black">אתה בפנים · ממתין לשחקנים…</div>}
+                                    ? <button onClick={handleSit} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black text-lg shadow-lg">התיישב בשולחן ({formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪)</button>
+                                    : <div className="text-emerald-400 font-black py-2">אתה בפנים · ממתין לשחקנים…</div>}
                             </div>
                         </div>
                     </div>
@@ -7313,68 +7321,71 @@
             const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
             return (
-                <div className="flex-1 overflow-y-auto aurora-bg p-3 sm:p-5" dir="rtl">
-                    <div className="max-w-2xl mx-auto">
-                        <div className="flex items-center justify-between mb-3">
-                            <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-sm"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
-                            <div className="text-center">
-                                <div className="text-[11px] text-slate-400 font-bold" dir="rtl">המפסיד מפסיד {formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
-                            </div>
-                            <div className={`text-sm font-black px-3 py-1 rounded-full ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ בנק זמן · ${timeLeft}s` : `תורך · ${timeLeft}s`) : `תור ${turnName}`}</div>
+                <div className="absolute inset-0 flex flex-col aurora-bg overflow-hidden" dir="rtl">
+                    {wrongOrient && !orientDismiss && (
+                        <div className="shrink-0 flex items-center justify-center gap-3 px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs font-bold">
+                            <span>📱 רמי נוח יותר לאורך — סובב את הטלפון</span>
+                            <button onClick={() => setOrientDismiss(true)} className="text-amber-300/70 underline shrink-0">התעלם</button>
                         </div>
+                    )}
+                    {/* סרגל עליון דק */}
+                    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
+                        <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
+                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">מפסיד מפסיד {formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> ×{freshMult}</span>}</div>
+                        <div className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ ${timeLeft}s` : `תורך ${timeLeft}s`) : `תור ${turnName}`}</div>
+                    </div>
 
-                        {/* יריבים */}
-                        <div className="flex flex-wrap gap-2 mb-4 justify-center">
+                    {/* יריבים (שורה דקה נגללת) + קופה/זריקה */}
+                    <div className="shrink-0 px-3 py-2 flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                        <div className="flex gap-1.5">
                             {uids.filter(u => u !== user.uid).map(u => {
                                 const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
-                                return <div key={u} className={`rounded-2xl px-3 py-2 border text-center ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
-                                    <div className="font-black text-white text-sm">{p.username}</div>
-                                    <div className="text-[11px] text-slate-400 font-bold" dir="ltr">🁢 {cnt}</div>
+                                return <div key={u} className={`rounded-xl px-2.5 py-1.5 border text-center shrink-0 ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                                    <div className="font-black text-white text-xs whitespace-nowrap max-w-[6.5rem] truncate">{p.username}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold" dir="ltr">🁢 {cnt}</div>
                                 </div>;
                             })}
                         </div>
-
-                        {/* קופה + זריקה */}
-                        <div className="flex items-center justify-center gap-6 mb-5">
-                            <div className="text-center">
-                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className="w-16 h-20 rounded-xl bg-gradient-to-b from-indigo-700 to-indigo-900 border-2 border-indigo-500/40 text-white font-black flex items-center justify-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
-                                    <i className="fa-solid fa-layer-group text-xl"></i>
-                                </button>
-                                <div className="text-[10px] text-slate-400 font-bold mt-1">קופה ({(t.deck || []).length})</div>
-                            </div>
+                        <div className="flex items-end gap-2 mr-auto shrink-0">
                             <div className="text-center">
                                 {topDiscard
-                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''}><RamiTile tile={topDiscard} big /></div>
-                                    : <div className="w-14 h-[3.7rem] rounded-xl border-2 border-dashed border-white/10"></div>}
-                                <div className="text-[10px] text-slate-400 font-bold mt-1">זריקה</div>
+                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} big /></div>
+                                    : <div className="w-[2.9rem] h-[3.7rem] rounded-xl border-2 border-dashed border-white/10"></div>}
+                                <div className="text-[9px] text-slate-400 font-bold mt-0.5">זריקה</div>
+                            </div>
+                            <div className="text-center">
+                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className="w-[2.9rem] h-[3.7rem] rounded-xl bg-gradient-to-b from-indigo-700 to-indigo-900 border-2 border-indigo-500/40 text-white flex items-center justify-center shadow-lg disabled:opacity-40"><i className="fa-solid fa-layer-group text-lg"></i></button>
+                                <div className="text-[9px] text-slate-400 font-bold mt-0.5">קופה {(t.deck || []).length}</div>
                             </div>
                         </div>
-                        {myTurn && t.turnPhase === 'draw' && <p className="text-center text-emerald-300 font-bold text-sm mb-3">משוך אבן — מהקופה או מערימת הזריקה</p>}
-                        {myTurn && t.turnPhase === 'discard' && !goOut && <p className="text-center text-amber-300 font-bold text-sm mb-3">בחר אבן לזריקה (לחיצה על אבן)</p>}
+                    </div>
 
-                        {/* היד שלי - מקובצת לפי קומבינציות */}
-                        <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-3">
-                            <div className="text-[11px] text-slate-500 font-bold mb-2 flex justify-between"><span>היד שלך ({myHand.filter(Boolean).length})</span>{part.leftoverPoints > 0 ? <span className="text-slate-500">נשאר לחשב: {part.leftoverPoints} נק'</span> : <span className="text-emerald-400">כל היד מסודרת ✓</span>}</div>
-                            <div className="flex flex-wrap gap-2 items-center">
-                                {part.melds.map((m, i) => (
-                                    <div key={i} className="flex gap-0.5 p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-                                        {m.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
-                                    </div>
-                                ))}
-                                {part.leftover.length > 0 && (
-                                    <div className="flex gap-0.5 p-1 rounded-lg bg-slate-800/40 border border-white/5">
-                                        {part.leftover.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                    {/* הוראה לתור */}
+                    {myTurn && t.turnPhase === 'draw' && <div className="shrink-0 text-center text-emerald-300 font-bold text-xs pb-1">משוך אבן — מהקופה או מהזריקה</div>}
+                    {myTurn && t.turnPhase === 'discard' && !goOut && <div className="shrink-0 text-center text-amber-300 font-bold text-xs pb-1">בחר אבן לזריקה (לחיצה על אבן)</div>}
+                    {myTurn && goOut && <div className="shrink-0 text-center text-emerald-300 font-black text-xs pb-1">יש לך יד שלמה! לחץ "רד וגמור"</div>}
 
-                        {/* פעולות */}
-                        <div className="flex gap-3 mt-4">
-                            <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-black shadow-lg">בקש פריש ×2 🔥</button>
-                            <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
+                    {/* היד שלי — אזור גמיש נגלל, מקובץ לפי קומבינציות */}
+                    <div className="flex-1 min-h-0 overflow-y-auto px-3">
+                        <div className="text-[11px] text-slate-500 font-bold mb-1.5 flex justify-between"><span>היד שלך ({myHand.filter(Boolean).length})</span>{part.leftoverPoints > 0 ? <span className="text-slate-500">לא מסודר: {part.leftoverPoints} נק'</span> : <span className="text-emerald-400">כל היד מסודרת ✓</span>}</div>
+                        <div className="flex flex-wrap gap-1.5 items-center pb-2">
+                            {part.melds.map((m, i) => (
+                                <div key={i} className="flex gap-0.5 p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                                    {m.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
+                                </div>
+                            ))}
+                            {part.leftover.length > 0 && (
+                                <div className="flex gap-0.5 p-1 rounded-lg bg-slate-800/40 border border-white/5">
+                                    {part.leftover.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
+                                </div>
+                            )}
                         </div>
-                        <p className="text-center text-[11px] text-slate-500 font-bold mt-3">{rakeTxt}</p>
+                    </div>
+
+                    {/* סרגל פעולות מוצמד לתחתית */}
+                    <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+                        <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>
+                        <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
                     </div>
 
                     {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
