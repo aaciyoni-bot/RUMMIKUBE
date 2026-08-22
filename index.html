@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v33';
+        const APP_VER = 'v34';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2569,7 +2569,9 @@
             useEffect(() => { setDismissed(false); }, [view]);
             const wantsLandscape = view === 'rummy-table';
             useEffect(() => {
-                try { const o = window.screen && window.screen.orientation; if (o && o.lock) { if (wantsLandscape) o.lock('landscape').catch(() => {}); else if (o.unlock) { try { o.unlock(); } catch (e) {} } } } catch (e) {}
+                // רמיקוב נועל לרוחב בעצמו; בכל שאר המסכים נועלים לאורך (עובד ב-PWA)
+                if (wantsLandscape) return;
+                try { const o = window.screen && window.screen.orientation; if (o && o.lock) o.lock('portrait').catch(() => {}); } catch (e) {}
             }, [wantsLandscape]);
             const show = !dismissed && (wantsLandscape ? port : land);
             if (!show) return null;
