@@ -222,19 +222,19 @@
                 0 0.3em 0.45em rgba(0,0,0,0.42),
                 0 0.62em 1.1em rgba(0,0,0,0.28);
             font-family: 'Rubik', system-ui, sans-serif;
-            font-weight: 900;
+            font-weight: 800;
             font-variant-numeric: tabular-nums;
-            letter-spacing: -0.045em;
+            letter-spacing: -0.015em;    /* צמוד אך לא דבוק - "11" נשאר שתי ספרות */
             line-height: 1;
-            padding-bottom: 0.42em;      /* מרים את הספרה מעל השקע */
+            padding-bottom: 14%;         /* מרים את הספרה מעל השקע - יחסית לאבן, לא לפונט */
             text-shadow: 0 1px 0 rgba(255,255,255,0.7);
             user-select: none; touch-action: none;
             transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.12s ease;
         }
-        /* השקע העגול בתחתית — סימן ההיכר של אבן רמיקוב */
+        /* השקע העגול בתחתית — נמדד מהאבן עצמה, לא מגודל הספרה */
         .rummy-tile::after {
-            content: ''; position: absolute; left: 50%; bottom: 0.26em;
-            width: 0.36em; height: 0.36em; margin-left: -0.18em; border-radius: 50%;
+            content: ''; position: absolute; left: 50%; bottom: 7%;
+            width: 15%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%;
             background: radial-gradient(circle at 38% 32%, rgba(120,105,72,0.42), rgba(120,105,72,0.16) 62%, transparent 78%);
             box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 0.5px 0 rgba(255,255,255,0.6);
             pointer-events: none;
@@ -250,12 +250,12 @@
             z-index: 999;
         }
         .board-tile {
-            width: calc(2.7rem * var(--board-scale, 1)); height: calc(3.25rem * var(--board-scale, 1)); font-size: calc(1.7rem * var(--board-scale, 1)); margin: 0 calc(1px * var(--board-scale, 1));
+            width: calc(2.7rem * var(--board-scale, 1)); height: calc(3.25rem * var(--board-scale, 1)); font-size: calc(1.45rem * var(--board-scale, 1)); margin: 0 calc(1px * var(--board-scale, 1));
             /* הקטנה הדרגתית כשהלוח מתמלא — המעבר רך עד שכמעט לא מרגישים */
             transition: width 0.3s ease, height 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
         }
         @media (min-width: 640px) {
-            .board-tile { width: calc(3.5rem * var(--board-scale, 1)); height: calc(4.2rem * var(--board-scale, 1)); font-size: calc(2.25rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(3.5rem * var(--board-scale, 1)); height: calc(4.2rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
         }
         /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
            מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
@@ -328,7 +328,7 @@
            ה-breakpoints של רוחב לא מזהים את זה — מסך 844x390 נראה "דסקטופ"
            לפי רוחב אבל אין בו גובה. מצמצמים גבהים, לא רוחבים. */
         @media (min-width: 640px) and (max-height: 540px) {
-            .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.8rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.5rem * var(--board-scale, 1)); }
             .board-flow { gap: calc(0.9rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1)); padding: calc(0.9rem * var(--board-scale, 1)); }
             .rk-btn { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
             /* עמודי התוכן (קלאבים / לובי / פרופיל / ניהול): פחות בזבוז גובה */
@@ -398,8 +398,11 @@
             box-shadow: inset 0 1px 2px rgba(70,45,18,0.22);
         }
         .rack-slot.is-hover { background: rgba(16,185,129,0.24); box-shadow: inset 0 0 0 2px rgba(16,185,129,0.8); }
-        /* האבן ממלאת את המשבצת — המשבצת כבר בפרופורציה הנכונה */
-        .rack-slot .rummy-tile { width: 100%; height: 100%; }
+        /* האבן ממלאת את המשבצת — המשבצת כבר בפרופורציה הנכונה.
+           הספרה נמדדת מגובה המשבצת (cqh): תמיד ~44% מהאבן, בכל גודל מסך.
+           בדפדפן ישן ללא container queries נשאר גודל ה-fallback מהמחלקות. */
+        .rack-slot { container-type: size; }
+        .rack-slot .rummy-tile { width: 100%; height: 100%; font-size: 44cqh; }
         @media (min-width: 640px) {
             .rack-slot { height: calc(50% - 3px); }
         }
@@ -1329,7 +1332,7 @@
             uids.forEach(uid => {
                 const hand = d.splice(0, 14);
                 while (hand.length < 28) hand.push(null);
-                np[uid] = { ...players[uid], cards: hand, hasDropped: false };
+                np[uid] = { ...players[uid], cards: hand, hasDropped: false, missed: 0 };
             });
             return { players: np, deck: d, board: [], phase: 'playing', currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null, turnSnapBoard: [], turnSnapRack: [...np[uids[0]].cards] };
         };
@@ -4566,8 +4569,11 @@
                 // דפדפן דורש מחוות משתמש - לכן על המגע הראשון בשולחן, פעם אחת.
                 const goFull = () => {
                     try {
+                        // זיהוי מכשיר מגע ולא רוחב מסך: טלפונים חדשים ברזולוציה
+                        // גבוהה נראים "רחבים" מדסקטופ ופספסו את התנאי הישן.
+                        const touchy = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || navigator.maxTouchPoints > 0;
                         const el = document.documentElement;
-                        if (!document.fullscreenElement && el.requestFullscreen && window.innerWidth < 1100) {
+                        if (!document.fullscreenElement && el.requestFullscreen && touchy) {
                             el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
                                 const so = window.screen && window.screen.orientation;
                                 if (so && so.lock) so.lock('landscape').catch(() => {});
@@ -4753,6 +4759,8 @@
                     if (!live || live.phase !== 'playing' || !live.turnStartedAt) return;
                     if (Date.now() - live.turnStartedAt < (TURN_SECONDS + 8) * 1000) return;
                     if (live.currentTurn === user.uid) return; // התור שלי מטופל בטיימר הרגיל
+                    // החמצה שנייה ברצף - השחקן הנעדר מוסר מהמשחק
+                    if ((live.players?.[live.currentTurn]?.missed || 0) >= 1) { kickAbsent(live.currentTurn); return; }
                     try {
                         await window.fb.runTransaction(window.fb.db, async (t) => {
                             const ref = window.fb.doc(window.fb.db, "tables", live.id);
@@ -4776,6 +4784,7 @@
                                 deck: newDeck,
                                 board: Array.isArray(tbl.turnSnapBoard) ? tbl.turnSnapBoard : (tbl.board || []),
                                 [`players.${stuck}.cards`]: newRack,
+                                [`players.${stuck}.missed`]: (tbl.players[stuck].missed || 0) + 1,
                                 currentTurn: nextTurn, turnStartedAt: Date.now(),
                                 turnSnapBoard: Array.isArray(tbl.turnSnapBoard) ? tbl.turnSnapBoard : (tbl.board || []),
                                 turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])]
@@ -5181,6 +5190,13 @@
             /* ---------- משיכה מהקופה ---------- */
             const handleDraw = async (isTimeout = false) => {
                 if (tableState?.currentTurn !== user.uid || tableState.phase !== 'playing') return;
+                // תור שרוף שני ברצף - השחקן מוסר מהמשחק והיריבים זוכים
+                if (isTimeout && (tableState.players?.[user.uid]?.missed || 0) >= 1) {
+                    await kickAbsent(user.uid);
+                    showToast("הוסרת מהמשחק - שני תורות ללא פעולה", "error");
+                    onLeave();
+                    return;
+                }
                 const snapRack = [...startTurnRack];
                 const snapBoard = startTurnBoard;
                 try {
@@ -5202,9 +5218,94 @@
                         }
                         const uids = Object.keys(tbl.players).sort();
                         const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                        t.update(tblRef, { deck: newDeck, board: srvSnapBoard, [`players.${user.uid}.cards`]: newRack, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: srvSnapBoard, turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])] });
+                        t.update(tblRef, { deck: newDeck, board: srvSnapBoard, [`players.${user.uid}.cards`]: newRack, [`players.${user.uid}.missed`]: isTimeout ? (tbl.players[user.uid].missed || 0) + 1 : 0, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: srvSnapBoard, turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])] });
                     });
                     if (!isTimeout && (tableState.deck || []).length === 0) showToast("הקופה ריקה - התור עובר", "info");
+                } catch(e) {}
+            };
+
+            /* ---------- הרחקה אוטומטית: שני תורות שרופים = השחקן מוסר ----------
+               הצ'יפים שלו נשארים על השולחן: יריב אחרון זוכה בהם (בניכוי רייק),
+               כמה יריבים מתחלקים שווה. רץ גם מהלקוח של שחקן אחר (שומר-התור),
+               והטרנזקציה בודקת שוב את התנאים כך שכפילות בלתי אפשרית. */
+            const kickAbsent = async (kickUid) => {
+                let post = null;
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (t) => {
+                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
+                        const snap = await t.get(tblRef);
+                        if (!snap.exists()) return;
+                        const tbl = snap.data();
+                        if (tbl.phase !== 'playing' || !tbl.players?.[kickUid]) return;
+                        if ((tbl.players[kickUid].missed || 0) < 1) return; // מישהו אחר כבר איפס/טיפל
+                        const kicked = tbl.players[kickUid];
+                        const stack = kicked.stack || 0;
+                        const newP = { ...tbl.players }; delete newP[kickUid];
+                        const rest = Object.keys(newP);
+                        const lastMan = rest.length === 1;
+
+                        // טורניר: בלי כסף - רק הסרה, ואם נותר אחד הוא אלוף השולחן
+                        if (tbl.tournamentId) {
+                            const upd = { players: newP };
+                            if (lastMan) {
+                                upd.phase = 'showdown'; upd.winner = rest[0]; upd.currentTurn = null;
+                                upd.lastResults = { winnerName: newP[rest[0]].username, details: {}, pot: 0, rake: 0, tournament: true, absent: kicked.username };
+                                upd.tournament = { ...tbl.tournament, finished: true, tableWinner: rest[0] };
+                            } else if (tbl.currentTurn === kickUid && rest.length) {
+                                const uids = [...rest].sort();
+                                upd.currentTurn = uids[0]; upd.turnStartedAt = Date.now();
+                                upd.turnSnapBoard = tbl.board || []; upd.turnSnapRack = [...((newP[uids[0]] || {}).cards || [])];
+                            }
+                            t.update(tblRef, upd);
+                            return;
+                        }
+
+                        // כל הקריאות לפני הכתיבות (דרישת טרנזקציה)
+                        const ownerUid0 = (window.__club || {}).ownerUid;
+                        let kickedMemRef = null, kickedMemSnap = null, winMemRef = null, winMemSnap = null, ownMemRef = null, ownMemSnap = null;
+                        if (!kicked.isBot) { kickedMemRef = memDoc(kickUid); kickedMemSnap = await t.get(kickedMemRef); }
+                        if (lastMan && !newP[rest[0]].isBot) { winMemRef = memDoc(rest[0]); winMemSnap = await t.get(winMemRef); }
+                        if (lastMan && ownerUid0) { ownMemRef = memDoc(ownerUid0); ownMemSnap = await t.get(ownMemRef); }
+
+                        const upd = { players: newP };
+                        if (lastMan) {
+                            const winUid = rest[0];
+                            const rake = round2(stack * rakeFrac);
+                            const winnerProfit = round2(stack - rake);
+                            newP[winUid].stack = round2((newP[winUid].stack || 0) + winnerProfit);
+                            upd.phase = 'showdown'; upd.winner = winUid; upd.currentTurn = null;
+                            upd.lastResults = { winnerName: newP[winUid].username, totalPot: stack, rake, winnerProfit, details: { [kickUid]: { username: kicked.username, penalty: 0, pay: stack } }, endedAt: Date.now(), absent: kicked.username };
+                            if (winMemRef && winMemSnap && winMemSnap.exists()) {
+                                const ws = winMemSnap.data().stats || {};
+                                t.update(winMemRef, { 'stats.gamesPlayed': (ws.gamesPlayed || 0) + 1, 'stats.gamesWon': (ws.gamesWon || 0) + 1, 'stats.totalProfit': round2((ws.totalProfit || 0) + winnerProfit) });
+                            }
+                            if (ownMemRef && ownMemSnap && ownMemSnap.exists()) {
+                                t.update(ownMemRef, { balance: round2((ownMemSnap.data().balance || 0) + rake), clubProfits: round2((ownMemSnap.data().clubProfits || 0) + rake) });
+                            }
+                            post = { rake, entries: [
+                                ...(kicked.isBot ? [] : [{ uid: kickUid, username: kicked.username, game: 'rummikub', profit: -stack }]),
+                                ...(newP[winUid].isBot ? [] : [{ uid: winUid, username: newP[winUid].username, game: 'rummikub', profit: winnerProfit, rake }])
+                            ] };
+                        } else {
+                            const share = round2(stack / rest.length);
+                            rest.forEach(uid => { newP[uid].stack = round2((newP[uid].stack || 0) + share); });
+                            if (tbl.currentTurn === kickUid) {
+                                const uids = [...rest].sort();
+                                upd.currentTurn = uids[0]; upd.turnStartedAt = Date.now();
+                                upd.turnSnapBoard = tbl.board || []; upd.turnSnapRack = [...((newP[uids[0]] || {}).cards || [])];
+                            }
+                            post = { rake: 0, entries: kicked.isBot ? [] : [{ uid: kickUid, username: kicked.username, game: 'rummikub', profit: -stack }] };
+                        }
+                        if (kickedMemRef && kickedMemSnap && kickedMemSnap.exists()) {
+                            const ks = kickedMemSnap.data().stats || {};
+                            t.update(kickedMemRef, { 'stats.gamesPlayed': (ks.gamesPlayed || 0) + 1, 'stats.totalProfit': round2((ks.totalProfit || 0) - stack) });
+                        }
+                        t.update(tblRef, upd);
+                    });
+                    if (post) {
+                        if (post.entries.length) logGameResult(post.entries, tableState.id);
+                        if (post.rake) logClubRake(post.rake);
+                    }
                 } catch(e) {}
             };
 
@@ -5332,7 +5433,7 @@
 
                 const uids = Object.keys(tableState.players).sort();
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
-                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: JSON.parse(JSON.stringify(board)), turnSnapRack: [...((tableState.players?.[nextTurn] || {}).cards || [])] });
+                await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, [`players.${user.uid}.missed`]: 0, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: JSON.parse(JSON.stringify(board)), turnSnapRack: [...((tableState.players?.[nextTurn] || {}).cards || [])] });
                 playSnd('check'); // שתי נקישות עץ - התור נסגר
             };
 
@@ -5540,6 +5641,7 @@
                                 ))}</div>
                                 <div className="trophy-pop inline-block"><i className="fa-solid fa-trophy text-6xl text-gold-400 drop-shadow-[0_0_20px_rgba(245,200,96,0.6)]"></i></div>
                                 <h2 className="text-3xl font-black text-white mt-4">{results.winnerName} ניצח!</h2>
+                                {results.absent && <div className="text-[11px] text-slate-400 font-bold mt-1">{results.absent} הוסר לאחר שני תורות ללא פעולה</div>}
                                 <div className="text-emerald-400 font-black text-2xl mt-2"><Coin amount={results.winnerProfit} /></div>
                                 <div className="mt-6 bg-slate-950/60 rounded-2xl border border-slate-800 divide-y divide-slate-800 text-sm">
                                     {Object.entries(results.details || {}).map(([uid, d]) => (
