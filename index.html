@@ -302,6 +302,28 @@
             box-shadow: inset 0 1px 0 rgba(255,240,210,0.35);
             pointer-events: none;
         }
+        /* ===== תחושת משחק: חלוקה, משיכה, הנחה, שגיאה, ניצחון ===== */
+        /* חלוקה: האבנים נופלות למגש בזו אחר זו (ה-delay פר-אבן ב-inline) */
+        @keyframes tileDealIn { 0% { opacity: 0; transform: translateY(-150%) scale(0.7) rotate(-7deg); } 62% { opacity: 1; transform: translateY(5%) scale(1.05); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        .tile-deal-in { animation: tileDealIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        /* משיכה: האבן החדשה מחליקה פנימה מכיוון הקופה */
+        @keyframes tileDrawIn { 0% { opacity: 0; transform: translate(70%, -110%) scale(1.18) rotate(9deg); } 100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0); } }
+        .tile-draw-in { animation: tileDrawIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        /* הנחה: הקבוצה שקיבלה אבן "מתיישבת" עם פאנץ' קטן */
+        @keyframes groupSettle { 0% { transform: scale(1.06); } 55% { transform: scale(0.985); } 100% { transform: scale(1); } }
+        .group-settle { animation: groupSettle 0.26s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        /* שגיאה: ההודעה מנערת את הראש (שומר על המרכוז האופקי) */
+        @keyframes errShake { 0%, 100% { transform: translateX(-50%); } 18% { transform: translateX(calc(-50% - 6px)); } 38% { transform: translateX(calc(-50% + 6px)); } 58% { transform: translateX(calc(-50% - 4px)); } 78% { transform: translateX(calc(-50% + 3px)); } }
+        .err-shake { animation: errShake 0.42s ease, fadeIn 0.4s ease-out; }
+        /* ניצחון: קונפטי בצבעי האבנים בתוך מסך התוצאות */
+        .win-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
+        .win-confetti i { position: absolute; top: -8%; width: 8px; height: 13px; border-radius: 2px; opacity: 0; animation: confFall 1.7s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
+        @keyframes confFall { 0% { opacity: 0; transform: translateY(0) rotate(0); } 8% { opacity: 1; } 100% { opacity: 0; transform: translateY(540px) rotate(560deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .tile-deal-in, .tile-draw-in, .group-settle, .err-shake, .win-confetti i, .board-caret { animation: none !important; }
+            .board-tile, .rummy-tile { transition: none !important; }
+        }
+
         /* ===== טלפון לרוחב: רחב אבל נמוך (≤540px גובה) =====
            ה-breakpoints של רוחב לא מזהים את זה — מסך 844x390 נראה "דסקטופ"
            לפי רוחב אבל אין בו גובה. מצמצמים גבהים, לא רוחבים. */
@@ -928,6 +950,14 @@
                         break;
                     case 'dice': // גלגול רך
                         [['C2', 0], ['E2', 0.06], ['G2', 0.12], ['C3', 0.18]].forEach(([n, d]) => SND.m.triggerAttackRelease(n, '32n', t + d));
+                        break;
+                    case 'error': // זמזום נמוך ורך - "לא, נסה שוב", בלי להבהיל
+                        SND.s.triggerAttackRelease('E3', '16n', t);
+                        SND.s.triggerAttackRelease('Bb2', '8n', t + 0.09);
+                        break;
+                    case 'draw': // משיכה מהקופה: רשרוש קצר ואבן שנוחתת
+                        SND.nz.triggerAttackRelease('16n', t);
+                        SND.m.triggerAttackRelease('C3', '32n', t + 0.06);
                         break;
                 }
             } catch(e) {}
@@ -4291,6 +4321,12 @@
             const [insertHint, setInsertHint] = useState(null);
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
             const [showError, setShowError] = useState("");
+            // תחושה: חלוקה מדורגת, אבן נמשכת, קבוצה מתיישבת
+            const [dealing, setDealing] = useState(false);
+            const [drawInId, setDrawInId] = useState(null);
+            const [settleGid, setSettleGid] = useState(null);
+            const dealTmRef = useRef(null); const drawTmRef = useRef(null); const settleTmRef = useRef(null);
+            const prevRackIdsRef = useRef(null);
 
             const longPressTimer = useRef(null);
             const dragDataRef = useRef(null);
@@ -4332,7 +4368,12 @@
             // כל השאר הן אבני שולחן: מותר לסדר אותן, אסור לקחת אותן.
             const startRackIds = useMemo(() => new Set(startTurnRack.filter(Boolean).map(t => t.id)), [startTurnRack]);
 
-            const flashError = (msg) => { setShowError(msg); setTimeout(()=>setShowError(""), 4000); };
+            const flashError = (msg) => {
+                setShowError(msg);
+                playSnd('error');
+                try { if (navigator.vibrate) navigator.vibrate([40, 40, 40]); } catch(e) {}
+                setTimeout(()=>setShowError(""), 4000);
+            };
 
             // גודל האבנים נקבע לפי המקום שיש באמת: מדמים את פריסת הזרימה
             // בגדלים יורדים עד שכל הקבוצות נכנסות במסך בלי גלילה. ההקטנה
@@ -4481,6 +4522,22 @@
                     while(fullRack.length < 28) fullRack.push(null);
                     setRack(fullRack);
 
+                    // אבן אחת נוספה למגש כשהתור כבר לא שלי = משכתי מהקופה.
+                    // (החזרה של אבן מהלוח קורית בזמן התור שלי, ולכן לא תצלצל כאן.)
+                    const ids = dbCards.filter(Boolean).map(t => t.id);
+                    const prevIds = prevRackIdsRef.current;
+                    if (prevIds && prevIds.length > 0 && ids.length === prevIds.length + 1 && tableState.phase === 'playing' && tableState.currentTurn !== user.uid) {
+                        const prevSet = new Set(prevIds);
+                        const added = ids.find(id => !prevSet.has(id));
+                        if (added) {
+                            setDrawInId(added);
+                            playSnd('draw');
+                            if (drawTmRef.current) clearTimeout(drawTmRef.current);
+                            drawTmRef.current = setTimeout(() => setDrawInId(null), 600);
+                        }
+                    }
+                    prevRackIdsRef.current = ids;
+
                     if (tableState.currentTurn === user.uid) {
                         if (startTurnRef.current !== tableState.turnStartedAt) {
                              setStartTurnBoard(JSON.parse(JSON.stringify(rawBoard)));
@@ -4611,20 +4668,26 @@
                         if (currentDrag.source === 'board') newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
                     }
 
+                    let settledId = null; // הקבוצה שקיבלה את האבן - תקבל פאנץ' התיישבות
                     if (actualTarget && actualTarget.startsWith('board-group-')) {
                         const targetId = actualTarget.replace('board-group-', '');
                         const targetGrp = newBoard.find(g => g.id === targetId);
                         if (targetGrp) {
                              targetGrp.tiles.push(...tilesToAdd);
                              targetGrp.tiles = autoSortRun(targetGrp.tiles);
+                             settledId = targetId;
                         } else {
-                             spliceBefore(newBoard, insertBeforeId, newBoardGroup(tilesToAdd));
+                             const ng = newBoardGroup(tilesToAdd);
+                             spliceBefore(newBoard, insertBeforeId, ng);
+                             settledId = ng.id;
                         }
                     }
                     else if (actualTarget === 'board-new') {
                         // נופל בין שתי קבוצות (או בסוף) — נכנס בדיוק שם.
                         // צירוף לקבוצה קיימת נעשה בהפלה עליה ממש, לא במגנט קרבה.
-                        spliceBefore(newBoard, insertBeforeId, newBoardGroup(tilesToAdd));
+                        const ng = newBoardGroup(tilesToAdd);
+                        spliceBefore(newBoard, insertBeforeId, ng);
+                        settledId = ng.id;
                     }
                     else if (actualTarget && actualTarget.startsWith('rack-slot-')) {
                         let slotIdx = parseInt(actualTarget.split('-')[2]);
@@ -4659,7 +4722,15 @@
                     setDragData(null);
                     setHoverTarget(null);
                     setInsertHint(null);
-                    if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
+                    if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) {
+                        playSnd('tile');
+                        try { if (navigator.vibrate) navigator.vibrate(12); } catch(err) {}
+                        if (settledId) {
+                            setSettleGid(settledId);
+                            if (settleTmRef.current) clearTimeout(settleTmRef.current);
+                            settleTmRef.current = setTimeout(() => setSettleGid(null), 320);
+                        }
+                    }
 
                     if (tableState?.id && isMyTurn) {
                         try {
@@ -4978,6 +5049,7 @@
                 const uids = Object.keys(tableState.players).sort();
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: JSON.parse(JSON.stringify(board)), turnSnapRack: [...((tableState.players?.[nextTurn] || {}).cards || [])] });
+                playSnd('check'); // שתי נקישות עץ - התור נסגר
             };
 
             const handleNewRound = async () => {
@@ -5106,13 +5178,25 @@
 
             /* ---------- צ'אט ---------- */
             const ch = useTableChat(tableState, tableDocId, user, 'rummikub', showToast);
-            const prevRSnd = useRef({ phase: '', chatLen: 0 });
+            const prevRSnd = useRef({ phase: '', chatLen: 0, turn: '' });
             useEffect(() => {
                 if (!tableState) return;
                 if (tableState.phase === 'showdown' && prevRSnd.current.phase !== 'showdown') playSnd('win');
+                // חלוקה חדשה: האבנים נופלות למגש בזו אחר זו + רשרוש
+                if (tableState.phase === 'playing' && prevRSnd.current.phase && prevRSnd.current.phase !== 'playing') {
+                    playSnd('deal');
+                    setDealing(true);
+                    if (dealTmRef.current) clearTimeout(dealTmRef.current);
+                    dealTmRef.current = setTimeout(() => setDealing(false), 1400);
+                }
+                // התור שלי מתחיל: צליל חם + רטט קצר
+                if (tableState.phase === 'playing' && tableState.currentTurn === user.uid && prevRSnd.current.turn && prevRSnd.current.turn !== user.uid) {
+                    playSnd('turn');
+                    try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
+                }
                 const cl = (tableState.chat || []).length;
                 if (prevRSnd.current.chatLen && cl > prevRSnd.current.chatLen) playSnd('msg');
-                prevRSnd.current = { phase: tableState.phase, chatLen: cl };
+                prevRSnd.current = { phase: tableState.phase, chatLen: cl, turn: tableState.currentTurn || '' };
             }, [tableState]);
 
             if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
@@ -5166,7 +5250,10 @@
 
                     {isShowdown && results && (
                         <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
-                            <div className="bg-slate-900 border border-gold-500/50 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
+                            <div className="relative overflow-hidden bg-slate-900 border border-gold-500/50 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
+                                <div className="win-confetti">{Array.from({ length: 18 }, (_, i) => (
+                                    <i key={i} style={{ left: `${(i * 41 + 13) % 92 + 4}%`, background: ['#c62828', '#1257a8', '#e05a00', '#f5c860'][i % 4], animationDelay: `${(i * 73) % 900}ms`, transform: `scale(${0.75 + ((i * 29) % 10) / 12})` }} />
+                                ))}</div>
                                 <div className="trophy-pop inline-block"><i className="fa-solid fa-trophy text-6xl text-gold-400 drop-shadow-[0_0_20px_rgba(245,200,96,0.6)]"></i></div>
                                 <h2 className="text-3xl font-black text-white mt-4">{results.winnerName} ניצח!</h2>
                                 <div className="text-emerald-400 font-black text-2xl mt-2"><Coin amount={results.winnerProfit} /></div>
@@ -5211,7 +5298,7 @@
                     {/* מרכז */}
                     <div className="felt-bg flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
 
-                        {showError && <div className="absolute bottom-[220px] sm:bottom-[250px] left-1/2 transform -translate-x-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 animate-fade-in text-center max-w-[90%] text-sm">{showError}</div>}
+                        {showError && <div className="err-shake absolute bottom-[220px] sm:bottom-[250px] left-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 text-center max-w-[90%] text-sm" style={{ transform: 'translateX(-50%)' }}>{showError}</div>}
 
                         {(isPlaying || isShowdown) && (
                              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 pointer-events-none z-10 flex-wrap justify-center">
@@ -5230,7 +5317,7 @@
                                     <React.Fragment key={groupObj.id}>
                                         {insertHint && insertHint.beforeId === groupObj.id && <div className="board-caret" />}
                                         <div data-drop={`board-group-${groupObj.id}`} data-board-id={groupObj.id} data-board-next={nextId}
-                                             className={`board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
+                                             className={`board-group ${settleGid === groupObj.id ? 'group-settle' : ''} ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
                                             {groupObj.tiles.map((t, tIdx) => (
                                                 <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
                                             ))}
@@ -5279,7 +5366,7 @@
                                         return (
                                             <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'is-hover' : !tile ? 'is-empty' : ''}`}>
                                                 {tile && (
-                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color) }}>{tile.val}</div>
+                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dealing ? 'tile-deal-in' : drawInId === tile.id ? 'tile-draw-in' : ''} ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color), animationDelay: dealing ? `${index * 45}ms` : undefined }}>{tile.val}</div>
                                                 )}
                                             </div>
                                         );
