@@ -893,7 +893,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v20';
+        const APP_VER = 'v21';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5725,6 +5725,11 @@
                                 showToast("הזמן נגמר - המהלך בוטל", "error");
                             }
                         }
+                    } else if (tableState?.id && currentDrag.source === 'rack' && (!actualTarget || actualTarget === 'rack' || actualTarget?.startsWith('rack-slot-'))) {
+                        // סידור המגש מחוץ לתור: חייב להישמר מיד לשרת - אחרת
+                        // הסנאפשוט הבא (מהלך של יריב, טיימר) דורס את הסידור.
+                        // כתיבת הקלפים של עצמך מותרת בכל עת, כמו בכפתורי המיון.
+                        try { window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}.cards`]: newRack }); } catch(err) {}
                     }
                 };
 
