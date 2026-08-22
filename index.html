@@ -3957,6 +3957,230 @@
         /* ================================================================
            Backoffice - דשבורד, תפקידים לפי משחקים, הגדרות רייק
            ================================================================ */
+        /* ================================================================
+           דוח סגירה שבועי - התחשבנות מחזור: רייק, סוכנים, תיקונים, נעילה
+           ================================================================ */
+        function SettlementSection({ user, clubSettings, showToast }) {
+            const [wk, setWk] = useState(0);                 // 0=נוכחי, 1=קודם...
+            const [data, setData] = useState(null);          // {logs, agentRows, mems}
+            const [q, setQ] = useState('');
+            const [sortBy, setSortBy] = useState('result');
+            const [editFor, setEditFor] = useState(null);    // תיקון כסף: {mem, amt, note}
+            const [busy, setBusy] = useState(false);
+            const isOwner = [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER].includes(user.role);
+            const canManage = isOwner || user.role === ROLES.MANAGER;
+
+            const load = async () => {
+                try {
+                    const [ls, as, ms] = await Promise.all([
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID))),
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "agentLog"), window.fb.where("clubId", "==", CLUB_ID))),
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID)))
+                    ]);
+                    setData({
+                        logs: ls.docs.map(d => d.data()),
+                        agentRows: as.docs.map(d => d.data()),
+                        mems: ms.docs.map(d => ({ id: d.id, ...d.data() }))
+                    });
+                } catch(e) { setData({ logs: [], agentRows: [], mems: [] }); }
+            };
+            useEffect(() => { load(); }, []);
+
+            const from = cycleStartIL(wk), to = wk === 0 ? Date.now() : cycleStartIL(wk - 1);
+            const closedInfo = (clubSettings?.closedWeeks || {})[String(from)] || null;
+            const locked = !!closedInfo;
+
+            const view = useMemo(() => {
+                if (!data) return null;
+                const inWk = (r) => (r.at || 0) >= from && (r.at || 0) < to;
+                const logs = data.logs.filter(inWk);
+                // מקור האמת לרייק ברוטו: שורות agentLog עם kind:'club' - נכתבות
+                // על כל זיכוי רייק. שדה rake ב-gameLog הוא פירוט פר-שחקן בלבד.
+                const grossRake = round2(data.agentRows.filter(r => inWk(r) && r.kind === 'club').reduce((s, r) => s + (Number(r.amount) || 0), 0));
+                const cutRows = data.agentRows.filter(r => inWk(r) && r.kind !== 'club');
+                const totalCuts = round2(cutRows.reduce((s, r) => s + (Number(r.amount) || 0), 0));
+                const byUid = {};
+                logs.forEach(l => { if (!l.uid) return; byUid[l.uid] = byUid[l.uid] || { result: 0, rake: 0, n: 0 }; const b = byUid[l.uid]; b.result = round2(b.result + (Number(l.profit) || 0)); b.rake = round2(b.rake + (Number(l.rake) || 0)); b.n++; });
+                const mems = data.mems.filter(m => !m.isBot && m.status === 'approved');
+                const players = mems.map(m => ({ ...m, wkResult: (byUid[m.uid] || {}).result || 0, wkRake: (byUid[m.uid] || {}).rake || 0, wkGames: (byUid[m.uid] || {}).n || 0 }))
+                    .filter(p => !q || (p.username || '').toLowerCase().includes(q.toLowerCase()) || (p.playerId || '').toLowerCase().includes(q.toLowerCase()));
+                players.sort((a, b) => sortBy === 'balance' ? (b.balance || 0) - (a.balance || 0) : sortBy === 'rake' ? b.wkRake - a.wkRake : b.wkResult - a.wkResult);
+                const agents = mems.filter(m => m.role === ROLES.AGENT).map(a => {
+                    const kids = mems.filter(m => m.agentUid === a.uid).map(m => ({ ...m, wkResult: (byUid[m.uid] || {}).result || 0 }));
+                    const cutPaid = round2(cutRows.filter(r => r.agentUid === a.uid).reduce((s, r) => s + (Number(r.amount) || 0), 0));
+                    return { ...a, kids, cutPaid };
+                }).filter(a => !user.role || canManage || a.uid === user.uid);
+                return { grossRake, totalCuts, ownerNet: round2(grossRake - totalCuts), players, agents };
+            }, [data, from, to, q, sortBy, canManage, user.uid]);
+
+            const applyFix = async () => {
+                if (!editFor) return;
+                const amt = Number(editFor.amt);
+                const note = (editFor.note || '').trim();
+                if (!amt || isNaN(amt)) return showToast("הזן סכום (חיובי או שלילי)", "error");
+                if (note.length < 3) return showToast("תיקון כסף מחייב הערה - למה התיקון?", "error");
+                setBusy(true);
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "gameLog"), {
+                        uid: editFor.mem.uid, username: editFor.mem.username || '', game: 'adjust', clubId: CLUB_ID,
+                        profit: round2(amt), rake: 0, tableId: '', at: Date.now(), by: user.username, note
+                    });
+                    showToast("התיקון נרשם ביומן", "success");
+                    setEditFor(null); await load();
+                } catch(e) { showToast("שגיאה ברישום", "error"); }
+                setBusy(false);
+            };
+
+            const savePct = async (mem, pct) => {
+                const p = Math.max(0, Math.min(100, Number(pct) || 0));
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", mem.id), { agentPct: p }); showToast(`עמלת ${mem.username}: ${p}%`, "success"); await load(); }
+                catch(e) { showToast("שגיאה", "error"); }
+            };
+
+            const closeWeek = async () => {
+                if (!view) return;
+                if (!window.confirm(`לסגור ולנעול את המחזור הזה?\nרייק ברוטו ${formatMoney(view.grossRake)} · עמלות סוכנים ${formatMoney(view.totalCuts)} · נטו לבעלים ${formatMoney(view.ownerNet)}`)) return;
+                setBusy(true);
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), {
+                        [`closedWeeks.${from}`]: {
+                            at: Date.now(), by: user.username,
+                            grossRake: view.grossRake, totalCuts: view.totalCuts, ownerNet: view.ownerNet,
+                            agents: view.agents.map(a => ({ uid: a.uid, name: a.username, cut: a.cutPaid })), paid: {}
+                        }
+                    });
+                    showToast("המחזור נסגר וננעל 🔒", "success");
+                } catch(e) { showToast("שגיאה בסגירה", "error"); }
+                setBusy(false);
+            };
+
+            const togglePaid = async (agentUid) => {
+                const cur = !!(closedInfo?.paid || {})[agentUid];
+                try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID), { [`closedWeeks.${from}.paid.${agentUid}`]: !cur }); }
+                catch(e) { showToast("שגיאה", "error"); }
+            };
+
+            const exportWeek = () => {
+                if (!view) return;
+                const rows = [['שחקן', 'מזהה', 'סוכן', 'משחקים', 'תוצאת מחזור', 'רייק מחזור', 'יתרה']];
+                view.players.forEach(p => rows.push([p.username, p.playerId || '', (data.mems.find(m => m.uid === p.agentUid) || {}).username || '', p.wkGames, p.wkResult, p.wkRake, p.balance || 0]));
+                rows.push([]); rows.push(['רייק ברוטו', view.grossRake], ['עמלות סוכנים', view.totalCuts], ['נטו לבעלים', view.ownerNet]);
+                downloadCSV(rows, `settlement-${new Date(from).toISOString().slice(0,10)}.csv`);
+            };
+
+            const agentNameOf = (uid) => (data?.mems.find(m => m.uid === uid) || {}).username || '';
+
+            return (
+                <div className="glass-panel p-6 rounded-3xl mb-6 border border-purple-500/20" id="bo-settlement">
+                    <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <h3 className="text-lg font-black text-white flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center"><i className="fa-solid fa-scale-balanced text-purple-400 text-sm"></i></span>
+                            דוח סגירה שבועי
+                            {locked && <span className="text-[10px] bg-slate-800 border border-white/15 text-slate-300 px-2.5 py-1 rounded-full font-bold">🔒 נסגר ע"י {closedInfo.by}</span>}
+                        </h3>
+                        <div className="flex gap-1.5 flex-wrap">
+                            {[['השבוע', 0], ['שבוע שעבר', 1], ['לפני שבועיים', 2], ['לפני 3 שבועות', 3]].map(([lb, n]) => (
+                                <button key={n} onClick={()=>setWk(n)} className={`text-[10px] font-black px-3 py-1.5 rounded-full border transition-colors ${wk === n ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white'}`}>{lb}</button>
+                            ))}
+                        </div>
+                    </div>
+                    {!view ? <div className="text-center py-8 text-purple-400"><i className="fa-solid fa-spinner fa-spin text-2xl"></i></div> : (
+                        <React.Fragment>
+                            <div className="grid grid-cols-3 gap-3 mb-4">
+                                <div className="bg-slate-950/60 rounded-2xl border border-white/5 p-3 text-center"><div className="text-[10px] text-slate-500 font-bold mb-1">רייק ברוטו</div><div className="text-lg font-black text-amber-300" dir="ltr">{formatMoney(view.grossRake)}</div></div>
+                                <div className="bg-slate-950/60 rounded-2xl border border-white/5 p-3 text-center"><div className="text-[10px] text-slate-500 font-bold mb-1">עמלות סוכנים</div><div className="text-lg font-black text-purple-300" dir="ltr">{formatMoney(view.totalCuts)}</div></div>
+                                <div className="bg-slate-950/60 rounded-2xl border border-white/5 p-3 text-center"><div className="text-[10px] text-slate-500 font-bold mb-1">נטו לבעלים</div><div className="text-lg font-black text-emerald-300" dir="ltr">{formatMoney(view.ownerNet)}</div></div>
+                            </div>
+
+                            {view.agents.length > 0 && (
+                                <div className="mb-4">
+                                    <div className="text-xs font-black text-purple-300 mb-2">התחשבנות סוכנים</div>
+                                    <div className="grid sm:grid-cols-2 gap-3">
+                                        {view.agents.map(a => (
+                                            <div key={a.uid} className="bg-slate-950/60 rounded-2xl border border-white/5 p-3">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-black text-white text-sm truncate">🤝 {a.username}</span>
+                                                    <span className="flex items-center gap-2">
+                                                        <span className="text-purple-300 font-black text-sm" dir="ltr">{formatMoney(a.cutPaid)}</span>
+                                                        {locked && isOwner && (
+                                                            <button onClick={()=>togglePaid(a.uid)} className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${ (closedInfo.paid || {})[a.uid] ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300' : 'bg-slate-800 border-white/15 text-slate-400 hover:text-white'}`}>{(closedInfo.paid || {})[a.uid] ? '✓ שולם' : 'סמן שולם'}</button>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    {a.kids.length === 0 && <div className="text-[11px] text-slate-600 font-bold">אין שחקנים משויכים</div>}
+                                                    {a.kids.map(k => (
+                                                        <div key={k.uid} className="flex items-center gap-2 text-[11px] font-bold bg-slate-900/50 rounded-lg px-2.5 py-1.5">
+                                                            <span className="text-slate-300 truncate">{k.username}</span>
+                                                            {canManage && !locked ? (
+                                                                <input type="number" min="0" max="100" defaultValue={k.agentPct || 0} onBlur={e => Number(e.target.value) !== (k.agentPct || 0) && savePct(k, e.target.value)} className="w-12 bg-slate-950 border border-white/10 rounded px-1 py-0.5 text-center text-purple-300 font-black outline-none" dir="ltr" />
+                                                            ) : <span className="text-purple-400/80" dir="ltr">{k.agentPct || 0}%</span>}
+                                                            <span className={`mr-auto shrink-0 font-black ${k.wkResult >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{k.wkResult > 0 ? '+' : ''}{formatMoney(k.wkResult)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                                <div className="text-xs font-black text-slate-300">דוח שחקנים ({view.players.length})</div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="חיפוש..." className="bg-slate-950/80 border border-white/10 rounded-full px-3 py-1.5 text-xs text-white w-32 outline-none focus:border-purple-500/50" />
+                                    {[['result', 'תוצאה'], ['balance', 'יתרה'], ['rake', 'רייק']].map(([id, lb]) => (
+                                        <button key={id} onClick={()=>setSortBy(id)} className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${sortBy === id ? 'bg-slate-700 border-white/30 text-white' : 'bg-slate-900 border-white/10 text-slate-500 hover:text-white'}`}>{lb}</button>
+                                    ))}
+                                    <button onClick={exportWeek} className="text-[10px] font-black px-3 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-600 text-white">CSV ⬇</button>
+                                </div>
+                            </div>
+                            <div className="max-h-72 overflow-y-auto flex flex-col gap-1 pl-1 mb-4">
+                                {view.players.map(p => (
+                                    <div key={p.id} className="flex items-center gap-2.5 text-[12px] font-bold bg-slate-900/50 rounded-xl px-3 py-2">
+                                        <span className="text-white truncate min-w-0">{p.username}</span>
+                                        <span className="text-slate-600 text-[10px] font-black shrink-0" dir="ltr">{p.playerId || ''}</span>
+                                        {p.agentUid && <span className="text-purple-400/70 text-[10px] truncate shrink-0">🤝 {agentNameOf(p.agentUid)}</span>}
+                                        <span className="mr-auto shrink-0 text-slate-500 text-[10px]">{p.wkGames} משחקים</span>
+                                        <span className="shrink-0 text-amber-300/80 text-[11px]" dir="ltr" title="רייק המחזור">{formatMoney(p.wkRake)}</span>
+                                        <span className={`shrink-0 font-black w-20 text-left ${p.wkResult >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{p.wkResult > 0 ? '+' : ''}{formatMoney(p.wkResult)}</span>
+                                        <span className="shrink-0 text-slate-400 text-[11px] w-20 text-left" dir="ltr" title="יתרה">{formatMoney(p.balance || 0)}</span>
+                                        {canManage && !locked && (
+                                            <button onClick={()=>setEditFor({ mem: p, amt: '', note: '' })} title="תיקון כסף (עם הערה)" className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-purple-900 text-slate-400 hover:text-white border border-white/10 shrink-0"><i className="fa-solid fa-pen text-[10px]"></i></button>
+                                        )}
+                                    </div>
+                                ))}
+                                {view.players.length === 0 && <div className="text-slate-600 text-sm font-bold py-4 text-center">אין נתונים במחזור הזה.</div>}
+                            </div>
+
+                            {isOwner && !locked && (
+                                <button onClick={closeWeek} disabled={busy} className="w-full py-3 rounded-2xl bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-500 text-white font-black shadow-lg disabled:opacity-40">
+                                    🔒 סגור ונעל את המחזור הזה
+                                </button>
+                            )}
+                            {locked && (
+                                <div className="text-[11px] text-slate-500 font-bold text-center">המחזור ננעל ב-{new Date(closedInfo.at).toLocaleDateString('he-IL')} · רייק {formatMoney(closedInfo.grossRake)} · עמלות {formatMoney(closedInfo.totalCuts)} · נטו {formatMoney(closedInfo.ownerNet)}</div>
+                            )}
+                        </React.Fragment>
+                    )}
+
+                    {editFor && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setEditFor(null)}>
+                            <div className="glass-panel rounded-3xl p-6 w-full max-w-sm animate-pop-in" onClick={e=>e.stopPropagation()}>
+                                <h3 className="font-black text-white mb-1">תיקון כסף - {editFor.mem.username}</h3>
+                                <p className="text-[11px] text-slate-400 font-bold mb-4">נרשם ביומן כ"תיקון" עם שמך והערה. חיובי = זיכוי, שלילי = חיוב.</p>
+                                <input type="number" autoFocus value={editFor.amt} onChange={e=>setEditFor({ ...editFor, amt: e.target.value })} placeholder="סכום (למשל 150 או 150-)" className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-black outline-none focus:border-purple-500/60 mb-2" dir="ltr" />
+                                <input value={editFor.note} onChange={e=>setEditFor({ ...editFor, note: e.target.value })} placeholder="הערה (חובה) - סיבת התיקון" maxLength={120} className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-sm outline-none focus:border-purple-500/60 mb-4" />
+                                <div className="flex gap-2">
+                                    <button onClick={applyFix} disabled={busy} className="flex-1 py-3 rounded-xl font-black text-white bg-purple-700 hover:bg-purple-600 disabled:opacity-40">רשום תיקון</button>
+                                    <button onClick={()=>setEditFor(null)} className="px-5 py-3 rounded-xl font-bold text-slate-300 bg-slate-800 border border-white/10">ביטול</button>
+                                </div>
+                            </div>
+                        </div>, document.body)}
+                </div>
+            );
+        }
+
         function BackofficeView({ user, clubSettings, showToast }) {
             const [usersList, setUsersList] = useState([]);
             const [botsList, setBotsList] = useState([]);
@@ -4280,6 +4504,11 @@
                                 </div>
                             ))}
                         </div>
+
+                        {/* דוח סגירה שבועי - לבעלים, מנהלים וסוכנים (סוכן רואה רק את עצמו) */}
+                        {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(user.role) && (
+                            <SettlementSection user={user} clubSettings={clubSettings} showToast={showToast} />
+                        )}
 
                         {/* הגדרות מועדון - רייק גלובלי (Owner בלבד) */}
                         {isOwner && (
