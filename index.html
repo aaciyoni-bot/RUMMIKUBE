@@ -1228,16 +1228,31 @@
            הצף, שבו קבוצות התנגשו וננערו זו מזו. הלוח זורם עכשיו ולא ייתכנו
            חפיפות, ולכן אין את מי לפתור. */
 
-        // מיון אוטומטי בתוך קבוצה: אם זו סדרת-רצף נקייה (צבע אחד, בלי כפילויות, בלי ג'וקר) - סדר עולה
+        // מיון אוטומטי בתוך קבוצה: רצף (צבע אחד, בלי כפילויות) מסתדר בסדר עולה,
+        // והג'וקרים משתבצים בחורים של הרצף — לא נדבקים בסוף.
+        // שלישיות וקבוצות עמומות נשארות כמו שהשחקן סידר.
         const autoSortRun = (tiles) => {
             if (!tiles || tiles.length < 2) return tiles;
-            if (tiles.some(t => t.val === '☻')) return tiles;
-            const sameColor = tiles.every(t => t.color === tiles[0].color);
-            const vals = tiles.map(t => Number(t.val));
-            if (sameColor && new Set(vals).size === tiles.length) {
-                return [...tiles].sort((a,b) => Number(a.val) - Number(b.val));
+            const jokers = tiles.filter(t => t.val === '☻');
+            const regs = tiles.filter(t => t.val !== '☻');
+            if (regs.length === 0) return tiles;
+            const sameColor = regs.every(t => t.color === regs[0].color);
+            if (!sameColor || new Set(regs.map(t => Number(t.val))).size !== regs.length) return tiles;
+            const sorted = [...regs].sort((a, b) => Number(a.val) - Number(b.val));
+            if (jokers.length === 0) return sorted;
+            const out = []; let j = 0;
+            for (let i = 0; i < sorted.length; i++) {
+                out.push(sorted[i]);
+                if (i < sorted.length - 1) {
+                    let gap = Number(sorted[i + 1].val) - Number(sorted[i].val) - 1;
+                    while (gap > 0 && j < jokers.length) { out.push(jokers[j++]); gap--; }
+                }
             }
-            return tiles;
+            // ג'וקרים שנותרו אחרי סתימת החורים ממשיכים את הרצף בקצוות
+            let hi = Number(sorted[sorted.length - 1].val);
+            while (j < jokers.length && hi < 13) { out.push(jokers[j++]); hi++; }
+            while (j < jokers.length) out.unshift(jokers[j++]);
+            return out;
         };
 
         // האם שתי אבנים שכנות "קשורות משחקית" (לצורך בחירת בלוק בלחיצה ארוכה)
@@ -4300,6 +4315,9 @@
             const rakeFrac = ((clubSettings?.rakePct ?? DEFAULT_RAKE_PCT) / 100);
 
             const startIdsSet = useMemo(() => new Set(startTurnBoard.map(g => g.id)), [startTurnBoard]);
+            // האבנים שהיו במגש שלי בתחילת התור — רק אותן מותר להחזיר מהלוח למגש.
+            // כל השאר הן אבני שולחן: מותר לסדר אותן, אסור לקחת אותן.
+            const startRackIds = useMemo(() => new Set(startTurnRack.filter(Boolean).map(t => t.id)), [startTurnRack]);
 
             const flashError = (msg) => { setShowError(msg); setTimeout(()=>setShowError(""), 4000); };
 
@@ -4505,6 +4523,22 @@
                         }
                     }
 
+                    // שחרור מהלוח בלי יעד (או על אזור פסול) — ביטול נקי: הכל נשאר במקומו.
+                    // בלי זה, אבן בודדת מהלוח הייתה נדחפת כקבוצה חדשה עם ה-id של קבוצת המקור.
+                    if (currentDrag.source === 'board' && (!actualTarget || actualTarget === 'rack')) {
+                        setDragData(null); setHoverTarget(null); setInsertHint(null);
+                        return;
+                    }
+                    // מותר לסדר, אסור לקחת: למגש חוזרות רק אבנים שהתחילו בו את התור הזה
+                    if (currentDrag.source === 'board' && actualTarget?.startsWith('rack-slot-')) {
+                        const dragTiles = currentDrag.type === 'single' ? [currentDrag.tile] : currentDrag.tiles;
+                        if (!dragTiles.every(t => startRackIds.has(t.id))) {
+                            flashError('אבני השולחן נשארות על השולחן — מותר לסדר אותן, לא לקחת אותן למגש');
+                            setDragData(null); setHoverTarget(null); setInsertHint(null);
+                            return;
+                        }
+                    }
+
                     let newRack = [...rack];
                     let newBoard = board.map(g => ({...g, tiles: [...g.tiles]}));
                     let tilesToAdd = [];
@@ -4616,7 +4650,7 @@
                     window.removeEventListener('pointermove', handlePointerMove);
                     window.removeEventListener('pointerup', handlePointerUp);
                 };
-            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn, hasDropped, startIdsSet, boardScale]);
+            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn, hasDropped, startIdsSet, startRackIds, boardScale]);
 
             const startDrag = (e, tile, source, groupId, tileIndex) => {
                 const isMyTurn = tableState?.currentTurn === user.uid;
@@ -4875,6 +4909,12 @@
                 if (tableState.currentTurn !== user.uid) return;
 
                 if (!isBoardValid) { flashError("הלוח לא תקין! ודא שכל הסדרות חוקיות (מינימום 3 אבנים)"); return; }
+
+                // שימור אבנים: כל אבן שהייתה על השולחן בתחילת התור חייבת להיות עליו גם בסופו.
+                // בדיקת הכמות לבדה (למטה) לא תופסת החלפת אבן לוח באבן מגש.
+                const boardIds = new Set(board.flatMap(g => g.tiles.map(t => t.id)));
+                const missingCnt = startTurnBoard.flatMap(g => g.tiles).filter(t => !boardIds.has(t.id)).length;
+                if (missingCnt > 0) { flashError(`חסרות ${missingCnt} אבנים שהיו על השולחן - אבני השולחן חייבות להישאר עליו. לחץ "בטל" וסדר מחדש.`); return; }
 
                 const activeRackCount = rack.filter(t=>t!==null).length;
                 if (activeRackCount >= startTurnRackCount) { flashError("לא הורדת אף אבן! אם אין לך מה לשחק, עליך למשוך אבן מהקופה."); return; }
