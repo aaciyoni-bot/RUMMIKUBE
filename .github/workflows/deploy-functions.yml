@@ -1,6 +1,6 @@
-name: Deploy Firebase Functions
+name: Deploy Firebase Functions & Rules
 
-# פורס אוטומטית את פונקציות ה-Cloud בכל push שנוגע ב-functions/
+# פורס אוטומטית את פונקציות ה-Cloud ואת חוקי ה-Firestore בכל push רלוונטי.
 # דורש Secret בשם FIREBASE_TOKEN (מ-`firebase login:ci`)
 
 on:
@@ -12,6 +12,7 @@ on:
       - 'functions/**'
       - 'firebase.json'
       - '.firebaserc'
+      - 'firestore.rules'
   workflow_dispatch: {}
 
 jobs:
@@ -32,7 +33,7 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy functions
+      - name: Deploy functions & firestore rules
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only functions --project rummikube-5c138 --non-interactive --force
+        run: firebase deploy --only functions,firestore:rules --project rummikube-5c138 --non-interactive --force

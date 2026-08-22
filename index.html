@@ -899,7 +899,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v22';
+        const APP_VER = 'v23';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5051,7 +5051,7 @@
                                             {isOwner && !u.isBot && (
                                                 <button onClick={()=>openRoleEditor(u)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
                                             )}
-                                            {isOwner && (u.photo || u.avatarSeed) && (
+                                            {isGodUser(user) && (u.photo || u.avatarSeed) && (
                                                 <button onClick={()=>censorPhoto(u)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
                                             )}
                                             {canManageAny && !u.isBot && (

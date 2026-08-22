@@ -2,33 +2,137 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // חייב להיות מחובר עם חשבון גוגל (שיטת ההתחברות היחידה באפליקציה)
+    // ═══════════════════════════════════════════════════════════════════
+    //  RUMMIKUBE — חוקי אבטחה
+    //
+    //  שלב 1 (הקובץ הזה): נועל הסלמת-הרשאות וזהות. שחקן כבר לא יכול:
+    //   • להפוך את עצמו לאדמין / GOD / בעל-קלאב / מאושר (role/status)
+    //   • לשייך את עצמו לסוכן או לשנות עמלות (agentUid/agentPct/...)
+    //   • לזייף מייל כדי לקבל GOD (המייל נקרא מה-token של גוגל, לא ממסמך)
+    //   • למחוק/לשנות קלאב שהוא לא הבעלים שלו, או לשדר הודעות מועדון
+    //   • לשנות email/role/isBot במסמך users שלו
+    //
+    //  שלב 2 (עם ה-Cloud Functions): נעילת balance/clubProfits/agentProfits
+    //  ו-stack בשולחן, כך שכל תנועת כסף תעבור אך ורק דרך השרת. עד אז שדות
+    //  הכסף עדיין ניתנים לכתיבה מהלקוח (המשחק הקיים ממשיך לעבוד).
+    // ═══════════════════════════════════════════════════════════════════
+
     function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
 
-    // יומני משחק/סוכנים — append-only: אפשר ליצור ולקרוא, אסור לערוך או למחוק
-    match /gameLog/{id}   { allow read, create: if signedIn(); allow update, delete: if false; }
-    match /agentLog/{id}  { allow read, create: if signedIn(); allow update, delete: if false; }
+    // GOD נקבע לפי המייל ב-token של גוגל, לעולם לא לפי שדה שהמשתמש כותב
+    function isGod() {
+      return signedIn()
+        && request.auth.token.email in ['aaci.yoni@gmail.com', 'info.bagso@gmail.com'];
+    }
 
-    // ליבת הנתונים — כל גישה (קריאה/כתיבה/מחיקה) דורשת חשבון מחובר.
-    // זה חוסם לחלוטין גישה אנונימית מהאינטרנט, בלי לשבור אף פעולה של האפליקציה.
-    match /users/{id}        { allow read, write: if signedIn(); }
-    match /memberships/{id}  { allow read, write: if signedIn(); }
-    match /tables/{id}       { allow read, write: if signedIn(); }
+    function memPath(clubId) {
+      return /databases/$(database)/documents/memberships/$(uid() + '_' + clubId);
+    }
+    function myRole(clubId) {
+      return exists(memPath(clubId)) ? get(memPath(clubId)).data.role : 'none';
+    }
+    // צוות ניהול של קלאב מסוים (או GOD גלובלי)
+    function isStaffOf(clubId) {
+      return isGod() || myRole(clubId) in ['super_admin', 'club_owner', 'manager'];
+    }
+    // שדה שלא השתנה בעדכון (עמיד לשדות חסרים בשני הצדדים)
+    function same(field) {
+      return resource.data.get(field, null) == request.resource.data.get(field, null);
+    }
 
-    // נתונים פרטיים של מנוע-שרת: שחקן קורא רק את האריחים הפרטיים שלו.
-    // הלקוח לעולם לא כותב כאן — רק Cloud Functions (admin SDK עוקף את החוקים).
-    match /tables/{id}/priv/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
+    // ─────────── users ───────────
+    match /users/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        isGod()
+        || ( id == uid()
+             && request.resource.data.role == 'player'
+             && request.resource.data.isBot == false
+             && request.resource.data.balance == 0 )
+      );
+      // אסור לשנות email/role/isBot מהלקוח; שאר השדות (שם, אווטאר, סטטיסטיקה) מותרים
+      allow update: if signedIn() && (
+        isGod()
+        || ( id == uid() && same('email') && same('role') && same('isBot') )
+      );
+      allow delete: if isGod();
+    }
+
+    // ─────────── memberships ───────────
+    match /memberships/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        isGod()
+        // הצטרפות רגילה: חברות של עצמי, תמיד player/pending/0
+        || ( id == uid() + '_' + request.resource.data.clubId
+             && request.resource.data.uid == uid()
+             && request.resource.data.role == 'player'
+             && request.resource.data.status == 'pending'
+             && request.resource.data.balance == 0 )
+        // הקמת קלאב: הבעלים יוצר לעצמו חברות ניהול - רק אם הוא באמת ownerUid בקלאב
+        || ( id == uid() + '_' + request.resource.data.clubId
+             && request.resource.data.role == 'club_owner'
+             && exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId))
+             && get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.ownerUid == uid() )
+      );
+      // צוות משנה הכול; שחקן/משחק יכול לגעת בכסף (שלב 2 ינעל) אבל לא בתפקיד/סטטוס/סוכן
+      allow update: if signedIn() && (
+        isStaffOf(resource.data.clubId)
+        || ( same('role') && same('status') && same('uid') && same('clubId')
+             && same('agentUid') && same('agentPct') && same('agentSharePct')
+             && same('agentCode') )
+        // הגשה-מחדש אחרי דחייה: בעל החברות בלבד, רק rejected -> pending, בלי לגעת בשאר
+        || ( id == uid() + '_' + resource.data.clubId
+             && resource.data.status == 'rejected'
+             && request.resource.data.status == 'pending'
+             && same('role') && same('balance') && same('clubProfits')
+             && same('agentProfits') && same('agentUid') && same('agentPct') )
+      );
+      allow delete: if isStaffOf(resource.data.clubId);
+    }
+
+    // ─────────── clubs ───────────
+    match /clubs/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerUid == uid();
+      allow update: if isGod() || resource.data.ownerUid == uid() || isStaffOf(id);
+      allow delete: if isGod() || resource.data.ownerUid == uid();
+    }
+
+    // ─────────── broadcasts (הודעות מועדון) ───────────
+    match /broadcasts/{clubId} {
+      allow read: if signedIn();
+      allow write: if isStaffOf(clubId);
+    }
+
+    // ─────────── tables (משחק חי) ───────────
+    // נשאר פתוח לכתיבה לשחקנים מחוברים - המשחק רץ בצד הלקוח. שלב 2/מנוע-שרת
+    // ינעל את stack ואת הקלפים הפרטיים.
+    match /tables/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+    // קלפים פרטיים למנוע-שרת עתידי: כל שחקן קורא רק את שלו, כותב רק השרת
+    match /tables/{id}/priv/{u} {
+      allow read: if signedIn() && uid() == u;
       allow write: if false;
     }
 
-    // קונפיג לאדמין בלבד — אין שום גישת לקוח.
-    match /admin/{doc=**} { allow read, write: if false; }
-    match /clubs/{id}        { allow read, write: if signedIn(); }
-    match /tournaments/{id}  { allow read, write: if signedIn(); }
-    match /broadcasts/{id}   { allow read, write: if signedIn(); }
+    // ─────────── tournaments ───────────
+    match /tournaments/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
 
-    // כל דבר אחר שלא הוגדר במפורש — חסום
-    match /{document=**}     { allow read, write: if false; }
+    // ─────────── logs: append-only ───────────
+    match /gameLog/{id}  { allow read, create: if signedIn(); allow update, delete: if false; }
+    match /agentLog/{id} { allow read, create: if signedIn(); allow update, delete: if false; }
+
+    // ─────────── admin config: אין גישת לקוח ───────────
+    match /admin/{doc=**} { allow read, write: if false; }
+
+    // כל השאר חסום
+    match /{document=**} { allow read, write: if false; }
   }
 }

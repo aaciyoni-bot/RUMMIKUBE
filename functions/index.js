@@ -57,9 +57,12 @@ exports.spinDailyBonus = onCall(async (request) => {
       throw new HttpsError("failed-precondition", `הבונוס הבא בעוד ${hrs} שעות`);
     }
 
-    // הגרלה משוקללת — בצד השרת, לא ניתן לזיוף
+    // הגרלה משוקללת — בצד השרת, לא ניתן לזיוף.
+    // תקרת ביטחון: גם אם מסמך הקלאב נכתב עם פרסים ענקיים, השרת חוסם ל-500
+    // (הגנת עומק - חוקי ה-Firestore כבר מגבילים כתיבת clubs לבעלים בלבד).
+    const PRIZE_CAP = 500;
     const prizes = (Array.isArray(bw.prizes) && bw.prizes.length === 8) ?
-      bw.prizes.map((x) => Number(x) || 0) : DEFAULT_PRIZES;
+      bw.prizes.map((x) => Math.min(Math.max(0, Number(x) || 0), PRIZE_CAP)) : DEFAULT_PRIZES;
     const total = BONUS_WEIGHTS.reduce((a, b) => a + b, 0);
     let r = Math.random() * total;
     let idx = 0;
