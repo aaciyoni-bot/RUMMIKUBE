@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v36';
+        const APP_VER = 'v37';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7126,8 +7126,18 @@
                 if (added) { setFlashId(added); const tm = setTimeout(() => setFlashId(null), 1600); return () => clearTimeout(tm); }
             }, [handKey]);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
-            const meldIds = new Set((part.melds || []).flat().map(x => x.id));
             const orderedTiles = order.map(id => tileById[id]).filter(Boolean);
+            // הדגשה לפי הסידור שלך: כל רצף אבנים סמוכות שמרכיב קומבינציה חוקית
+            // (רצף 234 או שלישייה 777) נדלק בירוק — מה שאתה מסדר הוא מה שמואר.
+            const meldIds = (() => {
+                const s = new Set(); let i = 0;
+                while (i < orderedTiles.length) {
+                    let best = 0;
+                    for (let len = Math.min(orderedTiles.length - i, 13); len >= 3; len--) { if (validateGroup(orderedTiles.slice(i, i + len))) { best = len; break; } }
+                    if (best >= 3) { for (let k = i; k < i + best; k++) s.add(orderedTiles[k].id); i += best; } else i++;
+                }
+                return s;
+            })();
             const autoArrange = () => setOrder([...(part.melds || []).flat(), ...[...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || (a.val === '☻' ? 99 : Number(a.val)) - (b.val === '☻' ? 99 : Number(b.val)))].map(x => x.id));
             const onTileDown = (id) => { dragIdRef.current = id; dragMovedRef.current = false; setDragId(id); };
             const onRowMove = (e) => {
@@ -7353,6 +7363,16 @@
                 const pendingBot = seated.find(u => t.players[u].isBot && !(t.freshReq.approvals || {})[u]);
                 if (!pendingBot) return;
                 const tm = setTimeout(() => respondFresh(true, pendingBot), 800);
+                return () => clearTimeout(tm);
+            }, [t && t.freshReq, t && t.phase]);
+
+            // תפוגה אוטומטית להצעת פריש תקועה: אם אף אחד לא סגר תוך 40 שנ' — מתבטלת,
+            // כדי שהמודל לא ייתקע ולא יופיע כשלא מצפים לו.
+            useEffect(() => {
+                if (!t || t.phase !== 'playing' || !t.freshReq) return;
+                const age = Date.now() - (t.freshReq.at || 0);
+                if (age > 40000) { respondFresh(false); return; }
+                const tm = setTimeout(() => respondFresh(false), Math.max(1500, 40000 - age));
                 return () => clearTimeout(tm);
             }, [t && t.freshReq, t && t.phase]);
 
