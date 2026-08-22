@@ -972,8 +972,12 @@
         // GOD MODE - אך ורק המייל הזה (כניסה דרך גוגל)
         const GOD_EMAILS = ['aaci.yoni@gmail.com'];
         const SUPER_ADMIN_EMAIL = 'aaci.yoni@gmail.com';
-        // מוסיף-בוטים ידני בלבד (כפתור "הוסף בוט") — בלי GOD MODE
+        // בעל האתר / אדמין (בלי GOD MODE) — מנהל את הקבוצה, מאשר שחקנים, מוסיף בוטים
+        const SITE_OWNER_EMAILS = ['liorabrgel1991@gmail.com'];
         const BOT_ADDER_EMAILS = ['liorabrgel1991@gmail.com'];
+        // מצב קבוצה-יחידה: בלי קלאבים בכלל. כניסה ישירה לקבוצה אחת קבועה.
+        const NO_CLUBS = true;
+        const FIXED_CLUB = { id: 'main', name: 'RUMMIKUBE', ownerUid: '' };
 
         const DEFAULT_RAKE_PCT = 6;   // ברירת מחדל בלבד - ניתן לעריכה בהגדרות המועדון
         const TURN_SECONDS = 60;
@@ -983,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v45';
+        const APP_VER = 'v46';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7404,33 +7408,19 @@
                 })();
             }, [myTurn, timeLeft, t && t.turnPhase]);
 
-            // הוספת בוט ידנית — כפתור זמין רק ל-BOT_ADDER (או GOD). בוטים לא נכנסים אוטומטית.
+            // הוספת בוט ידנית — דרך Cloud Function (כתיבת bank מותרת רק לשרת).
+            // כפתור זמין רק לבעל-האתר/GOD. בוטים לא נכנסים אוטומטית.
             const addBotBusyRef = useRef(false);
             const handleAddBot = async () => {
                 if (addBotBusyRef.current) return; addBotBusyRef.current = true;
                 try {
-                    if (typeof ensureBotBank === 'function') await ensureBotBank();
-                    const ref = window.fb.doc(window.fb.db, "tables", tableDocId);
-                    const snap = await window.fb.getDoc(ref); if (!snap.exists()) return;
-                    const cur = snap.data();
-                    const n = Object.keys(cur.players || {}).length;
-                    if (n >= Number(cur.maxPlayers) || cur.phase !== 'waiting') { showToast('אי אפשר להוסיף בוט עכשיו', 'error'); return; }
-                    const bq = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
-                    const bs = await window.fb.getDocs(bq); if (bs.empty) { showToast('אין בוטים זמינים', 'error'); return; }
-                    const avail = bs.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !cur.players[b.id]);
-                    if (!avail.length) { showToast('אין בוט פנוי', 'error'); return; }
-                    const bot = avail[Math.floor(Math.random() * avail.length)];
-                    const buyIn = round2(Number(cur.minBuyIn) || 0);
-                    // שם עברי/ישראלי טרי לכל בוט שנוסף (מבטל את השמות הישנים), ייחודי בשולחן
-                    const usedNames = new Set(Object.values(cur.players || {}).map(p => p.username));
-                    const usedKeys = new Set(Object.values(cur.players || {}).map(p => botNameKey(p.username)));
+                    // שם עברי/ישראלי טרי, ייחודי בשולחן (רוב נשים, 10% עם שנת לידה 1991+)
+                    const usedNames = new Set(Object.values(t.players || {}).map(p => p.username));
+                    const usedKeys = new Set(Object.values(t.players || {}).map(p => botNameKey(p.username)));
                     const nm = botDisplayName(usedNames, usedKeys);
-                    try { await window.fb.updateDoc(window.fb.doc(window.fb.db, 'users', bot.id), { username: nm }); } catch (_) {}
-                    const players = { ...cur.players, [bot.id]: { username: nm, cards: [], stack: buyIn, isBot: true, missed: 0 } };
-                    const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
-                    if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank, 1, cur.timeBank), bank }); spawnTwinTable(cur); }
-                    else await window.fb.updateDoc(ref, { players, bank });
-                } catch (e) { showToast('שגיאה בהוספת בוט', 'error'); }
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'ramiAddBot')({ tableId: t.id, name: nm });
+                    if (res?.data?.becameFull) spawnTwinTable(t);
+                } catch (e) { showToast(fnErr(e), 'error'); }
                 finally { addBotBusyRef.current = false; }
             };
 

@@ -609,6 +609,49 @@ exports.ramiSit = onCall(async (request) => {
   return {ok: true, becameFull};
 });
 
+// ── הוספת בוט ידנית (בעל האתר / GOD בלבד) — כתיבת bank מותרת רק לשרת ──
+const BOT_ADMIN_EMAILS = ["liorabrgel1991@gmail.com", "aaci.yoni@gmail.com"];
+exports.ramiAddBot = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, name} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  let allowed = BOT_ADMIN_EMAILS.includes(email);
+  const tRef0 = db.doc(`tables/${tableId}`);
+  const t0 = await tRef0.get();
+  if (!t0.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+  if (!allowed) {
+    const clubSnap = await db.doc(`clubs/${t0.data().clubId}`).get();
+    if (clubSnap.exists && clubSnap.data().ownerUid === uid) allowed = true;
+  }
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה להוסיף בוט");
+  const botsSnap = await db.collection("users").where("isBot", "==", true).get();
+  const cur0 = t0.data();
+  const avail = botsSnap.docs.map((d) => ({id: d.id, ...d.data()})).filter((b) => b.id !== "bot_bank" && !(cur0.players || {})[b.id]);
+  if (!avail.length) throw new HttpsError("failed-precondition", "אין בוט פנוי");
+  const bot = avail[Math.floor(Math.random() * avail.length)];
+  const botName = (typeof name === "string" && name.trim()) ? name.trim().slice(0, 40) : (bot.username || "בוט");
+  const becameFull = await db.runTransaction(async (tx) => {
+    const tSnap = await tx.get(tRef0);
+    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = tSnap.data();
+    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+    if (t.phase !== "waiting") throw new HttpsError("failed-precondition", "המשחק כבר התחיל");
+    const max = Number(t.maxPlayers) || 0;
+    if (Object.keys(t.players || {}).length >= max) throw new HttpsError("failed-precondition", "השולחן מלא");
+    if ((t.players || {})[bot.id]) throw new HttpsError("failed-precondition", "הבוט כבר בשולחן");
+    const buyIn = round2(Number(t.minBuyIn) || 0);
+    const players = {...(t.players || {}), [bot.id]: {username: botName, cards: [], stack: buyIn, isBot: true, missed: 0}};
+    const bank = {...(t.bank || {}), [bot.id]: buyIn};
+    if (Object.keys(players).length === max) { tx.update(tRef0, {...ramiDeal(players, bank, t.timeBank), bank}); return true; }
+    tx.update(tRef0, {players, bank});
+    return false;
+  });
+  try { await db.doc(`users/${bot.id}`).update({username: botName}); } catch (e) { /* לוג */ }
+  return {ok: true, becameFull};
+});
+
 // ── סיום יד רמי: המנצח ירד (יד שלמה מאומתת-שרת); מפסידים משלמים leftover×ערך-נקודה ──
 exports.ramiSettle = onCall(async (request) => {
   const uid = request.auth && request.auth.uid;
