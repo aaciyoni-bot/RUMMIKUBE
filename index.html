@@ -196,8 +196,9 @@
             position: absolute; top: 36%; left: 50%; transform: translate(-50%, -50%);
             font-family: 'Rubik', sans-serif; font-weight: 900; font-style: italic;
             font-size: clamp(3.2rem, 9vw, 7rem); letter-spacing: -0.03em; white-space: nowrap;
-            color: rgba(10,22,46,0.34);
-            text-shadow: 0 1px 0 rgba(130,180,255,0.10), 0 -1px 1px rgba(0,0,0,0.28);
+            /* הטבעה ניטרלית - עובדת על כל צבע פלט שהשחקן יבחר */
+            color: rgba(2,8,20,0.28);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.07), 0 -1px 1px rgba(0,0,0,0.30);
             pointer-events: none; z-index: 0;
         }
         #felt-board {
@@ -1264,6 +1265,20 @@
             '#0c1322': '#14161c'    /* שחור  */
         };
         const inkOf = (c) => TILE_INK[c] || c;
+
+        /* עיצוב אישי לשולחן הרמי - כמו בחירת הפלט בפוקר: הבחירה נשמרת
+           במכשיר של השחקן (localStorage) ומשנה רק את התצוגה אצלו. */
+        const RM_FELTS = {
+            navy:     { l: 'נייבי',  v: ['#1d3f74', '#12274a', '#091730'] },
+            emerald:  { l: 'ירוק',   v: ['#14523c', '#0d3b2b', '#082a1e'] },
+            bordeaux: { l: 'בורדו',  v: ['#5a1a2e', '#3d1020', '#260a14'] },
+            graphite: { l: 'גרפיט',  v: ['#333a46', '#232830', '#151920'] }
+        };
+        const RM_TILE_TONES = {
+            ivory: { l: 'שנהב', v: ['#fdfaf0', '#f4eddb', '#e7dec4', '#b3a684'] },
+            snow:  { l: 'שלג',  v: ['#ffffff', '#f3f5f8', '#e2e6ee', '#a9b2c2'] },
+            cream: { l: 'קרם',  v: ['#fffbe9', '#f8eecb', '#eee0ae', '#c0ab74'] }
+        };
         const COLOR_ORDER = ['#ef4444', '#3b82f6', '#f59e0b', '#0c1322'];
 
         /* מפתח מיון לקבוצה על הלוח: שלישיות תחילה לפי ערך, אחר-כך רצפים
@@ -4547,6 +4562,24 @@
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
             const [showError, setShowError] = useState("");
             // תחושה: חלוקה מדורגת, אבן נמשכת, קבוצה מתיישבת
+            // עיצוב אישי: פלט + גוון אבן, נשמר במכשיר בלבד
+            const [skin, setSkin] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('rmSkin') || '{}') || {}; } catch (e) { return {}; }
+            });
+            const [skinOpen, setSkinOpen] = useState(false);
+            const saveSkin = (s2) => {
+                setSkin(s2);
+                try { localStorage.setItem('rmSkin', JSON.stringify(s2)); } catch (e) {}
+            };
+            const skinStyle = useMemo(() => {
+                const st = {};
+                const f = RM_FELTS[skin.felt];
+                if (f && skin.felt !== 'navy') { st['--felt-1'] = f.v[0]; st['--felt-2'] = f.v[1]; st['--felt-3'] = f.v[2]; }
+                const tn = RM_TILE_TONES[skin.tile];
+                if (tn && skin.tile !== 'ivory') { st['--tile-face-1'] = tn.v[0]; st['--tile-face-2'] = tn.v[1]; st['--tile-face-3'] = tn.v[2]; st['--tile-shelf'] = tn.v[3]; }
+                return st;
+            }, [skin.felt, skin.tile]);
+
             const [dealing, setDealing] = useState(false);
             const [drawInId, setDrawInId] = useState(null);
             const [settleGid, setSettleGid] = useState(null);
@@ -5594,7 +5627,7 @@
             const results = tableState.lastResults;
 
             return (
-                <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl">
+                <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl" style={skinStyle}>
 
                     {needRotate && (
                         <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
@@ -5783,6 +5816,10 @@
                             <i className="fa-solid fa-comment-dots ml-1"></i> צ'אט
                         </button>
 
+                        <button onClick={()=>setSkinOpen(true)} title="עיצוב השולחן שלי" className="w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 bg-slate-950 border-slate-700 text-slate-300 hover:text-white transition-all shrink-0 whitespace-nowrap">
+                            <i className="fa-solid fa-palette ml-1"></i> עיצוב
+                        </button>
+
                         {isSeated && isPlaying && (
                             <div className="flex-1 flex flex-row sm:flex-col w-auto sm:w-full gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto items-center sm:items-stretch">
                                 <button onClick={handleSort789} title="סדר לפי סדרות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></span></button>
@@ -5826,6 +5863,32 @@
                     {ch.chatOpen && <ChatPanel chat={ch.chatArr} meUid={user.uid} onSend={ch.sendChat} onClose={()=>ch.setChatOpen(false)} className="bottom-24 sm:bottom-4 left-2 sm:left-36" targets={Object.entries(tableState?.players || {}).filter(([u]) => u !== user.uid).map(([u, p]) => ({ uid: u, name: p.username }))} mutedUids={ch.mutedUids} onToggleMuteUid={ch.toggleMuteUid} canModerate={ch.canModerate} chatMuted={ch.chatMuted} onToggleTableMute={ch.toggleTableMute} />}
                     <HelpButton game="rummikub" cls="bottom-4 right-3" />
                     {ch.gifts.filter(g => g.to === user.uid).map((g, gi) => <div key={'sg'+gi} className="fixed left-1/2 top-1/3 -translate-x-1/2 text-6xl z-[500] pointer-events-none" style={{ animation: 'giftBoom 2s ease-out forwards' }}>{g.giftE}</div>)}
+
+                    {/* בורר עיצוב: פלט + גוון אבן, בחירה אישית שנשמרת במכשיר */}
+                    {skinOpen && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setSkinOpen(false)}>
+                            <div className="glass-panel rounded-3xl p-6 w-full max-w-sm animate-pop-in" onClick={e=>e.stopPropagation()}>
+                                <h3 className="font-black text-white text-lg mb-4"><i className="fa-solid fa-palette ml-2 text-emerald-400"></i>עיצוב השולחן שלי</h3>
+                                <div className="text-[11px] text-slate-400 font-bold mb-2">צבע השולחן</div>
+                                <div className="flex gap-3 mb-5">
+                                    {Object.entries(RM_FELTS).map(([k, f]) => (
+                                        <button key={k} onClick={()=>saveSkin({ ...skin, felt: k })} title={f.l}
+                                                className={`w-12 h-12 rounded-full border-2 transition-transform ${(skin.felt || 'navy') === k ? 'border-amber-400 scale-110 shadow-[0_0_12px_rgba(245,200,96,0.5)]' : 'border-white/20 hover:scale-105'}`}
+                                                style={{ background: `linear-gradient(160deg, ${f.v[0]}, ${f.v[2]})` }}></button>
+                                    ))}
+                                </div>
+                                <div className="text-[11px] text-slate-400 font-bold mb-2">גוון האבנים</div>
+                                <div className="flex gap-3 mb-5">
+                                    {Object.entries(RM_TILE_TONES).map(([k, tn]) => (
+                                        <button key={k} onClick={()=>saveSkin({ ...skin, tile: k })} title={tn.l}
+                                                className={`w-12 h-12 rounded-xl border-2 transition-transform ${(skin.tile || 'ivory') === k ? 'border-amber-400 scale-110 shadow-[0_0_12px_rgba(245,200,96,0.5)]' : 'border-white/20 hover:scale-105'}`}
+                                                style={{ background: `linear-gradient(180deg, ${tn.v[0]}, ${tn.v[2]})` }}></button>
+                                    ))}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-bold mb-4">הבחירה נשמרת במכשיר שלך בלבד ולא משפיעה על שחקנים אחרים.</div>
+                                <button onClick={()=>setSkinOpen(false)} className="w-full py-2.5 rounded-xl bg-slate-800 border border-white/10 text-slate-300 font-bold hover:text-white">סגור</button>
+                            </div>
+                        </div>, document.body)}
 
                     {/* רוחות רפאים */}
                     {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}>{dragData.tile.val}</div>}
