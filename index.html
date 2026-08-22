@@ -183,6 +183,7 @@
         }
         #felt-board {
             touch-action: pan-x pan-y;
+            overscroll-behavior: contain;   /* גלילת הלוח לא מושכת את הדף/רענון */
             border: 1px solid rgba(0,0,0,0.55);
             box-shadow:
                 inset 0 2px 0 rgba(255,255,255,0.05),
@@ -288,6 +289,16 @@
             box-shadow: inset 0 1px 0 rgba(255,240,210,0.35);
             pointer-events: none;
         }
+        /* ===== טלפון לרוחב: רחב אבל נמוך (≤540px גובה) =====
+           ה-breakpoints של רוחב לא מזהים את זה — מסך 844x390 נראה "דסקטופ"
+           לפי רוחב אבל אין בו גובה. מצמצמים גבהים, לא רוחבים. */
+        @media (min-width: 640px) and (max-height: 540px) {
+            .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.8rem * var(--board-scale, 1)); }
+            .board-flow { gap: calc(0.9rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1)); padding: calc(0.9rem * var(--board-scale, 1)); }
+            .pl-avatar { width: 2.6rem !important; height: 2.6rem !important; }
+            .rk-btn { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+        }
+
         /* ===== אווטר שחקן: עיגול עם טבעת טיימר היקפית ===== */
         .pl-ring {
             position: relative; border-radius: 50%; padding: 3px;
@@ -323,6 +334,7 @@
         .rack-grid {
             display: flex; flex-wrap: wrap; align-content: flex-start;
             gap: 3px; direction: ltr; overflow-y: auto; height: 100%;
+            overscroll-behavior: contain;
         }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
@@ -5122,7 +5134,7 @@
 
                         {(isPlaying || isShowdown) && (
                              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 pointer-events-none z-10 flex-wrap justify-center">
-                                 <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur">קופה: {(tableState.deck||[]).length} אבנים</span>
+                                 <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur [@media(max-height:540px)]:hidden">קופה: {(tableState.deck||[]).length} אבנים</span>
                                  <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur" dir="ltr">{formatMoney(tableState.stakes)} ₪/נק'</span>
                                  {isSeated && !hasDropped && isPlaying && <span className="text-[11px] bg-amber-900/70 border border-amber-600 px-3 py-1 rounded-full text-amber-300 font-bold backdrop-blur">טרם ירדת ({FIRST_MELD_MIN}+ נק')</span>}
                              </div>
@@ -5174,12 +5186,12 @@
                             </div>
                         )}
                         {isSeated && isPlaying && (
-                            <div className="rummy-rack h-48 sm:h-52 shrink-0 mx-2 md:mx-4 rounded-t-3xl flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="rummy-rack h-48 sm:h-[clamp(7.5rem,26dvh,13rem)] shrink-0 mx-2 md:mx-4 rounded-t-3xl flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
                                 </div>
-                                <div className="w-full flex-1 max-h-[160px] sm:max-h-[150px]">
+                                <div className="w-full flex-1 min-h-0">
                                     <div className="rack-grid h-full">
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
