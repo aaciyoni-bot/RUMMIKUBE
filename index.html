@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v42';
+        const APP_VER = 'v43';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7135,15 +7135,14 @@
             const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
             const uids = t ? Object.keys(t.players || {}).sort() : [];
 
-            // ── מגש-סידור עם משבצות ריקות (כמו מגש רמי אמיתי) + הדגשת אבן שנמשכה ──
-            const SLOT_COUNT = 24; // 4 שורות × 6 — הרבה משבצות ריקות לסידור בקבוצות עם רווחים
-            const [slots, setSlots] = useState(() => Array(SLOT_COUNT).fill(null));
+            // ── מגש גמיש: כל קומבינציה נשארת בשורה אחת, רווח קטן ביניהן + הדגשת אבן שנמשכה ──
+            const [order, setOrder] = useState([]);
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
-            const [dropSlot, setDropSlot] = useState(null);
+            const [dropBefore, setDropBefore] = useState(null); // id שלפניו תיפול האבן (או '__end__')
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
-            const dropSlotRef = useRef(null);
+            const dropBeforeRef = useRef(null);
             const dragStartRef = useRef(null);
             const ghostRef = useRef(null);
             const gridRef = useRef(null);
@@ -7151,14 +7150,7 @@
             const handIds = myHand.filter(Boolean).map(x => x.id);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
             useEffect(() => {
-                // סנכרון משבצות: אבנים נשארות במקומן, אבנים שיצאו מתפנות, אבנים חדשות למשבצת פנויה
-                setSlots(prev => {
-                    const arr = prev.slice(); const present = new Set(handIds);
-                    for (let i = 0; i < arr.length; i++) if (arr[i] && !present.has(arr[i])) arr[i] = null;
-                    const placed = new Set(arr.filter(Boolean));
-                    for (const id of handIds) { if (placed.has(id)) continue; let sl = arr.indexOf(null); if (sl < 0) arr.push(id); else arr[sl] = id; placed.add(id); }
-                    return arr;
-                });
+                setOrder(prev => { const kept = prev.filter(id => handIds.includes(id)); const added = handIds.filter(id => !kept.includes(id)); return [...kept, ...added]; });
                 // הבהוב רק על אבן שהרגע נמשכה: היד גדלה בדיוק באחת (14→15). לא בכניסה/חלוקה-מחדש/תור-יריב.
                 const prev = prevIdsRef.current;
                 let cleanup;
@@ -7169,35 +7161,34 @@
                 prevIdsRef.current = handIds;
                 return cleanup;
             }, [handKey]);
+            const orderedTiles = order.map(id => tileById[id]).filter(Boolean);
             // המערכת "מבינה" את הסידור שלך: כל קבוצה מופרדת-ברווח נבדקת בנפרד.
             // קבוצה שלמה-חוקית → רקע ירוק חזק + תווית סוג (רצף / שלישייה / רביעייה).
             // תת-רצף חוקי בתוך קבוצה לא-שלמה → טבעת ירוקה בלבד.
-            const arrange = (() => {
-                const ring = new Set(), full = new Set(), badges = {}, recognized = [];
-                let grp = [];
-                const flush = () => {
-                    if (grp.length >= 3 && validateGroup(grp.map(x => x.t))) {
-                        grp.forEach(x => { ring.add(x.id); full.add(x.id); });
-                        const nums = grp.map(x => x.t.val).filter(v => v !== '☻');
+            // פירוק הסידור לקומבינציות: כל תת-רצף רצוף שחוקי (רצף / שלישייה) הוא "קומבינציה"
+            // שנשארת בשורה אחת; אבנים לא-מסודרות מתקבצות ל"אזור חופשי".
+            const segments = (() => {
+                const segs = []; let i = 0;
+                while (i < orderedTiles.length) {
+                    let best = 0;
+                    for (let len = Math.min(orderedTiles.length - i, 13); len >= 3; len--) { if (validateGroup(orderedTiles.slice(i, i + len))) { best = len; break; } }
+                    if (best >= 3) {
+                        const tiles = orderedTiles.slice(i, i + best);
+                        const nums = tiles.map(x => x.val).filter(v => v !== '☻');
                         const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
-                        const label = isGroup ? (grp.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
-                        badges[grp[0].slotIdx] = label;
-                        recognized.push({ label, n: grp.length });
+                        const label = isGroup ? (best >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
+                        segs.push({ meld: true, tiles, label });
+                        i += best;
                     } else {
-                        let i = 0;
-                        while (i < grp.length) {
-                            let best = 0;
-                            for (let len = Math.min(grp.length - i, 13); len >= 3; len--) { if (validateGroup(grp.slice(i, i + len).map(x => x.t))) { best = len; break; } }
-                            if (best >= 3) { for (let k = i; k < i + best; k++) ring.add(grp[k].id); i += best; } else i++;
-                        }
+                        if (segs.length && !segs[segs.length - 1].meld) segs[segs.length - 1].tiles.push(orderedTiles[i]);
+                        else segs.push({ meld: false, tiles: [orderedTiles[i]] });
+                        i++;
                     }
-                    grp = [];
-                };
-                slots.forEach((id, idx) => { if (id && tileById[id]) grp.push({ id, t: tileById[id], slotIdx: idx }); else flush(); });
-                flush();
-                return { ring, full, badges, recognized };
+                }
+                return segs;
             })();
-            const meldIds = arrange.ring;
+            const meldIds = new Set(); segments.forEach(s => { if (s.meld) s.tiles.forEach(x => meldIds.add(x.id)); });
+            const recognized = segments.filter(s => s.meld).map(s => ({ label: s.label, n: s.tiles.length }));
             // סידור אבנים בתוך קומבינציה לתצוגה: ג'וקר יושב במקום שהוא מייצג (9,10,🃏,12), לא בסוף
             const orderMeld = (m) => {
                 const jokers = m.filter(x => x.val === '☻');
@@ -7219,46 +7210,50 @@
                 while (jq.length) out.push(jq.shift());
                 return out;
             };
-            // "סדר לי": כל קומבינציה בשורה נפרדת (הפרדה נקייה), הלא-מסודרות בשורה בסוף
+            // "סדר לי": פורש את הקומבינציות (ג'וקר במקומו) ואז הלא-מסודרות — כל אחת בשורה משלה
             const autoArrange = () => {
-                const COLS = 6; const arr = [];
-                const padRow = () => { while (arr.length % COLS !== 0) arr.push(null); };
-                (part.melds || []).forEach(m => { orderMeld(m).forEach(x => arr.push(x.id)); padRow(); });
-                const left = [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b));
-                if (left.length) { left.forEach(x => arr.push(x.id)); padRow(); }
-                while (arr.length < SLOT_COUNT) arr.push(null);
-                handIds.forEach(id => { if (!arr.includes(id)) arr.push(id); }); // ביטחון: לא לאבד אבן
-                setSlots(arr);
+                const ids = [];
+                (part.melds || []).forEach(m => orderMeld(m).forEach(x => ids.push(x.id)));
+                [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).forEach(x => ids.push(x.id));
+                handIds.forEach(id => { if (!ids.includes(id)) ids.push(id); }); // ביטחון
+                setOrder(ids);
             };
-            const slotUnder = (px, py) => {
+            // מה נמצא מתחת לאצבע: אבן (נשחרר לפניה) או אזור-החניה (לסוף)
+            const tileUnder = (px, py) => {
                 if (!gridRef.current) return null;
-                const cells = gridRef.current.querySelectorAll('[data-slot]');
-                for (const c of cells) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return Number(c.getAttribute('data-slot')); }
+                const els = gridRef.current.querySelectorAll('[data-tid]');
+                for (const c of els) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return c.getAttribute('data-tid'); }
+                const park = gridRef.current.querySelector('[data-park]');
+                if (park) { const r = park.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return '__end__'; }
                 return null;
             };
             const onTileDown = (e, id) => {
-                dragIdRef.current = id; dragMovedRef.current = false; dropSlotRef.current = null;
+                dragIdRef.current = id; dragMovedRef.current = false; dropBeforeRef.current = null;
                 dragStartRef.current = { x: e.clientX, y: e.clientY };
-                setDragId(id); setDropSlot(null);
+                setDragId(id); setDropBefore(null);
                 try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
             };
             const onTileMove = (e) => {
                 if (!dragIdRef.current) return;
                 const x = e.clientX, y = e.clientY;
-                // מרחק-מינימום כדי שלחיצה-לזריקה לא תיחשב בטעות כגרירה
                 if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; }
-                // האבן-רפאים עוקבת אחרי האצבע (עדכון ישיר ל-DOM = חלק, בלי רינדור מחדש)
                 if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - 10) + 'px'; }
-                const s = slotUnder(x, y);
-                if (s !== dropSlotRef.current) { dropSlotRef.current = s; setDropSlot(s); }
+                const a = tileUnder(x, y);
+                if (a !== dropBeforeRef.current) { dropBeforeRef.current = a; setDropBefore(a); }
             };
             const onTileUp = () => {
-                const did = dragIdRef.current, moved = dragMovedRef.current, target = dropSlotRef.current;
-                dragIdRef.current = null; dragMovedRef.current = false; dropSlotRef.current = null; dragStartRef.current = null;
-                setDragId(null); setDropSlot(null);
+                const did = dragIdRef.current, moved = dragMovedRef.current, anchor = dropBeforeRef.current;
+                dragIdRef.current = null; dragMovedRef.current = false; dropBeforeRef.current = null; dragStartRef.current = null;
+                setDragId(null); setDropBefore(null);
                 if (!did) return;
                 if (moved) {
-                    if (target != null) setSlots(prev => { const f = prev.indexOf(did); if (f < 0 || f === target) return prev; const arr = prev.slice(); if (arr[target] == null) { arr[target] = did; arr[f] = null; } else { const tmp = arr[target]; arr[target] = did; arr[f] = tmp; } return arr; });
+                    if (anchor === did) return; // חזר למקומו — בלי שינוי
+                    setOrder(prev => {
+                        const arr = prev.filter(x => x !== did);
+                        if (anchor == null || anchor === '__end__') arr.push(did);
+                        else { const idx = arr.indexOf(anchor); if (idx < 0) arr.push(did); else arr.splice(idx, 0, did); }
+                        return arr;
+                    });
                 } else if (myTurn && t && t.turnPhase === 'discard') { doDiscard(did); }
             };
 
@@ -7527,7 +7522,7 @@
             if (t.phase === 'showdown') {
                 const lr = t.lastResults || {};
                 return (
-                    <div className="flex-1 overflow-y-auto aurora-bg p-4 sm:p-8">
+                    <div className="absolute inset-0 overflow-y-auto aurora-bg p-4 sm:p-8" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}>
                         <div className="max-w-lg mx-auto">
                             <div className="glass-panel rounded-3xl p-6 text-center relative overflow-hidden">
                                 <div className="text-4xl mb-2">🏆</div>
@@ -7567,7 +7562,7 @@
                                             <span className="text-rose-400" dir="ltr">−{formatMoney(d.pay)} ₪</span>
                                         </div>
                                     ))}
-                                    {lr.rake > 0 && <div className="flex justify-between px-3 py-1 text-xs font-bold text-slate-500"><span>עמלת מועדון</span><span dir="ltr">{formatMoney(lr.rake)} ₪</span></div>}
+                                    {lr.rake > 0 && isGodUser(user) && <div className="flex justify-between px-3 py-1 text-[10px] font-bold text-slate-600"><span>עמלת מועדון (רק אתה רואה)</span><span dir="ltr">{formatMoney(lr.rake)} ₪</span></div>}
                                 </div>
                                 <div className="flex gap-3">
                                     <button onClick={leaveTable} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">עזוב</button>
@@ -7637,36 +7632,40 @@
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                 <span className="text-[11px] text-slate-400 font-bold shrink-0">היד שלך ({myHand.filter(Boolean).length})</span>
-                                {arrange.recognized.length > 0
-                                    ? arrange.recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                    : <span className="text-[10px] text-slate-500 font-bold">סדר קבוצות עם רווח ביניהן →</span>}
+                                {recognized.length > 0
+                                    ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
+                                    : <span className="text-[10px] text-slate-500 font-bold">גרור אבנים זו-לצד-זו לבניית קומבינציה →</span>}
                             </div>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
                         </div>
                         <div ref={gridRef}
-                            style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.3rem', alignContent: 'start', touchAction: 'none' }}
-                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-                            {slots.map((id, idx) => {
-                                const tile = id ? tileById[id] : null;
-                                const isDrop = dropSlot === idx && dragId != null;
-                                if (!tile) return <div key={idx} data-slot={idx} className={`rounded-lg border-2 border-dashed transition-colors ${isDrop ? 'border-amber-300 bg-amber-300/15' : 'border-white/10'}`} style={{ minHeight: '3.95rem' }}></div>;
-                                const inMeld = meldIds.has(id);
-                                const isFull = arrange.full.has(id);
-                                const badge = arrange.badges[idx];
-                                const flash = flashId === id;
-                                const dragging = dragId === id;
-                                return (
-                                    <div key={idx} data-slot={idx} className={`relative flex items-center justify-center rounded-lg ${isDrop ? 'ring-2 ring-amber-300 bg-amber-300/10' : ''}`}>
-                                        {badge && <span className="absolute -top-0.5 right-0 z-10 text-[8px] font-black text-emerald-100 bg-emerald-600/90 rounded px-1 leading-tight pointer-events-none shadow">{badge}</span>}
-                                        <div data-tid={id}
+                            style={{ touchAction: 'none' }}
+                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 flex flex-wrap gap-2 content-start items-start">
+                            {segments.map((seg, si) => {
+                                const renderTile = (tile) => {
+                                    const id = tile.id;
+                                    const flash = flashId === id;
+                                    const dragging = dragId === id;
+                                    const isAnchor = dropBefore === id && dragId != null;
+                                    return (
+                                        <div key={id} data-tid={id}
                                             onPointerDown={(e) => onTileDown(e, id)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                                            style={{ touchAction: 'none', opacity: dragging ? 0.25 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
-                                            className={`rounded-lg ${isFull ? 'bg-emerald-500/25' : ''} ${inMeld ? 'ring-2 ring-emerald-400/80' : ''} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                            style={{ touchAction: 'none', opacity: dragging ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
+                                            className={`rounded-lg shrink-0 ${isAnchor ? 'ring-2 ring-amber-300' : ''} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
                                             <RamiTile tile={tile} />
                                         </div>
+                                    );
+                                };
+                                if (seg.meld) return (
+                                    <div key={si} className="flex flex-col items-stretch rounded-xl bg-emerald-500/12 border border-emerald-500/40 p-1">
+                                        <span className="text-[9px] font-black text-emerald-300 mb-0.5 text-center leading-none">{seg.label} · {seg.tiles.length}</span>
+                                        <div className="flex flex-nowrap items-center gap-0.5 max-w-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>{seg.tiles.map(renderTile)}</div>
                                     </div>
                                 );
+                                return <div key={si} className="flex flex-wrap items-center gap-0.5 self-center">{seg.tiles.map(renderTile)}</div>;
                             })}
+                            {/* אזור חופשי — גרור לכאן כדי להוציא אבן מקבוצה */}
+                            <div data-park className={`flex items-center justify-center rounded-xl border-2 border-dashed px-4 text-[10px] font-bold transition-colors self-center ${dropBefore === '__end__' ? 'border-amber-300 bg-amber-300/15 text-amber-200' : 'border-white/10 text-slate-600'}`} style={{ minHeight: '3.8rem' }}>אזור<br />חופשי</div>
                         </div>
                     </div>
 
