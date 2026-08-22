@@ -5176,6 +5176,15 @@
                 return () => ro.disconnect();
             }, []);
 
+            /* גרירת קבוצה: אם נקודת ההכנסה שנמדדה היא הקבוצה הנגררת עצמה
+               (שכבר יוצאת מהמערך), ההכנסה האמיתית היא לפני הקבוצה שאחריה -
+               אחרת הקבוצה הייתה קופצת לסוף הלוח במקום להישאר במקומה. */
+            const mapInsertAfterSelf = (beforeId, groupId) => {
+                if (!groupId || beforeId !== groupId) return beforeId;
+                const idx = board.findIndex(g => g.id === groupId);
+                return idx >= 0 && idx < board.length - 1 ? board[idx + 1].id : null;
+            };
+
             const boardScale = useMemo(() => {
                 if (!board || board.length === 0 || !feltSize.w || !feltSize.h) return 1.0;
                 const small = window.innerWidth < 640;
@@ -5356,6 +5365,28 @@
                 return () => clearInterval(interval);
             }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
 
+            /* ---------- המסך לא נכבה באמצע משחק ----------
+               Wake Lock נלקח בכניסה לשולחן ומתחדש בכל חזרה לטאב
+               (המערכת משחררת אותו אוטומטית כשהטאב יורד לרקע). */
+            useEffect(() => {
+                let lock = null, gone = false;
+                const acquire = async () => {
+                    try {
+                        if (!gone && navigator.wakeLock && document.visibilityState === 'visible') {
+                            lock = await navigator.wakeLock.request('screen');
+                        }
+                    } catch (e) {}
+                };
+                const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+                acquire();
+                document.addEventListener('visibilitychange', onVis);
+                return () => {
+                    gone = true;
+                    document.removeEventListener('visibilitychange', onVis);
+                    try { if (lock) lock.release(); } catch (e) {}
+                };
+            }, []);
+
             /* ---------- שומר תור: אף שולחן לא נתקע ----------
                הבוטים מוזזים רק מדפדפן הסופר-אדמין, וטיימר הפקיעה רץ רק אצל
                בעל התור. אם שניהם לא זמינים - התור היה נתקע לנצח. כאן כל
@@ -5477,7 +5508,8 @@
                             const zone = dropZone ? dropZone.getAttribute('data-drop') : null;
                             setHoverTarget(zone);
                             // מעל לבד פנוי -> מראים לאן ייכנס. מעל קבוצה -> היא תיצבע כיעד מיזוג.
-                            setInsertHint(zone === 'board-new' ? { beforeId: boardInsertBeforeId(e.clientX, e.clientY) } : null);
+                            const rawHint = zone === 'board-new' ? boardInsertBeforeId(e.clientX, e.clientY) : undefined;
+                            setInsertHint(rawHint === undefined ? null : { beforeId: dragDataRef.current?.type === 'group' ? mapInsertAfterSelf(rawHint, dragDataRef.current.groupId) : rawHint });
                         }
                     }
                 };
@@ -5504,8 +5536,15 @@
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
                             insertBeforeId = boardInsertBeforeId(e.clientX, e.clientY);
+                            if (currentDrag.type === 'group') insertBeforeId = mapInsertAfterSelf(insertBeforeId, currentDrag.groupId);
                             if (!actualTarget || (!actualTarget.startsWith('board-group-'))) actualTarget = 'board-new';
                         }
+                    }
+
+                    // שחרור קבוצה על עצמה = ביטול נקי, שום דבר לא זז
+                    if (currentDrag.type === 'group' && actualTarget === `board-group-${currentDrag.groupId}`) {
+                        setDragData(null); setHoverTarget(null); setInsertHint(null);
+                        return;
                     }
 
                     const droppingToBoard = actualTarget === 'board-new' || actualTarget?.startsWith('board-group-');
@@ -5698,7 +5737,7 @@
                         longPressTimer.current = setTimeout(() => {
                             if (navigator.vibrate) navigator.vibrate(50);
                             setDragData({ type: 'group', tiles: grp.tiles, source, groupId, startX: e.clientX, startY: e.clientY, startX_pct: grp.x, startY_pct: grp.y });
-                        }, 400);
+                        }, 300);
                     }
                 } else if (source === 'rack') {
                     longPressTimer.current = setTimeout(() => {
@@ -5713,7 +5752,7 @@
                         if (groupTiles.length > 1) {
                             setDragData({ type: 'group_from_rack', tiles: groupTiles, source: 'rack', startIndex: left, startX: e.clientX, startY: e.clientY });
                         }
-                    }, 400);
+                    }, 300);
                 }
             };
 
@@ -6341,6 +6380,7 @@
                                     <React.Fragment key={groupObj.id}>
                                         {insertHint && insertHint.beforeId === groupObj.id && <div className="board-caret" />}
                                         <div data-drop={`board-group-${groupObj.id}`} data-board-id={groupObj.id} data-board-next={nextId}
+                                             style={{ pointerEvents: dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'none' : undefined }}
                                              className={`board-group ${settleGid === groupObj.id ? 'group-settle' : ''} ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
                                             {groupObj.tiles.map((t, tIdx) => (
                                                 <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
