@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v35';
+        const APP_VER = 'v36';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2211,6 +2211,20 @@
                     window.history.pushState({ view, tableId: tableObj?.docId }, "", `?v=${view}`);
                 }
             };
+
+            // חזרה אוטומטית לשולחן פעיל: אם המשתמש עדיין יושב בשולחן חי (סגר את
+            // האפליקציה באמצע), מחזירים אותו אליו כשהוא נכנס שוב ללובי. פעם אחת לכל טעינה.
+            const rejoinRef = useRef(false);
+            useEffect(() => {
+                if (rejoinRef.current) return;
+                if (!effUser?.uid || !activeClub || currentView !== 'lobby' || !tablesDB.length) return;
+                const active = tablesDB.find(t => (t.clubId || 'main') === CLUB_ID && !t.tournamentId && t.players && t.players[effUser.uid]
+                    && ((t.type === 'rummikub' || t.type === 'rami') ? (t.phase === 'playing' || t.phase === 'waiting') : (t.status && t.status !== 'showdown' && t.status !== 'finished' && t.status !== 'done')));
+                if (!active) return;
+                const map = { rummikub: 'rummy-table', rami: 'rami-table', poker: 'poker-table', durak: 'durak-table', shesh: 'shesh-table', president: 'president-table', yaniv: 'yaniv-table', bridge: 'bridge-table', gin: 'gin-table', twist: 'twist-table', ofc: 'ofc-table' };
+                const view = map[active.type];
+                if (view) { rejoinRef.current = true; changeView(view, active); }
+            }, [effUser?.uid, activeClub, tablesDB, currentView]);
 
             useEffect(() => {
                 const handlePopState = (event) => {
@@ -7235,7 +7249,12 @@
             });
 
             const newRound = async () => { try { await window.fb.httpsCallable(window.fb.functions, 'ramiNewRound')({ tableId: t.id }); } catch (e) { showToast(fnErr(e), "error"); } };
-            const leaveTable = async () => { try { await window.fb.httpsCallable(window.fb.functions, 'ramiLeave')({ tableId: t.id }); } catch (e) {} onLeave(); };
+            const leaveTable = async () => {
+                if (t && t.phase === 'playing' && t.players && t.players[user.uid]) {
+                    if (!window.confirm('אתה באמצע יד — יציאה עכשיו נחשבת כניעה והפסד הכניסה. לצאת בכל זאת?')) return;
+                }
+                try { await window.fb.httpsCallable(window.fb.functions, 'ramiLeave')({ tableId: t.id }); } catch (e) {} onLeave();
+            };
 
             // טיימר תור
             useEffect(() => {
@@ -7422,34 +7441,34 @@
                         })}
                     </div>
 
-                    {/* מרכז השולחן: קופה + זריקה גדולים במרכז + הוראת התור */}
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4">
-                        <div className="flex items-end gap-8">
-                            <div className="text-center">
-                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className={`w-[3.5rem] h-[4.4rem] rounded-2xl bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex items-center justify-center shadow-xl disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-2xl"></i></button>
-                                <div className="text-[11px] text-slate-300 font-bold mt-1.5">קופה · {(t.deck || []).length}</div>
-                            </div>
-                            <div className="text-center">
-                                {topDiscard
-                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-2xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} big /></div>
-                                    : <div className="w-[3.5rem] h-[4.4rem] rounded-2xl border-2 border-dashed border-white/10"></div>}
-                                <div className="text-[11px] text-slate-300 font-bold mt-1.5">זריקה</div>
-                            </div>
+                    {/* קופה + זריקה — רצועה קומפקטית */}
+                    <div className="shrink-0 flex items-center justify-center gap-6 pt-1 pb-0.5">
+                        <div className="text-center">
+                            <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className={`w-12 h-16 rounded-xl bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex items-center justify-center shadow-lg disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-xl"></i></button>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">קופה · {(t.deck || []).length}</div>
                         </div>
-                        {myTurn && t.turnPhase === 'draw' && <div className="text-center text-emerald-300 font-black text-sm">תורך — משוך אבן מהקופה או מהזריקה</div>}
-                        {myTurn && t.turnPhase === 'discard' && !goOut && <div className="text-center text-amber-300 font-black text-sm">בחר אבן ביד וזרוק אותה</div>}
-                        {myTurn && goOut && <div className="text-center text-emerald-300 font-black text-sm animate-pulse">🎉 יש לך יד שלמה! לחץ "רד וגמור"</div>}
-                        {!myTurn && <div className="text-center text-slate-500 font-bold text-sm">ממתין לתור של {turnName}…</div>}
+                        <div className="text-center">
+                            {topDiscard
+                                ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} /></div>
+                                : <div className="w-12 h-16 rounded-xl border-2 border-dashed border-white/10"></div>}
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">זריקה</div>
+                        </div>
+                    </div>
+                    <div className="shrink-0 text-center text-xs font-black h-5">
+                        {myTurn && t.turnPhase === 'draw' && <span className="text-emerald-300">תורך — משוך אבן מהקופה או מהזריקה</span>}
+                        {myTurn && t.turnPhase === 'discard' && !goOut && <span className="text-amber-300">הקש על אבן ביד כדי לזרוק</span>}
+                        {myTurn && goOut && <span className="text-emerald-300 animate-pulse">🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
+                        {!myTurn && <span className="text-slate-500">ממתין לתור של {turnName}…</span>}
                     </div>
 
-                    {/* המדף שלי: אבנים גדולות, גרירה חופשית לסידור, קומבינציות מודגשות בירוק */}
-                    <div className="shrink-0 bg-slate-950/80 border-t border-white/10 px-2 pt-1.5 pb-1">
-                        <div className="flex items-center justify-between mb-1 px-1">
+                    {/* המדף שלי — האזור הגדול: אבנים גדולות, גרירה חופשית, קומבינציות בירוק */}
+                    <div className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1">
+                        <div className="shrink-0 flex items-center justify-between px-2 py-1">
                             <span className="text-[11px] text-slate-400 font-bold">היד שלך ({myHand.filter(Boolean).length}){part.leftoverPoints > 0 ? <span className="text-slate-500"> · לא-מסודר {part.leftoverPoints}</span> : <span className="text-emerald-400 font-black"> · מסודרת ✓</span>}</span>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">✨ סדר לי</button>
                         </div>
                         <div ref={rowRef} onPointerMove={onRowMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                            className="flex flex-wrap gap-1 items-center justify-center content-start overflow-y-auto pb-1" style={{ maxHeight: '40vh' }}>
+                            className="flex-1 min-h-0 overflow-y-auto flex flex-wrap gap-1.5 items-start content-start justify-center px-2 pb-2">
                             {orderedTiles.map(tile => {
                                 const inMeld = meldIds.has(tile.id);
                                 const flash = flashId === tile.id;
@@ -7458,12 +7477,11 @@
                                     <div key={tile.id} data-tid={tile.id} onPointerDown={() => onTileDown(tile.id)}
                                         style={{ touchAction: 'none', transform: dragging ? 'translateY(-7px) scale(1.06)' : 'none', transition: 'transform 0.12s', WebkitUserSelect: 'none', userSelect: 'none' }}
                                         className={`rounded-lg ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/60' : (inMeld ? 'ring-2 ring-emerald-400/70' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
-                                        <RamiTile tile={tile} />
+                                        <RamiTile tile={tile} big />
                                     </div>
                                 );
                             })}
                         </div>
-                        <div className="text-center text-[10px] text-slate-600 font-bold">גרור אבן כדי לסדר · בתורך, הקש על אבן כדי לזרוק</div>
                     </div>
 
                     {/* סרגל פעולות מוצמד לתחתית */}
