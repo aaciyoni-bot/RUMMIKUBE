@@ -331,6 +331,12 @@
             .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.8rem * var(--board-scale, 1)); }
             .board-flow { gap: calc(0.9rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1)); padding: calc(0.9rem * var(--board-scale, 1)); }
             .rk-btn { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+            /* עמודי התוכן (קלאבים / לובי / פרופיל / ניהול): פחות בזבוז גובה */
+            .scrollable-content { padding-bottom: 70px; }
+            .clubs-head { margin-top: 0 !important; margin-bottom: 0.75rem !important; }
+            .clubs-head h1 { font-size: 1.6rem; }
+            .clubs-head .tagline { display: none; }
+            .glass-panel { padding: 0.9rem !important; }
         }
 
         /* ===== אווטר שחקן: עיגול עם טבעת טיימר היקפית ===== */
@@ -849,6 +855,9 @@
 
         const DEFAULT_RAKE_PCT = 6;   // ברירת מחדל בלבד - ניתן לעריכה בהגדרות המועדון
         const TURN_SECONDS = 60;
+        // מתג כיבוי גלובלי לבונוסים (גלגל יומי + גירוד שבועי). false = לא
+        // נראים בשום מקום - לובי, מודלים ופאנל הניהול - בלי למחוק את הקוד.
+        const BONUSES_ENABLED = false;
         const FIRST_MELD_MIN = 30;
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
@@ -2571,9 +2580,9 @@
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
-                        <div className="text-center mb-5 mt-2">
+                        <div className="clubs-head text-center mb-5 mt-2">
                             <h1 className="logo-shine text-3xl sm:text-4xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.3)]">RUMMIKUBE</h1>
-                            <p className="text-emerald-400/80 text-[11px] sm:text-xs font-black tracking-[0.2em] mt-1.5">משחקים וטורנירים בין חברים</p>
+                            <p className="tagline text-emerald-400/80 text-[11px] sm:text-xs font-black tracking-[0.2em] mt-1.5">משחקים וטורנירים בין חברים</p>
                             <p className="text-slate-400 text-xs font-bold mt-3">היי {user.username} 👋 בחר קלאב או הקם משלך</p>
                             <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-[11px] text-slate-500 underline font-bold mt-1.5">התנתק</button>
                             {(canInstall || (isIOS && !isStandalone)) && (
@@ -2972,7 +2981,7 @@
             };
             // בונוס יומי - גלגל מזל (הסכומים בשליטת בעל הקלאב, ההסתברויות קבועות)
             const bwConf = clubSettings?.bonusWheel || {};
-            const bonusEnabled = bwConf.enabled !== false;
+            const bonusEnabled = BONUSES_ENABLED && bwConf.enabled !== false;
             const BONUS_SEGS = (Array.isArray(bwConf.prizes) && bwConf.prizes.length === 8) ? bwConf.prizes.map(x => Number(x) || 0) : [5, 10, 20, 30, 50, 75, 100, 200];
             // 80% ראשון · 10% שני · מדורג · האחרון 1 ל-200 סיבובים
             const BONUS_W = [800, 100, 35, 25, 18, 12, 5, 5];
@@ -4198,6 +4207,7 @@
                                         </div>
                                     )}
                                 </div>
+                                {BONUSES_ENABLED && (
                                 <div className="mb-4 pb-4 border-b border-white/5">
                                     <div className="flex items-center gap-3 mb-3 flex-wrap">
                                         <label className="text-slate-400 text-xs font-bold uppercase tracking-widest">🎰 גלגל המזל היומי</label>
@@ -4216,6 +4226,7 @@
                                     </div>
                                     <p className="text-[10px] text-slate-500 font-bold mt-1.5">הסכומים בשליטתך; ההסתברויות קבועות: 80% לנמוך, 10% לשני, מדורג באמצע, והפרס האחרון נופל אחת ל-200 סיבובים.</p>
                                 </div>
+                                )}
                                 <div className="flex items-end gap-4 flex-wrap">
                                     <div>
                                         <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">רייק גלובלי (%) - לכל המשחקים</label>
