@@ -330,7 +330,6 @@
         @media (min-width: 640px) and (max-height: 540px) {
             .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.8rem * var(--board-scale, 1)); }
             .board-flow { gap: calc(0.9rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1)); padding: calc(0.9rem * var(--board-scale, 1)); }
-            .pl-avatar { width: 2.6rem !important; height: 2.6rem !important; }
             .rk-btn { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
         }
 
@@ -344,7 +343,14 @@
             background: conic-gradient(var(--pl-c, #34d399) calc(var(--pl-t, 1) * 360deg), rgba(255,255,255,0.10) 0deg);
             box-shadow: 0 0 14px var(--pl-c, #34d399);
         }
-        .pl-avatar { border-radius: 50%; display: block; background: #0f1c33; }
+        /* גודל האווטר נגזר מגובה המסך: כל השחקנים נכנסים בעמודה בלי גלילה */
+        .pl-avatar {
+            border-radius: 50%; display: block; background: #0f1c33;
+            width: 2.25rem; height: 2.25rem;
+        }
+        @media (min-width: 640px) {
+            .pl-avatar { width: clamp(2.3rem, 11dvh, 3.6rem); height: clamp(2.3rem, 11dvh, 3.6rem); }
+        }
 
         /* ===== כפתורי הפעולה: לוחיות מוגבהות על הנייבי ===== */
         .rk-btn {
@@ -4539,6 +4545,20 @@
             const [needRotate, setNeedRotate] = useState(false);
             useEffect(() => {
                 let locked = false;
+                // מסך מלא אמיתי: מסתיר את שורת הסטטוס ופס הניווט של הטלפון.
+                // דפדפן דורש מחוות משתמש - לכן על המגע הראשון בשולחן, פעם אחת.
+                const goFull = () => {
+                    try {
+                        const el = document.documentElement;
+                        if (!document.fullscreenElement && el.requestFullscreen && window.innerWidth < 1100) {
+                            el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+                                const so = window.screen && window.screen.orientation;
+                                if (so && so.lock) so.lock('landscape').catch(() => {});
+                            }).catch(() => {});
+                        }
+                    } catch (e) {}
+                };
+                window.addEventListener('pointerdown', goFull, { once: false });
                 try {
                     const so = window.screen && window.screen.orientation;
                     if (so && so.lock) { so.lock('landscape').then(() => { locked = true; }).catch(() => {}); }
@@ -4553,6 +4573,8 @@
                 return () => {
                     window.removeEventListener('resize', check);
                     window.removeEventListener('orientationchange', check);
+                    window.removeEventListener('pointerdown', goFull);
+                    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
                     try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {}
                 };
             }, []);
@@ -4700,6 +4722,52 @@
                 }
                 return () => clearInterval(interval);
             }, [tableState?.phase, tableState?.turnStartedAt, tableState?.currentTurn, user.uid]);
+
+            /* ---------- שומר תור: אף שולחן לא נתקע ----------
+               הבוטים מוזזים רק מדפדפן הסופר-אדמין, וטיימר הפקיעה רץ רק אצל
+               בעל התור. אם שניהם לא זמינים - התור היה נתקע לנצח. כאן כל
+               לקוח שרואה תור שפג מעבר לחסד משחרר אותו: מושך אבן לתוקע
+               ומעביר הלאה. הטרנזקציה בודקת שוב את הזמן, כך שכמה משחררים
+               במקביל בטוחים - הראשון מנצח והשאר נסוגים. */
+            useEffect(() => {
+                if (tableState?.phase !== 'playing' || !tableState?.turnStartedAt) return;
+                const iv = setInterval(async () => {
+                    const live = liveRef.current;
+                    if (!live || live.phase !== 'playing' || !live.turnStartedAt) return;
+                    if (Date.now() - live.turnStartedAt < (TURN_SECONDS + 8) * 1000) return;
+                    if (live.currentTurn === user.uid) return; // התור שלי מטופל בטיימר הרגיל
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (t) => {
+                            const ref = window.fb.doc(window.fb.db, "tables", live.id);
+                            const snap = await t.get(ref);
+                            if (!snap.exists()) return;
+                            const tbl = snap.data();
+                            if (tbl.phase !== 'playing' || !tbl.turnStartedAt) return;
+                            if (Date.now() - tbl.turnStartedAt < (TURN_SECONDS + 8) * 1000) return;
+                            const stuck = tbl.currentTurn;
+                            if (!stuck || !tbl.players?.[stuck]) return;
+                            const newDeck = [...(tbl.deck || [])];
+                            const tile = newDeck.length > 0 ? newDeck.pop() : null;
+                            const newRack = [...(tbl.players[stuck].cards || [])];
+                            if (tile) {
+                                const emptyIdx = newRack.findIndex(x => x === null);
+                                if (emptyIdx !== -1) newRack[emptyIdx] = tile; else newRack.push(tile);
+                            }
+                            const uids = Object.keys(tbl.players).sort();
+                            const nextTurn = uids[(uids.indexOf(stuck) + 1) % uids.length];
+                            t.update(ref, {
+                                deck: newDeck,
+                                board: Array.isArray(tbl.turnSnapBoard) ? tbl.turnSnapBoard : (tbl.board || []),
+                                [`players.${stuck}.cards`]: newRack,
+                                currentTurn: nextTurn, turnStartedAt: Date.now(),
+                                turnSnapBoard: Array.isArray(tbl.turnSnapBoard) ? tbl.turnSnapBoard : (tbl.board || []),
+                                turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])]
+                            });
+                        });
+                    } catch(e) {}
+                }, 5000);
+                return () => clearInterval(iv);
+            }, [tableState?.phase, tableState?.turnStartedAt, user.uid]);
 
             /* ---------- סנכרון מ-Firebase ---------- */
             useEffect(() => {
@@ -5472,26 +5540,27 @@
                         </div>
                     )}
 
-                    {/* יריבים */}
-                    <div className="w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:px-0 sm:py-4 gap-1.5 sm:gap-4 z-20 shrink-0 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
-                        <button onClick={handleLeave} className="px-3 py-1 bg-slate-800 rounded-lg text-slate-400 font-bold border border-slate-700 text-xs hover:bg-rose-900 hover:text-white transition-colors">יציאה</button>
+                    {/* יריבים — כולם נראים בלי גלילה: הפודים מתפזרים על כל גובה העמודה */}
+                    <div className="w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:px-0 sm:py-2 gap-1.5 sm:gap-0 z-20 shrink-0">
+                        <button onClick={handleLeave} className="px-3 py-1 bg-slate-800 rounded-lg text-slate-400 font-bold border border-slate-700 text-xs hover:bg-rose-900 hover:text-white transition-colors shrink-0">יציאה</button>
+                        <div className="flex-1 min-h-0 min-w-0 w-auto sm:w-full flex flex-row sm:flex-col items-center justify-start sm:justify-evenly gap-1.5 sm:gap-0 overflow-x-auto sm:overflow-visible">
                         {(isPlaying || isShowdown) && Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
                             const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
                             const isTurn = tableState.currentTurn === uid;
                             return (
-                                <div key={uid} className={`flex flex-col items-center transition-all p-1 sm:p-2 shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? '' : 'opacity-60'}`}>
+                                <div key={uid} className={`flex flex-col items-center transition-all shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? '' : 'opacity-60'}`}>
                                     {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
                                     {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
                                     <div className={`pl-ring ${isTurn ? 'is-turn' : ''}`}
                                          style={isTurn ? { '--pl-t': Math.max(0, timeLeft / TURN_SECONDS), '--pl-c': timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#34d399' } : undefined}>
-                                        <img src={avatarUrl({ ...pData, uid })} className="pl-avatar w-9 h-9 sm:w-14 sm:h-14" />
+                                        <img src={avatarUrl({ ...pData, uid })} className="pl-avatar" />
                                     </div>
-                                    <span className="text-xs font-bold text-white mt-1 mb-0.5 truncate w-full text-center">{pData.username}</span>
-                                    <span className="text-[10px] bg-slate-950/80 border border-white/15 px-2 py-0.5 rounded-full text-amber-300 font-bold whitespace-nowrap mb-0.5" dir="ltr">🀄 {tileCount}</span>
-                                    <span className="text-[10px] text-gold-400 font-bold" dir="ltr">{formatMoney(pData.stack)}</span>
+                                    <span className="text-[11px] font-bold text-white truncate max-w-full text-center leading-tight">{pData.username}</span>
+                                    <span className="text-[10px] font-bold whitespace-nowrap leading-tight" dir="ltr"><span className="text-amber-300">🀄 {tileCount}</span> <span className="text-slate-600">·</span> <span className="text-gold-400">{formatMoney(pData.stack)}</span></span>
                                 </div>
                             );
                         })}
+                        </div>
                     </div>
 
                     {/* מרכז */}
