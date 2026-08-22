@@ -861,42 +861,63 @@
             if (num >= 1000) return (num / 1000).toFixed(1).replace('.0','') + 'K';
             return round2(num).toString();
         };
-        const EMOJI_AV_BG = ['16243c,0e7490','1f1533,6b21a8','33200e,b45309','0e2b22,0f766e','2b0f18,9f1239','101d33,1d4ed8','1c2230,3b475e','132810,3f6212'];
+        /* חבילת האווטרים התלת-ממדית של המועדון — אותה חבילה כמו ב-POKERTEN,
+           מוגשת מהאתר עצמו (assets/avatars, WebP של ~7KB לכיסא).
+           הסגנונות השטוחים הישנים בדימוס: seed ישן ממופה בהאש יציב לאווטר
+           תלת-ממדי קבוע, כך שאף שחקן קיים לא מאבד זהות ואף ציור ישן לא מוצג. */
+        const AV3D_BASE = 'assets/avatars/av-';
+        const AV3D = [
+            'ant', 'artist', 'asia-woman', 'asian-man', 'astronaut', 'astronout',
+            'baby', 'babychick', 'bat', 'bearface', 'bird', 'black-man',
+            'black-woman', 'blowfish', 'boar', 'bug', 'builder-man', 'builder-woman',
+            'bussinesman', 'butterfly', 'call-operator', 'camel', 'cat', 'catface',
+            'chef-woman', 'chef', 'chickenface', 'college-student', 'consctruction-woman', 'construction-worker',
+            'constructon-engineer', 'cow', 'cowface', 'crab', 'cricket', 'crocodile',
+            'deerface', 'designer', 'doctor', 'dog', 'dogface', 'dolphin',
+            'dragon', 'dragonface', 'eagleface', 'elephant', 'employee-woman', 'ewe',
+            'farmer-man', 'farmer-woman', 'farmer', 'firefighter', 'fish', 'flamingo',
+            'foxface', 'frogface', 'gamer', 'giraffe', 'goat', 'gorilla',
+            'graduation-student', 'grand-father', 'grand-mother', 'hamster', 'hatchingchick', 'hedgehogface',
+            'hippopotamus', 'honeybee', 'horse', 'horseface', 'indian-man', 'koalaface',
+            'ladybeetle', 'lionface', 'lizard', 'llama', 'lobster', 'man-wearing-shawl',
+            'microbe', 'monkey', 'monkeyface', 'mosquitos', 'mouse', 'mouseface',
+            'muslim-woman', 'nerd-woman', 'octopus', 'owl', 'ox', 'pandaface',
+            'parrot', 'pig', 'pigface', 'pinguin', 'poodle', 'professor',
+            'rabbit', 'rabbitface', 'racoonface', 'ram', 'rhinoface', 'rooster',
+            'sauropod', 'schrimp', 'scorpion', 'shark', 'skunk', 'snake',
+            'spider', 'spiderweb', 'spiralsheel', 'spoutingwhale', 'swan', 'teacher',
+            'thief', 'tiger', 'tigerface', 'trex', 'tropicalfish', 'turkey',
+            'turtle', 'unicornface', 'waterbuffalo', 'west-woman', 'western-man', 'whale',
+            'wolfface', 'young-man', 'zebraface'
+        ].map(x => 'av3d::' + x);
+        const av3dUrl = (key) => AV3D_BASE + String(key).split('::')[1] + '.webp';
+        // האש יציב: אותו שחקן נוחת תמיד על אותו אווטר
+        const av3dPick = (seed) => {
+            const s = String(seed || 'x');
+            let hsh = 0;
+            for (let i = 0; i < s.length; i++) hsh = (hsh * 31 + s.charCodeAt(i)) >>> 0;
+            return AV3D[hsh % AV3D.length];
+        };
         const dicebearUrl = (seed) => {
-            let style = 'notionists', sd = String(seed || 'x');
-            if (sd.startsWith('emoji::')) {
-                const parts = sd.split('::');
-                const em = parts[1] || '🙂';
-                const bg = EMOJI_AV_BG[(parseInt(parts[2], 10) || 0) % EMOJI_AV_BG.length].split(',');
-                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#' + bg[0] + '"/><stop offset="1" stop-color="#' + bg[1] + '"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><text x="50" y="54" font-size="56" text-anchor="middle" dominant-baseline="central">' + em + '</text></svg>';
-                return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-            }
-            if (sd.includes('::')) { const parts = sd.split('::'); style = parts[0]; sd = parts[1] || 'x'; }
-            return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(sd)}&backgroundType=gradientLinear&backgroundColor=16243c,0b1322`;
+            const sd = String(seed || 'x');
+            if (sd.startsWith('av3d::')) return av3dUrl(sd);
+            if (sd.startsWith('data:')) return sd;
+            return av3dUrl(av3dPick(sd));
         };
         const avatarUrl = (x) => {
             if (x && typeof x === 'object') {
                 if (x.photo) return x.photo;
-                return dicebearUrl(x.avatarSeed || x.uid);
+                const sd = x.avatarSeed || '';
+                return dicebearUrl(String(sd).startsWith('av3d::') ? sd : av3dPick(sd || x.uid));
             }
             return dicebearUrl(x);
         };
         const AVATAR_STYLES = [
-            { id: 'notionists', label: 'פורטרט' },
-            { id: 'adventurer', label: 'אנימה' },
-            { id: 'micah', label: 'מודרני' },
-            { id: 'lorelei', label: 'קלאסי' },
-            { id: 'open-peeps', label: 'סקיצה' },
-            { id: 'thumbs', label: 'חמוד' },
-            { id: 'emoji-animals', label: 'חיות' },
-            { id: 'emoji-elements', label: 'אלמנטים' },
-            { id: 'bottts', label: 'רובוטים' },
-            { id: 'pixel-art', label: 'פיקסל' },
+            { id: 'av3d', label: 'אווטרים 3D' },
         ];
         const AVATAR_SEEDS = ['Leo','Maya','Rocky','Ziv','Nova','Ace','Luna','Rex','Miko','Dana','Tigra','Boss','Dino','Draco','Neko','Kuro','Pika','Fox','Wolf','Simba'];
         const EMOJI_SETS = {
-            'emoji-animals': ['🦁','🐯','🦊','🐺','🐼','🐨','🦅','🦉','🐍','🦈','🐉','🦍','🐘','🦄','🐙','🦋','🐢','🐬'].map((e, i) => 'emoji::' + e + '::' + i),
-            'emoji-elements': ['🔥','⚡','❄️','🌊','🌪️','☀️','🌙','⭐','☄️','🌋','💎','🌈','🌀','💠','⚔️','🛡️','👑','🧿'].map((e, i) => 'emoji::' + e + '::' + i)
+            'av3d': AV3D
         };
 
         /* ===== מנוע צלילים (Tone.js) ===== */
@@ -2612,7 +2633,7 @@
 
         function ProfileView({ user, showToast }) {
             const [avatarOpen, setAvatarOpen] = useState(false);
-            const [avStyle, setAvStyle] = useState('adventurer');
+            const [avStyle, setAvStyle] = useState('av3d');
             const [nameDraft, setNameDraft] = useState('');
             const saveName = async () => {
                 const nm = nameDraft.trim();
