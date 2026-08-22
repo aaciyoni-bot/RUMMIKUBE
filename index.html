@@ -983,7 +983,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v44';
+        const APP_VER = 'v45';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1006,20 +1006,18 @@
             const parts = String(nm || '').trim().split(' ');
             return parts.length > 1 && isNaN(Number(parts[parts.length - 1])) ? parts[parts.length - 1] : String(parts[0]).replace(/\d+$/, '');
         };
-        /* התמהיל: ~42% שם מלא בעברית, ~28% באנגלית (75% נשים בשניהם),
-           ~20% כינוי שולחן, ועד 10% עם מספר (שנת לידה וכד'). */
+        /* התמהיל: שמות פרטיים+משפחה ישראליים אמיתיים (עברית/אנגלית 50/50),
+           רוב נשים (~78%), ו-10% עם שנת לידה 1991 ומעלה. בלי כינויים. */
         const botDisplayName = (usedNames, usedKeys) => {
             for (let i = 0; i < 90; i++) {
-                const r = Math.random();
-                const fem = Math.random() < 0.75;
-                let nm;
-                if (r < 0.42) nm = pick(fem ? BOT_FIRST_HE_F : BOT_FIRST_HE_M) + ' ' + pick(BOT_LAST_HE);
-                else if (r < 0.70) nm = pick(fem ? BOT_FIRST_EN_F : BOT_FIRST_EN_M) + ' ' + pick(BOT_LAST_EN);
-                else if (r < 0.90) nm = Math.random() < 0.55 ? pick(BOT_NICKS_HE) : pick(BOT_NICKS_EN);
-                else {
-                    // עד 10%: מספר בכינוי - שנת לידה מלאה או קצרה
-                    const yr = Math.random() < 0.6 ? String(1968 + Math.floor(Math.random() * 38)) : String(70 + Math.floor(Math.random() * 29));
-                    nm = Math.random() < 0.5 ? pick(fem ? BOT_FIRST_HE_F : BOT_NICKS_HE) + ' ' + yr : pick(fem ? BOT_FIRST_EN_F : BOT_NICKS_EN) + yr;
+                const fem = Math.random() < 0.78;                 // רוב נשים
+                const he = Math.random() < 0.5;                   // חצי עברית / חצי אנגלית
+                const first = pick(he ? (fem ? BOT_FIRST_HE_F : BOT_FIRST_HE_M) : (fem ? BOT_FIRST_EN_F : BOT_FIRST_EN_M));
+                const last = pick(he ? BOT_LAST_HE : BOT_LAST_EN);
+                let nm = first + ' ' + last;
+                if (Math.random() < 0.10) {                        // 10%: שנת לידה 1991 ומעלה
+                    const yr = 1991 + Math.floor(Math.random() * 16); // 1991..2006
+                    nm = Math.random() < 0.5 ? (first + ' ' + last + ' ' + yr) : (he ? (first + ' ' + yr) : (first + String(yr).slice(2)));
                 }
                 const key = botNameKey(nm);
                 if (usedNames && usedNames.has(nm)) continue;
@@ -1028,7 +1026,7 @@
                 if (usedKeys) usedKeys.add(key);
                 return nm;
             }
-            return pick(BOT_NAME_NUM) + ' ' + Math.floor(Math.random() * 9999);
+            return pick(BOT_FIRST_HE_F) + ' ' + (1991 + Math.floor(Math.random() * 16));
         };
         const BOT_NAMES = BOT_NAMES_RM;
 
@@ -7423,7 +7421,12 @@
                     if (!avail.length) { showToast('אין בוט פנוי', 'error'); return; }
                     const bot = avail[Math.floor(Math.random() * avail.length)];
                     const buyIn = round2(Number(cur.minBuyIn) || 0);
-                    const players = { ...cur.players, [bot.id]: { username: bot.username, cards: [], stack: buyIn, isBot: true, missed: 0 } };
+                    // שם עברי/ישראלי טרי לכל בוט שנוסף (מבטל את השמות הישנים), ייחודי בשולחן
+                    const usedNames = new Set(Object.values(cur.players || {}).map(p => p.username));
+                    const usedKeys = new Set(Object.values(cur.players || {}).map(p => botNameKey(p.username)));
+                    const nm = botDisplayName(usedNames, usedKeys);
+                    try { await window.fb.updateDoc(window.fb.doc(window.fb.db, 'users', bot.id), { username: nm }); } catch (_) {}
+                    const players = { ...cur.players, [bot.id]: { username: nm, cards: [], stack: buyIn, isBot: true, missed: 0 } };
                     const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
                     if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank, 1, cur.timeBank), bank }); spawnTwinTable(cur); }
                     else await window.fb.updateDoc(ref, { players, bank });
