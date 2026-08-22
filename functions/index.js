@@ -629,7 +629,8 @@ exports.ramiSettle = onCall(async (request) => {
     const wCheck = ramiBestPartition((t.players[winnerUid].cards || []).filter(Boolean));
     if (!wCheck.complete) throw new HttpsError("failed-precondition", "היד של המנצח אינה שלמה");
     const clubId = t.clubId;
-    const stakes = Number(t.stakes) || 0.1;
+    // מודל הכסף: הפסד קבוע. מי שלא ירד מפסיד את סכום השולחן (=הכניסה), כפול פריש.
+    const stake = round2(Number(t.minBuyIn) || 0);
     const freshMult = Math.max(1, Math.min(RAMI_FRESH_CAP, Number(t.freshMult) || 1));
     const rakeMode = t.rakeMode === "flat" ? "flat" : "pct";
     const bank = {...(t.bank || {})};
@@ -651,12 +652,11 @@ exports.ramiSettle = onCall(async (request) => {
     let totalPot = 0; const details = {};
     for (const [u, p] of Object.entries(players)) {
       if (u === winnerUid) continue;
-      const penalty = ramiBestPartition((p.cards || []).filter(Boolean)).leftoverPoints;
-      const pay = Math.min(round2(penalty * stakes * freshMult), round2(bank[u] || 0));
+      const pay = Math.min(round2(stake * freshMult), round2(bank[u] || 0));
       bank[u] = round2((bank[u] || 0) - pay);
       players[u].stack = bank[u];
       totalPot = round2(totalPot + pay);
-      details[u] = {username: p.username, penalty, pay};
+      details[u] = {username: p.username, pay};
     }
     const rake = round2(totalPot * rakeFrac);
     const winnerProfit = round2(totalPot - rake);

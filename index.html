@@ -977,7 +977,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v28';
+        const APP_VER = 'v29';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -3527,14 +3527,13 @@
             const [ratab, setRatab] = useState('all'); // סינון שולחנות הרמי לפי גודל
             const [showCreateRami, setShowCreateRami] = useState(false);
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
-            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 200, stakes: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
             const handleCreateRami = async () => {
                 try {
                     const buyIn = Math.max(1, round2(Number(ramiOpts.buyIn) || 0));
-                    const stakes = Math.max(0.01, Number(ramiOpts.stakes) || 0.1);
                     const doc = ramiTableDoc({
                         maxPlayers: Math.min(4, Math.max(2, Number(ramiOpts.maxPlayers) || 4)),
-                        minBuyIn: buyIn, stakes,
+                        minBuyIn: buyIn, stakes: buyIn,
                         rakeMode: ramiOpts.rakeMode,
                         rakePct: ramiOpts.rakeMode === 'pct' ? (ramiOpts.rakePct === '' ? null : Math.max(0, Math.min(20, Number(ramiOpts.rakePct)))) : null,
                         rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0
@@ -4330,7 +4329,7 @@
                                     const fee = Math.max(0, round2(Number(ramiOpts.rakeFee) || 0));
                                     return (
                                     <div className="glass-panel p-6 rounded-2xl mb-6 border border-emerald-500/30 animate-pop-in">
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
                                             <div>
                                                 <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שחקנים</label>
                                                 <select value={ramiOpts.maxPlayers} onChange={e => setRamiOpts({ ...ramiOpts, maxPlayers: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
@@ -4338,14 +4337,11 @@
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סכום כניסה (₪)</label>
-                                                <input type="number" min="1" step="1" inputMode="decimal" value={ramiOpts.buyIn} onChange={e => setRamiOpts({ ...ramiOpts, buyIn: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="200" />
-                                            </div>
-                                            <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">כל נקודה (₪)</label>
-                                                <input type="number" min="0.01" step="0.01" inputMode="decimal" value={ramiOpts.stakes} onChange={e => setRamiOpts({ ...ramiOpts, stakes: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="2" />
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סכום המשחק (₪)</label>
+                                                <input type="number" min="1" step="1" inputMode="decimal" value={ramiOpts.buyIn} onChange={e => setRamiOpts({ ...ramiOpts, buyIn: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="100" />
                                             </div>
                                         </div>
+                                        <p className="text-slate-400 text-xs font-bold mb-4" dir="rtl">מי שלא יורד מפסיד את סכום המשחק ({formatMoney(buyIn)} ₪) למי שירד. פריש מכפיל ×2.</p>
                                         {/* עמלת רייק: אחוז מהקופה או עמלה קבועה בכניסה */}
                                         <div className="bg-slate-950/50 border border-white/10 rounded-2xl p-4 mb-4">
                                             <div className="text-slate-300 text-xs font-black mb-3 uppercase tracking-widest">עמלת רייק</div>
@@ -4420,7 +4416,7 @@
                                                     <div className="tbl-main">
                                                         <div className="tbl-name">רמי סגור{mine && <span className="tbl-me">אתה יושב</span>}</div>
                                                         <div className="tbl-stakes" dir="rtl">כניסה {formatMoney(t.minBuyIn)} ₪</div>
-                                                        <div className="tbl-sub" dir="rtl">כל נקודה = {formatMoney(t.stakes)} ₪ · {rakeTxt} {playing ? <span className="tbl-live">· <span className="tbl-live-dot"></span>במשחק</span> : '· ממתין'}</div>
+                                                        <div className="tbl-sub" dir="rtl">המפסיד מפסיד {formatMoney(t.minBuyIn)} ₪ · {rakeTxt} {playing ? <span className="tbl-live">· <span className="tbl-live-dot"></span>במשחק</span> : '· ממתין'}</div>
                                                     </div>
                                                     <i className="fa-solid fa-coins tbl-coins"></i>
                                                     {canManageGame(user, 'rami') && (
@@ -7212,7 +7208,7 @@
                             <div className="glass-panel rounded-3xl p-6 text-center">
                                 <div className="text-4xl mb-2">🃏</div>
                                 <h2 className="text-2xl font-black text-white mb-1">שולחן רמי</h2>
-                                <p className="text-slate-400 font-bold text-sm mb-1" dir="rtl">כניסה {formatMoney(t.minBuyIn)} ₪ · כל נקודה {formatMoney(t.stakes)} ₪</p>
+                                <p className="text-slate-400 font-bold text-sm mb-1" dir="rtl">סכום המשחק {formatMoney(t.minBuyIn)} ₪ · המפסיד מפסיד את הסכום</p>
                                 <p className="text-slate-500 font-bold text-xs mb-5" dir="rtl">{rakeTxt}</p>
                                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                                     {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1.5 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
@@ -7241,7 +7237,7 @@
                                     {Object.entries(lr.details || {}).map(([u, d]) => (
                                         <div key={u} className="flex justify-between bg-slate-950/50 rounded-xl px-3 py-2 text-sm font-bold">
                                             <span className="text-slate-300">{d.username}</span>
-                                            <span className="text-rose-400" dir="ltr">−{formatMoney(d.pay)} ₪ <span className="text-slate-500">({d.penalty} נק')</span></span>
+                                            <span className="text-rose-400" dir="ltr">−{formatMoney(d.pay)} ₪</span>
                                         </div>
                                     ))}
                                     {lr.rake > 0 && <div className="flex justify-between px-3 py-1 text-xs font-bold text-slate-500"><span>עמלת מועדון</span><span dir="ltr">{formatMoney(lr.rake)} ₪</span></div>}
@@ -7269,7 +7265,7 @@
                         <div className="flex items-center justify-between mb-3">
                             <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-sm"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
                             <div className="text-center">
-                                <div className="text-[11px] text-slate-400 font-bold" dir="rtl">כל נקודה {formatMoney(t.stakes)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
+                                <div className="text-[11px] text-slate-400 font-bold" dir="rtl">המפסיד מפסיד {formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
                             </div>
                             <div className={`text-sm font-black px-3 py-1 rounded-full ${myTurn ? 'bg-emerald-500/20 text-emerald-300 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך · ${timeLeft}s` : `תור ${turnName}`}</div>
                         </div>
