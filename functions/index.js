@@ -475,6 +475,312 @@ exports.rummyNewRound = onCall(async (request) => {
   return {ok: true};
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+//  רמי סגור (Rami / Okey-style) — רשות הכסף בשרת
+//  יד פרטית של 14 אבנים, משיכה מהקופה או מהזרוק, ירידה בבת-אחת כשהיד שלמה.
+//  מפסיד משלם לפי ערך האבנים שלא הצליח לסדר בקומבינציות (leftover) × ערך-נקודה.
+// ═══════════════════════════════════════════════════════════════════════
+const RAMI_FRESH_CAP = 8;      // תקרת מכפיל "פריש" — חוסם ניפוח כסף
+const tileValR = (t) => (t.val === "☻" ? 30 : Number(t.val));
+
+// פותר-החלוקה: מחלק יד לקומבינציות תקינות זרות שממקסמות כיסוי (מזעור leftover).
+// מוחזר {leftoverPoints, complete}. זהה למנוע-הלקוח (נבדק ביחידה).
+function ramiBestPartition(hand) {
+  const tiles = (hand || []).filter(Boolean).slice().sort((a, b) => {
+    const ja = a.val === "☻" ? 1 : 0; const jb = b.val === "☻" ? 1 : 0;
+    if (ja !== jb) return ja - jb;
+    if (ja) return 0;
+    return Number(a.val) - Number(b.val) || RUMMY_COLORS.indexOf(a.color) - RUMMY_COLORS.indexOf(b.color);
+  });
+  const keyOf = (arr) => arr.map((t) => t.val === "☻" ? "J" : `${t.val}.${t.color}`).sort().join("|");
+  const memo = new Map();
+  function candidatesForAnchor(arr) {
+    const out = []; const a = arr[0]; const jokerIdx = [];
+    for (let i = 1; i < arr.length; i++) if (arr[i].val === "☻") jokerIdx.push(i);
+    const J = jokerIdx.length;
+    if (a.val === "☻") {
+      if (arr.filter((t) => t.val === "☻").length >= 3) {
+        const jall = []; for (let i = 0; i < arr.length; i++) if (arr[i].val === "☻") jall.push(i);
+        for (let s = 3; s <= jall.length; s++) out.push(jall.slice(0, s));
+      }
+      return out;
+    }
+    const v = Number(a.val); const c = a.color;
+    const sameVal = []; const seen = new Set([c]);
+    for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== "☻" && Number(t.val) === v && !seen.has(t.color)) { sameVal.push(i); seen.add(t.color); } }
+    for (let k = 0; k <= sameVal.length; k++) for (let j = 0; j <= J; j++) {
+      const size = 1 + k + j; if (size < 3 || size > 4) continue;
+      const idx = [0, ...sameVal.slice(0, k), ...jokerIdx.slice(0, j)];
+      if (validateGroup(idx.map((i) => arr[i]))) out.push(idx);
+    }
+    const byVal = new Map();
+    for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== "☻" && t.color === c) { const vv = Number(t.val); if (!byVal.has(vv)) byVal.set(vv, i); } }
+    for (let lo = 1; lo <= v; lo++) for (let hi = v; hi <= 13; hi++) {
+      const len = hi - lo + 1; if (len < 3 || len > 13) continue;
+      let missing = 0; const idx = [0];
+      for (let val = lo; val <= hi; val++) { if (val === v) continue; if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; }
+      if (missing > J) continue;
+      for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]);
+      const meld = idx.map((i) => arr[i]);
+      if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice());
+    }
+    return out;
+  }
+  function solve(arr) {
+    if (arr.length === 0) return {pts: 0};
+    const key = keyOf(arr); if (memo.has(key)) return memo.get(key);
+    let best = {pts: solve(arr.slice(1)).pts + tileValR(arr[0])};
+    for (const idxSet of candidatesForAnchor(arr)) {
+      const used = new Set(idxSet);
+      const sub = solve(arr.filter((_, i) => !used.has(i)));
+      if (sub.pts < best.pts) best = {pts: sub.pts};
+      if (best.pts === 0) break;
+    }
+    memo.set(key, best); return best;
+  }
+  const pts = solve(tiles).pts;
+  return {leftoverPoints: pts, complete: pts === 0 && tiles.length > 0};
+}
+
+// חלוקת סבב רמי: 14 אבנים לכל אחד, אבן אחת נפתחת לערימת-הזריקה.
+function ramiDeal(players, bank) {
+  const d = generateDeck();
+  const uids = Object.keys(players).sort();
+  const np = {};
+  uids.forEach((uid) => { np[uid] = {...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0}; });
+  const discard = [d.pop()];
+  return {players: np, deck: d, discard, phase: "playing", currentTurn: uids[0], turnPhase: "draw", drawnThisTurn: false, turnStartedAt: Date.now(), winner: null, lastResults: null, freshMult: 1, freshReq: null};
+}
+
+// נתח-סוכן + רייק מתוך סכום נתון (משמש גם לעמלה-קבועה בכניסה). מזיז כסף בתוך tx.
+async function ramiPayHouse(tx, clubId, sitterMem, feeAmount) {
+  const fee = round2(feeAmount);
+  if (!(fee > 0)) return {agentCut: 0};
+  const clubSnap = await tx.get(db.doc(`clubs/${clubId}`));
+  const club = clubSnap.exists ? clubSnap.data() : {};
+  const ownerUid = club.ownerUid || "";
+  let agentCut = 0; let agentRef = null; let agentMem = null;
+  if (sitterMem && sitterMem.agentUid && Number(sitterMem.agentPct) > 0 && sitterMem.agentUid !== sitterMem.uid) {
+    agentRef = db.doc(`memberships/${sitterMem.agentUid}_${clubId}`);
+    const s = await tx.get(agentRef); agentMem = s.exists ? s.data() : null;
+    if (agentMem) agentCut = round2(fee * Math.min(100, Math.max(0, Number(sitterMem.agentPct))) / 100);
+  }
+  const ownerRef = ownerUid ? db.doc(`memberships/${ownerUid}_${clubId}`) : null;
+  const ownerMem = ownerRef ? (await tx.get(ownerRef)).data() : null;
+  if (ownerRef && ownerMem) tx.update(ownerRef, {balance: round2((Number(ownerMem.balance) || 0) + fee - agentCut), clubProfits: round2((Number(ownerMem.clubProfits) || 0) + fee)});
+  if (agentRef && agentMem && agentCut > 0) tx.update(agentRef, {balance: round2((Number(agentMem.balance) || 0) + agentCut), agentProfits: round2((Number(agentMem.agentProfits) || 0) + agentCut)});
+  return {agentCut};
+}
+
+// ── כניסה לשולחן רמי: גובה כניסה (+ עמלה-קבועה אם rakeMode==='flat'), מקצה bank, מחלק כשמתמלא ──
+exports.ramiSit = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  const becameFull = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const tSnap = await tx.get(tRef);
+    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = tSnap.data();
+    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+    if (t.phase !== "waiting") throw new HttpsError("failed-precondition", "המשחק כבר התחיל");
+    if (t.players && t.players[uid]) throw new HttpsError("failed-precondition", "אתה כבר יושב בשולחן זה");
+    const max = Number(t.maxPlayers) || 0;
+    if (Object.keys(t.players || {}).length >= max) throw new HttpsError("failed-precondition", "השולחן מלא");
+    const memRef = db.doc(`memberships/${uid}_${t.clubId}`);
+    const memSnap = await tx.get(memRef);
+    if (!memSnap.exists) throw new HttpsError("failed-precondition", "אינך חבר בקלאב הזה");
+    const m = memSnap.data();
+    const bal = Number(m.balance) || 0;
+    const buyIn = round2(Number(t.minBuyIn) || 0);
+    const fee = t.rakeMode === "flat" ? round2(Number(t.rakeFee) || 0) : 0;
+    const total = round2(buyIn + fee);
+    if (bal < total) throw new HttpsError("failed-precondition", "אין לך מספיק יתרה לכניסה");
+    // כל הקריאות של ramiPayHouse קורות לפני הכתיבות שלנו למטה (סדר קריאה-לפני-כתיבה)
+    if (fee > 0) await ramiPayHouse(tx, t.clubId, {...m, uid}, fee);
+    const players = {...(t.players || {}), [uid]: {username: m.username || "", photo: m.photo || "", avatarSeed: m.avatarSeed || "", cards: [], stack: buyIn, isBot: false, missed: 0}};
+    const bank = {...(t.bank || {}), [uid]: buyIn};
+    tx.update(memRef, {balance: round2(bal - total)});
+    if (Object.keys(players).length === max) { tx.update(tRef, {...ramiDeal(players, bank), bank}); return true; }
+    tx.update(tRef, {players, bank});
+    return false;
+  });
+  return {ok: true, becameFull};
+});
+
+// ── סיום יד רמי: המנצח ירד (יד שלמה מאומתת-שרת); מפסידים משלמים leftover×ערך-נקודה ──
+exports.ramiSettle = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, winnerUid} = request.data || {};
+  if (!tableId || !winnerUid) throw new HttpsError("invalid-argument", "חסרים פרטים");
+  const out = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const tSnap = await tx.get(tRef);
+    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = tSnap.data();
+    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+    if (t.phase !== "playing") throw new HttpsError("failed-precondition", "כבר הסתיים");
+    if (!t.players || !t.players[winnerUid]) throw new HttpsError("failed-precondition", "המנצח עזב");
+    assertParticipant(t, uid, email);
+    // אימות ירידה: היד של המנצח חייבת להתחלק במלואה לקומבינציות תקינות
+    const wCheck = ramiBestPartition((t.players[winnerUid].cards || []).filter(Boolean));
+    if (!wCheck.complete) throw new HttpsError("failed-precondition", "היד של המנצח אינה שלמה");
+    const clubId = t.clubId;
+    const stakes = Number(t.stakes) || 0.1;
+    const freshMult = Math.max(1, Math.min(RAMI_FRESH_CAP, Number(t.freshMult) || 1));
+    const rakeMode = t.rakeMode === "flat" ? "flat" : "pct";
+    const bank = {...(t.bank || {})};
+    // קריאות לפני כתיבות
+    const clubSnap = await tx.get(db.doc(`clubs/${clubId}`));
+    const club = clubSnap.exists ? clubSnap.data() : {};
+    const ownerUid = club.ownerUid || "";
+    const rakeFrac = rakeMode === "pct" ? ((t.rakePct != null ? Number(t.rakePct) : (Number(club.rakePct) || DEFAULT_RAKE_PCT)) / 100) : 0;
+    const players = JSON.parse(JSON.stringify(t.players));
+    const memRefs = {}; const memData = {};
+    for (const [u, p] of Object.entries(players)) { if (p.isBot) continue; memRefs[u] = db.doc(`memberships/${u}_${clubId}`); const s = await tx.get(memRefs[u]); memData[u] = s.exists ? s.data() : null; }
+    const ownerRef = ownerUid ? db.doc(`memberships/${ownerUid}_${clubId}`) : null;
+    const ownerData = ownerRef ? (memData[ownerUid] || (await tx.get(ownerRef)).data()) : null;
+    const bankRef = db.doc(`memberships/bot_bank_${clubId}`);
+    const bankSnap = await tx.get(bankRef);
+    const agentRefs = {}; const agentData = {};
+    for (const [u, d] of Object.entries(memData)) { if (d && d.agentUid && Number(d.agentPct) > 0 && d.agentUid !== u && !agentRefs[d.agentUid]) { agentRefs[d.agentUid] = db.doc(`memberships/${d.agentUid}_${clubId}`); const s = await tx.get(agentRefs[d.agentUid]); agentData[d.agentUid] = s.exists ? s.data() : null; } }
+
+    let totalPot = 0; const details = {};
+    for (const [u, p] of Object.entries(players)) {
+      if (u === winnerUid) continue;
+      const penalty = ramiBestPartition((p.cards || []).filter(Boolean)).leftoverPoints;
+      const pay = Math.min(round2(penalty * stakes * freshMult), round2(bank[u] || 0));
+      bank[u] = round2((bank[u] || 0) - pay);
+      players[u].stack = bank[u];
+      totalPot = round2(totalPot + pay);
+      details[u] = {username: p.username, penalty, pay};
+    }
+    const rake = round2(totalPot * rakeFrac);
+    const winnerProfit = round2(totalPot - rake);
+    bank[winnerUid] = round2((bank[winnerUid] || 0) + winnerProfit);
+    players[winnerUid].stack = bank[winnerUid];
+    let botDelta = 0;
+    for (const [duid, d] of Object.entries(details)) if (players[duid] && players[duid].isBot) botDelta = round2(botDelta - d.pay);
+    if (players[winnerUid].isBot) botDelta = round2(botDelta + winnerProfit);
+    const realPlayers = Object.keys(players).filter((u) => !players[u].isBot);
+    const cutShare = realPlayers.length ? rake / realPlayers.length : 0;
+    const agentCuts = {}; let totalCuts = 0;
+    for (const u of realPlayers) {
+      const d = memData[u];
+      if (d && d.agentUid && d.agentUid !== u) { const pct = Math.min(100, Math.max(0, Number(d.agentPct) || 0)); const cut = round2(cutShare * pct / 100); if (cut > 0 && agentData[d.agentUid]) { agentCuts[d.agentUid] = round2((agentCuts[d.agentUid] || 0) + cut); totalCuts = round2(totalCuts + cut); } }
+    }
+    // כתיבות
+    tx.update(tRef, {players, bank, phase: "showdown", winner: winnerUid, currentTurn: null, turnPhase: null,
+      lastResults: {winnerName: players[winnerUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now()}});
+    if (bankSnap.exists && botDelta !== 0) tx.update(bankRef, {balance: round2((Number(bankSnap.data().balance) || 0) + botDelta)});
+    for (const [u, d] of Object.entries(memData)) {
+      if (!d) continue;
+      const st = d.stats || {gamesPlayed: 0, gamesWon: 0, totalProfit: 0};
+      const isW = u === winnerUid;
+      const delta = isW ? winnerProfit : -((details[u] && details[u].pay) || 0);
+      tx.update(memRefs[u], {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta)});
+    }
+    if (ownerRef && ownerData && rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + rake - totalCuts), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)});
+    for (const [aUid, amt] of Object.entries(agentCuts)) { const ad = agentData[aUid]; if (ad) tx.update(agentRefs[aUid], {balance: round2((Number(ad.balance) || 0) + amt), agentProfits: round2((Number(ad.agentProfits) || 0) + amt)}); }
+    return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId};
+  });
+  try {
+    const rows = [];
+    if (!out.winnerIsBot) rows.push({uid: winnerUid, username: out.winnerName, profit: out.winnerProfit, rake: out.rake});
+    for (const [duid, d] of Object.entries(out.details)) rows.push({uid: duid, username: d.username, profit: -d.pay});
+    for (const r of rows) { if (!r.uid) continue; await db.collection("gameLog").add({uid: r.uid, username: r.username || "", game: "rami", clubId: out.clubId, profit: round2(r.profit || 0), rake: round2(r.rake || 0), tableId, at: Date.now()}); }
+    if (out.rake > 0) await db.collection("agentLog").add({clubId: out.clubId, agentUid: "club", kind: "club", amount: round2(out.rake), at: Date.now()});
+    for (const [aUid, amt] of Object.entries(out.agentCuts)) await db.collection("agentLog").add({agentUid: aUid, clubId: out.clubId, amount: round2(amt), at: Date.now()});
+  } catch (e) { /* לוג בלבד */ }
+  return {ok: true};
+});
+
+// ── סיבוב חדש ברמי: מחלק מחדש רק לשחקנים עם צ'יפים; מאפס פריש ──
+exports.ramiNewRound = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const tSnap = await tx.get(tRef);
+    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = tSnap.data();
+    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+    if (t.phase !== "showdown") throw new HttpsError("failed-precondition", "אין סיבוב לפתוח");
+    assertParticipant(t, uid, email);
+    const bank = t.bank || {};
+    const eligible = {}; const eBank = {};
+    for (const [u, p] of Object.entries(t.players || {})) if ((bank[u] || 0) > 0) { eligible[u] = p; eBank[u] = round2(bank[u]); }
+    if (Object.keys(eligible).length < 2) throw new HttpsError("failed-precondition", "אין מספיק שחקנים עם צ'יפים");
+    tx.update(tRef, {...ramiDeal(eligible, eBank), bank: eBank});
+  });
+  return {ok: true};
+});
+
+// ── עזיבת שולחן רמי: המתנה=החזר לארנק; באמצע יד=כניעה, הצ'יפים לנשארים ──
+exports.ramiLeave = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  const out = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const tSnap = await tx.get(tRef);
+    if (!tSnap.exists) return {gone: true};
+    const t = tSnap.data();
+    if (t.type !== "rami" || !t.players || !t.players[uid]) return {gone: true};
+    const clubId = t.clubId;
+    const bank = {...(t.bank || {})};
+    const playing = t.phase === "playing";
+    const myStack = round2(bank[uid] || 0);
+    const memRef = db.doc(`memberships/${uid}_${clubId}`);
+    const memSnap = await tx.get(memRef);
+    const mem = memSnap.exists ? memSnap.data() : {};
+    const newP = {...t.players}; delete newP[uid]; delete bank[uid];
+    const rest = Object.keys(newP);
+    if (!playing) { tx.update(memRef, {balance: round2((Number(mem.balance) || 0) + myStack)}); tx.update(tRef, {players: newP, bank}); return {cashout: true, clubId, myStack}; }
+    const lastMan = rest.length === 1;
+    const isBotMap = {}; rest.forEach((u) => isBotMap[u] = !!newP[u].isBot);
+    const clubSnap = await tx.get(db.doc(`clubs/${clubId}`));
+    const club = clubSnap.exists ? clubSnap.data() : {};
+    const ownerUid = club.ownerUid || "";
+    const rakeFrac = t.rakeMode === "flat" ? 0 : ((t.rakePct != null ? Number(t.rakePct) : (Number(club.rakePct) || DEFAULT_RAKE_PCT)) / 100);
+    const bankRef = db.doc(`memberships/bot_bank_${clubId}`);
+    const bankSnap = await tx.get(bankRef);
+    let winMemRef = null; let winMem = null; let ownRef = null; let ownMem = null;
+    if (lastMan && rest.length && !newP[rest[0]].isBot) { winMemRef = db.doc(`memberships/${rest[0]}_${clubId}`); winMem = (await tx.get(winMemRef)).data(); }
+    if (lastMan && ownerUid) { ownRef = db.doc(`memberships/${ownerUid}_${clubId}`); ownMem = (await tx.get(ownRef)).data(); }
+    const upd = {players: newP}; let botDelta = 0; let rake = 0; let winnerProfit = 0;
+    tx.update(memRef, {"stats.gamesPlayed": ((mem.stats || {}).gamesPlayed || 0) + 1, "stats.totalProfit": round2(((mem.stats || {}).totalProfit || 0) - myStack)});
+    if (lastMan) {
+      const winUid = rest[0];
+      rake = round2(myStack * rakeFrac); winnerProfit = round2(myStack - rake);
+      bank[winUid] = round2((bank[winUid] || 0) + winnerProfit); newP[winUid].stack = bank[winUid];
+      if (newP[winUid].isBot) botDelta = round2(botDelta + winnerProfit);
+      upd.phase = "showdown"; upd.winner = winUid; upd.currentTurn = null; upd.turnPhase = null;
+      upd.lastResults = {winnerName: newP[winUid].username, totalPot: myStack, rake, winnerProfit, details: {[uid]: {username: mem.username || "", penalty: 0, pay: myStack}}, endedAt: Date.now()};
+      if (winMemRef && winMem) { const ws = winMem.stats || {}; tx.update(winMemRef, {"stats.gamesPlayed": (ws.gamesPlayed || 0) + 1, "stats.gamesWon": (ws.gamesWon || 0) + 1, "stats.totalProfit": round2((ws.totalProfit || 0) + winnerProfit)}); }
+      if (ownRef && ownMem && rake > 0) tx.update(ownRef, {balance: round2((Number(ownMem.balance) || 0) + rake), clubProfits: round2((Number(ownMem.clubProfits) || 0) + rake)});
+    } else if (rest.length >= 2) {
+      const sp = conserveSplit(myStack, rest, isBotMap);
+      rest.forEach((u) => { bank[u] = round2((bank[u] || 0) + sp.per[u]); newP[u].stack = bank[u]; });
+      botDelta = sp.botDelta;
+      if (t.currentTurn === uid) { const s = [...rest].sort(); upd.currentTurn = s[0]; upd.turnPhase = "draw"; upd.drawnThisTurn = false; upd.turnStartedAt = Date.now(); }
+    }
+    upd.bank = bank;
+    if (bankSnap.exists && botDelta !== 0) tx.update(bankRef, {balance: round2((Number(bankSnap.data().balance) || 0) + botDelta)});
+    tx.update(tRef, upd);
+    return {surrender: true, clubId, myStack, username: mem.username || ""};
+  });
+  try { if (out && out.surrender) await db.collection("gameLog").add({uid, username: out.username, game: "rami", clubId: out.clubId, profit: -round2(out.myStack), rake: 0, tableId, at: Date.now()}); } catch (e) { /* לוג */ }
+  return {ok: true, ...out};
+});
+
 // תחילת המחזור השבועי (יום שני 00:01 שעון ישראל) - זהה ללקוח
 function cycleStartIL() {
   const now = new Date();

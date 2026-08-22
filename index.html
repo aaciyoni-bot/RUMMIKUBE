@@ -953,6 +953,7 @@
         const RUMMY_ONLY = true;
         const GAMES = [
             { id: 'rummikub', label: 'רמיקוב', live: true },
+            { id: 'rami', label: 'רמי', live: true },
             { id: 'poker', label: 'פוקר', live: !RUMMY_ONLY },
             { id: 'durak', label: 'דוראק', live: !RUMMY_ONLY },
             { id: 'yaniv', label: 'יניב', live: !RUMMY_ONLY },
@@ -1312,6 +1313,30 @@
             setTimeout(() => URL.revokeObjectURL(a.href), 2000);
         };
 
+        // מסמך שולחן רמי סגור חדש (ממתין). rakeMode: 'pct' (אחוז) או 'flat' (עמלה קבועה בכניסה).
+        const ramiTableDoc = (o) => ({
+            type: 'rami', clubId: CLUB_ID,
+            maxPlayers: Number(o.maxPlayers) || 4,
+            minBuyIn: round2(Number(o.minBuyIn) || 0),
+            stakes: Number(o.stakes) || 0.1,
+            rakeMode: o.rakeMode === 'flat' ? 'flat' : 'pct',
+            rakePct: o.rakePct == null || o.rakePct === '' ? null : Number(o.rakePct),
+            rakeFee: round2(Number(o.rakeFee) || 0),
+            players: {}, bank: {}, deck: [], discard: [],
+            phase: 'waiting', currentTurn: null, turnPhase: 'draw', drawnThisTurn: false,
+            freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now()
+        });
+        // חלוקת סבב רמי בצד-הלקוח (רק GOD מפעיל, כשהשולחן מתמלא בבוטים) — זהה לשרת.
+        // freshMult נשמר בין חלוקות של אותה יד (פריש מחלק-מחדש ומכפיל); mult פרמטר.
+        const ramiDealC = (players, bank, mult) => {
+            const d = generateDeck();
+            const uids = Object.keys(players).sort();
+            const np = {};
+            uids.forEach(uid => { np[uid] = { ...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0 }; });
+            return { players: np, deck: d, discard: [d.pop()], phase: 'playing', currentTurn: uids[0], turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now(), winner: null, lastResults: null, freshMult: mult || 1, freshReq: null };
+        };
+        const RAMI_FRESH_CAP = 8;
+
         // כשהשולחן מתמלא בשחקן אמיתי - נפתח אוטומטית שולחן זהה חדש בלובי
         const spawnTwinTable = async (t) => {
             try {
@@ -1321,17 +1346,17 @@
                 try {
                     const q = window.fb.query(window.fb.collection(window.fb.db, "tables"), window.fb.where("type", "==", t.type));
                     const snap = await window.fb.getDocs(q);
-                    const keyOf = (x) => x.type === 'rummikub'
-                        ? JSON.stringify([Number(x.maxPlayers) || 0, Number(x.minBuyIn) || 0, Number(x.stakes) || 0])
+                    const keyOf = (x) => (x.type === 'rummikub' || x.type === 'rami')
+                        ? JSON.stringify([x.type, Number(x.maxPlayers) || 0, Number(x.minBuyIn) || 0, Number(x.stakes) || 0, x.rakeMode || 'pct', Number(x.rakeFee) || 0, x.rakePct == null ? '' : Number(x.rakePct)])
                         : JSON.stringify([Number((x.settings || {}).buyIn) || 0, Number((x.settings || {}).blinds) || 0, (x.settings || {}).baseGameType || '', Number((x.settings || {}).maxPlayers) || 0, Number((x.settings || {}).deckSize) || 0, (x.settings || {}).variant || '', Number((x.settings || {}).target) || 0]);
-                    const maxOf = (x) => Number(x.type === 'rummikub' ? x.maxPlayers : (x.settings || {}).maxPlayers) || 9;
+                    const maxOf = (x) => Number((x.type === 'rummikub' || x.type === 'rami') ? x.maxPlayers : (x.settings || {}).maxPlayers) || 9;
                     const myId = t.docId || t.id || '';
                     const twinExists = snap.docs.some(d => {
                         if (d.id === myId) return false;
                         const x = d.data();
                         if ((x.clubId || 'main') !== cid || x.tournamentId) return false;
                         // "מקבל שחקנים": פוקר - תמיד כשיש כיסא; רמי - בשלב ההמתנה; תורניים - בשלב ההקמה
-                        const joinable = x.type === 'poker' ? true : x.type === 'rummikub' ? (x.phase === 'waiting') : (x.status === 'setup');
+                        const joinable = x.type === 'poker' ? true : (x.type === 'rummikub' || x.type === 'rami') ? (x.phase === 'waiting') : (x.status === 'setup');
                         if (!joinable) return false;
                         if (Object.keys(x.players || {}).length >= maxOf(x)) return false;
                         return keyOf(x) === keyOf(t);
@@ -1344,6 +1369,8 @@
                         type: 'rummikub', clubId: CLUB_ID, maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes,
                         players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, chat: [], createdAt: Date.now()
                     });
+                } else if (t.type === 'rami') {
+                    await window.fb.addDoc(col, ramiTableDoc({ maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes, rakeMode: t.rakeMode, rakePct: t.rakePct, rakeFee: t.rakeFee }));
                 } else if (t.type === 'poker') {
                     await window.fb.addDoc(col, {
                         type: 'poker', clubId: CLUB_ID, createdAt: Date.now(), settings: { ...t.settings }, players: {}, chat: [], leftStacks: {},
@@ -1470,6 +1497,54 @@
         };
 
         const rackPenalty = (cards) => (cards || []).filter(c => c).reduce((s,c) => s + (c.val === '☻' ? 30 : Number(c.val)), 0);
+
+        /* ═══ רמי סגור: פותר-החלוקה (זהה לשרת, נבדק ביחידה על 20K ידיים) ═══
+           מחלק יד לקומבינציות תקינות זרות שממזערות את ערך האבנים שנשארות בחוץ.
+           complete=true ⇒ אפשר לרדת (כל היד סודרה). משמש לזיהוי "גמר" ולניקוד. */
+        const tileValR = (t) => (t.val === '☻' ? 30 : Number(t.val));
+        const bestPartition = (hand) => {
+            const tiles = (hand || []).filter(Boolean).slice().sort((a, b) => {
+                const ja = a.val === '☻' ? 1 : 0, jb = b.val === '☻' ? 1 : 0;
+                if (ja !== jb) return ja - jb;
+                if (ja) return 0;
+                return Number(a.val) - Number(b.val) || COLOR_ORDER.indexOf(a.color) - COLOR_ORDER.indexOf(b.color);
+            });
+            const keyOf = (arr) => arr.map(t => t.val === '☻' ? 'J' : `${t.val}.${t.color}`).sort().join('|');
+            const memo = new Map();
+            const cands = (arr) => {
+                const out = [], a = arr[0], jokerIdx = [];
+                for (let i = 1; i < arr.length; i++) if (arr[i].val === '☻') jokerIdx.push(i);
+                const J = jokerIdx.length;
+                if (a.val === '☻') {
+                    if (arr.filter(t => t.val === '☻').length >= 3) { const jall = []; for (let i = 0; i < arr.length; i++) if (arr[i].val === '☻') jall.push(i); for (let s = 3; s <= jall.length; s++) out.push(jall.slice(0, s)); }
+                    return out;
+                }
+                const v = Number(a.val), c = a.color;
+                const sameVal = [], seen = new Set([c]);
+                for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== '☻' && Number(t.val) === v && !seen.has(t.color)) { sameVal.push(i); seen.add(t.color); } }
+                for (let k = 0; k <= sameVal.length; k++) for (let j = 0; j <= J; j++) { const size = 1 + k + j; if (size < 3 || size > 4) continue; const idx = [0, ...sameVal.slice(0, k), ...jokerIdx.slice(0, j)]; if (validateGroup(idx.map(i => arr[i]))) out.push(idx); }
+                const byVal = new Map();
+                for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== '☻' && t.color === c) { const vv = Number(t.val); if (!byVal.has(vv)) byVal.set(vv, i); } }
+                for (let lo = 1; lo <= v; lo++) for (let hi = v; hi <= 13; hi++) { const len = hi - lo + 1; if (len < 3 || len > 13) continue; let missing = 0; const idx = [0]; for (let val = lo; val <= hi; val++) { if (val === v) continue; if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; } if (missing > J) continue; for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]); const meld = idx.map(i => arr[i]); if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice()); }
+                return out;
+            };
+            const solve = (arr) => {
+                if (arr.length === 0) return { pts: 0, melds: [], leftover: [] };
+                const key = keyOf(arr); if (memo.has(key)) return memo.get(key);
+                const subA = solve(arr.slice(1));
+                let best = { pts: subA.pts + tileValR(arr[0]), melds: subA.melds, leftover: [arr[0], ...subA.leftover] };
+                for (const idxSet of cands(arr)) { const used = new Set(idxSet); const meld = idxSet.map(i => arr[i]); const sub = solve(arr.filter((_, i) => !used.has(i))); if (sub.pts < best.pts) best = { pts: sub.pts, melds: [meld, ...sub.melds], leftover: sub.leftover }; if (best.pts === 0) break; }
+                memo.set(key, best); return best;
+            };
+            const r = solve(tiles);
+            return { melds: r.melds, leftover: r.leftover, leftoverPoints: r.pts, complete: r.pts === 0 && tiles.length > 0 };
+        };
+        /* גמר מיד של 15: האם קיימת אבן-זריקה אחת שמשאירה 14 שלמות? */
+        const findGoOut = (hand) => {
+            const tiles = (hand || []).filter(Boolean);
+            for (let i = 0; i < tiles.length; i++) { const rest = tiles.slice(0, i).concat(tiles.slice(i + 1)); if (bestPartition(rest).complete) return { discard: tiles[i], melds: bestPartition(rest).melds }; }
+            return null;
+        };
 
         const buildDeal = (players) => {
             const d = generateDeck();
@@ -2441,12 +2516,13 @@
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
                         {currentView === 'pending' && <PendingView clubName={activeClub?.name} status={(activeMem && typeof activeMem === 'object') ? activeMem.status : 'pending'} onBack={leaveToClubs} />}
-                        {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onJoinBridge={(t) => changeView('bridge-table', t)} onJoinGin={(t) => changeView('gin-table', t)} onJoinTwist={(t) => changeView('twist-table', t)} onJoinOfc={(t) => changeView('ofc-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
+                        {currentView === 'lobby' && activeClub && <LobbyView user={effUser} tables={tablesDB} tournaments={toursDB} clubSettings={clubSettings} tab={lobbyTab} setTab={setLobbyTab} onJoinRummy={(t) => changeView('rummy-table', t)} onJoinRami={(t) => changeView('rami-table', t)} onJoinPoker={(t) => changeView('poker-table', t)} onJoinDurak={(t) => changeView('durak-table', t)} onJoinShesh={(t) => changeView('shesh-table', t)} onJoinPres={(t) => changeView('president-table', t)} onJoinYaniv={(t) => changeView('yaniv-table', t)} onJoinBridge={(t) => changeView('bridge-table', t)} onJoinGin={(t) => changeView('gin-table', t)} onJoinTwist={(t) => changeView('twist-table', t)} onJoinOfc={(t) => changeView('ofc-table', t)} onCreatePoker={() => changeView('poker-create')} showToast={showToast} />}
                         {currentView === 'profile' && activeClub && <ProfileView user={effUser} showToast={showToast} />}
                         {currentView === 'leaders' && activeClub && <LeadersView user={effUser} showToast={showToast} />}
                         {currentView === 'backoffice' && activeClub && <BackofficeView user={effUser} clubSettings={clubSettings} showToast={showToast} />}
                         {currentView === 'poker-create' && <PokerCreateView user={effUser} clubSettings={clubSettings} onBack={() => { setLobbyTab('poker'); changeView('lobby'); }} onCreated={() => { setLobbyTab('poker'); changeView('lobby'); showToast("שולחן פוקר נפתח!", "success"); }} />}
                         {currentView === 'rummy-table' && <RummyTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rummikub'); changeView('lobby'); }} showToast={showToast} />}
+                        {currentView === 'rami-table' && <RamiTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('rami'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'poker-table' && <PokerTable tableDocId={activeTable?.docId} user={effUser} onLeave={() => { setLobbyTab('poker'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'durak-table' && <DurakTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('durak'); changeView('lobby'); }} showToast={showToast} />}
                         {currentView === 'shesh-table' && <SheshTable tableDocId={activeTable?.docId} user={effUser} clubSettings={clubSettings} onLeave={() => { setLobbyTab('shesh'); changeView('lobby'); }} showToast={showToast} />}
@@ -3445,18 +3521,38 @@
         /* ================================================================
            לובי - טאבים לרמיקוב ולפוקר
            ================================================================ */
-        function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onJoinBridge, onJoinGin, onJoinTwist, onJoinOfc, onCreatePoker, showToast }) {
+        function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinRami, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onJoinBridge, onJoinGin, onJoinTwist, onJoinOfc, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
-            const [rtab, setRtab] = useState('all'); // סינון רשימת שולחנות הרמי לפי גודל
+            const [rtab, setRtab] = useState('all'); // סינון רשימת שולחנות הרמיקוב לפי גודל
+            const [ratab, setRatab] = useState('all'); // סינון שולחנות הרמי לפי גודל
+            const [showCreateRami, setShowCreateRami] = useState(false);
+            const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 200, stakes: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            const handleCreateRami = async () => {
+                try {
+                    const buyIn = Math.max(1, round2(Number(ramiOpts.buyIn) || 0));
+                    const stakes = Math.max(0.01, Number(ramiOpts.stakes) || 0.1);
+                    const doc = ramiTableDoc({
+                        maxPlayers: Math.min(4, Math.max(2, Number(ramiOpts.maxPlayers) || 4)),
+                        minBuyIn: buyIn, stakes,
+                        rakeMode: ramiOpts.rakeMode,
+                        rakePct: ramiOpts.rakeMode === 'pct' ? (ramiOpts.rakePct === '' ? null : Math.max(0, Math.min(20, Number(ramiOpts.rakePct)))) : null,
+                        rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0
+                    });
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), doc);
+                    setShowCreateRami(false); showToast("שולחן רמי נפתח!", "success");
+                } catch(e) { showToast("שגיאה בפתיחת שולחן", "error"); }
+            };
             const [showCreateShesh, setShowCreateShesh] = useState(false);
             const [sheshOpts, setSheshOpts] = useState({ buyIn: 5 });
-            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
+            const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10, buyIn: 10 });
             const [showCreateDurak, setShowCreateDurak] = useState(false);
             const [durakOpts, setDurakOpts] = useState({ deckSize: 36, variant: 'podkidnoy', buyIn: 500, maxPlayers: 4, bluff: false });
             // Rummy-only: never leave the rummy view (other game sections stay in code, just unreachable).
-            React.useEffect(() => { if (RUMMY_ONLY && tab !== 'rummikub') setTab('rummikub'); }, [tab]);
+            React.useEffect(() => { if (RUMMY_ONLY && !['rummikub', 'rami'].includes(tab)) setTab('rummikub'); }, [tab]);
 
             const rummyTables = tables.filter(t => t.type === 'rummikub' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            const ramiTables = tables.filter(t => t.type === 'rami' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const pokerTables = tables.filter(t => t.type === 'poker' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const durakTables = tables.filter(t => t.type === 'durak' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
@@ -3596,10 +3692,11 @@
             };
 
             const handleCreateRummy = async () => {
-                const calculatedBuyIn = round2(newTableOptions.stakes * 100);
+                const stakes = Math.max(0.01, Number(newTableOptions.stakes) || 0.1);
+                const buyIn = round2(Math.max(1, Number(newTableOptions.buyIn) || (stakes * 100)));
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
-                    type: 'rummikub', clubId: CLUB_ID, maxPlayers: newTableOptions.maxPlayers,
-                    minBuyIn: calculatedBuyIn, stakes: newTableOptions.stakes,
+                    type: 'rummikub', clubId: CLUB_ID, maxPlayers: Number(newTableOptions.maxPlayers) || 4,
+                    minBuyIn: buyIn, stakes,
                     players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, createdAt: Date.now()
                 });
                 setShowCreateRummy(false); showToast("שולחן רמיקוב נפתח!", "success");
@@ -4108,6 +4205,15 @@
                             </div>
                         )}
 
+                        {/* מתג בין המשחקים החיים: רמיקוב / רמי */}
+                        {RUMMY_ONLY && ['rummikub', 'rami'].includes(tab) && GAMES.filter(g => g.live).length > 1 && (
+                            <div className="flex gap-2 mb-5 justify-center">
+                                {GAMES.filter(g => g.live).map(g => (
+                                    <button key={g.id} onClick={() => setTab(g.id)} className={`px-7 py-2.5 rounded-xl font-black text-sm transition ${tab === g.id ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 text-white shadow-[0_6px_20px_rgba(6,182,212,0.35)]' : 'bg-slate-800/70 text-slate-300 border border-white/10 hover:text-white'}`}>{g.label}</button>
+                                ))}
+                            </div>
+                        )}
+
                         {tab === 'rummikub' && (
                             <div className="animate-fade-in">
                                 <div className="flex justify-between items-center mb-5">
@@ -4121,7 +4227,7 @@
 
                                 {showCreateRummy && (
                                     <div className="glass-panel p-6 rounded-2xl mb-6 border border-emerald-500/30 animate-pop-in">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                                             <div>
                                                 <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שחקנים</label>
                                                 <select value={newTableOptions.maxPlayers} onChange={(e)=>setNewTableOptions({...newTableOptions, maxPlayers: parseInt(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
@@ -4129,13 +4235,15 @@
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">ערך נקודה (₪)</label>
-                                                <select value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: parseFloat(e.target.value)})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
-                                                    <option value={0.10}>0.10 ₪</option><option value={0.50}>0.50 ₪</option><option value={1}>1.00 ₪</option><option value={2}>2.00 ₪</option><option value={5}>5.00 ₪</option><option value={10}>10.00 ₪</option>
-                                                </select>
-                                                <p className="text-emerald-400 text-xs mt-2 font-bold" dir="ltr">* כניסה (X100): {formatMoney(newTableOptions.stakes * 100)} ₪</p>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סכום כניסה (₪)</label>
+                                                <input type="number" min="1" step="1" inputMode="decimal" value={newTableOptions.buyIn} onChange={(e)=>setNewTableOptions({...newTableOptions, buyIn: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="10" />
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">כל נקודה (₪)</label>
+                                                <input type="number" min="0.01" step="0.01" inputMode="decimal" value={newTableOptions.stakes} onChange={(e)=>setNewTableOptions({...newTableOptions, stakes: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="0.10" />
                                             </div>
                                         </div>
+                                        <p className="text-emerald-400/90 text-xs font-bold mb-3" dir="rtl">עמלת מועדון: {clubSettings?.rakePct ?? DEFAULT_RAKE_PCT}% מכל קופה.</p>
                                         <div className="flex justify-end gap-3 pt-3 border-t border-white/5">
                                             <button onClick={()=>setShowCreateRummy(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
                                             <button onClick={handleCreateRummy} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
@@ -4202,6 +4310,130 @@
                                 })()}
                                 <div className="border-t border-white/5 my-8"></div>
                                 <TournamentsTab game="rummikub" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinRummy} />
+                            </div>
+                        )}
+
+                        {tab === 'rami' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h2 className="text-xl font-black text-white">שולחנות רמי <span className="text-[11px] font-bold text-slate-500">· יד סגורה</span></h2>
+                                    {canManageGame(user, 'rami') && (
+                                        <button onClick={() => setShowCreateRami(!showCreateRami)} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_6px_20px_rgba(6,182,212,0.3)] text-sm">
+                                            <i className="fa-solid fa-plus ml-2"></i>שולחן חדש
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-slate-400 text-xs font-bold mb-5">בונים יד פרטית של 14, מושכים מהקופה או מהזרוק, ויורדים כשכל היד מסודרת.</p>
+
+                                {showCreateRami && (() => {
+                                    const buyIn = Math.max(0, round2(Number(ramiOpts.buyIn) || 0));
+                                    const fee = Math.max(0, round2(Number(ramiOpts.rakeFee) || 0));
+                                    return (
+                                    <div className="glass-panel p-6 rounded-2xl mb-6 border border-emerald-500/30 animate-pop-in">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">שחקנים</label>
+                                                <select value={ramiOpts.maxPlayers} onChange={e => setRamiOpts({ ...ramiOpts, maxPlayers: parseInt(e.target.value) })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold">
+                                                    <option value={2}>2 שחקנים</option><option value={3}>3 שחקנים</option><option value={4}>4 שחקנים</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">סכום כניסה (₪)</label>
+                                                <input type="number" min="1" step="1" inputMode="decimal" value={ramiOpts.buyIn} onChange={e => setRamiOpts({ ...ramiOpts, buyIn: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="200" />
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">כל נקודה (₪)</label>
+                                                <input type="number" min="0.01" step="0.01" inputMode="decimal" value={ramiOpts.stakes} onChange={e => setRamiOpts({ ...ramiOpts, stakes: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="2" />
+                                            </div>
+                                        </div>
+                                        {/* עמלת רייק: אחוז מהקופה או עמלה קבועה בכניסה */}
+                                        <div className="bg-slate-950/50 border border-white/10 rounded-2xl p-4 mb-4">
+                                            <div className="text-slate-300 text-xs font-black mb-3 uppercase tracking-widest">עמלת רייק</div>
+                                            <div className="flex flex-col sm:flex-row gap-3">
+                                                <label className={`flex-1 flex items-center gap-2 rounded-xl p-3 cursor-pointer border ${ramiOpts.rakeMode === 'pct' ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900'}`}>
+                                                    <input type="radio" name="ramiRake" checked={ramiOpts.rakeMode === 'pct'} onChange={() => setRamiOpts({ ...ramiOpts, rakeMode: 'pct' })} className="accent-emerald-500" />
+                                                    <span className="font-bold text-white text-sm">אחוז מהקופה</span>
+                                                    <input type="number" min="0" max="20" step="0.5" value={ramiOpts.rakePct} onChange={e => setRamiOpts({ ...ramiOpts, rakePct: e.target.value })} disabled={ramiOpts.rakeMode !== 'pct'} className="w-16 bg-slate-950 text-white border border-slate-700 rounded-lg p-1.5 text-center font-bold disabled:opacity-40" dir="ltr" />
+                                                    <span className="text-slate-400 font-bold text-sm">%</span>
+                                                </label>
+                                                <label className={`flex-1 flex items-center gap-2 rounded-xl p-3 cursor-pointer border ${ramiOpts.rakeMode === 'flat' ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900'}`}>
+                                                    <input type="radio" name="ramiRake" checked={ramiOpts.rakeMode === 'flat'} onChange={() => setRamiOpts({ ...ramiOpts, rakeMode: 'flat' })} className="accent-emerald-500" />
+                                                    <span className="font-bold text-white text-sm">עמלה קבועה</span>
+                                                    <input type="number" min="0" step="1" value={ramiOpts.rakeFee} onChange={e => setRamiOpts({ ...ramiOpts, rakeFee: e.target.value })} disabled={ramiOpts.rakeMode !== 'flat'} className="w-16 bg-slate-950 text-white border border-slate-700 rounded-lg p-1.5 text-center font-bold disabled:opacity-40" dir="ltr" />
+                                                    <span className="text-slate-400 font-bold text-sm">₪</span>
+                                                </label>
+                                            </div>
+                                            <p className="text-emerald-400/90 text-xs font-bold mt-3" dir="rtl">
+                                                {ramiOpts.rakeMode === 'pct'
+                                                    ? `מכל קופה יורדים ${ramiOpts.rakePct || 0}% עמלת מועדון.`
+                                                    : `כל שחקן משלם בכניסה ${formatMoney(buyIn)} + ${formatMoney(fee)} עמלה = ${formatMoney(buyIn + fee)} ₪. אין עמלה על היד.`}
+                                            </p>
+                                        </div>
+                                        <div className="flex justify-end gap-3 pt-1 border-t border-white/5">
+                                            <button onClick={() => setShowCreateRami(false)} className="px-6 py-2 text-slate-400 hover:text-white font-bold">ביטול</button>
+                                            <button onClick={handleCreateRami} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg">אשר ופתח</button>
+                                        </div>
+                                    </div>
+                                    );
+                                })()}
+
+                                {(() => {
+                                    const sizes = [...new Set(ramiTables.map(t => Number(t.maxPlayers) || 4))].sort((a, b) => a - b);
+                                    const shown = ramiTables.filter(t => ratab === 'all' || Number(t.maxPlayers) === ratab);
+                                    const sizeColor = { 2: '#38bdf8', 3: '#f59e0b', 4: '#a78bfa', 5: '#34d399', 6: '#fb7185' };
+                                    return (
+                                    <>
+                                    {ramiTables.length > 0 && (
+                                        <div className="tbl-toolbar">
+                                            <button onClick={() => setRatab('all')} className={`vtab ${ratab === 'all' ? 'active' : ''}`}>הכל<span className="vtab-count">{ramiTables.length}</span></button>
+                                            {sizes.map(sz => {
+                                                const n = ramiTables.filter(t => Number(t.maxPlayers) === sz).length;
+                                                const col = sizeColor[sz] || '#2dd4bf';
+                                                const on = ratab === sz;
+                                                return (
+                                                    <button key={sz} onClick={() => setRatab(sz)} className={`vtab ${on ? 'active' : ''}`} style={{ color: col, borderBottomColor: on ? col : 'transparent' }}>
+                                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: col, marginInlineEnd: 6, verticalAlign: 'middle' }}></span>
+                                                        {sz} שחקנים{n > 0 && <span className="vtab-count" style={{ background: col + '22', color: col }}>{n}</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    <div className="tbl-list">
+                                        {shown.map(t => {
+                                            const seated = Object.keys(t.players || {}).length;
+                                            const cap = Number(t.maxPlayers) || 4;
+                                            const mine = t.players && t.players[user.uid];
+                                            const playing = t.phase === 'playing';
+                                            const col = sizeColor[cap] || '#2dd4bf';
+                                            const rakeTxt = t.rakeMode === 'flat' ? `+ ${formatMoney(t.rakeFee)} עמלה` : `עמלה ${t.rakePct != null ? t.rakePct : (clubSettings?.rakePct ?? DEFAULT_RAKE_PCT)}%`;
+                                            return (
+                                                <div key={t.docId} className="tbl-row" style={{ '--spineC': col }} onClick={() => onJoinRami(t)}>
+                                                    <div className="tbl-spine">רמי</div>
+                                                    <div className="tbl-seats">
+                                                        <svg className="tbl-ring" viewBox="0 0 44 44">
+                                                            <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="3.5" />
+                                                            <circle cx="22" cy="22" r="19" fill="none" stroke={seated > 0 ? col : 'rgba(148,163,184,0.28)'} strokeWidth="3.5" strokeDasharray={`${119 * seated / cap} 119`} strokeLinecap="round" transform="rotate(-90 22 22)" />
+                                                        </svg>
+                                                        <span dir="ltr">{seated}<span className="seat-cap">/{cap}</span></span>
+                                                    </div>
+                                                    <div className="tbl-main">
+                                                        <div className="tbl-name">רמי סגור{mine && <span className="tbl-me">אתה יושב</span>}</div>
+                                                        <div className="tbl-stakes" dir="rtl">כניסה {formatMoney(t.minBuyIn)} ₪</div>
+                                                        <div className="tbl-sub" dir="rtl">כל נקודה = {formatMoney(t.stakes)} ₪ · {rakeTxt} {playing ? <span className="tbl-live">· <span className="tbl-live-dot"></span>במשחק</span> : '· ממתין'}</div>
+                                                    </div>
+                                                    <i className="fa-solid fa-coins tbl-coins"></i>
+                                                    {canManageGame(user, 'rami') && (
+                                                        <button onClick={(e) => handleDelete(e, t)} className="tbl-del"><i className="fa-solid fa-trash"></i></button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {ramiTables.length === 0 && <div className="text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות רמי פתוחים.</div>}
+                                    </div>
+                                    </>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -6731,6 +6963,392 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            );
+        }
+
+        /* ================================================================
+           שולחן רמי סגור (Rami / Okey) — יד פרטית, משיכה/זריקה, ירידה בבת-אחת
+           ================================================================ */
+        const RamiTile = ({ tile, onClick, dim, big }) => (
+            <div onClick={onClick} className="rummy-tile" title={tile.val === '☻' ? "ג'וקר" : ''}
+                style={{ width: big ? '2.9rem' : '2.6rem', height: big ? '3.7rem' : '3.3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '1.7rem' : '1.5rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
+                {tile.val === '☻' ? '🃏' : tile.val}
+            </div>
+        );
+
+        function RamiTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
+            const [tableState, setTableState] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
+            const sitBusyRef = useRef(false);
+            const actingRef = useRef(false);
+            const fnErr = (e) => (e && e.message && !/internal|deadline|unavailable/i.test(e.message)) ? e.message : "שגיאה בפעולה, נסה שוב";
+
+            useEffect(() => {
+                if (!tableDocId) { onLeave(); return; }
+                const unsub = window.fb.onSnapshot(window.fb.doc(window.fb.db, "tables", tableDocId), d => {
+                    if (!d.exists()) { onLeave(); return; }
+                    setTableState({ id: d.id, ...d.data() }); setLoading(false);
+                }, () => setLoading(false));
+                return () => unsub();
+            }, [tableDocId]);
+
+            const t = tableState;
+            const meP = t && t.players && t.players[user.uid];
+            const isSeated = !!meP;
+            const myTurn = !!(t && t.currentTurn === user.uid && t.phase === 'playing');
+            const myHand = (meP && meP.cards) || [];
+            const handKey = myHand.map(x => x && x.id).join(',');
+            const part = useMemo(() => bestPartition(myHand), [handKey]);
+            const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
+            const uids = t ? Object.keys(t.players || {}).sort() : [];
+
+            const handleSit = async () => {
+                if (sitBusyRef.current) return; sitBusyRef.current = true;
+                try {
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'ramiSit')({ tableId: t.id });
+                    if (res?.data?.becameFull) spawnTwinTable(t);
+                } catch (e) { showToast(fnErr(e), "error"); }
+                finally { sitBusyRef.current = false; }
+            };
+
+            const applyTx = async (mutate) => {
+                if (actingRef.current) return; actingRef.current = true;
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tx) => {
+                        const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                        const snap = await tx.get(ref);
+                        if (!snap.exists()) return;
+                        const upd = mutate(snap.data());
+                        if (upd) tx.update(ref, upd);
+                    });
+                } catch (e) { showToast(fnErr(e), "error"); }
+                finally { actingRef.current = false; }
+            };
+
+            const reshuffleIfNeeded = (deck, discard) => {
+                if (deck.length) return;
+                const top = discard.pop();
+                const rest = discard.splice(0, discard.length).sort(() => Math.random() - 0.5);
+                deck.push(...rest);
+                if (top) discard.push(top);
+            };
+
+            const doDraw = (fromDeck) => applyTx(cur => {
+                if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'draw') return null;
+                const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
+                let tile;
+                if (fromDeck) { reshuffleIfNeeded(deck, discard); tile = deck.pop(); }
+                else { if (!discard.length) return null; tile = discard.pop(); }
+                if (!tile) return null;
+                const cards = [...((cur.players[user.uid] || {}).cards || []), tile];
+                return { [`players.${user.uid}.cards`]: cards, deck, discard, turnPhase: 'discard', drawnThisTurn: true };
+            });
+
+            const doDiscard = (tileId) => applyTx(cur => {
+                if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'discard') return null;
+                const hand = [...((cur.players[user.uid] || {}).cards || [])].filter(Boolean);
+                const idx = hand.findIndex(x => x.id === tileId); if (idx < 0) return null;
+                const [tile] = hand.splice(idx, 1);
+                const u = Object.keys(cur.players).sort();
+                const next = u[(u.indexOf(user.uid) + 1) % u.length];
+                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
+            });
+
+            const doGoOut = async () => {
+                const go = findGoOut(myHand); if (!go || actingRef.current) return;
+                actingRef.current = true;
+                try {
+                    await window.fb.runTransaction(window.fb.db, async (tx) => {
+                        const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                        const snap = await tx.get(ref); if (!snap.exists()) return;
+                        const cur = snap.data();
+                        if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return;
+                        const hand = ((cur.players[user.uid] || {}).cards || []).filter(Boolean);
+                        const idx = hand.findIndex(x => x.id === go.discard.id);
+                        const final = idx >= 0 ? hand.slice(0, idx).concat(hand.slice(idx + 1)) : hand;
+                        tx.update(ref, { [`players.${user.uid}.cards`]: final, discard: [...(cur.discard || []), go.discard] });
+                    });
+                    await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: user.uid });
+                } catch (e) { showToast(fnErr(e), "error"); }
+                finally { actingRef.current = false; }
+            };
+
+            // פריש: הצעה שדורשת הסכמת כל השחקנים. כשכולם מאשרים → מחלקים מחדש
+            // והמשחק נהיה כפול ×2 (עד תקרה). כל אחד יכול לסרב ואז ההצעה מבוטלת.
+            const proposeFresh = () => applyTx(cur => {
+                if (cur.phase !== 'playing' || cur.freshReq) return null;
+                if ((Number(cur.freshMult) || 1) >= RAMI_FRESH_CAP) return null;
+                if (!cur.players[user.uid]) return null;
+                return { freshReq: { by: user.uid, byName: (cur.players[user.uid] || {}).username || '', approvals: { [user.uid]: true }, at: Date.now() } };
+            });
+            const respondFresh = (approve, asUid) => applyTx(cur => {
+                const req = cur.freshReq; if (!req) return null;
+                if (!approve) return { freshReq: null };
+                const who = asUid || user.uid;
+                const approvals = { ...(req.approvals || {}), [who]: true };
+                const seated = Object.keys(cur.players || {});
+                if (seated.every(u => approvals[u])) {
+                    const nm = Math.min(RAMI_FRESH_CAP, (Number(cur.freshMult) || 1) * 2);
+                    return { ...ramiDealC(cur.players, cur.bank || {}, nm) };
+                }
+                return { freshReq: { ...req, approvals } };
+            });
+
+            const newRound = async () => { try { await window.fb.httpsCallable(window.fb.functions, 'ramiNewRound')({ tableId: t.id }); } catch (e) { showToast(fnErr(e), "error"); } };
+            const leaveTable = async () => { try { await window.fb.httpsCallable(window.fb.functions, 'ramiLeave')({ tableId: t.id }); } catch (e) {} onLeave(); };
+
+            // טיימר תור
+            useEffect(() => {
+                if (!t || t.phase !== 'playing') { setTimeLeft(TURN_SECONDS); return; }
+                const tick = () => setTimeLeft(Math.max(0, TURN_SECONDS - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
+                tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
+            }, [t && t.turnStartedAt, t && t.phase]);
+
+            // פעולה אוטומטית כשנגמר הזמן שלי (משיכה מהקופה / זריקת האבן הגבוהה)
+            const autoRef = useRef(null);
+            useEffect(() => {
+                if (!myTurn || timeLeft > 0) return;
+                const key = `${t.turnStartedAt}_${t.turnPhase}`;
+                if (autoRef.current === key) return; autoRef.current = key;
+                (async () => {
+                    if (t.turnPhase === 'draw') await doDraw(true);
+                    else { const drop = part.leftover[0] || [...myHand].filter(Boolean).sort((a, b) => tileValR(b) - tileValR(a))[0]; if (drop) await doDiscard(drop.id); }
+                })();
+            }, [myTurn, timeLeft, t && t.turnPhase]);
+
+            // ── מוח הבוטים + חלוקה, רץ רק בדפדפן של GOD ──
+            useEffect(() => {
+                if (!isGodUser(user) || !t || t.phase === 'showdown') return;
+                if (typeof ensureBotBank === 'function') ensureBotBank();
+                if (t.phase === 'waiting') {
+                    const iv = setInterval(async () => {
+                        try {
+                            const ref = window.fb.doc(window.fb.db, "tables", tableDocId);
+                            const snap = await window.fb.getDoc(ref); if (!snap.exists()) return;
+                            const cur = snap.data();
+                            const n = Object.keys(cur.players || {}).length;
+                            if (n === 0 || n >= cur.maxPlayers || cur.phase !== 'waiting') return;
+                            if (typeof botsAreActive === 'function' && !botsAreActive()) return;
+                            const bq = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                            const bs = await window.fb.getDocs(bq); if (bs.empty) return;
+                            const avail = bs.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => !cur.players[b.id]);
+                            if (!avail.length) return;
+                            const bot = avail[Math.floor(Math.random() * avail.length)];
+                            const buyIn = round2(Number(cur.minBuyIn) || 0);
+                            const players = { ...cur.players, [bot.id]: { username: bot.username, cards: [], stack: buyIn, isBot: true, missed: 0 } };
+                            const bank = { ...(cur.bank || {}), [bot.id]: buyIn };
+                            if (Object.keys(players).length === Number(cur.maxPlayers)) { await window.fb.updateDoc(ref, { ...ramiDealC(players, bank), bank }); spawnTwinTable(cur); }
+                            else await window.fb.updateDoc(ref, { players, bank });
+                        } catch (e) {}
+                    }, 3000);
+                    return () => clearInterval(iv);
+                }
+                if (t.phase === 'playing') {
+                    const cu = t.currentTurn; const cp = t.players?.[cu];
+                    if (!cp || !cp.isBot) return;
+                    const think = 2500 + Math.random() * 2500;
+                    const tm = setTimeout(async () => {
+                        try {
+                            const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                            const res = await window.fb.runTransaction(window.fb.db, async (tx) => {
+                                const snap = await tx.get(ref); if (!snap.exists()) return null;
+                                const cur = snap.data();
+                                if (cur.currentTurn !== cu || cur.phase !== 'playing') return null;
+                                const hand = ((cur.players[cu] || {}).cards || []).filter(Boolean);
+                                const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
+                                const evalH = (h) => { let best = Infinity, drop = null, complete = false; for (let i = 0; i < h.length; i++) { const rest = h.slice(0, i).concat(h.slice(i + 1)); const p = bestPartition(rest); if (p.complete) { return { best: 0, drop: h[i], complete: true }; } if (p.leftoverPoints < best) { best = p.leftoverPoints; drop = h[i]; } } return { best, drop, complete }; };
+                                const top = discard[discard.length - 1];
+                                const optA = top ? evalH([...hand, top]) : null;
+                                let deckTile = deck.length ? deck[deck.length - 1] : null;
+                                const optB = deckTile ? evalH([...hand, deckTile]) : null;
+                                let source;
+                                if (optA && optA.complete) source = 'discard';
+                                else if (optB && optB.complete) source = 'deck';
+                                else if (optA && (!optB || optA.best <= optB.best - 1)) source = 'discard';
+                                else source = 'deck';
+                                let newHand;
+                                if (source === 'discard') { discard.pop(); newHand = [...hand, top]; }
+                                else { reshuffleIfNeeded(deck, discard); deckTile = deck.pop(); newHand = [...hand, deckTile]; }
+                                const ev = evalH(newHand);
+                                const di = newHand.findIndex(x => x.id === (ev.drop || newHand[0]).id);
+                                const finalHand = newHand.slice(0, di).concat(newHand.slice(di + 1));
+                                const dropTile = newHand[di];
+                                if (ev.complete) { tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile] }); return { win: cu }; }
+                                const u = Object.keys(cur.players).sort();
+                                const next = u[(u.indexOf(cu) + 1) % u.length];
+                                tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() });
+                                return null;
+                            });
+                            if (res && res.win) await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: res.win });
+                        } catch (e) {}
+                    }, think);
+                    return () => clearTimeout(tm);
+                }
+            }, [t && t.phase, t && t.currentTurn, tableDocId]);
+
+            // GOD מאשר פריש עבור הבוטים (בוטים תמיד מסכימים) — אחד בכל פעם
+            useEffect(() => {
+                if (!isGodUser(user) || !t || t.phase !== 'playing' || !t.freshReq) return;
+                const seated = Object.keys(t.players || {});
+                const pendingBot = seated.find(u => t.players[u].isBot && !(t.freshReq.approvals || {})[u]);
+                if (!pendingBot) return;
+                const tm = setTimeout(() => respondFresh(true, pendingBot), 800);
+                return () => clearTimeout(tm);
+            }, [t && t.freshReq, t && t.phase]);
+
+            if (loading || !t) return <div className="flex-1 flex items-center justify-center text-slate-400 font-black">טוען שולחן…</div>;
+
+            const rakeTxt = t.rakeMode === 'flat' ? `עמלה קבועה ${formatMoney(t.rakeFee)} ₪ בכניסה` : `עמלה ${t.rakePct != null ? t.rakePct : (clubSettings?.rakePct ?? DEFAULT_RAKE_PCT)}% מהקופה`;
+            const freshMult = Number(t.freshMult) || 1;
+
+            // ── מסך המתנה ──
+            if (t.phase === 'waiting') {
+                return (
+                    <div className="flex-1 overflow-y-auto aurora-bg p-4 sm:p-8">
+                        <div className="max-w-lg mx-auto">
+                            <button onClick={onLeave} className="text-slate-400 hover:text-white font-bold text-sm mb-4"><i className="fa-solid fa-arrow-right ml-1"></i> חזרה ללובי</button>
+                            <div className="glass-panel rounded-3xl p-6 text-center">
+                                <div className="text-4xl mb-2">🃏</div>
+                                <h2 className="text-2xl font-black text-white mb-1">שולחן רמי</h2>
+                                <p className="text-slate-400 font-bold text-sm mb-1" dir="rtl">כניסה {formatMoney(t.minBuyIn)} ₪ · כל נקודה {formatMoney(t.stakes)} ₪</p>
+                                <p className="text-slate-500 font-bold text-xs mb-5" dir="rtl">{rakeTxt}</p>
+                                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                                    {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1.5 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
+                                    {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1.5 text-sm font-bold text-slate-600">מקום פנוי</span>)}
+                                </div>
+                                {!isSeated
+                                    ? <button onClick={handleSit} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black text-lg shadow-lg">התיישב בשולחן ({formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪)</button>
+                                    : <div className="text-emerald-400 font-black">אתה בפנים · ממתין לשחקנים…</div>}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ── מסך תוצאות ──
+            if (t.phase === 'showdown') {
+                const lr = t.lastResults || {};
+                return (
+                    <div className="flex-1 overflow-y-auto aurora-bg p-4 sm:p-8">
+                        <div className="max-w-lg mx-auto">
+                            <div className="glass-panel rounded-3xl p-6 text-center relative overflow-hidden">
+                                <div className="text-4xl mb-2">🏆</div>
+                                <h2 className="text-2xl font-black text-white mb-1">{lr.winnerName} ירד!</h2>
+                                <p className="text-emerald-400 font-black text-lg mb-4" dir="rtl">זכה ב-{formatMoney(lr.winnerProfit || 0)} ₪</p>
+                                <div className="space-y-1.5 mb-6 text-right">
+                                    {Object.entries(lr.details || {}).map(([u, d]) => (
+                                        <div key={u} className="flex justify-between bg-slate-950/50 rounded-xl px-3 py-2 text-sm font-bold">
+                                            <span className="text-slate-300">{d.username}</span>
+                                            <span className="text-rose-400" dir="ltr">−{formatMoney(d.pay)} ₪ <span className="text-slate-500">({d.penalty} נק')</span></span>
+                                        </div>
+                                    ))}
+                                    {lr.rake > 0 && <div className="flex justify-between px-3 py-1 text-xs font-bold text-slate-500"><span>עמלת מועדון</span><span dir="ltr">{formatMoney(lr.rake)} ₪</span></div>}
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={leaveTable} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">עזוב</button>
+                                    <button onClick={newRound} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black shadow-lg">סבב חדש</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ── מסך משחק ──
+            const canFresh = t.phase === 'playing' && !t.freshReq && freshMult < RAMI_FRESH_CAP;
+            const freshReq = t.freshReq;
+            const iApprovedFresh = freshReq && (freshReq.approvals || {})[user.uid];
+            const freshApprovedCount = freshReq ? Object.keys(freshReq.approvals || {}).length : 0;
+            const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
+            const turnName = t.players[t.currentTurn]?.username || '';
+            return (
+                <div className="flex-1 overflow-y-auto aurora-bg p-3 sm:p-5" dir="rtl">
+                    <div className="max-w-2xl mx-auto">
+                        <div className="flex items-center justify-between mb-3">
+                            <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-sm"><i className="fa-solid fa-arrow-right ml-1"></i> יציאה</button>
+                            <div className="text-center">
+                                <div className="text-[11px] text-slate-400 font-bold" dir="rtl">כל נקודה {formatMoney(t.stakes)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
+                            </div>
+                            <div className={`text-sm font-black px-3 py-1 rounded-full ${myTurn ? 'bg-emerald-500/20 text-emerald-300 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך · ${timeLeft}s` : `תור ${turnName}`}</div>
+                        </div>
+
+                        {/* יריבים */}
+                        <div className="flex flex-wrap gap-2 mb-4 justify-center">
+                            {uids.filter(u => u !== user.uid).map(u => {
+                                const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
+                                return <div key={u} className={`rounded-2xl px-3 py-2 border text-center ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                                    <div className="font-black text-white text-sm">{p.username}</div>
+                                    <div className="text-[11px] text-slate-400 font-bold" dir="ltr">🁢 {cnt}</div>
+                                </div>;
+                            })}
+                        </div>
+
+                        {/* קופה + זריקה */}
+                        <div className="flex items-center justify-center gap-6 mb-5">
+                            <div className="text-center">
+                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className="w-16 h-20 rounded-xl bg-gradient-to-b from-indigo-700 to-indigo-900 border-2 border-indigo-500/40 text-white font-black flex items-center justify-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <i className="fa-solid fa-layer-group text-xl"></i>
+                                </button>
+                                <div className="text-[10px] text-slate-400 font-bold mt-1">קופה ({(t.deck || []).length})</div>
+                            </div>
+                            <div className="text-center">
+                                {topDiscard
+                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''}><RamiTile tile={topDiscard} big /></div>
+                                    : <div className="w-14 h-[3.7rem] rounded-xl border-2 border-dashed border-white/10"></div>}
+                                <div className="text-[10px] text-slate-400 font-bold mt-1">זריקה</div>
+                            </div>
+                        </div>
+                        {myTurn && t.turnPhase === 'draw' && <p className="text-center text-emerald-300 font-bold text-sm mb-3">משוך אבן — מהקופה או מערימת הזריקה</p>}
+                        {myTurn && t.turnPhase === 'discard' && !goOut && <p className="text-center text-amber-300 font-bold text-sm mb-3">בחר אבן לזריקה (לחיצה על אבן)</p>}
+
+                        {/* היד שלי - מקובצת לפי קומבינציות */}
+                        <div className="bg-slate-950/40 border border-white/5 rounded-2xl p-3">
+                            <div className="text-[11px] text-slate-500 font-bold mb-2 flex justify-between"><span>היד שלך ({myHand.filter(Boolean).length})</span>{part.leftoverPoints > 0 ? <span className="text-slate-500">נשאר לחשב: {part.leftoverPoints} נק'</span> : <span className="text-emerald-400">כל היד מסודרת ✓</span>}</div>
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {part.melds.map((m, i) => (
+                                    <div key={i} className="flex gap-0.5 p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                                        {m.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
+                                    </div>
+                                ))}
+                                {part.leftover.length > 0 && (
+                                    <div className="flex gap-0.5 p-1 rounded-lg bg-slate-800/40 border border-white/5">
+                                        {part.leftover.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* פעולות */}
+                        <div className="flex gap-3 mt-4">
+                            <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-black shadow-lg">בקש פריש ×2 🔥</button>
+                            <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
+                        </div>
+                        <p className="text-center text-[11px] text-slate-500 font-bold mt-3">{rakeTxt}</p>
+                    </div>
+
+                    {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
+                    {freshReq && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+                                <div className="text-4xl mb-2">🔥</div>
+                                <h3 className="text-xl font-black text-white mb-1">פריש — הכפלת המשחק ×2</h3>
+                                <p className="text-slate-400 text-sm font-bold mb-1"><span className="text-amber-300">{freshReq.byName || 'שחקן'}</span> מציע לשדרג את היד</p>
+                                <p className="text-slate-500 text-xs font-bold mb-4">אם כולם מסכימים — מחלקים מחדש והשווי מוכפל (×{Math.min(RAMI_FRESH_CAP, freshMult * 2)}).</p>
+                                <div className="text-[11px] text-slate-400 font-bold mb-4">אישרו {freshApprovedCount}/{uids.length}</div>
+                                {iApprovedFresh
+                                    ? <div className="text-emerald-400 font-black py-2">אישרת · ממתין לשאר…</div>
+                                    : (
+                                        <div className="flex gap-3">
+                                            <button onClick={() => respondFresh(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">לא, תודה</button>
+                                            <button onClick={() => respondFresh(true)} className="flex-1 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-3 rounded-2xl font-black shadow-lg">מסכים! 🔥</button>
+                                        </div>
+                                    )}
+                                {freshReq.by === user.uid && <button onClick={() => respondFresh(false)} className="text-slate-500 hover:text-white underline text-xs font-bold mt-3">בטל הצעה</button>}
+                            </div>
+                        </div>
+                    , document.body)}
                 </div>
             );
         }
