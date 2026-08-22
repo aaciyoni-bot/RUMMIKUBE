@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v39';
+        const APP_VER = 'v40';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7464,6 +7464,33 @@
                                 <div className="text-4xl mb-2">🏆</div>
                                 <h2 className="text-2xl font-black text-white mb-1">{lr.winnerName} ירד!</h2>
                                 <p className="text-emerald-400 font-black text-lg mb-4" dir="rtl">זכה ב-{formatMoney(lr.winnerProfit || 0)} ₪</p>
+                                {(() => {
+                                    const winUid = t.winner;
+                                    const winCards = ((t.players[winUid] || {}).cards || []).filter(Boolean);
+                                    if (!winUid || winCards.length === 0) return null;
+                                    const wp = bestPartition(winCards);
+                                    const melds = wp.melds || [];
+                                    const left = wp.leftover || [];
+                                    return (
+                                        <div className="mb-5">
+                                            <div className="text-[11px] font-black text-slate-400 mb-1.5 text-right">🔍 היד הזוכה של {lr.winnerName} ({winCards.length} אבנים) — {melds.length} קומבינציות:</div>
+                                            <div className="flex flex-col gap-1.5">
+                                                {melds.map((m, i) => {
+                                                    const nums = m.map(x => x.val).filter(v => v !== '☻');
+                                                    const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
+                                                    const label = isGroup ? (m.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
+                                                    return (
+                                                        <div key={i} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-1.5">
+                                                            <span className="text-[9px] font-black text-emerald-300 shrink-0 w-12 text-center">{label}</span>
+                                                            <div className="flex flex-wrap gap-1 justify-center flex-1">{m.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {left.length > 0 && <div className="flex flex-wrap gap-1 justify-center bg-rose-500/10 border border-rose-500/30 rounded-xl p-1.5">{left.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div>}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 <div className="space-y-1.5 mb-6 text-right">
                                     {Object.entries(lr.details || {}).map(([u, d]) => (
                                         <div key={u} className="flex justify-between bg-slate-950/50 rounded-xl px-3 py-2 text-sm font-bold">
