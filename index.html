@@ -160,42 +160,112 @@
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         @keyframes popIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
         .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        @keyframes flashRed { 0%, 100% { border-color: rgba(239, 68, 68, 0.3); box-shadow: none; } 50% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239,68,68,0.5); } }
-        .board-invalid-group { animation: flashRed 1.5s infinite; border: 2px solid #ef4444 !important; background: rgba(239, 68, 68, 0.12); }
+        @keyframes flashRed { 0%, 100% { box-shadow: 0 0 0 2px rgba(220,38,38,0.45), 0 0 14px rgba(220,38,38,0.25); } 50% { box-shadow: 0 0 0 2px rgba(248,113,113,0.95), 0 0 26px rgba(220,38,38,0.6); } }
+        .board-invalid-group { animation: flashRed 1.6s ease-in-out infinite; background: rgba(190,18,18,0.20); }
         @keyframes trophyPop { 0% { transform: scale(0) rotate(-20deg); } 70% { transform: scale(1.2) rotate(5deg); } 100% { transform: scale(1) rotate(0); } }
         .trophy-pop { animation: trophyPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
-        /* ===== רמיקוב: לוח עתידני כהה ===== */
+        /* ===== רמיקוב: חומרי הגלם =====
+           טוקנים משותפים לאבן, ללבד ולמגש. משנים כאן — משתנה בכל מקום. */
+        :root {
+            --tile-face-1: #fdfaf0;   /* שנהב עליון  */
+            --tile-face-2: #f4eddb;
+            --tile-face-3: #e7dec4;   /* שנהב תחתון  */
+            --tile-shelf:  #b3a684;   /* עובי האבן   */
+            --felt-1: #14523c;        /* לבד בהיר    */
+            --felt-2: #0d3b2b;
+            --felt-3: #082a1e;        /* לבד כהה     */
+            --wood-1: #7a5130;        /* אגוז בהיר   */
+            --wood-2: #533018;
+            --wood-3: #35200f;        /* אגוז כהה    */
+        }
         #felt-board {
             touch-action: pan-x pan-y;
-            border: 1px solid rgba(34,211,238,0.28);
-            box-shadow: inset 0 0 60px rgba(0,0,0,0.6), inset 0 0 30px rgba(34,211,238,0.06), 0 0 26px rgba(34,211,238,0.08);
+            border: 1px solid rgba(0,0,0,0.55);
+            box-shadow:
+                inset 0 2px 0 rgba(255,255,255,0.05),
+                inset 0 0 100px rgba(0,0,0,0.5),
+                0 12px 34px rgba(0,0,0,0.5);
             background:
-                url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2064%2064'%3E%3Ctext%20x%3D'30'%20y%3D'43'%20font-family%3D'Arial%2Csans-serif'%20font-weight%3D'900'%20font-size%3D'36'%20text-anchor%3D'middle'%20fill%3D'rgba(103%2C232%2C249%2C0.07)'%3ER%3C%2Ftext%3E%3Ccircle%20cx%3D'46'%20cy%3D'40'%20r%3D'4'%20fill%3D'rgba(34%2C211%2C238%2C0.09)'%2F%3E%3C%2Fsvg%3E") center / 130px no-repeat,
-                radial-gradient(ellipse at 50% 26%, rgba(34,211,238,0.05), transparent 62%),
-                repeating-linear-gradient(0deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                repeating-linear-gradient(90deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                linear-gradient(165deg, #0c1730 0%, #081020 55%, #060b16 100%);
+                /* אריג הלבד — שתי שכבות חוטים מוצלבות */
+                repeating-linear-gradient(45deg,  rgba(255,255,255,0.015) 0 2px, transparent 2px 4px),
+                repeating-linear-gradient(-45deg, rgba(0,0,0,0.055) 0 2px, transparent 2px 4px),
+                radial-gradient(ellipse at 50% 36%, rgba(255,255,255,0.06), transparent 70%),
+                linear-gradient(168deg, var(--felt-1) 0%, var(--felt-2) 58%, var(--felt-3) 100%);
         }
-        /* אבן רמיקוב: שנהב תלת-ממדי */
+        /* ===== אבן רמיקוב אמיתית =====
+           כל המידות ב-em ונגזרות מ-font-size, כך שאותה אבן בדיוק נכונה
+           בכל גודל: לוח, מגש, רוח-רפאים של גרירה ופאנל GOD. */
         .rummy-tile {
-            background: linear-gradient(155deg, #fffef6 0%, #f7f2e3 52%, #ece5d0 100%);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 9px 20px rgba(0,0,0,0.35), inset 0 1px 1px #ffffff, inset -1px -2px 3px rgba(120,110,85,0.20);
-            border-bottom: 5px solid #c9c1a9; border-right: 1px solid #ded7c2; border-radius: 9px;
-            font-family: 'Rubik', sans-serif; font-weight: 900;
-            transition: transform 0.1s ease, box-shadow 0.1s ease; user-select: none;
-            text-shadow: 0 1px 1px rgba(0,0,0,0.15); touch-action: none;
+            position: relative;
+            background: linear-gradient(180deg, var(--tile-face-1) 0%, var(--tile-face-2) 54%, var(--tile-face-3) 100%);
+            border-radius: 0.4em;
+            border: 1px solid rgba(255,255,255,0.9);
+            border-bottom: none;
+            box-shadow:
+                inset 0 1px 0 #fff,                                  /* ברק עליון */
+                inset 0 -0.3em 0.25em -0.22em rgba(150,138,108,0.35),/* הצללה פנימית תחתונה */
+                0 0.13em 0 var(--tile-shelf),                        /* עובי האבן */
+                0 0.3em 0.45em rgba(0,0,0,0.42),
+                0 0.62em 1.1em rgba(0,0,0,0.28);
+            font-family: 'Rubik', system-ui, sans-serif;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.045em;
+            line-height: 1;
+            padding-bottom: 0.42em;      /* מרים את הספרה מעל השקע */
+            text-shadow: 0 1px 0 rgba(255,255,255,0.7);
+            user-select: none; touch-action: none;
+            transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.12s ease;
         }
-        .rummy-tile:active, .rummy-tile.dragging { box-shadow: 0 20px 30px rgba(0,0,0,0.65), 0 0 24px rgba(34,211,238,0.25); transform: scale(1.1) translateY(-8px); z-index: 999; }
-        .board-tile { width: calc(2.25rem * var(--board-scale, 1)); height: calc(3.5rem * var(--board-scale, 1)); font-size: calc(1.25rem * var(--board-scale, 1)); margin: 0 calc(2px * var(--board-scale, 1)); }
+        /* השקע העגול בתחתית — סימן ההיכר של אבן רמיקוב */
+        .rummy-tile::after {
+            content: ''; position: absolute; left: 50%; bottom: 0.26em;
+            width: 0.36em; height: 0.36em; margin-left: -0.18em; border-radius: 50%;
+            background: radial-gradient(circle at 38% 32%, rgba(120,105,72,0.42), rgba(120,105,72,0.16) 62%, transparent 78%);
+            box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 0.5px 0 rgba(255,255,255,0.6);
+            pointer-events: none;
+        }
+        .rummy-tile:active, .rummy-tile.dragging {
+            transform: translateY(-0.14em) scale(1.06);
+            box-shadow:
+                inset 0 1px 0 #fff,
+                0 0.55em 0.9em rgba(0,0,0,0.55),
+                0 0 0 2px rgba(245,200,96,0.6);
+            z-index: 999;
+        }
+        .board-tile { width: calc(2.4rem * var(--board-scale, 1)); height: calc(3.3rem * var(--board-scale, 1)); font-size: calc(1.55rem * var(--board-scale, 1)); margin: 0 calc(1.5px * var(--board-scale, 1)); }
         @media (min-width: 640px) {
-            .board-tile { width: calc(2.75rem * var(--board-scale, 1)); height: calc(4rem * var(--board-scale, 1)); font-size: calc(1.75rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(2.9rem * var(--board-scale, 1)); height: calc(3.95rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
         }
-        .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
+        /* קבוצה נחה ישירות על הלבד — בלי מסגרת. המסגרת שמורה למצב (לא-חוקי / יעד גרירה / חדש). */
+        .board-group {
+            padding: calc(0.3rem * var(--board-scale, 1));
+            border-radius: calc(0.6rem * var(--board-scale, 1));
+            transition: background-color 0.18s ease, box-shadow 0.18s ease,
+                        left 0.22s cubic-bezier(0.22,1,0.36,1), top 0.22s cubic-bezier(0.22,1,0.36,1);
+        }
+        /* ===== המגש: מעמד עץ אגוז ===== */
+        .rummy-rack {
+            background:
+                linear-gradient(180deg, rgba(255,236,205,0.16), transparent 14%),
+                repeating-linear-gradient(90deg, rgba(0,0,0,0.055) 0 3px, transparent 3px 11px), /* סיבי העץ */
+                linear-gradient(180deg, var(--wood-1) 0%, var(--wood-2) 44%, var(--wood-3) 100%);
+            border-top: 2px solid rgba(255,225,180,0.28);
+            box-shadow: 0 -14px 36px rgba(0,0,0,0.6), inset 0 12px 20px -12px rgba(0,0,0,0.7);
+        }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
-        .rack-slot { min-height: 36px; position: relative; }
+        /* משבצת ריקה = חריץ שקוע בעץ. משבצת מלאה לא מציירת כלום — האבן היא הכל. */
+        .rack-slot { min-height: 36px; position: relative; border-radius: 7px; }
+        .rack-slot.is-empty {
+            background: linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 55%, rgba(255,225,180,0.05) 100%);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(255,225,180,0.16);
+        }
+        .rack-slot.is-hover { background: rgba(245,200,96,0.22); box-shadow: inset 0 0 0 2px rgba(245,200,96,0.75); }
+        /* האבן במגש שומרת על פרופורציית אבן אמיתית בכל גודל מסך */
+        .rack-slot .rummy-tile { height: 94%; width: auto; aspect-ratio: 3 / 4; }
         @media (min-width: 640px) {
             .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
             .rack-slot { min-height: 64px; }
@@ -959,6 +1029,18 @@
             d.push({id:`j2_${Math.random().toString(36).slice(2,8)}`, val:'☻', color:'#0c1322'});
             return d.sort(()=>Math.random()-0.5);
         };
+
+        /* צבע הדיו על האבן.
+           ה-hex ששמור ב-Firestore הוא מזהה הצבע ומשמש להשוואות (רצף/שלישייה),
+           ולכן אסור לגעת בו — שולחנות חיים מכילים אותו. המיפוי כאן הוא
+           תצוגתי בלבד: מברירת-המחדל הדהויה של Tailwind אל דיו הדפוס הקלאסי. */
+        const TILE_INK = {
+            '#ef4444': '#c62828',   /* אדום  */
+            '#3b82f6': '#1257a8',   /* כחול  */
+            '#f59e0b': '#e05a00',   /* כתום  */
+            '#0c1322': '#14161c'    /* שחור  */
+        };
+        const inkOf = (c) => TILE_INK[c] || c;
 
         const validateGroup = (group) => {
             if (!group || group.length < 3) return false;
@@ -4108,11 +4190,13 @@
 
             const flashError = (msg) => { setShowError(msg); setTimeout(()=>setShowError(""), 4000); };
 
+            // הלוח מצטמצם מעט כשהוא מתמלא, אבל לא מתחת ל-0.8 — מתחת לזה
+            // הספרות הופכות בלתי קריאות. לוח עמוס נפתר בגלילה, לא בהקטנה.
             const boardScale = useMemo(() => {
                 if (!board || board.length === 0) return 1.0;
                 const totalTiles = board.reduce((sum, g) => sum + g.tiles.length, 0);
-                const scale = 1.0 - (board.length * 0.01 + totalTiles * 0.003);
-                return Math.max(0.45, Math.min(1.0, scale));
+                const scale = 1.0 - (board.length * 0.006 + totalTiles * 0.0018);
+                return Math.max(0.8, Math.min(1.0, scale));
             }, [board]);
 
             useEffect(() => { dragDataRef.current = dragData; }, [dragData]);
@@ -4953,16 +5037,16 @@
                              </div>
                         )}
 
-                        <div id="felt-board" data-drop="board-new" className="flex-1 relative m-2 md:m-4 rounded-3xl border-2 border-emerald-900/60 overflow-auto shadow-[inset_0_0_80px_rgba(0,0,0,0.7)]">
+                        <div id="felt-board" data-drop="board-new" className="flex-1 relative m-2 md:m-4 rounded-3xl overflow-auto">
                             <div className="min-w-full min-h-full relative">
                                 {board.map((groupObj) => {
                                     const isMyNewGroup = isMyTurn && !hasDropped && !startIdsSet.has(groupObj.id);
                                     return (
                                     <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`}
-                                         className={`absolute flex board-group hover:bg-emerald-500/10 ${hoverTarget === `board-group-${groupObj.id}` ? 'border-2 border-emerald-400 rounded-xl bg-emerald-500/15' : !validateGroup(groupObj.tiles) ? 'board-invalid-group rounded-xl' : isMyNewGroup ? 'border-2 border-dashed border-emerald-500/50 rounded-xl' : 'border-2 border-transparent rounded-xl'}`}
+                                         className={`absolute flex board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-amber-300/20 shadow-[0_0_0_2px_rgba(245,200,96,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(245,200,96,0.45)] bg-amber-200/10' : ''}`}
                                          style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)', direction: 'ltr' }}>
                                         {groupObj.tiles.map((t, tIdx) => (
-                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.color }}>{t.val}</div>
+                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
                                         ))}
                                     </div>
                                 )})}
@@ -4995,7 +5079,7 @@
                             </div>
                         )}
                         {isSeated && isPlaying && (
-                            <div className="h-48 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="rummy-rack h-48 sm:h-52 shrink-0 mx-2 md:mx-4 rounded-t-3xl flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
@@ -5005,9 +5089,9 @@
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
                                         return (
-                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center border border-slate-800/50 rounded bg-slate-950/30 ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-900/30 border-emerald-500/50 shadow-inner' : ''}`}>
+                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'is-hover' : !tile ? 'is-empty' : ''}`}>
                                                 {tile && (
-                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[92%] h-[95%] flex items-center justify-center text-lg sm:text-2xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: tile.color }}>{tile.val}</div>
+                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color) }}>{tile.val}</div>
                                                 )}
                                             </div>
                                         );
@@ -5065,7 +5149,7 @@
                                     <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({(p.cards||[]).filter(c=>c).length} אבנים · {rackPenalty(p.cards)} נק')</span></div>
                                     <div className="flex flex-wrap gap-1" dir="ltr">
                                         {(p.cards||[]).filter(c=>c).map(t => (
-                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: t.color }}>{t.val}</div>
+                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: inkOf(t.color) }}>{t.val}</div>
                                         ))}
                                     </div>
                                 </div>
@@ -5079,8 +5163,8 @@
                     {ch.gifts.filter(g => g.to === user.uid).map((g, gi) => <div key={'sg'+gi} className="fixed left-1/2 top-1/3 -translate-x-1/2 text-6xl z-[500] pointer-events-none" style={{ animation: 'giftBoom 2s ease-out forwards' }}>{g.giftE}</div>)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: t.color }}>{t.val}</div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}>{dragData.tile.val}</div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: inkOf(t.color) }}>{t.val}</div>))}</div>}
                 </div>
             );
         }
