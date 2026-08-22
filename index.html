@@ -172,12 +172,13 @@
             --tile-face-2: #f4eddb;
             --tile-face-3: #e7dec4;   /* שנהב תחתון  */
             --tile-shelf:  #b3a684;   /* עובי האבן   */
-            --felt-1: #14523c;        /* לבד בהיר    */
-            --felt-2: #0d3b2b;
-            --felt-3: #082a1e;        /* לבד כהה     */
-            --wood-1: #7a5130;        /* אגוז בהיר   */
-            --wood-2: #533018;
-            --wood-3: #35200f;        /* אגוז כהה    */
+            --felt-1: #1d3f74;        /* נייבי מואר  */
+            --felt-2: #12274a;
+            --felt-3: #091730;        /* נייבי עמוק  */
+            --rack-hi: #2c4166;       /* שפת המגש    */
+            --rack-2: #182742;
+            --rack-3: #0c1729;        /* בסיס המגש   */
+            --accent:  #10b981;       /* אמרלד — תור פעיל, יעד תקין */
         }
         #felt-board {
             touch-action: pan-x pan-y;
@@ -188,11 +189,12 @@
                 0 12px 34px rgba(0,0,0,0.5);
             background:
                 /* אריג הלבד — שתי שכבות חוטים מוצלבות */
-                repeating-linear-gradient(45deg,  rgba(255,255,255,0.015) 0 2px, transparent 2px 4px),
-                repeating-linear-gradient(-45deg, rgba(0,0,0,0.055) 0 2px, transparent 2px 4px),
-                radial-gradient(ellipse at 50% 36%, rgba(255,255,255,0.06), transparent 70%),
-                linear-gradient(168deg, var(--felt-1) 0%, var(--felt-2) 58%, var(--felt-3) 100%);
+                repeating-linear-gradient(45deg,  rgba(255,255,255,0.018) 0 2px, transparent 2px 4px),
+                repeating-linear-gradient(-45deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 4px),
+                radial-gradient(ellipse at 50% 34%, rgba(120,175,255,0.10), transparent 70%),
+                linear-gradient(168deg, var(--felt-1) 0%, var(--felt-2) 56%, var(--felt-3) 100%);
         }
+        .board-empty-hint { color: rgba(148,190,255,0.35); letter-spacing: 0.01em; }
         /* ===== אבן רמיקוב אמיתית =====
            כל המידות ב-em ונגזרות מ-font-size, כך שאותה אבן בדיוק נכונה
            בכל גודל: לוח, מגש, רוח-רפאים של גרירה ופאנל GOD. */
@@ -226,33 +228,53 @@
             box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 0.5px 0 rgba(255,255,255,0.6);
             pointer-events: none;
         }
+        /* אבן מורמת: מתרוממת, צל עמוק מתחתיה והילה כחולה רכה סביבה */
         .rummy-tile:active, .rummy-tile.dragging {
-            transform: translateY(-0.14em) scale(1.06);
+            transform: translateY(-0.16em) scale(1.07);
             box-shadow:
                 inset 0 1px 0 #fff,
-                0 0.55em 0.9em rgba(0,0,0,0.55),
-                0 0 0 2px rgba(245,200,96,0.6);
+                0 0.6em 1em rgba(0,0,0,0.6),
+                0 0 0 2px rgba(125,185,255,0.55),
+                0 0 1.1em rgba(90,160,255,0.5);
             z-index: 999;
         }
         .board-tile { width: calc(2.4rem * var(--board-scale, 1)); height: calc(3.3rem * var(--board-scale, 1)); font-size: calc(1.55rem * var(--board-scale, 1)); margin: 0 calc(1.5px * var(--board-scale, 1)); }
         @media (min-width: 640px) {
             .board-tile { width: calc(2.9rem * var(--board-scale, 1)); height: calc(3.95rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
         }
+        /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
+           מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
+        .board-flow {
+            display: flex; flex-wrap: wrap; align-content: flex-start;
+            direction: ltr;
+            gap: calc(1.4rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1));
+            padding: calc(1.1rem * var(--board-scale, 1));
+            min-height: 100%;
+        }
         /* קבוצה נחה ישירות על הלבד — בלי מסגרת. המסגרת שמורה למצב (לא-חוקי / יעד גרירה / חדש). */
         .board-group {
+            display: flex;
             padding: calc(0.3rem * var(--board-scale, 1));
             border-radius: calc(0.6rem * var(--board-scale, 1));
-            transition: background-color 0.18s ease, box-shadow 0.18s ease,
-                        left 0.22s cubic-bezier(0.22,1,0.36,1), top 0.22s cubic-bezier(0.22,1,0.36,1);
+            transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s cubic-bezier(0.22,1,0.36,1);
         }
+        /* קו הכנסה — מראה בדיוק לאן תיפול הקבוצה */
+        .board-caret {
+            width: calc(0.28rem * var(--board-scale, 1));
+            align-self: stretch; border-radius: 999px;
+            background: linear-gradient(180deg, rgba(16,185,129,0.2), var(--accent) 30%, var(--accent) 70%, rgba(16,185,129,0.2));
+            box-shadow: 0 0 12px rgba(16,185,129,0.85);
+            animation: caretPulse 0.9s ease-in-out infinite;
+        }
+        @keyframes caretPulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
         /* ===== המגש: מעמד עץ אגוז ===== */
+        /* המגש: מדף כחול-אפור כהה, מוגבה מעט מעל השולחן */
         .rummy-rack {
             background:
-                linear-gradient(180deg, rgba(255,236,205,0.16), transparent 14%),
-                repeating-linear-gradient(90deg, rgba(0,0,0,0.055) 0 3px, transparent 3px 11px), /* סיבי העץ */
-                linear-gradient(180deg, var(--wood-1) 0%, var(--wood-2) 44%, var(--wood-3) 100%);
-            border-top: 2px solid rgba(255,225,180,0.28);
-            box-shadow: 0 -14px 36px rgba(0,0,0,0.6), inset 0 12px 20px -12px rgba(0,0,0,0.7);
+                linear-gradient(180deg, rgba(160,200,255,0.14), transparent 12%),
+                linear-gradient(180deg, var(--rack-hi) 0%, var(--rack-2) 42%, var(--rack-3) 100%);
+            border-top: 2px solid rgba(160,200,255,0.30);
+            box-shadow: 0 -16px 38px rgba(0,0,0,0.62), inset 0 12px 20px -12px rgba(0,0,0,0.7);
         }
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
@@ -260,10 +282,10 @@
         /* משבצת ריקה = חריץ שקוע בעץ. משבצת מלאה לא מציירת כלום — האבן היא הכל. */
         .rack-slot { min-height: 36px; position: relative; border-radius: 7px; }
         .rack-slot.is-empty {
-            background: linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.20) 55%, rgba(255,225,180,0.05) 100%);
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(255,225,180,0.16);
+            background: linear-gradient(180deg, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.18) 55%, rgba(160,200,255,0.06) 100%);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(160,200,255,0.16);
         }
-        .rack-slot.is-hover { background: rgba(245,200,96,0.22); box-shadow: inset 0 0 0 2px rgba(245,200,96,0.75); }
+        .rack-slot.is-hover { background: rgba(16,185,129,0.24); box-shadow: inset 0 0 0 2px rgba(16,185,129,0.8); }
         /* האבן במגש שומרת על פרופורציית אבן אמיתית בכל גודל מסך */
         .rack-slot .rummy-tile { height: 94%; width: auto; aspect-ratio: 3 / 4; }
         @media (min-width: 640px) {
@@ -1041,6 +1063,20 @@
             '#0c1322': '#14161c'    /* שחור  */
         };
         const inkOf = (c) => TILE_INK[c] || c;
+        const COLOR_ORDER = ['#ef4444', '#3b82f6', '#f59e0b', '#0c1322'];
+
+        /* מפתח מיון לקבוצה על הלוח: שלישיות תחילה לפי ערך, אחר-כך רצפים
+           לפי צבע ואז לפי האבן הנמוכה בהם. */
+        const groupSortKey = (g) => {
+            const regs = (g.tiles || []).filter(t => t.val !== '☻');
+            if (!regs.length) return [2, 0, 0];
+            const isSet = g.tiles.length <= 4
+                && regs.every(t => t.val === regs[0].val)
+                && new Set(regs.map(t => t.color)).size === regs.length;
+            if (isSet) return [0, Number(regs[0].val), 0];
+            const ci = COLOR_ORDER.indexOf(regs[0].color);
+            return [1, ci < 0 ? 9 : ci, Math.min(...regs.map(t => Number(t.val)))];
+        };
 
         const validateGroup = (group) => {
             if (!group || group.length < 3) return false;
@@ -1100,23 +1136,39 @@
             return { players: np, deck: d, board: [], phase: 'playing', currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null, turnSnapBoard: [], turnSnapRack: [...np[uids[0]].cards] };
         };
 
-        const groupBox = (g, scale) => ({ w: g.tiles.length * 3.0 * scale + 5, h: 15 * scale + 3 });
-        const groupsOverlap = (a, b, scale) => {
-            const A = groupBox(a, scale), B = groupBox(b, scale);
-            return Math.abs(a.x - b.x) < (A.w + B.w) / 2 && Math.abs(a.y - b.y) < (A.h + B.h) / 2;
-        };
-        const resolveOverlaps = (boardArr, movedId, scale) => {
-            const moved = boardArr.find(g => g.id === movedId);
-            if (!moved) return;
-            let tries = 0;
-            while (tries < 40 && boardArr.some(g => g.id !== movedId && g.tiles.length > 0 && groupsOverlap(g, moved, scale))) {
-                moved.y += 4;
-                if (moved.y > 92) { moved.y = 10; moved.x = Math.min(94, moved.x + groupBox(moved, scale).w + 3); }
-                tries++;
+        /* לאן נכנסת קבוצה שנעזבה בנקודה (x,y).
+           הלוח זורם, ולכן המיקום הוא סדר במערך — לא אחוזים.
+           מוחזר *מזהה* הקבוצה שלפניה נכנסים (או null = בסוף), ולא אינדקס:
+           הקבוצה הנגררת עצמה נעלמת מהמערך תוך כדי, ואינדקס היה מחליק. */
+        const boardInsertBeforeId = (clientX, clientY) => {
+            const els = Array.from(document.querySelectorAll('[data-board-id]'));
+            if (!els.length) return null;
+            let bestId = null, bestD = Infinity;
+            for (const el of els) {
+                const r = el.getBoundingClientRect();
+                if (!r.width) continue;
+                const id = el.getAttribute('data-board-id');
+                const nextId = el.getAttribute('data-board-next') || null;
+                const cy = r.top + r.height / 2;
+                // עונש אנכי כפול, כדי ששורה אחרת לא "תגנוב" את ההכנסה
+                const dl = Math.hypot(clientX - r.left,  (clientY - cy) * 2);
+                const dr = Math.hypot(clientX - r.right, (clientY - cy) * 2);
+                if (dl < bestD) { bestD = dl; bestId = id; }
+                if (dr < bestD) { bestD = dr; bestId = nextId; }
             }
-            moved.x = Math.max(4, Math.min(96, moved.x));
-            moved.y = Math.max(6, Math.min(94, moved.y));
+            return bestId;
         };
+        // משבצת חדשה בלוח. x/y נשמרים כברירת מחדל ניטרלית רק כדי
+        // שלקוח על בנדל ישן לא יקרוס על קבוצה בלי קואורדינטות.
+        const newBoardGroup = (tiles) => ({ id: `grp_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, x: 50, y: 50, tiles });
+        const spliceBefore = (boardArr, beforeId, grp) => {
+            const at = beforeId ? boardArr.findIndex(g => g.id === beforeId) : -1;
+            boardArr.splice(at === -1 ? boardArr.length : at, 0, grp);
+        };
+
+        /* groupBox / groupsOverlap / resolveOverlaps הוסרו: הם שירתו את הלוח
+           הצף, שבו קבוצות התנגשו וננערו זו מזו. הלוח זורם עכשיו ולא ייתכנו
+           חפיפות, ולכן אין את מי לפתור. */
 
         // מיון אוטומטי בתוך קבוצה: אם זו סדרת-רצף נקייה (צבע אחד, בלי כפילויות, בלי ג'וקר) - סדר עולה
         const autoSortRun = (tiles) => {
@@ -4148,6 +4200,9 @@
             const [dragData, setDragData] = useState(null);
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null);
+            // null = בלי קו הכנסה. {beforeId} = הקו מצויר לפני אותה קבוצה,
+            // beforeId:null = בסוף הלוח.
+            const [insertHint, setInsertHint] = useState(null);
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
             const [showError, setShowError] = useState("");
 
@@ -4342,7 +4397,10 @@
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
-                            setHoverTarget(dropZone ? dropZone.getAttribute('data-drop') : null);
+                            const zone = dropZone ? dropZone.getAttribute('data-drop') : null;
+                            setHoverTarget(zone);
+                            // מעל לבד פנוי -> מראים לאן ייכנס. מעל קבוצה -> היא תיצבע כיעד מיזוג.
+                            setInsertHint(zone === 'board-new' ? { beforeId: boardInsertBeforeId(e.clientX, e.clientY) } : null);
                         }
                     }
                 };
@@ -4364,12 +4422,11 @@
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
                     const boardArea = document.getElementById('felt-board');
-                    let dropX = 50, dropY = 50;
+                    let insertBeforeId = null;
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            dropX = Math.max(4, Math.min(96, ((e.clientX - rect.left) / rect.width) * 100));
-                            dropY = Math.max(6, Math.min(94, ((e.clientY - rect.top) / rect.height) * 100));
+                            insertBeforeId = boardInsertBeforeId(e.clientX, e.clientY);
                             if (!actualTarget || (!actualTarget.startsWith('board-group-'))) actualTarget = 'board-new';
                         }
                     }
@@ -4401,12 +4458,12 @@
                             const grp = newBoard.find(g => g.id === currentDrag.groupId);
                             if(grp) {
                                 if (currentDrag.tileIndex > 0 && currentDrag.tileIndex < grp.tiles.length - 1 && grp.tiles.length >= 3) {
+                                     // שליפה מאמצע סדרה מפצלת אותה לשתיים —
+                                     // החצי הימני נשאר צמוד לשמאלי בזרימה.
                                      const left = grp.tiles.slice(0, currentDrag.tileIndex);
                                      const right = grp.tiles.slice(currentDrag.tileIndex + 1);
                                      grp.tiles = left;
-                                     const splitId = `grp_${Date.now()}_split`;
-                                     newBoard.push({ id: splitId, x: Math.min(95, grp.x + 8), y: grp.y, tiles: right });
-                                     resolveOverlaps(newBoard, splitId, boardScale);
+                                     newBoard.splice(newBoard.indexOf(grp) + 1, 0, newBoardGroup(right));
                                 } else {
                                      grp.tiles.splice(currentDrag.tileIndex, 1);
                                      if (grp.tiles.length === 0) newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
@@ -4428,27 +4485,13 @@
                              targetGrp.tiles.push(...tilesToAdd);
                              targetGrp.tiles = autoSortRun(targetGrp.tiles);
                         } else {
-                             const nid = `grp_${Date.now()}`;
-                             newBoard.push({ id: nid, x: dropX, y: dropY, tiles: tilesToAdd });
-                             resolveOverlaps(newBoard, nid, boardScale);
+                             spliceBefore(newBoard, insertBeforeId, newBoardGroup(tilesToAdd));
                         }
                     }
                     else if (actualTarget === 'board-new') {
-                        // מגנט הצמדה מוגדל: שוחרר ליד קבוצה - מצטרף אליה וממוין אוטומטית
-                        const near = newBoard.find(g => {
-                            if (g.tiles.length === 0) return false;
-                            const bx = groupBox(g, boardScale);
-                            return Math.abs(dropX - g.x) < bx.w / 2 + 4 && Math.abs(dropY - g.y) < bx.h / 2 + 4;
-                        });
-                        const nearBlocked = near && isMyTurn && !hasDropped && startIdsSet.has(near.id);
-                        if (near && !nearBlocked) {
-                            near.tiles.push(...tilesToAdd);
-                            near.tiles = autoSortRun(near.tiles);
-                        } else {
-                            const nid = `grp_${Date.now()}`;
-                            newBoard.push({ id: nid, x: dropX, y: dropY, tiles: tilesToAdd });
-                            resolveOverlaps(newBoard, nid, boardScale);
-                        }
+                        // נופל בין שתי קבוצות (או בסוף) — נכנס בדיוק שם.
+                        // צירוף לקבוצה קיימת נעשה בהפלה עליה ממש, לא במגנט קרבה.
+                        spliceBefore(newBoard, insertBeforeId, newBoardGroup(tilesToAdd));
                     }
                     else if (actualTarget && actualTarget.startsWith('rack-slot-')) {
                         let slotIdx = parseInt(actualTarget.split('-')[2]);
@@ -4482,6 +4525,7 @@
                     setBoard(newBoard);
                     setDragData(null);
                     setHoverTarget(null);
+                    setInsertHint(null);
                     if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
 
                     if (tableState?.id && isMyTurn) {
@@ -4594,16 +4638,14 @@
                 syncRack(a);
             };
 
+            // הלוח זורם, ולכן "לסדר" כבר לא אומר למקם מחדש — הוא ממיין:
+            // שלישיות תחילה, אחר-כך רצפים לפי צבע ולפי האבן הנמוכה.
             const handleArrangeBoard = async () => {
                 if (board.length === 0) return;
-                const arranged = board.map(g => ({...g}));
-                let x = 6, y = 12;
-                arranged.forEach(g => {
-                    const bx = groupBox(g, boardScale);
-                    if (x + bx.w > 96) { x = 6; y = Math.min(90, y + bx.h + 3); }
-                    g.x = Math.min(96, x + bx.w / 2);
-                    g.y = y;
-                    x += bx.w + 3;
+                const arranged = [...board].sort((a, b) => {
+                    const ka = groupSortKey(a), kb = groupSortKey(b);
+                    for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+                    return 0;
                 });
                 setBoard(arranged);
                 if (tableState?.currentTurn === user.uid) {
@@ -5038,21 +5080,25 @@
                         )}
 
                         <div id="felt-board" data-drop="board-new" className="flex-1 relative m-2 md:m-4 rounded-3xl overflow-auto">
-                            <div className="min-w-full min-h-full relative">
-                                {board.map((groupObj) => {
+                            <div className="board-flow">
+                                {board.map((groupObj, gIdx) => {
                                     const isMyNewGroup = isMyTurn && !hasDropped && !startIdsSet.has(groupObj.id);
+                                    const nextId = board[gIdx + 1] ? board[gIdx + 1].id : '';
                                     return (
-                                    <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`}
-                                         className={`absolute flex board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-amber-300/20 shadow-[0_0_0_2px_rgba(245,200,96,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(245,200,96,0.45)] bg-amber-200/10' : ''}`}
-                                         style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)', direction: 'ltr' }}>
-                                        {groupObj.tiles.map((t, tIdx) => (
-                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
-                                        ))}
-                                    </div>
+                                    <React.Fragment key={groupObj.id}>
+                                        {insertHint && insertHint.beforeId === groupObj.id && <div className="board-caret" />}
+                                        <div data-drop={`board-group-${groupObj.id}`} data-board-id={groupObj.id} data-board-next={nextId}
+                                             className={`board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.45)] bg-emerald-400/10' : ''}`}>
+                                            {groupObj.tiles.map((t, tIdx) => (
+                                                <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
+                                            ))}
+                                        </div>
+                                    </React.Fragment>
                                 )})}
-                                {board.length === 0 && isPlaying && (
+                                {insertHint && insertHint.beforeId === null && <div className="board-caret" />}
+                                {board.length === 0 && isPlaying && !insertHint && (
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <span className="text-emerald-800/70 font-black text-lg">גרור אבנים לכאן כדי לפתוח סדרות</span>
+                                        <span className="board-empty-hint font-black text-lg">גרור אבנים לכאן כדי לפתוח סדרות</span>
                                     </div>
                                 )}
                             </div>
