@@ -160,45 +160,230 @@
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         @keyframes popIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
         .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        @keyframes flashRed { 0%, 100% { border-color: rgba(239, 68, 68, 0.3); box-shadow: none; } 50% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239,68,68,0.5); } }
-        .board-invalid-group { animation: flashRed 1.5s infinite; border: 2px solid #ef4444 !important; background: rgba(239, 68, 68, 0.12); }
+        @keyframes flashRed { 0%, 100% { box-shadow: 0 0 0 2px rgba(220,38,38,0.45), 0 0 14px rgba(220,38,38,0.25); } 50% { box-shadow: 0 0 0 2px rgba(248,113,113,0.95), 0 0 26px rgba(220,38,38,0.6); } }
+        .board-invalid-group { animation: flashRed 1.6s ease-in-out infinite; background: rgba(190,18,18,0.20); }
         @keyframes trophyPop { 0% { transform: scale(0) rotate(-20deg); } 70% { transform: scale(1.2) rotate(5deg); } 100% { transform: scale(1) rotate(0); } }
         .trophy-pop { animation: trophyPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
-        /* ===== רמיקוב: לוח עתידני כהה ===== */
+        /* ===== רמיקוב: חומרי הגלם =====
+           טוקנים משותפים לאבן, ללבד ולמגש. משנים כאן — משתנה בכל מקום. */
+        :root {
+            --tile-face-1: #fdfaf0;   /* שנהב עליון  */
+            --tile-face-2: #f4eddb;
+            --tile-face-3: #e7dec4;   /* שנהב תחתון  */
+            --tile-shelf:  #b3a684;   /* עובי האבן   */
+            --felt-1: #1d3f74;        /* נייבי מואר  */
+            --felt-2: #12274a;
+            --felt-3: #091730;        /* נייבי עמוק  */
+            --rack-hi: #dcc6a4;       /* בוק בהיר — שפת המגש  */
+            --rack-2: #c2a67f;
+            --rack-3: #9e8259;        /* בוק כהה — בסיס המגש  */
+            --rack-lip: #8c6538;      /* הקנט הקדמי           */
+            --accent:  #10b981;       /* אמרלד — תור פעיל, יעד תקין */
+        }
+        /* כמו במקור: אין "קופסה" ללוח — כל אזור המרכז הוא השולחן.
+           הרקע יושב על עמודת המרכז, והלוח עצמו שקוף ומשמש רק לגרירה וגלילה. */
+        .felt-bg {
+            background:
+                repeating-linear-gradient(45deg,  rgba(255,255,255,0.018) 0 2px, transparent 2px 4px),
+                repeating-linear-gradient(-45deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 4px),
+                radial-gradient(ellipse at 50% 34%, rgba(120,175,255,0.10), transparent 70%),
+                linear-gradient(168deg, var(--felt-1) 0%, var(--felt-2) 56%, var(--felt-3) 100%);
+        }
+        /* המותג שלנו מוטבע בלבד השולחן — סימן מים, לא אלמנט */
+        .felt-bg::before {
+            content: 'Rummikube';
+            position: absolute; top: 36%; left: 50%; transform: translate(-50%, -50%);
+            font-family: 'Rubik', sans-serif; font-weight: 900; font-style: italic;
+            font-size: clamp(3.2rem, 9vw, 7rem); letter-spacing: -0.03em; white-space: nowrap;
+            color: rgba(10,22,46,0.34);
+            text-shadow: 0 1px 0 rgba(130,180,255,0.10), 0 -1px 1px rgba(0,0,0,0.28);
+            pointer-events: none; z-index: 0;
+        }
         #felt-board {
             touch-action: pan-x pan-y;
-            border: 1px solid rgba(34,211,238,0.28);
-            box-shadow: inset 0 0 60px rgba(0,0,0,0.6), inset 0 0 30px rgba(34,211,238,0.06), 0 0 26px rgba(34,211,238,0.08);
-            background:
-                url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2064%2064'%3E%3Ctext%20x%3D'30'%20y%3D'43'%20font-family%3D'Arial%2Csans-serif'%20font-weight%3D'900'%20font-size%3D'36'%20text-anchor%3D'middle'%20fill%3D'rgba(103%2C232%2C249%2C0.07)'%3ER%3C%2Ftext%3E%3Ccircle%20cx%3D'46'%20cy%3D'40'%20r%3D'4'%20fill%3D'rgba(34%2C211%2C238%2C0.09)'%2F%3E%3C%2Fsvg%3E") center / 130px no-repeat,
-                radial-gradient(ellipse at 50% 26%, rgba(34,211,238,0.05), transparent 62%),
-                repeating-linear-gradient(0deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                repeating-linear-gradient(90deg, rgba(148,163,184,0.035) 0 1px, transparent 1px 44px),
-                linear-gradient(165deg, #0c1730 0%, #081020 55%, #060b16 100%);
+            overscroll-behavior: contain;   /* גלילת הלוח לא מושכת את הדף/רענון */
+            background: transparent;
         }
-        /* אבן רמיקוב: שנהב תלת-ממדי */
+        .board-empty-hint { color: rgba(148,190,255,0.35); letter-spacing: 0.01em; }
+        /* ===== אבן רמיקוב אמיתית =====
+           כל המידות ב-em ונגזרות מ-font-size, כך שאותה אבן בדיוק נכונה
+           בכל גודל: לוח, מגש, רוח-רפאים של גרירה ופאנל GOD. */
         .rummy-tile {
-            background: linear-gradient(155deg, #fffef6 0%, #f7f2e3 52%, #ece5d0 100%);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 9px 20px rgba(0,0,0,0.35), inset 0 1px 1px #ffffff, inset -1px -2px 3px rgba(120,110,85,0.20);
-            border-bottom: 5px solid #c9c1a9; border-right: 1px solid #ded7c2; border-radius: 9px;
-            font-family: 'Rubik', sans-serif; font-weight: 900;
-            transition: transform 0.1s ease, box-shadow 0.1s ease; user-select: none;
-            text-shadow: 0 1px 1px rgba(0,0,0,0.15); touch-action: none;
+            position: relative;
+            background: linear-gradient(180deg, var(--tile-face-1) 0%, var(--tile-face-2) 54%, var(--tile-face-3) 100%);
+            border-radius: 0.4em;
+            border: 1px solid rgba(255,255,255,0.9);
+            border-bottom: none;
+            box-shadow:
+                inset 0 1px 0 #fff,                                  /* ברק עליון */
+                inset 0 -0.3em 0.25em -0.22em rgba(150,138,108,0.35),/* הצללה פנימית תחתונה */
+                0 0.13em 0 var(--tile-shelf),                        /* עובי האבן */
+                0 0.3em 0.45em rgba(0,0,0,0.42),
+                0 0.62em 1.1em rgba(0,0,0,0.28);
+            font-family: 'Rubik', system-ui, sans-serif;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.045em;
+            line-height: 1;
+            padding-bottom: 0.42em;      /* מרים את הספרה מעל השקע */
+            text-shadow: 0 1px 0 rgba(255,255,255,0.7);
+            user-select: none; touch-action: none;
+            transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.12s ease;
         }
-        .rummy-tile:active, .rummy-tile.dragging { box-shadow: 0 20px 30px rgba(0,0,0,0.65), 0 0 24px rgba(34,211,238,0.25); transform: scale(1.1) translateY(-8px); z-index: 999; }
-        .board-tile { width: calc(2.25rem * var(--board-scale, 1)); height: calc(3.5rem * var(--board-scale, 1)); font-size: calc(1.25rem * var(--board-scale, 1)); margin: 0 calc(2px * var(--board-scale, 1)); }
+        /* השקע העגול בתחתית — סימן ההיכר של אבן רמיקוב */
+        .rummy-tile::after {
+            content: ''; position: absolute; left: 50%; bottom: 0.26em;
+            width: 0.36em; height: 0.36em; margin-left: -0.18em; border-radius: 50%;
+            background: radial-gradient(circle at 38% 32%, rgba(120,105,72,0.42), rgba(120,105,72,0.16) 62%, transparent 78%);
+            box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 0.5px 0 rgba(255,255,255,0.6);
+            pointer-events: none;
+        }
+        /* אבן מורמת: מתרוממת, צל עמוק מתחתיה והילה כחולה רכה סביבה */
+        .rummy-tile:active, .rummy-tile.dragging {
+            transform: translateY(-0.16em) scale(1.07);
+            box-shadow:
+                inset 0 1px 0 #fff,
+                0 0.6em 1em rgba(0,0,0,0.6),
+                0 0 0 2px rgba(125,185,255,0.55),
+                0 0 1.1em rgba(90,160,255,0.5);
+            z-index: 999;
+        }
+        .board-tile {
+            width: calc(2.7rem * var(--board-scale, 1)); height: calc(3.25rem * var(--board-scale, 1)); font-size: calc(1.7rem * var(--board-scale, 1)); margin: 0 calc(1px * var(--board-scale, 1));
+            /* הקטנה הדרגתית כשהלוח מתמלא — המעבר רך עד שכמעט לא מרגישים */
+            transition: width 0.3s ease, height 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
+        }
         @media (min-width: 640px) {
-            .board-tile { width: calc(2.75rem * var(--board-scale, 1)); height: calc(4rem * var(--board-scale, 1)); font-size: calc(1.75rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(3.5rem * var(--board-scale, 1)); height: calc(4.2rem * var(--board-scale, 1)); font-size: calc(2.25rem * var(--board-scale, 1)); }
         }
-        .board-group { padding: calc(0.6rem * var(--board-scale, 1)); border-radius: calc(0.75rem * var(--board-scale, 1)); transition: background-color 0.2s, border-color 0.2s, left 0.25s ease, top 0.25s ease; }
-        .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
+        /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
+           מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
+        .board-flow {
+            display: flex; flex-wrap: wrap;
+            /* כמו במקור: כל שורה ממורכזת אופקית, הקבוצות נערמות מלמעלה */
+            justify-content: center; align-content: flex-start;
+            direction: ltr;
+            gap: calc(1.5rem * var(--board-scale, 1)) calc(1.6rem * var(--board-scale, 1));
+            padding: calc(1.6rem * var(--board-scale, 1)) calc(1.2rem * var(--board-scale, 1));
+            min-height: 100%;
+        }
+        /* קבוצה נחה ישירות על הלבד — בלי מסגרת. המסגרת שמורה למצב (לא-חוקי / יעד גרירה / חדש). */
+        .board-group {
+            display: flex;
+            padding: calc(0.3rem * var(--board-scale, 1));
+            border-radius: calc(0.6rem * var(--board-scale, 1));
+            transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s cubic-bezier(0.22,1,0.36,1);
+        }
+        /* קו הכנסה — מראה בדיוק לאן תיפול הקבוצה */
+        .board-caret {
+            width: calc(0.28rem * var(--board-scale, 1));
+            align-self: stretch; border-radius: 999px;
+            background: linear-gradient(180deg, rgba(16,185,129,0.2), var(--accent) 30%, var(--accent) 70%, rgba(16,185,129,0.2));
+            box-shadow: 0 0 12px rgba(16,185,129,0.85);
+            animation: caretPulse 0.9s ease-in-out infinite;
+        }
+        @keyframes caretPulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
+        /* ===== המגש: מעמד עץ אגוז ===== */
+        /* המגש: מעמד עץ בוק בהיר, מוגבה מעל השולחן, עם קנט קדמי */
+        .rummy-rack {
+            position: relative;
+            background:
+                linear-gradient(180deg, rgba(255,246,225,0.35), transparent 10%),
+                repeating-linear-gradient(90deg, rgba(120,80,40,0.05) 0 2px, transparent 2px 9px), /* סיבי העץ */
+                linear-gradient(180deg, var(--rack-hi) 0%, var(--rack-2) 46%, var(--rack-3) 100%);
+            border-top: 2px solid rgba(255,240,210,0.55);
+            box-shadow: 0 -16px 38px rgba(0,0,0,0.6), inset 0 -14px 22px -10px rgba(90,60,25,0.55);
+        }
+        /* הקנט שעליו נשענות האבנים בשורה התחתונה */
+        .rummy-rack::after {
+            content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 0.55rem;
+            background: linear-gradient(180deg, var(--rack-lip), rgba(80,55,28,0.9));
+            box-shadow: inset 0 1px 0 rgba(255,240,210,0.35);
+            pointer-events: none;
+        }
+        /* ===== תחושת משחק: חלוקה, משיכה, הנחה, שגיאה, ניצחון ===== */
+        /* חלוקה: האבנים נופלות למגש בזו אחר זו (ה-delay פר-אבן ב-inline) */
+        @keyframes tileDealIn { 0% { opacity: 0; transform: translateY(-150%) scale(0.7) rotate(-7deg); } 62% { opacity: 1; transform: translateY(5%) scale(1.05); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        .tile-deal-in { animation: tileDealIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        /* משיכה: האבן החדשה מחליקה פנימה מכיוון הקופה */
+        @keyframes tileDrawIn { 0% { opacity: 0; transform: translate(70%, -110%) scale(1.18) rotate(9deg); } 100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0); } }
+        .tile-draw-in { animation: tileDrawIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        /* הנחה: הקבוצה שקיבלה אבן "מתיישבת" עם פאנץ' קטן */
+        @keyframes groupSettle { 0% { transform: scale(1.06); } 55% { transform: scale(0.985); } 100% { transform: scale(1); } }
+        .group-settle { animation: groupSettle 0.26s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        /* שגיאה: ההודעה מנערת את הראש (שומר על המרכוז האופקי) */
+        @keyframes errShake { 0%, 100% { transform: translateX(-50%); } 18% { transform: translateX(calc(-50% - 6px)); } 38% { transform: translateX(calc(-50% + 6px)); } 58% { transform: translateX(calc(-50% - 4px)); } 78% { transform: translateX(calc(-50% + 3px)); } }
+        .err-shake { animation: errShake 0.42s ease, fadeIn 0.4s ease-out; }
+        /* ניצחון: קונפטי בצבעי האבנים בתוך מסך התוצאות */
+        .win-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
+        .win-confetti i { position: absolute; top: -8%; width: 8px; height: 13px; border-radius: 2px; opacity: 0; animation: confFall 1.7s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
+        @keyframes confFall { 0% { opacity: 0; transform: translateY(0) rotate(0); } 8% { opacity: 1; } 100% { opacity: 0; transform: translateY(540px) rotate(560deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .tile-deal-in, .tile-draw-in, .group-settle, .err-shake, .win-confetti i, .board-caret { animation: none !important; }
+            .board-tile, .rummy-tile { transition: none !important; }
+        }
+
+        /* ===== טלפון לרוחב: רחב אבל נמוך (≤540px גובה) =====
+           ה-breakpoints של רוחב לא מזהים את זה — מסך 844x390 נראה "דסקטופ"
+           לפי רוחב אבל אין בו גובה. מצמצמים גבהים, לא רוחבים. */
+        @media (min-width: 640px) and (max-height: 540px) {
+            .board-tile { width: calc(2.8rem * var(--board-scale, 1)); height: calc(3.35rem * var(--board-scale, 1)); font-size: calc(1.8rem * var(--board-scale, 1)); }
+            .board-flow { gap: calc(0.9rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1)); padding: calc(0.9rem * var(--board-scale, 1)); }
+            .pl-avatar { width: 2.6rem !important; height: 2.6rem !important; }
+            .rk-btn { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+        }
+
+        /* ===== אווטר שחקן: עיגול עם טבעת טיימר היקפית ===== */
+        .pl-ring {
+            position: relative; border-radius: 50%; padding: 3px;
+            background: rgba(148,163,184,0.25);
+        }
+        .pl-ring.is-turn {
+            /* --pl-t: החלק שנותר (0..1). צבע הטבעת מגיע מ---pl-c */
+            background: conic-gradient(var(--pl-c, #34d399) calc(var(--pl-t, 1) * 360deg), rgba(255,255,255,0.10) 0deg);
+            box-shadow: 0 0 14px var(--pl-c, #34d399);
+        }
+        .pl-avatar { border-radius: 50%; display: block; background: #0f1c33; }
+
+        /* ===== כפתורי הפעולה: לוחיות מוגבהות על הנייבי ===== */
+        .rk-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 0.85rem; border: 2px solid rgba(150,195,255,0.45);
+            background: linear-gradient(180deg, #24406e 0%, #16294a 55%, #101d36 100%);
+            color: #eaf2ff; font-weight: 900; line-height: 1;
+            box-shadow: inset 0 1px 0 rgba(190,220,255,0.35), 0 4px 12px rgba(0,0,0,0.45);
+            transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .rk-btn:active { transform: scale(0.94); }
+        .rk-btn:disabled { opacity: 0.4; }
+        .rk-btn-draw { border-color: rgba(240,160,80,0.75); box-shadow: inset 0 1px 0 rgba(255,215,170,0.3), 0 4px 14px rgba(0,0,0,0.5), 0 0 16px rgba(230,140,60,0.28); }
+        .rk-btn-ok   { border-color: rgba(52,211,153,0.95); box-shadow: inset 0 1px 0 rgba(190,255,230,0.35), 0 4px 14px rgba(0,0,0,0.5), 0 0 20px rgba(16,185,129,0.5); }
+        .rk-btn-undo { border-color: rgba(248,113,113,0.85); box-shadow: inset 0 1px 0 rgba(255,200,200,0.3), 0 4px 14px rgba(0,0,0,0.5), 0 0 16px rgba(239,68,68,0.35); }
+        /* ספרות הכפתור בצבעי האבנים, כמו במשחק */
+        .rk-sort-d1 { color: #ff6b6b; } .rk-sort-d2 { color: #6bb6ff; } .rk-sort-d3 { color: #ffb347; }
+
+        /* המגש כמו במקור: האבנים צמודות זו לזו ונערמות משמאל.
+           גודל המשבצת נגזר מגובה השורה (פרופורציית אבן 5:6) — לא מרוחב
+           המסך, ולכן אין רווחים מתים בין האבנים. */
+        .rack-grid {
+            display: flex; flex-wrap: wrap; align-content: flex-start;
+            gap: 3px; direction: ltr; overflow-y: auto; height: 100%;
+            overscroll-behavior: contain;
+        }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
-        .rack-slot { min-height: 36px; position: relative; }
+        .rack-slot { height: calc(25% - 3px); aspect-ratio: 5 / 6; min-height: 0; position: relative; border-radius: 7px; }
+        /* משטח המגש חלק — משבצת ריקה רק נרמזת, בלי רשת חריצים */
+        .rack-slot.is-empty {
+            background: linear-gradient(180deg, rgba(90,60,25,0.13), transparent 70%);
+            box-shadow: inset 0 1px 2px rgba(70,45,18,0.22);
+        }
+        .rack-slot.is-hover { background: rgba(16,185,129,0.24); box-shadow: inset 0 0 0 2px rgba(16,185,129,0.8); }
+        /* האבן ממלאת את המשבצת — המשבצת כבר בפרופורציה הנכונה */
+        .rack-slot .rummy-tile { width: 100%; height: 100%; }
         @media (min-width: 640px) {
-            .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
-            .rack-slot { min-height: 64px; }
+            .rack-slot { height: calc(50% - 3px); }
         }
 
         /* בועות צ'אט ומתנות בין שחקנים */
@@ -654,7 +839,39 @@
         const TURN_SECONDS = 60;
         const FIRST_MELD_MIN = 30;
 
-        const BOT_NAMES = ['Alex_Pro', 'TileMaster99', 'RummyKing', 'Sara_Play', 'PokerFace_Dan', 'Lucky_Jim', 'AceOfSpades', 'JokerQueen', 'Max_Bet', 'Fast_Hand'];
+        /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
+           מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
+           ובלי שני בוטים עם אותו שם משפחה על אותו שולחן. */
+        const BOT_FIRST_HE = ['יוסי', 'דודו', 'אבי', 'איציק', 'שלומי', 'רמי', 'קובי', 'ששון', 'אלי', 'מאיר', 'אורן', 'גולן', 'שגיא', 'נדב', 'חיים', 'מוטי', 'בני', 'צחי', 'עמוס', 'דורון', 'יעקב', 'שמעון', 'רועי', 'עידן', 'ליאור', 'תומר', 'עומר', 'אסף', 'ניר', 'גיא', 'אלון', 'ברק', 'טל', 'עופר', 'יובל', 'אייל', 'רונן', 'שי', 'ערן', 'ניסים', 'משה', 'דני', 'רפי', 'זוהר', 'אמיר'];
+        const BOT_LAST_HE = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'אוחיון', 'דהן', 'חדד', 'גבאי', 'אזולאי', 'מלכה', 'עמר', 'בן דוד', 'שרעבי', 'אברהם', 'דיין', 'אלבז', 'אמסלם', 'אדרי', 'סבן', 'טולדנו', 'בוזגלו', 'אשכנזי', 'ממן', 'שוקרון', 'זריהן', 'קדוש', 'ברוך', 'סויסה', 'חזן', 'אלמליח', 'עטיה', 'נחום', 'צרפתי', 'ועקנין', 'לוגסי', 'אביטן', 'שטרית', 'יפרח', 'דניאלי'];
+        const BOT_FIRST_EN = ['Eli', 'Yossi', 'Avi', 'Kobi', 'Rami', 'Moti', 'Dudu', 'Itzik', 'Shlomi', 'Oren', 'Nadav', 'Sagi', 'Doron', 'Meir', 'Benny', 'Haim', 'Roy', 'Idan', 'Lior', 'Tomer', 'Omer', 'Assaf', 'Nir', 'Guy', 'Alon', 'Barak', 'Tal', 'Ofer', 'Yuval', 'Eyal', 'Ronen', 'Shay', 'Eran', 'Danny', 'Rafi', 'Amir'];
+        const BOT_LAST_EN = ['Cohen', 'Levi', 'Mizrahi', 'Peretz', 'Biton', 'Ohayon', 'Dahan', 'Hadad', 'Gabay', 'Azulay', 'Malka', 'Amar', 'Ben-David', 'Sharabi', 'Elbaz', 'Amsalem', 'Edri', 'Saban', 'Toledano', 'Buzaglo', 'Ashkenazi', 'Maman', 'Shukrun', 'Zrihen', 'Kadosh', 'Baruch', 'Swissa', 'Hazan', 'Elmaliach', 'Atia', 'Nahum', 'Tsarfati', 'Vaknin', 'Lugassi', 'Avitan', 'Shitrit', 'Ifrah', 'Danieli'];
+        const BOT_NAMES_RM = ['TileKing', 'JokerHunter', 'RunBuilder', 'MeldMaster', 'LuckyDraw', 'RackAttack', 'FullSet', 'ThirtyPlus', 'TileShark', 'ComboQueen', 'FastMeld', 'BoardBoss', 'DoubleJoker', 'SetCollector', 'RunnerUp', 'TilePicker', 'SharpEye', 'QuickHands', 'TableTiger', 'WildTile'];
+        const BOT_NAME_NUM = ['David', 'Marina', 'Alex', 'Maya', 'Daniel', 'Nicole', 'Roman', 'Diana', 'Leon', 'Sofia', 'Tanya', 'Igor', 'Lena', 'Mark', 'Julia', 'Max', 'Vlad', 'Dana', 'Michael', 'Anna', 'Oleg', 'Rita', 'Boris', 'Ella', 'Sergey', 'Nina', 'Arthur', 'Karin', 'Felix', 'Noa'];
+        const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+        // מפתח ייחודיות: שם משפחה (או השם בלי ספרות) - כדי לא לקבל שני "כהן" בשולחן
+        const botNameKey = nm => {
+            const parts = String(nm || '').trim().split(' ');
+            return parts.length > 1 && isNaN(Number(parts[parts.length - 1])) ? parts[parts.length - 1] : String(parts[0]).replace(/\d+$/, '');
+        };
+        const botDisplayName = (usedNames, usedKeys) => {
+            for (let i = 0; i < 90; i++) {
+                const r = Math.random();
+                let nm;
+                if (r < 0.4) nm = pick(BOT_FIRST_HE) + ' ' + pick(BOT_LAST_HE);
+                else if (r < 0.65) nm = pick(BOT_FIRST_EN) + ' ' + pick(BOT_LAST_EN);
+                else if (r < 0.82) nm = pick(BOT_NAMES_RM) + Math.floor(Math.random() * 99);
+                else nm = pick(BOT_NAME_NUM) + ' ' + (Math.random() < 0.55 ? 1965 + Math.floor(Math.random() * 40) : 1 + Math.floor(Math.random() * 98));
+                const key = botNameKey(nm);
+                if (usedNames && usedNames.has(nm)) continue;
+                if (usedKeys && usedKeys.has(key) && i < 70) continue;
+                if (usedNames) usedNames.add(nm);
+                if (usedKeys) usedKeys.add(key);
+                return nm;
+            }
+            return pick(BOT_NAME_NUM) + ' ' + Math.floor(Math.random() * 9999);
+        };
+        const BOT_NAMES = BOT_NAMES_RM;
 
         const isGodUser = (u) => u && GOD_EMAILS.includes((u.email || '').toLowerCase().trim());
         // מי רשאי לנהל משחק מסוים: אדמין/בעלים - הכל; מנהל - רק משחקים שסומנו לו
@@ -676,42 +893,63 @@
             if (num >= 1000) return (num / 1000).toFixed(1).replace('.0','') + 'K';
             return round2(num).toString();
         };
-        const EMOJI_AV_BG = ['16243c,0e7490','1f1533,6b21a8','33200e,b45309','0e2b22,0f766e','2b0f18,9f1239','101d33,1d4ed8','1c2230,3b475e','132810,3f6212'];
+        /* חבילת האווטרים התלת-ממדית של המועדון — אותה חבילה כמו ב-POKERTEN,
+           מוגשת מהאתר עצמו (assets/avatars, WebP של ~7KB לכיסא).
+           הסגנונות השטוחים הישנים בדימוס: seed ישן ממופה בהאש יציב לאווטר
+           תלת-ממדי קבוע, כך שאף שחקן קיים לא מאבד זהות ואף ציור ישן לא מוצג. */
+        const AV3D_BASE = 'assets/avatars/av-';
+        const AV3D = [
+            'ant', 'artist', 'asia-woman', 'asian-man', 'astronaut', 'astronout',
+            'baby', 'babychick', 'bat', 'bearface', 'bird', 'black-man',
+            'black-woman', 'blowfish', 'boar', 'bug', 'builder-man', 'builder-woman',
+            'bussinesman', 'butterfly', 'call-operator', 'camel', 'cat', 'catface',
+            'chef-woman', 'chef', 'chickenface', 'college-student', 'consctruction-woman', 'construction-worker',
+            'constructon-engineer', 'cow', 'cowface', 'crab', 'cricket', 'crocodile',
+            'deerface', 'designer', 'doctor', 'dog', 'dogface', 'dolphin',
+            'dragon', 'dragonface', 'eagleface', 'elephant', 'employee-woman', 'ewe',
+            'farmer-man', 'farmer-woman', 'farmer', 'firefighter', 'fish', 'flamingo',
+            'foxface', 'frogface', 'gamer', 'giraffe', 'goat', 'gorilla',
+            'graduation-student', 'grand-father', 'grand-mother', 'hamster', 'hatchingchick', 'hedgehogface',
+            'hippopotamus', 'honeybee', 'horse', 'horseface', 'indian-man', 'koalaface',
+            'ladybeetle', 'lionface', 'lizard', 'llama', 'lobster', 'man-wearing-shawl',
+            'microbe', 'monkey', 'monkeyface', 'mosquitos', 'mouse', 'mouseface',
+            'muslim-woman', 'nerd-woman', 'octopus', 'owl', 'ox', 'pandaface',
+            'parrot', 'pig', 'pigface', 'pinguin', 'poodle', 'professor',
+            'rabbit', 'rabbitface', 'racoonface', 'ram', 'rhinoface', 'rooster',
+            'sauropod', 'schrimp', 'scorpion', 'shark', 'skunk', 'snake',
+            'spider', 'spiderweb', 'spiralsheel', 'spoutingwhale', 'swan', 'teacher',
+            'thief', 'tiger', 'tigerface', 'trex', 'tropicalfish', 'turkey',
+            'turtle', 'unicornface', 'waterbuffalo', 'west-woman', 'western-man', 'whale',
+            'wolfface', 'young-man', 'zebraface'
+        ].map(x => 'av3d::' + x);
+        const av3dUrl = (key) => AV3D_BASE + String(key).split('::')[1] + '.webp';
+        // האש יציב: אותו שחקן נוחת תמיד על אותו אווטר
+        const av3dPick = (seed) => {
+            const s = String(seed || 'x');
+            let hsh = 0;
+            for (let i = 0; i < s.length; i++) hsh = (hsh * 31 + s.charCodeAt(i)) >>> 0;
+            return AV3D[hsh % AV3D.length];
+        };
         const dicebearUrl = (seed) => {
-            let style = 'notionists', sd = String(seed || 'x');
-            if (sd.startsWith('emoji::')) {
-                const parts = sd.split('::');
-                const em = parts[1] || '🙂';
-                const bg = EMOJI_AV_BG[(parseInt(parts[2], 10) || 0) % EMOJI_AV_BG.length].split(',');
-                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#' + bg[0] + '"/><stop offset="1" stop-color="#' + bg[1] + '"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><text x="50" y="54" font-size="56" text-anchor="middle" dominant-baseline="central">' + em + '</text></svg>';
-                return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-            }
-            if (sd.includes('::')) { const parts = sd.split('::'); style = parts[0]; sd = parts[1] || 'x'; }
-            return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(sd)}&backgroundType=gradientLinear&backgroundColor=16243c,0b1322`;
+            const sd = String(seed || 'x');
+            if (sd.startsWith('av3d::')) return av3dUrl(sd);
+            if (sd.startsWith('data:')) return sd;
+            return av3dUrl(av3dPick(sd));
         };
         const avatarUrl = (x) => {
             if (x && typeof x === 'object') {
                 if (x.photo) return x.photo;
-                return dicebearUrl(x.avatarSeed || x.uid);
+                const sd = x.avatarSeed || '';
+                return dicebearUrl(String(sd).startsWith('av3d::') ? sd : av3dPick(sd || x.uid));
             }
             return dicebearUrl(x);
         };
         const AVATAR_STYLES = [
-            { id: 'notionists', label: 'פורטרט' },
-            { id: 'adventurer', label: 'אנימה' },
-            { id: 'micah', label: 'מודרני' },
-            { id: 'lorelei', label: 'קלאסי' },
-            { id: 'open-peeps', label: 'סקיצה' },
-            { id: 'thumbs', label: 'חמוד' },
-            { id: 'emoji-animals', label: 'חיות' },
-            { id: 'emoji-elements', label: 'אלמנטים' },
-            { id: 'bottts', label: 'רובוטים' },
-            { id: 'pixel-art', label: 'פיקסל' },
+            { id: 'av3d', label: 'אווטרים 3D' },
         ];
         const AVATAR_SEEDS = ['Leo','Maya','Rocky','Ziv','Nova','Ace','Luna','Rex','Miko','Dana','Tigra','Boss','Dino','Draco','Neko','Kuro','Pika','Fox','Wolf','Simba'];
         const EMOJI_SETS = {
-            'emoji-animals': ['🦁','🐯','🦊','🐺','🐼','🐨','🦅','🦉','🐍','🦈','🐉','🦍','🐘','🦄','🐙','🦋','🐢','🐬'].map((e, i) => 'emoji::' + e + '::' + i),
-            'emoji-elements': ['🔥','⚡','❄️','🌊','🌪️','☀️','🌙','⭐','☄️','🌋','💎','🌈','🌀','💠','⚔️','🛡️','👑','🧿'].map((e, i) => 'emoji::' + e + '::' + i)
+            'av3d': AV3D
         };
 
         /* ===== מנוע צלילים (Tone.js) ===== */
@@ -766,11 +1004,21 @@
                     case 'dice': // גלגול רך
                         [['C2', 0], ['E2', 0.06], ['G2', 0.12], ['C3', 0.18]].forEach(([n, d]) => SND.m.triggerAttackRelease(n, '32n', t + d));
                         break;
+                    case 'error': // זמזום נמוך ורך - "לא, נסה שוב", בלי להבהיל
+                        SND.s.triggerAttackRelease('E3', '16n', t);
+                        SND.s.triggerAttackRelease('Bb2', '8n', t + 0.09);
+                        break;
+                    case 'draw': // משיכה מהקופה: רשרוש קצר ואבן שנוחתת
+                        SND.nz.triggerAttackRelease('16n', t);
+                        SND.m.triggerAttackRelease('C3', '32n', t + 0.06);
+                        break;
                 }
             } catch(e) {}
         };
 
-        // זיכוי רייק לרווחי המועדון - משותף לכל המשחקים
+        // זיכוי רייק לרווחי המועדון - משותף לכל המשחקים.
+        // לצד עדכון היתרה נרשמת שורת agentLog עם kind:'club' - זה מקור האמת
+        // של "רייק ברוטו" בדוח הסגירה, בלעדיו הדוח מציג אפס.
         const creditRakeToClub = async (amount, clubId) => {
             if (!amount || amount <= 0) return;
             try {
@@ -786,6 +1034,17 @@
                         balance: round2((s.data().balance || 0) + amount),
                         clubProfits: round2((s.data().clubProfits || 0) + amount)
                     });
+                });
+                logClubRake(amount, cid);
+            } catch(e) {}
+        };
+        // שורת יומן לרייק שנכנס לקופת המועדון (לדוחות בלבד, לא כסף)
+        const logClubRake = (amount, clubId) => {
+            if (!amount || amount <= 0) return;
+            try {
+                window.fb.addDoc(window.fb.collection(window.fb.db, "agentLog"), {
+                    clubId: clubId || CLUB_ID, agentUid: 'club', kind: 'club',
+                    amount: round2(amount), at: Date.now()
                 });
             } catch(e) {}
         };
@@ -872,10 +1131,20 @@
                     if (!e.uid) continue;
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "gameLog"), {
                         uid: e.uid, username: e.username || '', game: e.game, clubId: CLUB_ID,
-                        profit: round2(e.profit || 0), tableId: tableId || '', at: Date.now()
+                        profit: round2(e.profit || 0), rake: round2(e.rake || 0), tableId: tableId || '', at: Date.now()
                     });
                 }
             } catch(err) {}
+        };
+
+        // קוד שולחן קצר וקריא מתוך מזהה המסמך - לתצוגה בדוחות ובהיסטוריה
+        const tableCode = (tid) => {
+            const s = String(tid || '');
+            if (!s) return '';
+            if (s.startsWith('tournament:')) return 'טורניר';
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0;
+            return 'T-' + (h % 10000).toString().padStart(4, '0');
         };
 
         // ייצוא CSV (עם BOM לעברית תקינה באקסל)
@@ -960,6 +1229,32 @@
             return d.sort(()=>Math.random()-0.5);
         };
 
+        /* צבע הדיו על האבן.
+           ה-hex ששמור ב-Firestore הוא מזהה הצבע ומשמש להשוואות (רצף/שלישייה),
+           ולכן אסור לגעת בו — שולחנות חיים מכילים אותו. המיפוי כאן הוא
+           תצוגתי בלבד: מברירת-המחדל הדהויה של Tailwind אל דיו הדפוס הקלאסי. */
+        const TILE_INK = {
+            '#ef4444': '#c62828',   /* אדום  */
+            '#3b82f6': '#1257a8',   /* כחול  */
+            '#f59e0b': '#e05a00',   /* כתום  */
+            '#0c1322': '#14161c'    /* שחור  */
+        };
+        const inkOf = (c) => TILE_INK[c] || c;
+        const COLOR_ORDER = ['#ef4444', '#3b82f6', '#f59e0b', '#0c1322'];
+
+        /* מפתח מיון לקבוצה על הלוח: שלישיות תחילה לפי ערך, אחר-כך רצפים
+           לפי צבע ואז לפי האבן הנמוכה בהם. */
+        const groupSortKey = (g) => {
+            const regs = (g.tiles || []).filter(t => t.val !== '☻');
+            if (!regs.length) return [2, 0, 0];
+            const isSet = g.tiles.length <= 4
+                && regs.every(t => t.val === regs[0].val)
+                && new Set(regs.map(t => t.color)).size === regs.length;
+            if (isSet) return [0, Number(regs[0].val), 0];
+            const ci = COLOR_ORDER.indexOf(regs[0].color);
+            return [1, ci < 0 ? 9 : ci, Math.min(...regs.map(t => Number(t.val)))];
+        };
+
         const validateGroup = (group) => {
             if (!group || group.length < 3) return false;
             const jokersCount = group.filter(t => t.val === '☻').length;
@@ -1018,34 +1313,65 @@
             return { players: np, deck: d, board: [], phase: 'playing', currentTurn: uids[0], turnStartedAt: Date.now(), winner: null, lastResults: null, turnSnapBoard: [], turnSnapRack: [...np[uids[0]].cards] };
         };
 
-        const groupBox = (g, scale) => ({ w: g.tiles.length * 3.0 * scale + 5, h: 15 * scale + 3 });
-        const groupsOverlap = (a, b, scale) => {
-            const A = groupBox(a, scale), B = groupBox(b, scale);
-            return Math.abs(a.x - b.x) < (A.w + B.w) / 2 && Math.abs(a.y - b.y) < (A.h + B.h) / 2;
-        };
-        const resolveOverlaps = (boardArr, movedId, scale) => {
-            const moved = boardArr.find(g => g.id === movedId);
-            if (!moved) return;
-            let tries = 0;
-            while (tries < 40 && boardArr.some(g => g.id !== movedId && g.tiles.length > 0 && groupsOverlap(g, moved, scale))) {
-                moved.y += 4;
-                if (moved.y > 92) { moved.y = 10; moved.x = Math.min(94, moved.x + groupBox(moved, scale).w + 3); }
-                tries++;
+        /* לאן נכנסת קבוצה שנעזבה בנקודה (x,y).
+           הלוח זורם, ולכן המיקום הוא סדר במערך — לא אחוזים.
+           מוחזר *מזהה* הקבוצה שלפניה נכנסים (או null = בסוף), ולא אינדקס:
+           הקבוצה הנגררת עצמה נעלמת מהמערך תוך כדי, ואינדקס היה מחליק. */
+        const boardInsertBeforeId = (clientX, clientY) => {
+            const els = Array.from(document.querySelectorAll('[data-board-id]'));
+            if (!els.length) return null;
+            let bestId = null, bestD = Infinity;
+            for (const el of els) {
+                const r = el.getBoundingClientRect();
+                if (!r.width) continue;
+                const id = el.getAttribute('data-board-id');
+                const nextId = el.getAttribute('data-board-next') || null;
+                const cy = r.top + r.height / 2;
+                // עונש אנכי כפול, כדי ששורה אחרת לא "תגנוב" את ההכנסה
+                const dl = Math.hypot(clientX - r.left,  (clientY - cy) * 2);
+                const dr = Math.hypot(clientX - r.right, (clientY - cy) * 2);
+                if (dl < bestD) { bestD = dl; bestId = id; }
+                if (dr < bestD) { bestD = dr; bestId = nextId; }
             }
-            moved.x = Math.max(4, Math.min(96, moved.x));
-            moved.y = Math.max(6, Math.min(94, moved.y));
+            return bestId;
+        };
+        // משבצת חדשה בלוח. x/y נשמרים כברירת מחדל ניטרלית רק כדי
+        // שלקוח על בנדל ישן לא יקרוס על קבוצה בלי קואורדינטות.
+        const newBoardGroup = (tiles) => ({ id: `grp_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, x: 50, y: 50, tiles });
+        const spliceBefore = (boardArr, beforeId, grp) => {
+            const at = beforeId ? boardArr.findIndex(g => g.id === beforeId) : -1;
+            boardArr.splice(at === -1 ? boardArr.length : at, 0, grp);
         };
 
-        // מיון אוטומטי בתוך קבוצה: אם זו סדרת-רצף נקייה (צבע אחד, בלי כפילויות, בלי ג'וקר) - סדר עולה
+        /* groupBox / groupsOverlap / resolveOverlaps הוסרו: הם שירתו את הלוח
+           הצף, שבו קבוצות התנגשו וננערו זו מזו. הלוח זורם עכשיו ולא ייתכנו
+           חפיפות, ולכן אין את מי לפתור. */
+
+        // מיון אוטומטי בתוך קבוצה: רצף (צבע אחד, בלי כפילויות) מסתדר בסדר עולה,
+        // והג'וקרים משתבצים בחורים של הרצף — לא נדבקים בסוף.
+        // שלישיות וקבוצות עמומות נשארות כמו שהשחקן סידר.
         const autoSortRun = (tiles) => {
             if (!tiles || tiles.length < 2) return tiles;
-            if (tiles.some(t => t.val === '☻')) return tiles;
-            const sameColor = tiles.every(t => t.color === tiles[0].color);
-            const vals = tiles.map(t => Number(t.val));
-            if (sameColor && new Set(vals).size === tiles.length) {
-                return [...tiles].sort((a,b) => Number(a.val) - Number(b.val));
+            const jokers = tiles.filter(t => t.val === '☻');
+            const regs = tiles.filter(t => t.val !== '☻');
+            if (regs.length === 0) return tiles;
+            const sameColor = regs.every(t => t.color === regs[0].color);
+            if (!sameColor || new Set(regs.map(t => Number(t.val))).size !== regs.length) return tiles;
+            const sorted = [...regs].sort((a, b) => Number(a.val) - Number(b.val));
+            if (jokers.length === 0) return sorted;
+            const out = []; let j = 0;
+            for (let i = 0; i < sorted.length; i++) {
+                out.push(sorted[i]);
+                if (i < sorted.length - 1) {
+                    let gap = Number(sorted[i + 1].val) - Number(sorted[i].val) - 1;
+                    while (gap > 0 && j < jokers.length) { out.push(jokers[j++]); gap--; }
+                }
             }
-            return tiles;
+            // ג'וקרים שנותרו אחרי סתימת החורים ממשיכים את הרצף בקצוות
+            let hi = Number(sorted[sorted.length - 1].val);
+            while (j < jokers.length && hi < 13) { out.push(jokers[j++]); hi++; }
+            while (j < jokers.length) out.unshift(jokers[j++]);
+            return out;
         };
 
         // האם שתי אבנים שכנות "קשורות משחקית" (לצורך בחירת בלוק בלחיצה ארוכה)
@@ -2362,7 +2688,7 @@
 
         function ProfileView({ user, showToast }) {
             const [avatarOpen, setAvatarOpen] = useState(false);
-            const [avStyle, setAvStyle] = useState('adventurer');
+            const [avStyle, setAvStyle] = useState('av3d');
             const [nameDraft, setNameDraft] = useState('');
             const saveName = async () => {
                 const nm = nameDraft.trim();
@@ -3525,12 +3851,24 @@
                 const txt = bcText.trim();
                 if (txt.length < 2) return showToast("כתוב הודעה", "error");
                 try {
-                    await window.fb.setDoc(window.fb.doc(window.fb.db, "broadcasts", CLUB_ID), { text: txt.slice(0, 300), at: Date.now(), by: user.username, clubName: (window.__club || {}).name || '' });
+                    // היסטוריה מתגלגלת של 20 השידורים האחרונים - תיעוד מי הכריז מה
+                    const ref = window.fb.doc(window.fb.db, "broadcasts", CLUB_ID);
+                    const entry = { text: txt.slice(0, 300), at: Date.now(), by: user.username, clubName: (window.__club || {}).name || '' };
+                    let hist = [];
+                    try { const prev = await window.fb.getDoc(ref); if (prev.exists()) hist = prev.data().history || []; } catch(e2) {}
+                    await window.fb.setDoc(ref, { ...entry, history: [...hist, entry].slice(-20) });
+                    setBcHist(h => [...h, entry].slice(-20));
                     setBcText('');
                     showToast("ההודעה שוגרה לכל חברי הקלאב! 📣", "success");
                 } catch(e) { showToast("שגיאה בשיגור", "error"); }
             };
+            const [bcHist, setBcHist] = useState([]);
+            useEffect(() => {
+                (async () => { try { const s = await window.fb.getDoc(window.fb.doc(window.fb.db, "broadcasts", CLUB_ID)); if (s.exists()) setBcHist(s.data().history || []); } catch(e) {} })();
+            }, []);
             const [search, setSearch] = useState('');
+            const [memFilter, setMemFilter] = useState('all'); // all / agents / managers / banned
+            const [balBox, setBalBox] = useState(null);        // מודל הפקדה/משיכה: { mem, dir, amt }
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
             const [rakeDraft, setRakeDraft] = useState(clubSettings.rakePct);
@@ -3600,10 +3938,14 @@
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
             };
 
-            const adjustBalance = async (target, isDeposit) => {
-                const raw = window.prompt(isDeposit ? `כמה צ'יפים להפקיד ל-${target.username}? (יורד מהיתרה שלך)` : `כמה צ'יפים למשוך מ-${target.username}? (עובר ליתרה שלך)`, "100");
-                const amount = parseFloat(raw);
+            // פתיחת מודל הפקדה/משיכה במקום window.prompt - עם תצוגה חיה של שתי היתרות
+            const adjustBalance = (target, isDeposit) => setBalBox({ mem: target, dir: isDeposit ? 'in' : 'out', amt: '' });
+            const applyBalance = async () => {
+                if (!balBox) return;
+                const target = balBox.mem, isDeposit = balBox.dir === 'in';
+                const amount = parseFloat(balBox.amt);
                 if (!amount || isNaN(amount) || amount <= 0) return;
+                setBalBox(null);
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tr) => {
                         const ownerRef = memDoc(user.uid);
@@ -3624,6 +3966,16 @@
                     });
                     showToast(isDeposit ? `הופקדו ${formatMoney(amount)} ל-${target.username}` : `נמשכו ${formatMoney(amount)} מ-${target.username}`, "success");
                 } catch (e) { showToast(typeof e === 'string' ? e : "שגיאה בפעולה", "error"); }
+            };
+
+            // חסימה/שחרור: חבר חסום לא עובר את מסך הכניסה, ונשאר גלוי כאן לשחרור
+            const toggleBan = async (mem) => {
+                const banned = mem.status === 'banned';
+                if (!banned && !window.confirm(`לחסום את ${mem.username}? הוא לא יוכל להיכנס לקלאב עד שחרור.`)) return;
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", mem.id), { status: banned ? 'approved' : 'banned', bannedAt: banned ? null : Date.now(), bannedBy: banned ? null : user.username });
+                    showToast(banned ? `${mem.username} שוחרר מחסימה` : `${mem.username} נחסם`, "info");
+                } catch(e) { showToast("שגיאה", "error"); }
             };
 
             const saveClubSettings = async () => {
@@ -3665,16 +4017,43 @@
             const handleCreateBots = async () => {
                 try {
                     showToast("מייצר בוטים...", "info");
+                    // שמות אנושיים בלי כפילויות - כולל מול הבוטים שכבר קיימים
+                    const usedNames = new Set(usersList.map(u => u.username));
+                    const usedKeys = new Set(usersList.filter(u => u.isBot).map(u => botNameKey(u.username)));
                     for (let i = 0; i < 20; i++) {
-                        const botName = BOT_NAMES[i % BOT_NAMES.length] + Math.floor(Math.random() * 100);
+                        const botName = botDisplayName(usedNames, usedKeys);
                         await window.fb.addDoc(window.fb.collection(window.fb.db, "users"), {
-                            username: botName, email: `bot${i}@rummikube.com`, role: ROLES.PLAYER,
+                            username: botName, email: `bot${i}_${Date.now()}@rummikube.com`, role: ROLES.PLAYER,
                             status: 'approved', balance: 50000, isBot: true, managedGames: [],
                             stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }
                         });
                     }
                     showToast("20 בוטים נוצרו!", "success");
                 } catch (e) { showToast("שגיאה ביצירת בוטים", "error"); }
+            };
+            // שם חדש לכל הבוטים הקיימים - users וגם memberships, אותו שם לאותו בוט
+            const handleRenameBots = async () => {
+                if (!window.confirm("לתת שמות חדשים לכל הבוטים?")) return;
+                try {
+                    showToast("משנה שמות...", "info");
+                    const usedNames = new Set(usersList.filter(u => !u.isBot).map(u => u.username));
+                    const usedKeys = new Set();
+                    const nameByUid = {};
+                    const uq = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
+                    const us = await window.fb.getDocs(uq);
+                    for (const d of us.docs) {
+                        const nm = botDisplayName(usedNames, usedKeys);
+                        nameByUid[d.id] = nm;
+                        await window.fb.updateDoc(d.ref, { username: nm });
+                    }
+                    const mq = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("isBot", "==", true));
+                    const ms = await window.fb.getDocs(mq);
+                    for (const d of ms.docs) {
+                        const uid = d.data().uid || d.id;
+                        if (nameByUid[uid]) await window.fb.updateDoc(d.ref, { username: nameByUid[uid] });
+                    }
+                    showToast(`שמות חדשים ל-${us.docs.length} בוטים ✔`, "success");
+                } catch (e) { showToast("שגיאה בשינוי שמות", "error"); }
             };
             const handleDeleteBots = async () => {
                 if(!window.confirm("למחוק את כל הבוטים?")) return;
@@ -3691,7 +4070,11 @@
                 catch(e) { showToast("שגיאה", "error"); }
             };
 
-            const pendingUsers = usersList.filter(u => u.status !== 'approved' && !u.isBot);
+            // סוכן רואה רק את המופנים שלו; בעלים/מנהל רואים הכל.
+            // 'rejected' מסונן — אחרת דחוי חוזר לרשימת הממתינים לנצח.
+            const canApproveAll = isOwner || user.role === ROLES.MANAGER;
+            const pendingUsers = usersList.filter(u => u.status !== 'approved' && u.status !== 'rejected' && u.status !== 'banned' && !u.isBot)
+                .filter(u => canApproveAll || u.agentUid === user.uid);
             const agents = usersList.filter(u => u.status === 'approved' && u.role === ROLES.AGENT && !u.isBot);
             const agentName = (uid) => (usersList.find(x => x.uid === uid) || {}).username || '';
             // השלמת קוד לסוכנים ותיקים שאין להם (אצל הבעלים בלבד)
@@ -3720,7 +4103,10 @@
             const myAgentMem = usersList.find(x => x.uid === user.uid);
             const copyText = async (txt, msg) => { try { await navigator.clipboard.writeText(txt); showToast(msg, "success"); } catch(e) { showToast(txt, "info"); } };
             const realPlayers = usersList.filter(u => u.status === 'approved' && !u.isBot);
-            const players = usersList.filter(u => u.status === 'approved' && u.uid !== user.uid)
+            // סוכן שאינו בעלים/מנהל רואה ומנהל רק את השחקנים שלו
+            const players = usersList.filter(u => (u.status === 'approved' || u.status === 'banned') && u.uid !== user.uid)
+                .filter(u => canManageAny || u.agentUid === user.uid)
+                .filter(u => memFilter === 'all' || (memFilter === 'agents' && u.role === ROLES.AGENT) || (memFilter === 'managers' && u.role === ROLES.MANAGER) || (memFilter === 'banned' && u.status === 'banned'))
                 .filter(u => !search || (u.username||'').toLowerCase().includes(search.toLowerCase()) || (u.email||'').toLowerCase().includes(search.toLowerCase()) || (u.playerId||'').toLowerCase().includes(search.toLowerCase()));
 
             const statTiles = [
@@ -3746,6 +4132,7 @@
                                 {user.role === ROLES.SUPER_ADMIN && (
                                     <div className="flex gap-2 flex-wrap items-center">
                                         <button onClick={handleCreateBots} className="bg-gradient-to-b from-purple-500 to-purple-800 hover:from-purple-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i className="fa-solid fa-robot ml-2"></i>20 בוטים</button>
+                                        <button onClick={handleRenameBots} className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold border border-white/10"><i className="fa-solid fa-signature ml-2"></i>שמות חדשים לבוטים</button>
                                         <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
                                         <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת</span>
                                         <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
@@ -3787,6 +4174,17 @@
                                         <button onClick={sendBroadcast} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white px-6 py-3 rounded-xl font-black shadow-lg">שגר 📣</button>
                                     </div>
                                     <p className="text-[10px] text-slate-500 font-bold mt-1.5">ההודעה קופצת מיידית על המסך אצל כל מי שמחובר, עם צליל. מי שאישר התראות דפדפן יקבל אותה גם כשהאתר ברקע.</p>
+                                    {bcHist.length > 0 && (
+                                        <div className="mt-3 flex flex-col gap-1 max-h-32 overflow-y-auto">
+                                            {[...bcHist].reverse().slice(0, 8).map((b, i) => (
+                                                <div key={i} className="text-[11px] bg-slate-950/50 border border-white/5 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                                                    <span className="text-slate-500 font-bold shrink-0" dir="ltr">{new Date(b.at).toLocaleDateString('he-IL')} {new Date(b.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    <span className="text-slate-300 truncate">{b.text}</span>
+                                                    <span className="text-slate-600 font-bold mr-auto shrink-0">{b.by}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="mb-4 pb-4 border-b border-white/5">
                                     <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -3950,6 +4348,11 @@
                                     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש שחקן..." className="bg-slate-900/80 border border-white/10 rounded-full pr-9 pl-4 py-2 text-sm text-white w-52 outline-none focus:border-emerald-500/50" />
                                 </div>
                             </div>
+                            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                                {[['all','הכל'],['agents','סוכנים'],['managers','מנהלים'],['banned','חסומים']].map(([id, lb]) => (
+                                    <button key={id} onClick={()=>setMemFilter(id)} className={`text-[10px] font-black px-3 py-1 rounded-full border transition-colors ${memFilter === id ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white'}`}>{lb}</button>
+                                ))}
+                            </div>
                             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
                                 {players.map(u => (
                                     <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
@@ -3959,7 +4362,8 @@
                                                 <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
                                                     {u.username}
                                                     {u.isBot && <span className="text-purple-400 text-[10px]">(Bot)</span>}
-                                                    {isGodUser(u) && <i className="fa-solid fa-eye text-purple-400 text-[10px]" title="GOD MODE"></i>}
+                                                    {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-2 py-0.5 rounded-full font-bold">חסום</span>}
+                                                    {isGodUser(u) && isGodUser(user) && <i className="fa-solid fa-eye text-purple-400 text-[10px]" title="GOD MODE"></i>}
                                                     {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-2 py-0.5 rounded-full font-bold">{ROLE_LABELS[u.role]}</span>}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" dir="ltr">{u.email} · <span className="text-slate-500 font-black">{u.playerId || ''}</span></div>
@@ -3976,12 +4380,57 @@
                                             {isOwner && (u.photo || u.avatarSeed) && (
                                                 <button onClick={()=>censorPhoto(u)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
                                             )}
+                                            {canManageAny && !u.isBot && (
+                                                <button onClick={()=>toggleBan(u)} className={`w-9 h-9 rounded-full border transition-colors ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     </div>
+
+                    {/* מודל הפקדה/משיכה: סכומים מהירים + תצוגה חיה של שתי היתרות */}
+                    {balBox && (() => {
+                        const amt = parseFloat(balBox.amt) || 0;
+                        const dep = balBox.dir === 'in';
+                        const myAfter = round2((user.balance || 0) + (dep ? -amt : amt));
+                        const hisAfter = round2((balBox.mem.balance || 0) + (dep ? amt : -amt));
+                        const bad = amt <= 0 || myAfter < 0 || hisAfter < 0;
+                        return (
+                            <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl" onClick={()=>setBalBox(null)}>
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm animate-pop-in" onClick={e=>e.stopPropagation()}>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <img src={avatarUrl({ ...balBox.mem, uid: balBox.mem.id })} className="w-12 h-12 rounded-xl bg-slate-800" />
+                                        <div>
+                                            <div className="font-black text-white">{dep ? 'הפקדה ל' : 'משיכה מ'}{balBox.mem.username}</div>
+                                            <div className="text-[11px] text-slate-400">{dep ? 'יורד מהיתרה שלך' : 'עובר ליתרה שלך'}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 mb-3">
+                                        {[100, 500, 1000, 5000].map(v => (
+                                            <button key={v} onClick={()=>setBalBox({ ...balBox, amt: String(v) })} className={`flex-1 py-2 rounded-xl font-black text-sm border transition-colors ${Number(balBox.amt) === v ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-white/10 text-slate-300 hover:text-white'}`} dir="ltr">{formatMoney(v)}</button>
+                                        ))}
+                                    </div>
+                                    <input type="number" min="0" autoFocus value={balBox.amt} onChange={e=>setBalBox({ ...balBox, amt: e.target.value })} placeholder="סכום חופשי..." className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-black outline-none focus:border-emerald-500/60 mb-4" dir="ltr" />
+                                    <div className="grid grid-cols-2 gap-2 mb-4 text-center">
+                                        <div className="bg-slate-950/60 rounded-xl border border-white/5 p-2">
+                                            <div className="text-[10px] text-slate-500 font-bold mb-0.5">היתרה שלך</div>
+                                            <div className={`font-black text-sm ${myAfter < 0 ? 'text-rose-400' : 'text-white'}`} dir="ltr">{formatMoney(user.balance || 0)} ← {formatMoney(myAfter)}</div>
+                                        </div>
+                                        <div className="bg-slate-950/60 rounded-xl border border-white/5 p-2">
+                                            <div className="text-[10px] text-slate-500 font-bold mb-0.5">של {balBox.mem.username}</div>
+                                            <div className={`font-black text-sm ${hisAfter < 0 ? 'text-rose-400' : 'text-white'}`} dir="ltr">{formatMoney(balBox.mem.balance || 0)} ← {formatMoney(hisAfter)}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button disabled={bad} onClick={applyBalance} className={`flex-1 py-3 rounded-xl font-black text-white ${bad ? 'bg-slate-800 opacity-40' : dep ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-700 hover:bg-rose-600'}`}>{dep ? 'הפקד' : 'משוך'} {amt > 0 ? formatMoney(amt) : ''}</button>
+                                        <button onClick={()=>setBalBox(null)} className="px-5 py-3 rounded-xl font-bold text-slate-300 bg-slate-800 border border-white/10">ביטול</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* מודל עריכת תפקיד + בחירת משחקים לניהול */}
                     {roleEditUser && (
@@ -4066,8 +4515,17 @@
             const [dragData, setDragData] = useState(null);
             const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
             const [hoverTarget, setHoverTarget] = useState(null);
+            // null = בלי קו הכנסה. {beforeId} = הקו מצויר לפני אותה קבוצה,
+            // beforeId:null = בסוף הלוח.
+            const [insertHint, setInsertHint] = useState(null);
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
             const [showError, setShowError] = useState("");
+            // תחושה: חלוקה מדורגת, אבן נמשכת, קבוצה מתיישבת
+            const [dealing, setDealing] = useState(false);
+            const [drawInId, setDrawInId] = useState(null);
+            const [settleGid, setSettleGid] = useState(null);
+            const dealTmRef = useRef(null); const drawTmRef = useRef(null); const settleTmRef = useRef(null);
+            const prevRackIdsRef = useRef(null);
 
             const longPressTimer = useRef(null);
             const dragDataRef = useRef(null);
@@ -4105,15 +4563,53 @@
             const rakeFrac = ((clubSettings?.rakePct ?? DEFAULT_RAKE_PCT) / 100);
 
             const startIdsSet = useMemo(() => new Set(startTurnBoard.map(g => g.id)), [startTurnBoard]);
+            // האבנים שהיו במגש שלי בתחילת התור — רק אותן מותר להחזיר מהלוח למגש.
+            // כל השאר הן אבני שולחן: מותר לסדר אותן, אסור לקחת אותן.
+            const startRackIds = useMemo(() => new Set(startTurnRack.filter(Boolean).map(t => t.id)), [startTurnRack]);
 
-            const flashError = (msg) => { setShowError(msg); setTimeout(()=>setShowError(""), 4000); };
+            const flashError = (msg) => {
+                setShowError(msg);
+                playSnd('error');
+                try { if (navigator.vibrate) navigator.vibrate([40, 40, 40]); } catch(e) {}
+                setTimeout(()=>setShowError(""), 4000);
+            };
+
+            // גודל האבנים נקבע לפי המקום שיש באמת: מדמים את פריסת הזרימה
+            // בגדלים יורדים עד שכל הקבוצות נכנסות במסך בלי גלילה. ההקטנה
+            // הדרגתית (צעדי 3%) ומרוככת ב-transition — כמעט לא מרגישים בה.
+            const [feltSize, setFeltSize] = useState({ w: 0, h: 0 });
+            useEffect(() => {
+                const el = document.getElementById('felt-board');
+                if (!el || typeof ResizeObserver === 'undefined') return;
+                const ro = new ResizeObserver(entries => {
+                    const r = entries[0].contentRect;
+                    setFeltSize(prev => (Math.abs(prev.w - r.width) > 4 || Math.abs(prev.h - r.height) > 4) ? { w: r.width, h: r.height } : prev);
+                });
+                ro.observe(el);
+                return () => ro.disconnect();
+            }, []);
 
             const boardScale = useMemo(() => {
-                if (!board || board.length === 0) return 1.0;
-                const totalTiles = board.reduce((sum, g) => sum + g.tiles.length, 0);
-                const scale = 1.0 - (board.length * 0.01 + totalTiles * 0.003);
-                return Math.max(0.45, Math.min(1.0, scale));
-            }, [board]);
+                if (!board || board.length === 0 || !feltSize.w || !feltSize.h) return 1.0;
+                const small = window.innerWidth < 640;
+                const short = !small && window.innerHeight <= 540;
+                const TW = small ? 45 : short ? 47 : 58;   // רוחב אבן + מרווח בגודל מלא
+                const TH = small ? 52 : short ? 54 : 67;
+                const PAD = 10, GX = 18, GY = 22, FP = 18; // ריפוד קבוצה, מרווחי זרימה
+                const fits = (s) => {
+                    const availW = Math.max(1, feltSize.w - FP * 2);
+                    let x = 0, rows = 1;
+                    for (const g of board) {
+                        const gw = g.tiles.length * TW * s + PAD * 2 * s;
+                        if (x > 0 && x + gw > availW) { rows++; x = 0; }
+                        x += gw + GX * s;
+                    }
+                    return rows * (TH * s + PAD * 2 * s + GY * s) + FP * 2 <= feltSize.h;
+                };
+                let s = 1.0;
+                while (s > 0.55 && !fits(s)) s = Math.round((s - 0.03) * 100) / 100;
+                return Math.max(0.55, s);
+            }, [board, feltSize]);
 
             useEffect(() => { dragDataRef.current = dragData; }, [dragData]);
 
@@ -4225,6 +4721,22 @@
                     while(fullRack.length < 28) fullRack.push(null);
                     setRack(fullRack);
 
+                    // אבן אחת נוספה למגש כשהתור כבר לא שלי = משכתי מהקופה.
+                    // (החזרה של אבן מהלוח קורית בזמן התור שלי, ולכן לא תצלצל כאן.)
+                    const ids = dbCards.filter(Boolean).map(t => t.id);
+                    const prevIds = prevRackIdsRef.current;
+                    if (prevIds && prevIds.length > 0 && ids.length === prevIds.length + 1 && tableState.phase === 'playing' && tableState.currentTurn !== user.uid) {
+                        const prevSet = new Set(prevIds);
+                        const added = ids.find(id => !prevSet.has(id));
+                        if (added) {
+                            setDrawInId(added);
+                            playSnd('draw');
+                            if (drawTmRef.current) clearTimeout(drawTmRef.current);
+                            drawTmRef.current = setTimeout(() => setDrawInId(null), 600);
+                        }
+                    }
+                    prevRackIdsRef.current = ids;
+
                     if (tableState.currentTurn === user.uid) {
                         if (startTurnRef.current !== tableState.turnStartedAt) {
                              setStartTurnBoard(JSON.parse(JSON.stringify(rawBoard)));
@@ -4258,7 +4770,10 @@
                         const elem = document.elementFromPoint(e.clientX, e.clientY);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
-                            setHoverTarget(dropZone ? dropZone.getAttribute('data-drop') : null);
+                            const zone = dropZone ? dropZone.getAttribute('data-drop') : null;
+                            setHoverTarget(zone);
+                            // מעל לבד פנוי -> מראים לאן ייכנס. מעל קבוצה -> היא תיצבע כיעד מיזוג.
+                            setInsertHint(zone === 'board-new' ? { beforeId: boardInsertBeforeId(e.clientX, e.clientY) } : null);
                         }
                     }
                 };
@@ -4280,12 +4795,11 @@
                     let actualTarget = dropZone ? dropZone.getAttribute('data-drop') : null;
 
                     const boardArea = document.getElementById('felt-board');
-                    let dropX = 50, dropY = 50;
+                    let insertBeforeId = null;
                     if (boardArea && actualTarget !== 'rack' && !actualTarget?.startsWith('rack-slot-')) {
                         const rect = boardArea.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            dropX = Math.max(4, Math.min(96, ((e.clientX - rect.left) / rect.width) * 100));
-                            dropY = Math.max(6, Math.min(94, ((e.clientY - rect.top) / rect.height) * 100));
+                            insertBeforeId = boardInsertBeforeId(e.clientX, e.clientY);
                             if (!actualTarget || (!actualTarget.startsWith('board-group-'))) actualTarget = 'board-new';
                         }
                     }
@@ -4306,6 +4820,22 @@
                         }
                     }
 
+                    // שחרור מהלוח בלי יעד (או על אזור פסול) — ביטול נקי: הכל נשאר במקומו.
+                    // בלי זה, אבן בודדת מהלוח הייתה נדחפת כקבוצה חדשה עם ה-id של קבוצת המקור.
+                    if (currentDrag.source === 'board' && (!actualTarget || actualTarget === 'rack')) {
+                        setDragData(null); setHoverTarget(null); setInsertHint(null);
+                        return;
+                    }
+                    // מותר לסדר, אסור לקחת: למגש חוזרות רק אבנים שהתחילו בו את התור הזה
+                    if (currentDrag.source === 'board' && actualTarget?.startsWith('rack-slot-')) {
+                        const dragTiles = currentDrag.type === 'single' ? [currentDrag.tile] : currentDrag.tiles;
+                        if (!dragTiles.every(t => startRackIds.has(t.id))) {
+                            flashError('אבני השולחן נשארות על השולחן — מותר לסדר אותן, לא לקחת אותן למגש');
+                            setDragData(null); setHoverTarget(null); setInsertHint(null);
+                            return;
+                        }
+                    }
+
                     let newRack = [...rack];
                     let newBoard = board.map(g => ({...g, tiles: [...g.tiles]}));
                     let tilesToAdd = [];
@@ -4317,12 +4847,12 @@
                             const grp = newBoard.find(g => g.id === currentDrag.groupId);
                             if(grp) {
                                 if (currentDrag.tileIndex > 0 && currentDrag.tileIndex < grp.tiles.length - 1 && grp.tiles.length >= 3) {
+                                     // שליפה מאמצע סדרה מפצלת אותה לשתיים —
+                                     // החצי הימני נשאר צמוד לשמאלי בזרימה.
                                      const left = grp.tiles.slice(0, currentDrag.tileIndex);
                                      const right = grp.tiles.slice(currentDrag.tileIndex + 1);
                                      grp.tiles = left;
-                                     const splitId = `grp_${Date.now()}_split`;
-                                     newBoard.push({ id: splitId, x: Math.min(95, grp.x + 8), y: grp.y, tiles: right });
-                                     resolveOverlaps(newBoard, splitId, boardScale);
+                                     newBoard.splice(newBoard.indexOf(grp) + 1, 0, newBoardGroup(right));
                                 } else {
                                      grp.tiles.splice(currentDrag.tileIndex, 1);
                                      if (grp.tiles.length === 0) newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
@@ -4337,34 +4867,26 @@
                         if (currentDrag.source === 'board') newBoard = newBoard.filter(g => g.id !== currentDrag.groupId);
                     }
 
+                    let settledId = null; // הקבוצה שקיבלה את האבן - תקבל פאנץ' התיישבות
                     if (actualTarget && actualTarget.startsWith('board-group-')) {
                         const targetId = actualTarget.replace('board-group-', '');
                         const targetGrp = newBoard.find(g => g.id === targetId);
                         if (targetGrp) {
                              targetGrp.tiles.push(...tilesToAdd);
                              targetGrp.tiles = autoSortRun(targetGrp.tiles);
+                             settledId = targetId;
                         } else {
-                             const nid = `grp_${Date.now()}`;
-                             newBoard.push({ id: nid, x: dropX, y: dropY, tiles: tilesToAdd });
-                             resolveOverlaps(newBoard, nid, boardScale);
+                             const ng = newBoardGroup(tilesToAdd);
+                             spliceBefore(newBoard, insertBeforeId, ng);
+                             settledId = ng.id;
                         }
                     }
                     else if (actualTarget === 'board-new') {
-                        // מגנט הצמדה מוגדל: שוחרר ליד קבוצה - מצטרף אליה וממוין אוטומטית
-                        const near = newBoard.find(g => {
-                            if (g.tiles.length === 0) return false;
-                            const bx = groupBox(g, boardScale);
-                            return Math.abs(dropX - g.x) < bx.w / 2 + 4 && Math.abs(dropY - g.y) < bx.h / 2 + 4;
-                        });
-                        const nearBlocked = near && isMyTurn && !hasDropped && startIdsSet.has(near.id);
-                        if (near && !nearBlocked) {
-                            near.tiles.push(...tilesToAdd);
-                            near.tiles = autoSortRun(near.tiles);
-                        } else {
-                            const nid = `grp_${Date.now()}`;
-                            newBoard.push({ id: nid, x: dropX, y: dropY, tiles: tilesToAdd });
-                            resolveOverlaps(newBoard, nid, boardScale);
-                        }
+                        // נופל בין שתי קבוצות (או בסוף) — נכנס בדיוק שם.
+                        // צירוף לקבוצה קיימת נעשה בהפלה עליה ממש, לא במגנט קרבה.
+                        const ng = newBoardGroup(tilesToAdd);
+                        spliceBefore(newBoard, insertBeforeId, ng);
+                        settledId = ng.id;
                     }
                     else if (actualTarget && actualTarget.startsWith('rack-slot-')) {
                         let slotIdx = parseInt(actualTarget.split('-')[2]);
@@ -4398,7 +4920,16 @@
                     setBoard(newBoard);
                     setDragData(null);
                     setHoverTarget(null);
-                    if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) playSnd('tile');
+                    setInsertHint(null);
+                    if (isMyTurn && actualTarget && (actualTarget === 'board-new' || actualTarget.startsWith('board-group-'))) {
+                        playSnd('tile');
+                        try { if (navigator.vibrate) navigator.vibrate(12); } catch(err) {}
+                        if (settledId) {
+                            setSettleGid(settledId);
+                            if (settleTmRef.current) clearTimeout(settleTmRef.current);
+                            settleTmRef.current = setTimeout(() => setSettleGid(null), 320);
+                        }
+                    }
 
                     if (tableState?.id && isMyTurn) {
                         try {
@@ -4430,7 +4961,7 @@
                     window.removeEventListener('pointermove', handlePointerMove);
                     window.removeEventListener('pointerup', handlePointerUp);
                 };
-            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn, hasDropped, startIdsSet, boardScale]);
+            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn, hasDropped, startIdsSet, startRackIds, boardScale]);
 
             const startDrag = (e, tile, source, groupId, tileIndex) => {
                 const isMyTurn = tableState?.currentTurn === user.uid;
@@ -4510,16 +5041,14 @@
                 syncRack(a);
             };
 
+            // הלוח זורם, ולכן "לסדר" כבר לא אומר למקם מחדש — הוא ממיין:
+            // שלישיות תחילה, אחר-כך רצפים לפי צבע ולפי האבן הנמוכה.
             const handleArrangeBoard = async () => {
                 if (board.length === 0) return;
-                const arranged = board.map(g => ({...g}));
-                let x = 6, y = 12;
-                arranged.forEach(g => {
-                    const bx = groupBox(g, boardScale);
-                    if (x + bx.w > 96) { x = 6; y = Math.min(90, y + bx.h + 3); }
-                    g.x = Math.min(96, x + bx.w / 2);
-                    g.y = y;
-                    x += bx.w + 3;
+                const arranged = [...board].sort((a, b) => {
+                    const ka = groupSortKey(a), kb = groupSortKey(b);
+                    for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+                    return 0;
                 });
                 setBoard(arranged);
                 if (tableState?.currentTurn === user.uid) {
@@ -4681,7 +5210,7 @@
                         }
                     });
                     if (logEntries) logGameResult(logEntries, tableState.id);
-                    if (rakeInfo) payAgentCutsFromHouse(rakeInfo.rake, rakeInfo.uids);
+                    if (rakeInfo) { payAgentCutsFromHouse(rakeInfo.rake, rakeInfo.uids); logClubRake(rakeInfo.rake); }
                 } catch(e) {
                 } finally { endingRef.current = false; }
             };
@@ -4691,6 +5220,12 @@
                 if (tableState.currentTurn !== user.uid) return;
 
                 if (!isBoardValid) { flashError("הלוח לא תקין! ודא שכל הסדרות חוקיות (מינימום 3 אבנים)"); return; }
+
+                // שימור אבנים: כל אבן שהייתה על השולחן בתחילת התור חייבת להיות עליו גם בסופו.
+                // בדיקת הכמות לבדה (למטה) לא תופסת החלפת אבן לוח באבן מגש.
+                const boardIds = new Set(board.flatMap(g => g.tiles.map(t => t.id)));
+                const missingCnt = startTurnBoard.flatMap(g => g.tiles).filter(t => !boardIds.has(t.id)).length;
+                if (missingCnt > 0) { flashError(`חסרות ${missingCnt} אבנים שהיו על השולחן - אבני השולחן חייבות להישאר עליו. לחץ "בטל" וסדר מחדש.`); return; }
 
                 const activeRackCount = rack.filter(t=>t!==null).length;
                 if (activeRackCount >= startTurnRackCount) { flashError("לא הורדת אף אבן! אם אין לך מה לשחק, עליך למשוך אבן מהקופה."); return; }
@@ -4713,6 +5248,7 @@
                 const uids = Object.keys(tableState.players).sort();
                 const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                 await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: board, [`players.${user.uid}.cards`]: rack, [`players.${user.uid}.hasDropped`]: true, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: JSON.parse(JSON.stringify(board)), turnSnapRack: [...((tableState.players?.[nextTurn] || {}).cards || [])] });
+                playSnd('check'); // שתי נקישות עץ - התור נסגר
             };
 
             const handleNewRound = async () => {
@@ -4841,13 +5377,25 @@
 
             /* ---------- צ'אט ---------- */
             const ch = useTableChat(tableState, tableDocId, user, 'rummikub', showToast);
-            const prevRSnd = useRef({ phase: '', chatLen: 0 });
+            const prevRSnd = useRef({ phase: '', chatLen: 0, turn: '' });
             useEffect(() => {
                 if (!tableState) return;
                 if (tableState.phase === 'showdown' && prevRSnd.current.phase !== 'showdown') playSnd('win');
+                // חלוקה חדשה: האבנים נופלות למגש בזו אחר זו + רשרוש
+                if (tableState.phase === 'playing' && prevRSnd.current.phase && prevRSnd.current.phase !== 'playing') {
+                    playSnd('deal');
+                    setDealing(true);
+                    if (dealTmRef.current) clearTimeout(dealTmRef.current);
+                    dealTmRef.current = setTimeout(() => setDealing(false), 1400);
+                }
+                // התור שלי מתחיל: צליל חם + רטט קצר
+                if (tableState.phase === 'playing' && tableState.currentTurn === user.uid && prevRSnd.current.turn && prevRSnd.current.turn !== user.uid) {
+                    playSnd('turn');
+                    try { if (navigator.vibrate) navigator.vibrate(30); } catch(e) {}
+                }
                 const cl = (tableState.chat || []).length;
                 if (prevRSnd.current.chatLen && cl > prevRSnd.current.chatLen) playSnd('msg');
-                prevRSnd.current = { phase: tableState.phase, chatLen: cl };
+                prevRSnd.current = { phase: tableState.phase, chatLen: cl, turn: tableState.currentTurn || '' };
             }, [tableState]);
 
             if (loading) return <div className="h-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-3xl"></i></div>;
@@ -4901,7 +5449,10 @@
 
                     {isShowdown && results && (
                         <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
-                            <div className="bg-slate-900 border border-gold-500/50 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
+                            <div className="relative overflow-hidden bg-slate-900 border border-gold-500/50 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
+                                <div className="win-confetti">{Array.from({ length: 18 }, (_, i) => (
+                                    <i key={i} style={{ left: `${(i * 41 + 13) % 92 + 4}%`, background: ['#c62828', '#1257a8', '#e05a00', '#f5c860'][i % 4], animationDelay: `${(i * 73) % 900}ms`, transform: `scale(${0.75 + ((i * 29) % 10) / 12})` }} />
+                                ))}</div>
                                 <div className="trophy-pop inline-block"><i className="fa-solid fa-trophy text-6xl text-gold-400 drop-shadow-[0_0_20px_rgba(245,200,96,0.6)]"></i></div>
                                 <h2 className="text-3xl font-black text-white mt-4">{results.winnerName} ניצח!</h2>
                                 <div className="text-emerald-400 font-black text-2xl mt-2"><Coin amount={results.winnerProfit} /></div>
@@ -4928,12 +5479,15 @@
                             const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
                             const isTurn = tableState.currentTurn === uid;
                             return (
-                                <div key={uid} className={`flex flex-col items-center transition-all p-1 sm:p-2 rounded-xl shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? 'bg-slate-800 border border-emerald-500 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'opacity-70'}`}>
+                                <div key={uid} className={`flex flex-col items-center transition-all p-1 sm:p-2 shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? '' : 'opacity-60'}`}>
                                     {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
                                     {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
-                                    <img src={avatarUrl({ ...pData, uid })} className={`w-8 h-8 sm:w-12 sm:h-12 rounded-xl bg-slate-800 border-2 mb-0.5 sm:mb-1 ${isTurn ? 'border-emerald-400' : 'border-slate-600'}`} />
-                                    <span className="text-xs font-bold text-white mb-1 truncate w-full text-center">{pData.username}</span>
-                                    <span className="text-[10px] bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-full text-amber-400 font-bold whitespace-nowrap mb-1">📦 {tileCount}</span>
+                                    <div className={`pl-ring ${isTurn ? 'is-turn' : ''}`}
+                                         style={isTurn ? { '--pl-t': Math.max(0, timeLeft / TURN_SECONDS), '--pl-c': timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#34d399' } : undefined}>
+                                        <img src={avatarUrl({ ...pData, uid })} className="pl-avatar w-9 h-9 sm:w-14 sm:h-14" />
+                                    </div>
+                                    <span className="text-xs font-bold text-white mt-1 mb-0.5 truncate w-full text-center">{pData.username}</span>
+                                    <span className="text-[10px] bg-slate-950/80 border border-white/15 px-2 py-0.5 rounded-full text-amber-300 font-bold whitespace-nowrap mb-0.5" dir="ltr">🀄 {tileCount}</span>
                                     <span className="text-[10px] text-gold-400 font-bold" dir="ltr">{formatMoney(pData.stack)}</span>
                                 </div>
                             );
@@ -4941,34 +5495,38 @@
                     </div>
 
                     {/* מרכז */}
-                    <div className="flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
+                    <div className="felt-bg flex-1 flex flex-col relative min-h-0 min-w-0" style={{ '--board-scale': boardScale }}>
 
-                        {showError && <div className="absolute bottom-[220px] sm:bottom-[250px] left-1/2 transform -translate-x-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 animate-fade-in text-center max-w-[90%] text-sm">{showError}</div>}
+                        {showError && <div className="err-shake absolute bottom-[220px] sm:bottom-[250px] left-1/2 z-[100] bg-rose-700 text-white px-6 py-3 rounded-2xl font-black shadow-[0_10px_30px_rgba(225,29,72,0.6)] border-2 border-rose-400 text-center max-w-[90%] text-sm" style={{ transform: 'translateX(-50%)' }}>{showError}</div>}
 
                         {(isPlaying || isShowdown) && (
                              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 pointer-events-none z-10 flex-wrap justify-center">
-                                 <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur">קופה: {(tableState.deck||[]).length} אבנים</span>
+                                 <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur [@media(max-height:540px)]:hidden">קופה: {(tableState.deck||[]).length} אבנים</span>
                                  <span className="text-[11px] bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-bold backdrop-blur" dir="ltr">{formatMoney(tableState.stakes)} ₪/נק'</span>
                                  {isSeated && !hasDropped && isPlaying && <span className="text-[11px] bg-amber-900/70 border border-amber-600 px-3 py-1 rounded-full text-amber-300 font-bold backdrop-blur">טרם ירדת ({FIRST_MELD_MIN}+ נק')</span>}
                              </div>
                         )}
 
-                        <div id="felt-board" data-drop="board-new" className="flex-1 relative m-2 md:m-4 rounded-3xl border-2 border-emerald-900/60 overflow-auto shadow-[inset_0_0_80px_rgba(0,0,0,0.7)]">
-                            <div className="min-w-full min-h-full relative">
-                                {board.map((groupObj) => {
+                        <div id="felt-board" data-drop="board-new" className="flex-1 relative overflow-auto">
+                            <div className="board-flow">
+                                {board.map((groupObj, gIdx) => {
                                     const isMyNewGroup = isMyTurn && !hasDropped && !startIdsSet.has(groupObj.id);
+                                    const nextId = board[gIdx + 1] ? board[gIdx + 1].id : '';
                                     return (
-                                    <div key={groupObj.id} data-drop={`board-group-${groupObj.id}`}
-                                         className={`absolute flex board-group hover:bg-emerald-500/10 ${hoverTarget === `board-group-${groupObj.id}` ? 'border-2 border-emerald-400 rounded-xl bg-emerald-500/15' : !validateGroup(groupObj.tiles) ? 'board-invalid-group rounded-xl' : isMyNewGroup ? 'border-2 border-dashed border-emerald-500/50 rounded-xl' : 'border-2 border-transparent rounded-xl'}`}
-                                         style={{ left: `${groupObj.x}%`, top: `${groupObj.y}%`, transform: 'translate(-50%, -50%)', direction: 'ltr' }}>
-                                        {groupObj.tiles.map((t, tIdx) => (
-                                            <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: t.color }}>{t.val}</div>
-                                        ))}
-                                    </div>
+                                    <React.Fragment key={groupObj.id}>
+                                        {insertHint && insertHint.beforeId === groupObj.id && <div className="board-caret" />}
+                                        <div data-drop={`board-group-${groupObj.id}`} data-board-id={groupObj.id} data-board-next={nextId}
+                                             className={`board-group ${settleGid === groupObj.id ? 'group-settle' : ''} ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
+                                            {groupObj.tiles.map((t, tIdx) => (
+                                                <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
+                                            ))}
+                                        </div>
+                                    </React.Fragment>
                                 )})}
-                                {board.length === 0 && isPlaying && (
+                                {insertHint && insertHint.beforeId === null && <div className="board-caret" />}
+                                {board.length === 0 && isPlaying && !insertHint && (
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <span className="text-emerald-800/70 font-black text-lg">גרור אבנים לכאן כדי לפתוח סדרות</span>
+                                        <span className="board-empty-hint font-black text-lg">גרור אבנים לכאן כדי לפתוח סדרות</span>
                                     </div>
                                 )}
                             </div>
@@ -4981,33 +5539,33 @@
                                 </div>
                                 {isMyTurn && (
                                     <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור"
-                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 text-white shadow-[0_10px_25px_rgba(245,158,11,0.55)] border-[3px] border-amber-200 active:scale-90 transition-transform flex flex-col items-center justify-center leading-none">
-                                        <i className="fa-solid fa-plus text-2xl"></i>
-                                        <span className="text-[9px] font-black mt-0.5">📦 {(tableState.deck || []).length}</span>
+                                            className="rk-btn rk-btn-draw pointer-events-auto w-16 h-16 rounded-2xl">
+                                        <i className="fa-solid fa-plus text-2xl text-amber-300"></i>
+                                        <span className="text-[10px] font-black mt-0.5 text-amber-200/90" dir="ltr">{(tableState.deck || []).length}</span>
                                     </button>
                                 )}
                                 {isMyTurn && (
                                     <button onClick={handleEndTurn} title="סיים תור"
-                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 text-white text-3xl shadow-[0_10px_25px_rgba(6,182,212,0.55)] border-[3px] border-emerald-200 active:scale-90 transition-transform flex items-center justify-center">
-                                        <i className="fa-solid fa-check"></i>
+                                            className="rk-btn rk-btn-ok pointer-events-auto w-16 h-16 rounded-2xl text-3xl">
+                                        <i className="fa-solid fa-check text-emerald-300"></i>
                                     </button>
                                 )}
                             </div>
                         )}
                         {isSeated && isPlaying && (
-                            <div className="h-48 sm:h-52 shrink-0 bg-gradient-to-t from-slate-950 to-slate-900 border-t-8 border-slate-700 mx-2 md:mx-4 rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.6)] flex flex-col justify-end pb-3 px-2 relative z-30">
+                            <div className="rummy-rack h-48 sm:h-[clamp(7.5rem,26dvh,13rem)] shrink-0 w-[min(96%,56rem)] mx-auto rounded-t-2xl flex flex-col justify-end pb-3 px-2 relative z-30">
                                 <div className="flex items-center justify-between px-2 pb-1">
                                     <span className="text-[11px] font-bold text-slate-400">{user.username} · 📦 {myTileCount} אבנים</span>
                                     <span className="text-[11px] font-bold text-gold-400" dir="ltr">Stack: {formatMoney(me?.stack)}</span>
                                 </div>
-                                <div className="w-full flex-1 max-h-[160px] sm:max-h-[150px]">
+                                <div className="w-full flex-1 min-h-0">
                                     <div className="rack-grid h-full">
                                     {rack.map((tile, index) => {
                                         const isDragGrp = dragData?.type === 'group_from_rack' && index >= dragData.startIndex && index < dragData.startIndex + dragData.tiles.length;
                                         return (
-                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center border border-slate-800/50 rounded bg-slate-950/30 ${hoverTarget === `rack-slot-${index}` ? 'bg-emerald-900/30 border-emerald-500/50 shadow-inner' : ''}`}>
+                                            <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'is-hover' : !tile ? 'is-empty' : ''}`}>
                                                 {tile && (
-                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile w-[92%] h-[95%] flex items-center justify-center text-lg sm:text-2xl z-10 cursor-grab active:cursor-grabbing ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: tile.color }}>{tile.val}</div>
+                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dealing ? 'tile-deal-in' : drawInId === tile.id ? 'tile-draw-in' : ''} ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color), animationDelay: dealing ? `${index * 45}ms` : undefined }}>{tile.val}</div>
                                                 )}
                                             </div>
                                         );
@@ -5039,14 +5597,17 @@
 
                         {isSeated && isPlaying && (
                             <div className="flex-1 flex flex-row sm:flex-col w-auto sm:w-full gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto items-center sm:items-stretch">
-                                <button onClick={handleSort789} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-blue-400">789</span> סדרות</button>
-                                <button onClick={handleSort777} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-rose-400">777</span> שלישיות</button>
-                                <button onClick={handleArrangeBoard} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><i className="fa-solid fa-table-cells ml-1 text-emerald-400"></i> סדר שולחן</button>
-                                {isMyTurn && <button onClick={handleUndo} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"><i className="fa-solid fa-undo"></i> בטל</button>}
+                                <button onClick={handleSort789} title="סדר לפי סדרות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></span></button>
+                                <button onClick={handleSort777} title="סדר לפי שלישיות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></span></button>
+                                <button onClick={handleArrangeBoard} title="סדר את הלוח" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-table-cells text-sky-300"></i></button>
+                                {isMyTurn && <button onClick={handleUndo} title="בטל את המהלך" className="rk-btn rk-btn-undo w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-rotate-left text-rose-300"></i></button>}
                                 <div className="hidden sm:block w-full h-px bg-slate-800 my-1"></div>
                                 <div className="sm:mt-auto flex flex-row sm:flex-col gap-2 shrink-0">
-                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(6,182,212,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
+                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="rk-btn rk-btn-draw hidden sm:flex w-12 sm:w-full py-3 sm:py-5 shrink-0 gap-1.5">
+                                        <i className="fa-solid fa-plus text-2xl text-amber-300"></i>
+                                        <span className="text-[10px] font-black text-amber-200/90" dir="ltr">{(tableState.deck || []).length}</span>
+                                    </button>}
+                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="rk-btn rk-btn-ok hidden sm:flex w-12 sm:w-full py-3 sm:py-5 text-3xl shrink-0"><i className="fa-solid fa-check text-emerald-300"></i></button>}
                                 </div>
                             </div>
                         )}
@@ -5065,7 +5626,7 @@
                                     <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({(p.cards||[]).filter(c=>c).length} אבנים · {rackPenalty(p.cards)} נק')</span></div>
                                     <div className="flex flex-wrap gap-1" dir="ltr">
                                         {(p.cards||[]).filter(c=>c).map(t => (
-                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: t.color }}>{t.val}</div>
+                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: inkOf(t.color) }}>{t.val}</div>
                                         ))}
                                     </div>
                                 </div>
@@ -5079,8 +5640,8 @@
                     {ch.gifts.filter(g => g.to === user.uid).map((g, gi) => <div key={'sg'+gi} className="fixed left-1/2 top-1/3 -translate-x-1/2 text-6xl z-[500] pointer-events-none" style={{ animation: 'giftBoom 2s ease-out forwards' }}>{g.giftE}</div>)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: dragData.tile.color, pointerEvents: 'none' }}>{dragData.tile.val}</div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: t.color }}>{t.val}</div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}>{dragData.tile.val}</div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: inkOf(t.color) }}>{t.val}</div>))}</div>}
                 </div>
             );
         }
