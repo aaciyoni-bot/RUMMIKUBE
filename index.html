@@ -428,6 +428,40 @@
         .vtab { flex: none; padding: 9px 14px; font-size: 13px; font-weight: 800; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s ease; background: transparent; border-top: none; border-left: none; border-right: none; cursor: pointer; white-space: nowrap; }
         .vtab.active { color: #2dd4bf; border-bottom-color: #2dd4bf; }
         .vtab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; margin-inline-start: 5px; padding: 0 4px; font-size: 10px; font-weight: 900; border-radius: 99px; background: rgba(148,163,184,0.18); color: #cbd5e1; }
+
+        /* ═══ מסך קלאבים בסגנון POKERTEN: קוד PIN + חפיסת כרטיסים אנכיים ═══ */
+        .cl-page { --clA: #2dd4bf; }
+        .cl-code-wrap { background: #101a2e; border: 1px solid rgba(45,212,191,0.28); border-radius: 18px; padding: 10px 12px 12px; box-shadow: 0 10px 26px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04); }
+        .cl-code-title { display: flex; align-items: center; justify-content: center; gap: 7px; color: #8b98ad; font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+        .cl-code-title i { color: var(--clA); font-size: 11px; }
+        .cl-code { position: relative; display: flex; gap: 7px; justify-content: center; cursor: text; direction: ltr; }
+        .cl-box { width: 42px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #0b0f16; border: 1.5px solid rgba(255,255,255,0.09); color: #fff; font-size: 22px; font-weight: 800; box-shadow: inset 0 2px 6px rgba(0,0,0,0.5); transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        .cl-box-filled { border-color: rgba(45,212,191,0.5); }
+        .cl-box-on { border-color: var(--clA); box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 0 0 3px rgba(45,212,191,0.16); }
+        .cl-code-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; background: transparent; font-size: 16px; cursor: text; }
+        @media (max-width: 380px) { .cl-box { width: 38px; height: 44px; font-size: 19px; } }
+        .cl-deck { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding: 4px 2px 6px; scrollbar-width: none; direction: rtl; }
+        .cl-deck::-webkit-scrollbar { display: none; }
+        .cl-card { flex: 0 0 46%; max-width: 168px; scroll-snap-align: center; background: #101a2e; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 9px; display: flex; flex-direction: column; box-shadow: 0 18px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); }
+        .cl-art { position: relative; width: 100%; height: clamp(96px, 17vh, 150px); border-radius: 14px; overflow: hidden; background: linear-gradient(160deg, #1b2a3f, #0b0f16); border: 1px solid rgba(45,212,191,0.22); display: flex; align-items: center; justify-content: center; }
+        .cl-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .cl-art-letter { font-size: 44px; font-weight: 800; color: rgba(45,212,191,0.6); }
+        .cl-owner { position: absolute; top: 8px; right: 8px; font-size: 9px; font-weight: 900; letter-spacing: 0.06em; color: #06221c; background: var(--clA); border-radius: 99px; padding: 2px 8px; }
+        .cl-del { position: absolute; top: 6px; left: 6px; width: 28px; height: 28px; border-radius: 10px; border: none; background: rgba(0,0,0,0.5); color: #64748b; font-size: 11px; cursor: pointer; }
+        .cl-del:hover { color: #fb7185; }
+        .cl-name { margin-top: 7px; text-align: center; color: #fff; font-size: 14px; font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cl-id { text-align: center; color: #8b98ad; font-size: 9.5px; font-weight: 700; margin-top: 1px; letter-spacing: 0.08em; }
+        .cl-stats { display: flex; gap: 5px; margin: 7px 0; }
+        .cl-stat { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 9px; padding: 5px 2px; color: #cbd5e1; font-size: 11px; font-weight: 800; white-space: nowrap; overflow: hidden; }
+        .cl-stat i { color: var(--clA); font-size: 11px; opacity: 0.9; }
+        .cl-cta { margin-top: auto; width: 100%; border: none; border-radius: 11px; padding: 9px 0; font-size: 13px; font-weight: 900; background: linear-gradient(180deg, #2dd4bf, #0e8a7a); color: #06221c; box-shadow: 0 6px 18px rgba(45,212,191,0.24); cursor: pointer; }
+        .cl-cta-wait { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #8b98ad; font-size: 10.5px; box-shadow: none; text-align: center; padding: 9px 0; border-radius: 11px; margin-top: auto; font-weight: 800; }
+        .cl-cta-create { background: linear-gradient(180deg, #34d399, #0e8a50); color: #fff; box-shadow: 0 6px 18px rgba(23,178,106,0.28); }
+        .cl-art-create { flex-direction: column; gap: 10px; background: linear-gradient(160deg, #142033, #090c12); }
+        .cl-create-cap { color: #94a3b8; font-size: 10.5px; font-weight: 700; text-align: center; padding: 0 14px; line-height: 1.35; }
+        .cl-dots { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 10px; }
+        .cl-dot { width: 7px; height: 7px; border-radius: 99px; border: none; background: rgba(255,255,255,0.18); padding: 0; transition: width 0.2s ease, background 0.2s ease; }
+        .cl-dot-on { width: 20px; background: var(--clA); }
         /* אבני נוי צפות ברקע מסך הקלאבים */
         .float-tile {
             position: absolute; pointer-events: none; opacity: 0.06; filter: blur(1.5px);
@@ -942,7 +976,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v25';
+        const APP_VER = 'v26';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2819,8 +2853,12 @@
             const [searchCode, setSearchCode] = useState('');
             const [foundClub, setFoundClub] = useState(null);
             const [foundCount, setFoundCount] = useState(null);
-            const doClubSearch = async () => {
-                const code = searchCode.trim();
+            const [createOpen, setCreateOpen] = useState(false);
+            const [slide, setSlide] = useState(0);
+            const pinRef = React.useRef(null);
+            const deckRef = React.useRef(null);
+            const doClubSearch = async (codeArg) => {
+                const code = String(codeArg ?? searchCode).trim();
                 if (!/^\d{6}$/.test(code)) { setFoundClub(null); return showToast("הזן מזהה בן 6 ספרות", "error"); }
                 const hit = clubs.find(c => clubCode(c.id) === code);
                 if (!hit) { setFoundClub(null); setFoundCount(null); return showToast("לא נמצא קלאב עם המזהה הזה", "error"); }
@@ -3017,52 +3055,76 @@
                             , document.body)}
                         </div>
 
-                        {myClubs.length > 0 && (
-                            <div className="mb-5">
-                                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-2.5"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
-                                <div className={myClubs.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'flex flex-col gap-4'}>
-                                    {myClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => onEnter(c)} className="text-white px-7 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0 hover:brightness-110 transition-all"
-                                                style={{ background: `linear-gradient(180deg, ${clubHue(c.id).a}, ${clubHue(c.id).b})`, boxShadow: `0 8px 20px ${clubHue(c.id).glow}` }}>כניסה ←</button>
-                                    } />)}
-                                </div>
+                        {/* קוד PIN להצטרפות לקלאב לפי מזהה */}
+                        <div className="cl-code-wrap mb-4">
+                            <div className="cl-code-title"><i className="fa-solid fa-hashtag"></i> הצטרפות לקלאב — הזן מזהה בן 6 ספרות</div>
+                            <div className="cl-code" onClick={() => pinRef.current && pinRef.current.focus()}>
+                                {[0,1,2,3,4,5].map(i => (
+                                    <div key={i} className={`cl-box ${searchCode.length === i ? 'cl-box-on' : ''} ${searchCode[i] ? 'cl-box-filled' : ''}`}>{searchCode[i] || ''}</div>
+                                ))}
+                                <input ref={pinRef} value={searchCode} inputMode="numeric" dir="ltr" className="cl-code-input"
+                                    onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 6); setSearchCode(v); if (v.length === 6) doClubSearch(v); else setFoundClub(null); }} />
                             </div>
-                        )}
-
-                        {pendingClubs.length > 0 && (
-                            <div className="mb-4">
-                                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-hourglass-half ml-1"></i> ממתין לאישור</h3>
-                                <div className="flex flex-col gap-3">
-                                    {pendingClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <span className="text-amber-400 text-xs font-black bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-xl shrink-0">⏳ בהמתנה</span>
-                                    } />)}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid sm:grid-cols-2 gap-4 items-start mb-4">
-                        <div className="glass-panel rounded-3xl p-5 border border-sky-500/15">
-                            <h3 className="text-xs font-black text-sky-300 uppercase tracking-widest mb-3"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
-                            <div className="flex gap-2 mb-2">
-                                <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה 6 ספרות" dir="ltr" maxLength={6} className="flex-1 min-w-0 bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-white font-black text-center tracking-[0.2em] text-sm outline-none focus:border-emerald-500/60" />
-                                <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-5 rounded-xl font-black text-sm shadow-lg shrink-0">חפש</button>
-                            </div>
-                            {foundClub && (!memOf(foundClub.id) || memOf(foundClub.id).status === 'rejected') && (
-                                <ClubCard c={foundClub} action={
-                                    <div className="flex flex-col items-end gap-2 shrink-0">
-                                        <span className="text-[11px] text-slate-400 font-bold">{foundCount != null ? `👤 ${foundCount} שחקנים` : '…'}</span>
-                                        {memOf(foundClub.id) && memOf(foundClub.id).status === 'rejected' && <span className="text-[10px] text-rose-300 font-bold">בקשה קודמת נדחתה</span>}
-                                        <button onClick={() => requestJoin(foundClub)} className="bg-slate-800 hover:brightness-125 text-white px-5 py-2 rounded-xl font-bold text-sm border transition-all" style={{ borderColor: clubHue(foundClub.id).a + '66' }}>בקש להצטרף</button>
+                            {foundClub && (() => {
+                                const m = memOf(foundClub.id);
+                                if (m && m.status === 'banned') return <div className="text-center text-rose-300 font-bold text-sm pt-3">🚫 הגישה שלך לקלאב הזה נחסמה.</div>;
+                                if (m && ['pending','approved'].includes(m.status)) return <div className="text-center text-slate-400 font-bold text-sm pt-3">אתה כבר {m.status === 'approved' ? 'חבר' : 'ממתין לאישור'} בקלאב "{foundClub.name}".</div>;
+                                return (
+                                    <div className="flex items-center justify-between gap-3 mt-3 bg-slate-950/50 border border-emerald-500/20 rounded-2xl p-3">
+                                        <div className="min-w-0 text-right">
+                                            <div className="font-black text-white truncate">{foundClub.name}</div>
+                                            <div className="text-[11px] text-slate-400 font-bold">{foundCount != null ? `👤 ${foundCount} שחקנים` : '…'}{m && m.status === 'rejected' ? ' · בקשה קודמת נדחתה' : ''}</div>
+                                        </div>
+                                        <button onClick={() => requestJoin(foundClub)} className="shrink-0 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2 rounded-xl font-black text-sm shadow-lg">בקש להצטרף</button>
                                     </div>
-                                } />
-                            )}
-                            {foundClub && memOf(foundClub.id) && ['pending', 'approved'].includes(memOf(foundClub.id).status) && (
-                                <div className="text-center text-slate-400 font-bold text-sm py-2">אתה כבר {memOf(foundClub.id).status === 'approved' ? 'חבר' : 'ממתין לאישור'} בקלאב הזה.</div>
-                            )}
-                            {foundClub && memOf(foundClub.id) && memOf(foundClub.id).status === 'banned' && (
-                                <div className="text-center text-rose-300 font-bold text-sm py-2">🚫 הגישה שלך לקלאב הזה נחסמה. פנה לבעל הקלאב.</div>
-                            )}
+                                );
+                            })()}
                         </div>
+
+                        {/* חפיסת הקלאבים בסגנון POKERTEN */}
+                        {(() => {
+                            const deck = [...myClubs, ...pendingClubs];
+                            const total = deck.length + 1;
+                            return (
+                            <>
+                            <div className="cl-deck" ref={deckRef} onScroll={e => { const el = e.currentTarget; const w = el.scrollWidth / total; if (w > 0) setSlide(Math.min(total - 1, Math.round(Math.abs(el.scrollLeft) / w))); }}>
+                                {deck.map(c => {
+                                    const m = memOf(c.id);
+                                    const isOwner = c.ownerUid === user.uid;
+                                    const approved = god || (m && m.status === 'approved');
+                                    return (
+                                        <div key={c.id} className="cl-card">
+                                            <div className="cl-art">
+                                                {isOwner && <span className="cl-owner">👑 שלך</span>}
+                                                {(isOwner || god) && c.id !== 'main' && <button className="cl-del" onClick={e => { e.stopPropagation(); deleteClub(c); }}><i className="fa-solid fa-trash"></i></button>}
+                                                <span className="cl-art-letter">{[...(c.name || '?').trim()][0] || '?'}</span>
+                                            </div>
+                                            <div className="cl-name">{c.name}</div>
+                                            <div className="cl-id" dir="ltr">מזהה {clubCode(c.id)}</div>
+                                            <div className="cl-stats">
+                                                <span className="cl-stat"><i className="fa-solid fa-coins"></i><span dir="ltr">{formatMoney((m && m.balance) || 0)}</span></span>
+                                                <span className="cl-stat">{isOwner ? '👑 בעלים' : 'חבר'}</span>
+                                            </div>
+                                            {approved
+                                                ? <button className="cl-cta" onClick={() => onEnter(c)}>כניסה ←</button>
+                                                : <div className="cl-cta-wait">⏳ ממתין לאישור</div>}
+                                        </div>
+                                    );
+                                })}
+                                <div className="cl-card">
+                                    <div className="cl-art cl-art-create">
+                                        <i className="fa-solid fa-plus" style={{ fontSize: '38px', color: '#34d399' }}></i>
+                                        <span className="cl-create-cap">הקם קלאב משלך ונהל שחקנים</span>
+                                    </div>
+                                    <button className="cl-cta cl-cta-create" onClick={() => setCreateOpen(true)}>הקם קלאב</button>
+                                </div>
+                            </div>
+                            <div className="cl-dots">
+                                {Array.from({ length: total }).map((_, i) => <span key={i} className={`cl-dot ${slide === i ? 'cl-dot-on' : ''}`}></span>)}
+                            </div>
+                            </>
+                            );
+                        })()}
 
                         {joinFor && ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJoinFor(null)}>
@@ -3084,17 +3146,18 @@
                             </div>
                         , document.body)}
 
-                        <div className="glass-panel rounded-3xl p-5 border border-emerald-500/20">
-                            <h3 className="text-xs font-black text-emerald-300 uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1"></i> הקם קלאב חדש</h3>
-                            <div className="flex gap-2">
-                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." maxLength={30} className="flex-1 min-w-0 bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-white font-bold text-sm outline-none focus:border-emerald-500/60" />
-                                <button onClick={createClub} disabled={creating || !newName.trim()} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0">
-                                    {creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם 👑'}
-                                </button>
+                        {createOpen && ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setCreateOpen(false)}>
+                                <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center">
+                                    <div className="text-3xl mb-2">👑</div>
+                                    <h3 className="text-lg font-black text-white mb-1">הקמת קלאב חדש</h3>
+                                    <p className="text-slate-400 text-xs font-bold mb-4 leading-relaxed">אתה בעל הקלאב: 100,000,000 צ'יפים לחלוקה, אישור חברים, מינוי מנהלים וסוכנים - והרווחים שלך.</p>
+                                    <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." maxLength={30} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-center outline-none focus:border-emerald-500/60 mb-3" />
+                                    <button onClick={createClub} disabled={creating || !newName.trim()} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white py-3 rounded-xl font-black shadow-lg mb-2">{creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם קלאב 👑'}</button>
+                                    <button onClick={() => setCreateOpen(false)} className="text-slate-500 hover:text-white underline text-xs font-bold">ביטול</button>
+                                </div>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-bold mt-2 leading-relaxed">אתה בעל הקלאב: 100,000,000 צ'יפים לחלוקה, אישור חברים, מינוי מנהלים וסוכנים - והרווחים שלך.</p>
-                        </div>
-                        </div>
+                        , document.body)}
                     </div>
                 </div>
             );
@@ -4075,6 +4138,7 @@
                                 {(() => {
                                     const sizes = [...new Set(rummyTables.map(t => Number(t.maxPlayers) || 4))].sort((a, b) => a - b);
                                     const shown = rummyTables.filter(t => rtab === 'all' || Number(t.maxPlayers) === rtab);
+                                    const sizeColor = { 2: '#38bdf8', 3: '#f59e0b', 4: '#a78bfa', 5: '#34d399', 6: '#fb7185' };
                                     return (
                                     <>
                                     {rummyTables.length > 0 && (
@@ -4082,7 +4146,15 @@
                                             <button onClick={() => setRtab('all')} className={`vtab ${rtab === 'all' ? 'active' : ''}`}>הכל<span className="vtab-count">{rummyTables.length}</span></button>
                                             {sizes.map(sz => {
                                                 const n = rummyTables.filter(t => Number(t.maxPlayers) === sz).length;
-                                                return <button key={sz} onClick={() => setRtab(sz)} className={`vtab ${rtab === sz ? 'active' : ''}`}>{sz} שחקנים{n > 0 && <span className="vtab-count">{n}</span>}</button>;
+                                                const col = sizeColor[sz] || '#2dd4bf';
+                                                const on = rtab === sz;
+                                                return (
+                                                    <button key={sz} onClick={() => setRtab(sz)} className={`vtab ${on ? 'active' : ''}`}
+                                                        style={{ color: col, borderBottomColor: on ? col : 'transparent' }}>
+                                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: col, marginInlineEnd: 6, verticalAlign: 'middle' }}></span>
+                                                        {sz} שחקנים{n > 0 && <span className="vtab-count" style={{ background: col + '22', color: col }}>{n}</span>}
+                                                    </button>
+                                                );
                                             })}
                                         </div>
                                     )}
@@ -4092,24 +4164,21 @@
                                             const cap = Number(t.maxPlayers) || 4;
                                             const mine = t.players && t.players[user.uid];
                                             const playing = t.phase === 'playing';
+                                            const col = sizeColor[cap] || '#2dd4bf';
                                             return (
-                                                <div key={t.docId} className="tbl-row" onClick={() => onJoinRummy(t)}>
+                                                <div key={t.docId} className="tbl-row" style={{ '--spineC': col }} onClick={() => onJoinRummy(t)}>
                                                     <div className="tbl-spine">רמי</div>
                                                     <div className="tbl-seats">
                                                         <svg className="tbl-ring" viewBox="0 0 44 44">
                                                             <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="3.5" />
-                                                            <circle cx="22" cy="22" r="19" fill="none" stroke={seated > 0 ? '#2dd4bf' : 'rgba(148,163,184,0.28)'} strokeWidth="3.5" strokeDasharray={`${119 * seated / cap} 119`} strokeLinecap="round" transform="rotate(-90 22 22)" />
+                                                            <circle cx="22" cy="22" r="19" fill="none" stroke={seated > 0 ? col : 'rgba(148,163,184,0.28)'} strokeWidth="3.5" strokeDasharray={`${119 * seated / cap} 119`} strokeLinecap="round" transform="rotate(-90 22 22)" />
                                                         </svg>
                                                         <span dir="ltr">{seated}<span className="seat-cap">/{cap}</span></span>
                                                     </div>
                                                     <div className="tbl-main">
                                                         <div className="tbl-name">רמיקוב{mine && <span className="tbl-me">אתה יושב</span>}</div>
-                                                        <div className="tbl-stakes" dir="ltr">{formatMoney(t.stakes)} ₪ / נק'</div>
-                                                        <div className="tbl-sub">{playing ? <span className="tbl-live"><span className="tbl-live-dot"></span>במשחק</span> : 'ממתין'}</div>
-                                                    </div>
-                                                    <div className="tbl-buyin" dir="ltr">
-                                                        <span className="tbl-buyin-label">כניסה</span>
-                                                        <span className="tbl-buyin-val">{formatMoney(t.minBuyIn)}</span>
+                                                        <div className="tbl-stakes" dir="rtl">כניסה {formatMoney(t.minBuyIn)} ₪</div>
+                                                        <div className="tbl-sub" dir="rtl">כל נקודה = {formatMoney(t.stakes)} ₪ {playing ? <span className="tbl-live">· <span className="tbl-live-dot"></span>במשחק</span> : '· ממתין לשחקנים'}</div>
                                                     </div>
                                                     <i className="fa-solid fa-coins tbl-coins"></i>
                                                     {canManageGame(user, 'rummikub') && (
