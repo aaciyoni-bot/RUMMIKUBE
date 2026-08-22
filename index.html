@@ -976,7 +976,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v26';
+        const APP_VER = 'v27';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2320,13 +2320,21 @@
                     const god = isGodUser(dbUser);
                     const mRef = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${club.id}`);
                     const mSnap = await window.fb.getDoc(mRef);
-                    if (!mSnap.exists()) {
-                        if (god) {
-                            await window.fb.setDoc(mRef, newMembership(dbUser.uid, dbUser, { clubId: club.id, role: ROLES.SUPER_ADMIN, status: 'approved' }));
-                        } else {
-                            showToast("שלח בקשת הצטרפות קודם", "error"); return;
+                    if (god) {
+                        // GOD צופה מהצד ובלתי-נראה: הכוחות מגיעים מ-effUser (בזיכרון,
+                        // לפי המייל) ומחוקי-האבטחה (לפי טוקן) — לא צריך חברות כתובה.
+                        // לא יוצרים חברות, וגם מנקים חברות-אדמין ישנה שנוצרה
+                        // אוטומטית בקלאב שאינו של GOD, כדי שהבעלים לא יראה אותו ברשימה.
+                        // אם GOD רוצה *לשחק*, הוא מצטרף כמו כל שחקן והבעלים מאשר.
+                        if (mSnap.exists() && mSnap.data().role === ROLES.SUPER_ADMIN && (club.ownerUid || '') !== dbUser.uid) {
+                            try { await window.fb.deleteDoc(mRef); } catch(e) {}
                         }
-                    } else if (mSnap.data().status !== 'approved' && !god) {
+                        setActiveClub(club); setActiveClubState(club); changeView('lobby');
+                        return;
+                    }
+                    if (!mSnap.exists()) {
+                        showToast("שלח בקשת הצטרפות קודם", "error"); return;
+                    } else if (mSnap.data().status !== 'approved') {
                         const st = mSnap.data().status;
                         showToast(st === 'banned' ? "הגישה שלך לקלאב הזה נחסמה" : st === 'rejected' ? "בקשת ההצטרפות שלך נדחתה" : "הבקשה שלך ממתינה לאישור בעל הקלאב", st === 'pending' ? "info" : "error"); return;
                     }
