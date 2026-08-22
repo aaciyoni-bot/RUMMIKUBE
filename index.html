@@ -239,9 +239,9 @@
                 0 0 1.1em rgba(90,160,255,0.5);
             z-index: 999;
         }
-        .board-tile { width: calc(2.5rem * var(--board-scale, 1)); height: calc(3rem * var(--board-scale, 1)); font-size: calc(1.55rem * var(--board-scale, 1)); margin: 0 calc(1.5px * var(--board-scale, 1)); }
+        .board-tile { width: calc(2.7rem * var(--board-scale, 1)); height: calc(3.25rem * var(--board-scale, 1)); font-size: calc(1.7rem * var(--board-scale, 1)); margin: 0 calc(1px * var(--board-scale, 1)); }
         @media (min-width: 640px) {
-            .board-tile { width: calc(3rem * var(--board-scale, 1)); height: calc(3.6rem * var(--board-scale, 1)); font-size: calc(1.9rem * var(--board-scale, 1)); }
+            .board-tile { width: calc(3.5rem * var(--board-scale, 1)); height: calc(4.2rem * var(--board-scale, 1)); font-size: calc(2.25rem * var(--board-scale, 1)); }
         }
         /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
            מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
@@ -317,22 +317,26 @@
         /* ספרות הכפתור בצבעי האבנים, כמו במשחק */
         .rk-sort-d1 { color: #ff6b6b; } .rk-sort-d2 { color: #6bb6ff; } .rk-sort-d3 { color: #ffb347; }
 
-        .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
+        /* המגש כמו במקור: האבנים צמודות זו לזו ונערמות משמאל.
+           גודל המשבצת נגזר מגובה השורה (פרופורציית אבן 5:6) — לא מרוחב
+           המסך, ולכן אין רווחים מתים בין האבנים. */
+        .rack-grid {
+            display: flex; flex-wrap: wrap; align-content: flex-start;
+            gap: 3px; direction: ltr; overflow-y: auto; height: 100%;
+        }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
-        /* משבצת ריקה = חריץ שקוע בעץ. משבצת מלאה לא מציירת כלום — האבן היא הכל. */
-        .rack-slot { min-height: 36px; position: relative; border-radius: 7px; }
+        .rack-slot { height: calc(25% - 3px); aspect-ratio: 5 / 6; min-height: 0; position: relative; border-radius: 7px; }
         /* משטח המגש חלק — משבצת ריקה רק נרמזת, בלי רשת חריצים */
         .rack-slot.is-empty {
             background: linear-gradient(180deg, rgba(90,60,25,0.13), transparent 70%);
             box-shadow: inset 0 1px 2px rgba(70,45,18,0.22);
         }
         .rack-slot.is-hover { background: rgba(16,185,129,0.24); box-shadow: inset 0 0 0 2px rgba(16,185,129,0.8); }
-        /* האבן במגש שומרת על פרופורציית אבן אמיתית בכל גודל מסך */
-        .rack-slot .rummy-tile { height: 94%; width: auto; aspect-ratio: 5 / 6; }
+        /* האבן ממלאת את המשבצת — המשבצת כבר בפרופורציה הנכונה */
+        .rack-slot .rummy-tile { width: 100%; height: 100%; }
         @media (min-width: 640px) {
-            .rack-grid { grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
-            .rack-slot { min-height: 64px; }
+            .rack-slot { height: calc(50% - 3px); }
         }
 
         /* בועות צ'אט ומתנות בין שחקנים */
