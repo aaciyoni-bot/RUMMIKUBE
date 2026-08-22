@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v34';
+        const APP_VER = 'v35';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5704,23 +5704,8 @@
             const [needRotate, setNeedRotate] = useState(false);
             useEffect(() => {
                 let locked = false;
-                // מסך מלא אמיתי: מסתיר את שורת הסטטוס ופס הניווט של הטלפון.
-                // דפדפן דורש מחוות משתמש - לכן על המגע הראשון בשולחן, פעם אחת.
-                const goFull = () => {
-                    try {
-                        // זיהוי מכשיר מגע ולא רוחב מסך: טלפונים חדשים ברזולוציה
-                        // גבוהה נראים "רחבים" מדסקטופ ופספסו את התנאי הישן.
-                        const touchy = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || navigator.maxTouchPoints > 0;
-                        const el = document.documentElement;
-                        if (!document.fullscreenElement && el.requestFullscreen && touchy) {
-                            el.requestFullscreen({ navigationUI: 'hide' }).then(() => {
-                                const so = window.screen && window.screen.orientation;
-                                if (so && so.lock) so.lock('landscape').catch(() => {});
-                            }).catch(() => {});
-                        }
-                    } catch (e) {}
-                };
-                window.addEventListener('pointerdown', goFull, { once: false });
+                // רק בשולחן הרמיקוב: ניסיון עדין לנעול לרוחב (עובד ב-PWA/מסך-מלא).
+                // בלי בקשת מסך-מלא על כל מגע — זה מה שסובב את המסך בטעות בכל לחיצה.
                 try {
                     const so = window.screen && window.screen.orientation;
                     if (so && so.lock) { so.lock('landscape').then(() => { locked = true; }).catch(() => {}); }
@@ -5735,8 +5720,6 @@
                 return () => {
                     window.removeEventListener('resize', check);
                     window.removeEventListener('orientationchange', check);
-                    window.removeEventListener('pointerdown', goFull);
-                    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
                     try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {}
                 };
             }, []);
@@ -7079,7 +7062,7 @@
            ================================================================ */
         const RamiTile = ({ tile, onClick, dim, big }) => (
             <div onClick={onClick} className="rummy-tile" title={tile.val === '☻' ? "ג'וקר" : ''}
-                style={{ width: big ? '2.9rem' : '2.6rem', height: big ? '3.7rem' : '3.3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '1.7rem' : '1.5rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
+                style={{ width: big ? '3.5rem' : '3rem', height: big ? '4.4rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
                 {tile.val === '☻' ? '🃏' : tile.val}
             </div>
         );
@@ -7112,6 +7095,47 @@
             const part = useMemo(() => bestPartition(myHand), [handKey]);
             const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
             const uids = t ? Object.keys(t.players || {}).sort() : [];
+
+            // ── סידור-יד ידני (גרירה) + הדגשת האבן שנמשכה זה עתה ──
+            const [order, setOrder] = useState([]);
+            const [flashId, setFlashId] = useState(null);
+            const [dragId, setDragId] = useState(null);
+            const dragIdRef = useRef(null);
+            const dragMovedRef = useRef(false);
+            const rowRef = useRef(null);
+            const prevIdsRef = useRef([]);
+            const handIds = myHand.filter(Boolean).map(x => x.id);
+            useEffect(() => {
+                setOrder(prev => { const kept = prev.filter(id => handIds.includes(id)); const added = handIds.filter(id => !kept.includes(id)); return [...kept, ...added]; });
+                const added = handIds.find(id => !prevIdsRef.current.includes(id));
+                prevIdsRef.current = handIds;
+                if (added) { setFlashId(added); const tm = setTimeout(() => setFlashId(null), 1600); return () => clearTimeout(tm); }
+            }, [handKey]);
+            const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
+            const meldIds = new Set((part.melds || []).flat().map(x => x.id));
+            const orderedTiles = order.map(id => tileById[id]).filter(Boolean);
+            const autoArrange = () => setOrder([...(part.melds || []).flat(), ...[...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || (a.val === '☻' ? 99 : Number(a.val)) - (b.val === '☻' ? 99 : Number(b.val)))].map(x => x.id));
+            const onTileDown = (id) => { dragIdRef.current = id; dragMovedRef.current = false; setDragId(id); };
+            const onRowMove = (e) => {
+                const did = dragIdRef.current; if (!did || !rowRef.current) return;
+                const px = e.touches ? e.touches[0].clientX : e.clientX;
+                const py = e.touches ? e.touches[0].clientY : e.clientY;
+                const kids = [...rowRef.current.querySelectorAll('[data-tid]')];
+                let targetId = null;
+                for (const k of kids) { const r = k.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) { targetId = k.getAttribute('data-tid'); break; } }
+                if (targetId && targetId !== did) { dragMovedRef.current = true; setOrder(prev => { const cur = [...prev]; const from = cur.indexOf(did); const to = cur.indexOf(targetId); if (from < 0 || to < 0) return prev; cur.splice(from, 1); cur.splice(to, 0, did); return cur; }); }
+            };
+            const onTileUp = () => { const did = dragIdRef.current; const moved = dragMovedRef.current; dragIdRef.current = null; dragMovedRef.current = false; setDragId(null); if (!moved && did && myTurn && t && t.turnPhase === 'discard') doDiscard(did); };
+
+            // נעילת-מסך: שהמסך לא ייכבה/יתעמעם באמצע המשחק
+            useEffect(() => {
+                let wl = null, dead = false;
+                const req = async () => { try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (e) {} };
+                req();
+                const onVis = () => { if (document.visibilityState === 'visible' && !dead) req(); };
+                document.addEventListener('visibilitychange', onVis);
+                return () => { dead = true; document.removeEventListener('visibilitychange', onVis); try { if (wl) wl.release(); } catch (e) {} };
+            }, []);
 
             const handleSit = async () => {
                 if (sitBusyRef.current) return; sitBusyRef.current = true;
@@ -7387,51 +7411,59 @@
                         <div className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ ${timeLeft}s` : `תורך ${timeLeft}s`) : `תור ${turnName}`}</div>
                     </div>
 
-                    {/* יריבים (שורה דקה נגללת) + קופה/זריקה */}
-                    <div className="shrink-0 px-3 py-2 flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                        <div className="flex gap-1.5">
-                            {uids.filter(u => u !== user.uid).map(u => {
-                                const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
-                                return <div key={u} className={`rounded-xl px-2.5 py-1.5 border text-center shrink-0 ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
-                                    <div className="font-black text-white text-xs whitespace-nowrap max-w-[6.5rem] truncate">{p.username}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold" dir="ltr">🁢 {cnt}</div>
-                                </div>;
-                            })}
-                        </div>
-                        <div className="flex items-end gap-2 mr-auto shrink-0">
-                            <div className="text-center">
-                                {topDiscard
-                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} big /></div>
-                                    : <div className="w-[2.9rem] h-[3.7rem] rounded-xl border-2 border-dashed border-white/10"></div>}
-                                <div className="text-[9px] text-slate-400 font-bold mt-0.5">זריקה</div>
-                            </div>
-                            <div className="text-center">
-                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className="w-[2.9rem] h-[3.7rem] rounded-xl bg-gradient-to-b from-indigo-700 to-indigo-900 border-2 border-indigo-500/40 text-white flex items-center justify-center shadow-lg disabled:opacity-40"><i className="fa-solid fa-layer-group text-lg"></i></button>
-                                <div className="text-[9px] text-slate-400 font-bold mt-0.5">קופה {(t.deck || []).length}</div>
-                            </div>
-                        </div>
+                    {/* יריבים (שורה דקה נגללת) */}
+                    <div className="shrink-0 px-3 py-2 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                        {uids.filter(u => u !== user.uid).map(u => {
+                            const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
+                            return <div key={u} className={`rounded-xl px-3 py-1.5 border text-center shrink-0 ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                                <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate">{p.username}</div>
+                                <div className="text-[10px] text-slate-400 font-bold" dir="ltr">🁢 {cnt} {t.currentTurn === u && <i className="fa-solid fa-circle text-emerald-400 text-[6px] animate-pulse"></i>}</div>
+                            </div>;
+                        })}
                     </div>
 
-                    {/* הוראה לתור */}
-                    {myTurn && t.turnPhase === 'draw' && <div className="shrink-0 text-center text-emerald-300 font-bold text-xs pb-1">משוך אבן — מהקופה או מהזריקה</div>}
-                    {myTurn && t.turnPhase === 'discard' && !goOut && <div className="shrink-0 text-center text-amber-300 font-bold text-xs pb-1">בחר אבן לזריקה (לחיצה על אבן)</div>}
-                    {myTurn && goOut && <div className="shrink-0 text-center text-emerald-300 font-black text-xs pb-1">יש לך יד שלמה! לחץ "רד וגמור"</div>}
-
-                    {/* היד שלי — אזור גמיש נגלל, מקובץ לפי קומבינציות */}
-                    <div className="flex-1 min-h-0 overflow-y-auto px-3">
-                        <div className="text-[11px] text-slate-500 font-bold mb-1.5 flex justify-between"><span>היד שלך ({myHand.filter(Boolean).length})</span>{part.leftoverPoints > 0 ? <span className="text-slate-500">לא מסודר: {part.leftoverPoints} נק'</span> : <span className="text-emerald-400">כל היד מסודרת ✓</span>}</div>
-                        <div className="flex flex-wrap gap-1.5 items-center pb-2">
-                            {part.melds.map((m, i) => (
-                                <div key={i} className="flex gap-0.5 p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-                                    {m.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
-                                </div>
-                            ))}
-                            {part.leftover.length > 0 && (
-                                <div className="flex gap-0.5 p-1 rounded-lg bg-slate-800/40 border border-white/5">
-                                    {part.leftover.map(tile => <RamiTile key={tile.id} tile={tile} onClick={(myTurn && t.turnPhase === 'discard') ? () => doDiscard(tile.id) : null} />)}
-                                </div>
-                            )}
+                    {/* מרכז השולחן: קופה + זריקה גדולים במרכז + הוראת התור */}
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-4">
+                        <div className="flex items-end gap-8">
+                            <div className="text-center">
+                                <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className={`w-[3.5rem] h-[4.4rem] rounded-2xl bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex items-center justify-center shadow-xl disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-2xl"></i></button>
+                                <div className="text-[11px] text-slate-300 font-bold mt-1.5">קופה · {(t.deck || []).length}</div>
+                            </div>
+                            <div className="text-center">
+                                {topDiscard
+                                    ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-2xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} big /></div>
+                                    : <div className="w-[3.5rem] h-[4.4rem] rounded-2xl border-2 border-dashed border-white/10"></div>}
+                                <div className="text-[11px] text-slate-300 font-bold mt-1.5">זריקה</div>
+                            </div>
                         </div>
+                        {myTurn && t.turnPhase === 'draw' && <div className="text-center text-emerald-300 font-black text-sm">תורך — משוך אבן מהקופה או מהזריקה</div>}
+                        {myTurn && t.turnPhase === 'discard' && !goOut && <div className="text-center text-amber-300 font-black text-sm">בחר אבן ביד וזרוק אותה</div>}
+                        {myTurn && goOut && <div className="text-center text-emerald-300 font-black text-sm animate-pulse">🎉 יש לך יד שלמה! לחץ "רד וגמור"</div>}
+                        {!myTurn && <div className="text-center text-slate-500 font-bold text-sm">ממתין לתור של {turnName}…</div>}
+                    </div>
+
+                    {/* המדף שלי: אבנים גדולות, גרירה חופשית לסידור, קומבינציות מודגשות בירוק */}
+                    <div className="shrink-0 bg-slate-950/80 border-t border-white/10 px-2 pt-1.5 pb-1">
+                        <div className="flex items-center justify-between mb-1 px-1">
+                            <span className="text-[11px] text-slate-400 font-bold">היד שלך ({myHand.filter(Boolean).length}){part.leftoverPoints > 0 ? <span className="text-slate-500"> · לא-מסודר {part.leftoverPoints}</span> : <span className="text-emerald-400 font-black"> · מסודרת ✓</span>}</span>
+                            <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">✨ סדר לי</button>
+                        </div>
+                        <div ref={rowRef} onPointerMove={onRowMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
+                            className="flex flex-wrap gap-1 items-center justify-center content-start overflow-y-auto pb-1" style={{ maxHeight: '40vh' }}>
+                            {orderedTiles.map(tile => {
+                                const inMeld = meldIds.has(tile.id);
+                                const flash = flashId === tile.id;
+                                const dragging = dragId === tile.id;
+                                return (
+                                    <div key={tile.id} data-tid={tile.id} onPointerDown={() => onTileDown(tile.id)}
+                                        style={{ touchAction: 'none', transform: dragging ? 'translateY(-7px) scale(1.06)' : 'none', transition: 'transform 0.12s', WebkitUserSelect: 'none', userSelect: 'none' }}
+                                        className={`rounded-lg ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/60' : (inMeld ? 'ring-2 ring-emerald-400/70' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                        <RamiTile tile={tile} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="text-center text-[10px] text-slate-600 font-bold">גרור אבן כדי לסדר · בתורך, הקש על אבן כדי לזרוק</div>
                     </div>
 
                     {/* סרגל פעולות מוצמד לתחתית */}
