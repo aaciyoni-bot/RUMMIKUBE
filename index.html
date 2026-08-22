@@ -899,7 +899,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v23';
+        const APP_VER = 'v24';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -4605,27 +4605,10 @@
                 if (!amount || isNaN(amount) || amount < 0.01) return;
                 setBalBox(null);
                 try {
-                    await window.fb.runTransaction(window.fb.db, async (tr) => {
-                        const ownerRef = memDoc(user.uid);
-                        const targetRef = window.fb.doc(window.fb.db, "memberships", target.id);
-                        const ownerSnap = await tr.get(ownerRef);
-                        const targetSnap = await tr.get(targetRef);
-                        let ownerBal = ownerSnap.data().balance || 0;
-                        let targetBal = targetSnap.data().balance || 0;
-                        if (isDeposit) {
-                            if (ownerBal < amount) throw "אין לך מספיק יתרה להפקדה זו.";
-                            ownerBal -= amount; targetBal += amount;
-                        } else {
-                            if (targetBal < amount) throw "לשחקן אין מספיק יתרה למשיכה זו.";
-                            ownerBal += amount; targetBal -= amount;
-                        }
-                        tr.update(ownerRef, { balance: round2(ownerBal) });
-                        tr.update(targetRef, { balance: round2(targetBal) });
-                    });
-                    // תיעוד תנועת הקופה ביומן - אחרת אין שום עקבה להפקדות/משיכות למחלוקות
-                    try { logGameResult([{ uid: target.uid, username: target.username, game: 'cashier', profit: isDeposit ? amount : -amount, by: user.username }], ''); } catch(e2) {}
+                    // הקופה מאומתת בשרת: רק צוות רשאי, הסכום מעוגל ומאומת, נרשם ליומן.
+                    await window.fb.httpsCallable(window.fb.functions, 'walletAdjust')({ clubId: CLUB_ID, targetUid: target.uid, dir: isDeposit ? 'in' : 'out', amount });
                     showToast(isDeposit ? `הופקדו ${formatMoney(amount)} ל-${target.username}` : `נמשכו ${formatMoney(amount)} מ-${target.username}`, "success");
-                } catch (e) { showToast(typeof e === 'string' ? e : "שגיאה בפעולה", "error"); }
+                } catch (e) { showToast((e && e.message && !/internal|unavailable/i.test(e.message)) ? e.message : "שגיאה בפעולה", "error"); }
             };
 
             // חסימה/שחרור: חבר חסום לא עובר את מסך הכניסה, ונשאר גלוי כאן לשחרור
@@ -5225,6 +5208,8 @@
             const turnActedRef = useRef(null); // התור שכבר פעלתי בו - משתיק את הטיקים
             const endingRef = useRef(false);
             const sitBusyRef = useRef(false); // מונע כניסה כפולה לשולחן בלחיצה מהירה
+            // הודעת שגיאה מפונקציית שרת (HttpsError) - מציג את הטקסט העברי שלה
+            const fnErr = (e) => (e && e.message && !/internal|deadline|unavailable/i.test(e.message)) ? e.message : "שגיאה בפעולה, נסה שוב";
             const liveRef = useRef(null);
             useEffect(() => { liveRef.current = tableState; }, [tableState]);
             // Rummy plays best in landscape. On platforms that allow it (installed PWA / Android),
@@ -5380,12 +5365,15 @@
                             if (availableBots.length === 0) return;
 
                             const randomBot = availableBots[Math.floor(Math.random() * availableBots.length)];
-                            const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: Number(t.minBuyIn), isBot: true } };
+                            const buyIn = round2(Number(t.minBuyIn) || 0);
+                            const newPlayers = { ...t.players, [randomBot.id]: { username: randomBot.username, cards: [], hasDropped: false, stack: buyIn, isBot: true } };
+                            // bank הוא מקור-האמת לצ'יפים (נעול ללקוח; מוח-הבוטים רץ אצל GOD שמותר לו).
+                            const newBank = { ...(t.bank || {}), [randomBot.id]: buyIn };
                             if (Object.keys(newPlayers).length === Number(t.maxPlayers)) {
-                                await window.fb.updateDoc(tblRef, buildDeal(newPlayers));
+                                await window.fb.updateDoc(tblRef, { ...buildDeal(newPlayers), bank: newBank });
                                 spawnTwinTable(t); // התמלא בבוטים והמשחק התחיל - נפתח תאום ממתין חדש (עם dedup)
                             } else {
-                                await window.fb.updateDoc(tblRef, { players: newPlayers });
+                                await window.fb.updateDoc(tblRef, { players: newPlayers, bank: newBank });
                             }
                         } catch(e) {}
                     }, 3000);
@@ -5971,32 +5959,11 @@
                 if (sitBusyRef.current) return;
                 sitBusyRef.current = true;
                 try {
-                    let becameFull = false;
-                    await window.fb.runTransaction(window.fb.db, async (t) => {
-                        const uRef = memDoc(user.uid);
-                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const uSnap = await t.get(uRef);
-                        const tblSnap = await t.get(tblRef);
-                        if (!tblSnap.exists()) throw "השולחן לא קיים";
-                        const tbl = tblSnap.data();
-                        // סכום הכניסה נלקח מהמסמך הטרנזקציוני, לא מ-state מקומי שעלול להיות ישן
-                        const buyInAmount = round2(Number(tbl.minBuyIn) || 0);
-                        if (tbl.phase !== 'waiting') throw "המשחק כבר התחיל";
-                        if (tbl.players?.[user.uid]) throw "אתה כבר יושב בשולחן זה";
-                        if (Object.keys(tbl.players || {}).length >= Number(tbl.maxPlayers)) throw "השולחן מלא";
-                        if ((uSnap.data().balance || 0) < buyInAmount) throw "אין לך מספיק יתרה לכניסה.";
-
-                        t.update(uRef, { balance: round2((uSnap.data().balance || 0) - buyInAmount) });
-                        const players = { ...tbl.players, [user.uid]: { username: uSnap.data().username, photo: uSnap.data().photo || '', avatarSeed: uSnap.data().avatarSeed || '', cards: [], hasDropped: false, stack: buyInAmount, isBot: false } };
-                        if (Object.keys(players).length === Number(tbl.maxPlayers)) {
-                            becameFull = true;
-                            t.update(tblRef, buildDeal(players));
-                        } else {
-                            t.update(tblRef, { players });
-                        }
-                    });
-                    if (becameFull) spawnTwinTable(tableState);
-                } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה", "error"); }
+                    // הכניסה (וגביית הכסף) מתבצעת בשרת - הלקוח לא נוגע ביתרה/סטאק.
+                    const call = window.fb.httpsCallable(window.fb.functions, 'rummyBuyIn');
+                    const res = await call({ tableId: tableState.id });
+                    if (res?.data?.becameFull) spawnTwinTable(tableState);
+                } catch(e) { showToast(fnErr(e), "error"); }
                 finally { sitBusyRef.current = false; }
             };
 
@@ -6043,7 +6010,15 @@
                כמה יריבים מתחלקים שווה. רץ גם מהלקוח של שחקן אחר (שומר-התור),
                והטרנזקציה בודקת שוב את התנאים כך שכפילות בלתי אפשרית. */
             const kickAbsent = async (kickUid) => {
-                let post = null;
+                const kk = tableState?.players?.[kickUid];
+                if (!kk) return;
+                if ((kk.missed || 0) < 1) return;
+                // הפסד כספי של שחקן אנושי מטופל בשרת (bank/balance נעולים ללקוח)
+                if (!kk.isBot && !tableState.tournamentId) {
+                    try { await window.fb.httpsCallable(window.fb.functions, 'rummyKick')({ tableId: tableState.id, kickUid }); } catch(e) {}
+                    return;
+                }
+                // בוט "נעדר" / טורניר: פעולת משחק ללא תנועת כסף - נשארת בלקוח.
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -6053,9 +6028,7 @@
                         if (tbl.phase !== 'playing' || !tbl.players?.[kickUid]) return;
                         if ((tbl.players[kickUid].missed || 0) < 1) return; // מישהו אחר כבר איפס/טיפל
                         const kicked = tbl.players[kickUid];
-                        // בוט "נעדר" (מוח-הבוטים לא רץ כרגע): לא מסלקים אותו ולא מחלקים
-                        // את הצ'יפים שלו - אחרת שחקן יכול לחלוב את קופת הבוטים כשהמוח כבוי.
-                        // במקום זה מושכים לו אבן ומעבירים תור, בלי שום תנועת כסף.
+                        // בוט: מושכים לו אבן ומעבירים תור, בלי שום תנועת כסף.
                         if (kicked.isBot) {
                             const bUids = Object.keys(tbl.players).sort();
                             const bNext = bUids[(bUids.indexOf(kickUid) + 1) % bUids.length];
@@ -6066,88 +6039,22 @@
                             t.update(tblRef, { deck: bDeck, [`players.${kickUid}.cards`]: bRack, [`players.${kickUid}.missed`]: 0, currentTurn: bNext, turnStartedAt: Date.now(), turnSnapBoard: tbl.board || [], turnSnapRack: [...((tbl.players[bNext] || {}).cards || [])] });
                             return;
                         }
-                        const stack = kicked.stack || 0;
+                        // טורניר: בלי כסף - רק הסרה, ואם נותר אחד הוא אלוף השולחן
                         const newP = { ...tbl.players }; delete newP[kickUid];
                         const rest = Object.keys(newP);
                         const lastMan = rest.length === 1;
-
-                        // טורניר: בלי כסף - רק הסרה, ואם נותר אחד הוא אלוף השולחן
-                        if (tbl.tournamentId) {
-                            const upd = { players: newP };
-                            if (lastMan) {
-                                upd.phase = 'showdown'; upd.winner = rest[0]; upd.currentTurn = null;
-                                upd.lastResults = { winnerName: newP[rest[0]].username, details: {}, pot: 0, rake: 0, tournament: true, absent: kicked.username };
-                                upd.tournament = { ...tbl.tournament, finished: true, tableWinner: rest[0] };
-                            } else if (tbl.currentTurn === kickUid && rest.length) {
-                                const uids = [...rest].sort();
-                                upd.currentTurn = uids[0]; upd.turnStartedAt = Date.now();
-                                upd.turnSnapBoard = tbl.board || []; upd.turnSnapRack = [...((newP[uids[0]] || {}).cards || [])];
-                            }
-                            t.update(tblRef, upd);
-                            return;
-                        }
-
-                        // כל הקריאות לפני הכתיבות (דרישת טרנזקציה)
-                        const ownerUid0 = (window.__club || {}).ownerUid;
-                        let kickedMemRef = null, kickedMemSnap = null, winMemRef = null, winMemSnap = null, ownMemRef = null, ownMemSnap = null;
-                        if (!kicked.isBot) { kickedMemRef = memDoc(kickUid); kickedMemSnap = await t.get(kickedMemRef); }
-                        if (lastMan && !newP[rest[0]].isBot) { winMemRef = memDoc(rest[0]); winMemSnap = await t.get(winMemRef); }
-                        if (lastMan && ownerUid0) { ownMemRef = memDoc(ownerUid0); ownMemSnap = await t.get(ownMemRef); }
-                        const bankRef = memDoc('bot_bank');
-                        const bankSnap = await t.get(bankRef);
-                        let botDelta = kicked.isBot ? -stack : 0;
-
                         const upd = { players: newP };
                         if (lastMan) {
-                            const winUid = rest[0];
-                            const rake = round2(stack * rakeFrac);
-                            const winnerProfit = round2(stack - rake);
-                            newP[winUid].stack = round2((newP[winUid].stack || 0) + winnerProfit);
-                            if (newP[winUid].isBot) botDelta = round2(botDelta + winnerProfit);
-                            upd.phase = 'showdown'; upd.winner = winUid; upd.currentTurn = null;
-                            upd.lastResults = { winnerName: newP[winUid].username, totalPot: stack, rake, winnerProfit, details: { [kickUid]: { username: kicked.username, penalty: 0, pay: stack } }, endedAt: Date.now(), absent: kicked.username };
-                            if (winMemRef && winMemSnap && winMemSnap.exists()) {
-                                const ws = winMemSnap.data().stats || {};
-                                t.update(winMemRef, { 'stats.gamesPlayed': (ws.gamesPlayed || 0) + 1, 'stats.gamesWon': (ws.gamesWon || 0) + 1, 'stats.totalProfit': round2((ws.totalProfit || 0) + winnerProfit) });
-                            }
-                            if (ownMemRef && ownMemSnap && ownMemSnap.exists()) {
-                                t.update(ownMemRef, { balance: round2((ownMemSnap.data().balance || 0) + rake), clubProfits: round2((ownMemSnap.data().clubProfits || 0) + rake) });
-                            }
-                            post = { rake, entries: [
-                                ...(kicked.isBot ? [] : [{ uid: kickUid, username: kicked.username, game: 'rummikub', profit: -stack }]),
-                                ...(newP[winUid].isBot ? [] : [{ uid: winUid, username: newP[winUid].username, game: 'rummikub', profit: winnerProfit, rake }])
-                            ] };
-                        } else {
-                            // חלוקה שווה עם שמירת אגורות: השארית הולכת לאחרון, כך שסך
-                            // החלוקה שווה בדיוק ל-stack (בלי יצירת/השמדת אגורות).
-                            const share = round2(stack / rest.length);
-                            let leftK = stack;
-                            rest.forEach((uid, i) => {
-                                const amt = (i === rest.length - 1) ? round2(leftK) : share;
-                                newP[uid].stack = round2((newP[uid].stack || 0) + amt);
-                                if (newP[uid].isBot) botDelta = round2(botDelta + amt);
-                                leftK = round2(leftK - amt);
-                            });
-                            if (tbl.currentTurn === kickUid) {
-                                const uids = [...rest].sort();
-                                upd.currentTurn = uids[0]; upd.turnStartedAt = Date.now();
-                                upd.turnSnapBoard = tbl.board || []; upd.turnSnapRack = [...((newP[uids[0]] || {}).cards || [])];
-                            }
-                            post = { rake: 0, entries: kicked.isBot ? [] : [{ uid: kickUid, username: kicked.username, game: 'rummikub', profit: -stack }] };
-                        }
-                        if (kickedMemRef && kickedMemSnap && kickedMemSnap.exists()) {
-                            const ks = kickedMemSnap.data().stats || {};
-                            t.update(kickedMemRef, { 'stats.gamesPlayed': (ks.gamesPlayed || 0) + 1, 'stats.totalProfit': round2((ks.totalProfit || 0) - stack) });
-                        }
-                        if (bankSnap.exists() && botDelta !== 0) {
-                            t.update(bankRef, { balance: round2((bankSnap.data().balance || 0) + botDelta) });
+                            upd.phase = 'showdown'; upd.winner = rest[0]; upd.currentTurn = null;
+                            upd.lastResults = { winnerName: newP[rest[0]].username, details: {}, pot: 0, rake: 0, tournament: true, absent: kicked.username };
+                            upd.tournament = { ...tbl.tournament, finished: true, tableWinner: rest[0] };
+                        } else if (tbl.currentTurn === kickUid && rest.length) {
+                            const uids = [...rest].sort();
+                            upd.currentTurn = uids[0]; upd.turnStartedAt = Date.now();
+                            upd.turnSnapBoard = tbl.board || []; upd.turnSnapRack = [...((newP[uids[0]] || {}).cards || [])];
                         }
                         t.update(tblRef, upd);
                     });
-                    if (post) {
-                        if (post.entries.length) logGameResult(post.entries, tableState.id);
-                        if (post.rake) logClubRake(post.rake);
-                    }
                 } catch(e) {}
             };
 
@@ -6169,95 +6076,12 @@
                     return;
                 }
                 endingRef.current = true;
-                let logEntries = null;
-                let rakeInfo = null;
                 try {
-                    await window.fb.runTransaction(window.fb.db, async (t) => {
-                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const tblSnap = await t.get(tblRef);
-                        if (!tblSnap.exists()) throw "table gone";
-                        const tbl = tblSnap.data();
-                        if (tbl.phase !== 'playing') throw "already ended";
-                        if (!tbl.players?.[winnerUid]) throw "winner gone";
-                        const stakesNum = Number(tbl.stakes) || 0.1;
-
-                        const userRefs = {}; const userSnaps = {};
-                        for (const [uid, p] of Object.entries(tbl.players)) {
-                            if (p.isBot) continue;
-                            userRefs[uid] = memDoc(uid);
-                            userSnaps[uid] = await t.get(userRefs[uid]);
-                        }
-                        let adminRef = null, adminSnap = null;
-                        const ownerUid0 = (window.__club || {}).ownerUid;
-                        if (ownerUid0 && userRefs[ownerUid0]) { adminRef = userRefs[ownerUid0]; adminSnap = userSnaps[ownerUid0]; }
-                        else if (ownerUid0) { adminRef = memDoc(ownerUid0); adminSnap = await t.get(adminRef); }
-                        // קופת הבוטים - סופגת את התוצאה של כל בוט בשולחן
-                        const bankRef = memDoc('bot_bank');
-                        const bankSnap = await t.get(bankRef);
-
-                        const players = JSON.parse(JSON.stringify(tbl.players));
-                        players[winnerUid].cards = [];
-                        let totalPot = 0; const details = {};
-                        Object.entries(players).forEach(([uid, p]) => {
-                            if (uid === winnerUid) return;
-                            const penalty = rackPenalty(p.cards);
-                            const pay = Math.min(round2(penalty * stakesNum), p.stack || 0);
-                            players[uid].stack = round2((p.stack || 0) - pay);
-                            totalPot += pay;
-                            details[uid] = { username: p.username, penalty, pay };
-                        });
-                        totalPot = round2(totalPot);
-                        const rake = round2(totalPot * rakeFrac);
-                        const winnerProfit = round2(totalPot - rake);
-                        players[winnerUid].stack = round2((players[winnerUid].stack || 0) + winnerProfit);
-
-                        // תוצאת הבוטים נטו מול קופת הבוטים של הבעלים:
-                        // בוט מפסיד מחייב אותה, בוט זוכה מזכה אותה.
-                        let botDelta = 0;
-                        Object.entries(details).forEach(([duid, d]) => { if (players[duid]?.isBot) botDelta = round2(botDelta - d.pay); });
-                        if (players[winnerUid].isBot) botDelta = round2(botDelta + winnerProfit);
-                        if (bankSnap.exists() && botDelta !== 0) {
-                            t.update(bankRef, { balance: round2((bankSnap.data().balance || 0) + botDelta) });
-                        }
-                        logEntries = [
-                            ...(players[winnerUid].isBot ? [] : [{ uid: winnerUid, username: players[winnerUid].username, game: 'rummikub', profit: winnerProfit, rake }]),
-                            ...Object.entries(details).filter(([duid]) => !players[duid]?.isBot).map(([duid, d]) => ({ uid: duid, username: d.username, game: 'rummikub', profit: -d.pay }))
-                        ];
-                        // רק שחקנים אמיתיים נספרים לחלוקת נתח-הסוכן (בוטים לא משויכים
-                        // לסוכן ומנפחים את המונה אם נכללים).
-                        rakeInfo = { rake, uids: Object.keys(players).filter(u => !players[u].isBot) };
-
-                        t.update(tblRef, {
-                            players, board: finalBoard, phase: 'showdown', winner: winnerUid, currentTurn: null,
-                            lastResults: { winnerName: players[winnerUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now() }
-                        });
-
-                        for (const [uid, snap] of Object.entries(userSnaps)) {
-                            if (!snap.exists()) continue;
-                            const st = snap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                            const isWinner = uid === winnerUid;
-                            const delta = isWinner ? winnerProfit : -(details[uid]?.pay || 0);
-                            const upd = {
-                                'stats.gamesPlayed': (st.gamesPlayed || 0) + 1,
-                                'stats.gamesWon': (st.gamesWon || 0) + (isWinner ? 1 : 0),
-                                'stats.totalProfit': round2((st.totalProfit || 0) + delta)
-                            };
-                            if (adminRef && userRefs[uid].path === adminRef.path) {
-                                upd.balance = round2((snap.data().balance || 0) + rake);
-                                upd.clubProfits = round2((snap.data().clubProfits || 0) + rake);
-                            }
-                            t.update(userRefs[uid], upd);
-                        }
-                        if (adminRef && adminSnap && adminSnap.exists() && !(ownerUid0 && userSnaps[ownerUid0])) {
-                            t.update(adminRef, {
-                                balance: round2((adminSnap.data().balance || 0) + rake),
-                                clubProfits: round2((adminSnap.data().clubProfits || 0) + rake)
-                            });
-                        }
-                    });
-                    if (logEntries) logGameResult(logEntries, tableState.id);
-                    if (rakeInfo) { payAgentCutsFromHouse(rakeInfo.rake, rakeInfo.uids); logClubRake(rakeInfo.rake); }
+                    // כל ההתחשבנות (עונשין/קופה/רייק/סוכנים/קופת-בוטים) מתבצעת בשרת.
+                    const call = window.fb.httpsCallable(window.fb.functions, 'rummySettle');
+                    await call({ tableId: tableState.id, winnerUid, finalBoard });
                 } catch(e) {
+                    if (fnErr(e) && !/already ended|כבר הסתיים/.test(fnErr(e))) showToast(fnErr(e), "error");
                 } finally { endingRef.current = false; }
             };
             const endGame = (finalBoard) => settleWin(user.uid, finalBoard);
@@ -6300,6 +6124,13 @@
             };
 
             const handleNewRound = async () => {
+                // שולחן כספי: השרת מחלק מחדש ומסנן שחקנים ללא צ'יפים (bank נעול).
+                if (!tableState.tournamentId) {
+                    try { await window.fb.httpsCallable(window.fb.functions, 'rummyNewRound')({ tableId: tableState.id }); }
+                    catch(e) { showToast(fnErr(e), "error"); }
+                    return;
+                }
+                // טורניר: חלוקה ללא כסף - נשארת בלקוח
                 try {
                     await window.fb.runTransaction(window.fb.db, async (t) => {
                         const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -6307,10 +6138,8 @@
                         if (!snap.exists()) return;
                         const tbl = snap.data();
                         if (tbl.phase !== 'showdown') return;
-                        // רק שחקנים עם צ'יפים ממשיכים - אחרת שחקן שנשאר עם 0 מקבל
-                        // "free-roll" (settleWin חוסם הפסד ל-0, אבל זכייה משלמת מלא).
                         const eligible = Object.fromEntries(Object.entries(tbl.players || {}).filter(([, p]) => (p.stack || 0) > 0));
-                        if (Object.keys(eligible).length < 2) throw "אין מספיק שחקנים עם צ'יפים לסיבוב חדש";
+                        if (Object.keys(eligible).length < 2) throw "אין מספיק שחקנים לסיבוב חדש";
                         t.update(tblRef, buildDeal(eligible));
                     });
                 } catch(e) { showToast(typeof e === 'string' ? e : "שגיאה בפתיחת סיבוב", "error"); }
@@ -6343,102 +6172,11 @@
                     if (!window.confirm("⚠️ פרישה באמצע משחק (כניעה) - הצ'יפים שלך בשולחן יחולקו בין השחקנים הנשארים.\nבטוח?")) return;
                 }
                 try {
-                    await window.fb.runTransaction(window.fb.db, async (t) => {
-                        const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
-                        const uRef = memDoc(user.uid);
-                        const tblSnap = await t.get(tblRef);
-                        const uSnap = await t.get(uRef);
-                        if (!tblSnap.exists()) return;
-                        const tblData = tblSnap.data();
-                        const stillPlaying = tblData.phase === 'playing';
-                        const myStack = tblData.players?.[user.uid]?.stack || 0;
-
-                        const newP = { ...tblData.players };
-                        delete newP[user.uid];
-                        const remainingUids = Object.keys(newP);
-
-                        let winnerRef = null, winnerSnap = null, adminRef = null, adminSnap = null;
-                        const lastManStanding = stillPlaying && remainingUids.length === 1;
-                        if (lastManStanding) {
-                            const winnerUid = remainingUids[0];
-                            if (!newP[winnerUid].isBot) {
-                                winnerRef = memDoc(winnerUid);
-                                winnerSnap = await t.get(winnerRef);
-                            }
-                            const ownerUidL = (window.__club || {}).ownerUid;
-                            if (ownerUidL) { adminRef = memDoc(ownerUidL); adminSnap = await t.get(adminRef); }
-                        }
-                        // קופת הבוטים: כשהמנצח/הנשארים הם בוטים, הרווח שלהם חייב להיזקף
-                        // לקופת הבוטים - אחרת הכסף שהשחקן הפורש שילם פשוט נעלם (חור השמדת כסף).
-                        let bankRef = null, bankSnap = null, botDelta = 0;
-                        if (stillPlaying) { bankRef = memDoc('bot_bank'); bankSnap = await t.get(bankRef); }
-
-                        const updates = { players: newP };
-                        const uData = uSnap.exists() ? uSnap.data() : {};
-
-                        if (!stillPlaying) {
-                            t.update(uRef, { balance: round2((uData.balance || 0) + myStack) });
-                        } else {
-                            const currentStats = uData.stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                            t.update(uRef, {
-                                'stats.gamesPlayed': (currentStats.gamesPlayed || 0) + 1,
-                                'stats.totalProfit': round2((currentStats.totalProfit || 0) - myStack)
-                            });
-
-                            if (lastManStanding) {
-                                const winnerUid = remainingUids[0];
-                                const rake = round2(myStack * rakeFrac);
-                                const winnerProfit = round2(myStack - rake);
-                                newP[winnerUid].stack = round2((newP[winnerUid].stack || 0) + winnerProfit);
-                                if (newP[winnerUid].isBot) botDelta = round2(botDelta + winnerProfit);
-                                updates.phase = 'showdown';
-                                updates.winner = winnerUid;
-                                updates.currentTurn = null;
-                                updates.lastResults = { winnerName: newP[winnerUid].username, totalPot: myStack, rake, winnerProfit, details: { [user.uid]: { username: uData.username || user.username, penalty: 0, pay: myStack } }, endedAt: Date.now() };
-
-                                if (winnerRef && winnerSnap && winnerSnap.exists()) {
-                                    const wStats = winnerSnap.data().stats || { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 };
-                                    t.update(winnerRef, {
-                                        'stats.gamesPlayed': (wStats.gamesPlayed || 0) + 1,
-                                        'stats.gamesWon': (wStats.gamesWon || 0) + 1,
-                                        'stats.totalProfit': round2((wStats.totalProfit || 0) + winnerProfit)
-                                    });
-                                }
-                                if (adminRef && adminSnap && adminSnap.exists()) {
-                                    t.update(adminRef, {
-                                        balance: round2((adminSnap.data().balance || 0) + rake),
-                                        clubProfits: round2((adminSnap.data().clubProfits || 0) + rake)
-                                    });
-                                }
-                            } else if (remainingUids.length >= 2) {
-                                // חלוקה שווה עם שמירת אגורות + זקיפת חלקי הבוטים לקופתם
-                                const share = round2(myStack / remainingUids.length);
-                                let leftL = myStack;
-                                remainingUids.forEach((uid, i) => {
-                                    const amt = (i === remainingUids.length - 1) ? round2(leftL) : share;
-                                    newP[uid].stack = round2((newP[uid].stack || 0) + amt);
-                                    if (newP[uid].isBot) botDelta = round2(botDelta + amt);
-                                    leftL = round2(leftL - amt);
-                                });
-                                if (tblData.currentTurn === user.uid) {
-                                    const origUids = Object.keys(tblData.players).sort();
-                                    let idx = origUids.indexOf(user.uid);
-                                    let next = origUids[(idx + 1) % origUids.length];
-                                    while (!newP[next]) { idx++; next = origUids[(idx + 1) % origUids.length]; }
-                                    updates.currentTurn = next;
-                                    updates.turnStartedAt = Date.now();
-                                }
-                            }
-                            if (bankRef && bankSnap && bankSnap.exists() && botDelta !== 0) {
-                                t.update(bankRef, { balance: round2((bankSnap.data().balance || 0) + botDelta) });
-                            }
-                        }
-                        t.update(tblRef, updates);
-                    });
-                    if (isPlayingNow) logGameResult([{ uid: user.uid, username: user.username, game: 'rummikub', profit: -round2(tableState.players?.[user.uid]?.stack || 0) }], tableState.id);
+                    // הפדיון/כניעה (bank->balance) מתבצע בשרת - הלקוח לא נוגע בכסף.
+                    await window.fb.httpsCallable(window.fb.functions, 'rummyLeave')({ tableId: tableState.id });
                     showToast(isPlayingNow ? "נכנעת ויצאת מהמשחק." : "קמת מהשולחן והצ'יפים חזרו לארנק.", "info");
                     onLeave();
-                } catch(e) { showToast("שגיאה ביציאה מהשולחן", "error"); }
+                } catch(e) { showToast(fnErr(e), "error"); onLeave(); }
             };
 
             /* ---------- צ'אט ---------- */
