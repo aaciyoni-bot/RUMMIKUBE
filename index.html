@@ -385,6 +385,49 @@
         /* כרטיסי קלאב: ריחוף עדין */
         .club-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .club-card:hover { transform: translateY(-3px); }
+
+        /* ═══ רשימת שולחנות בסגנון POKERTEN: שורה עם פס צבעוני, טבעת מושבים, BUY-IN ═══ */
+        .tbl-list { display: flex; flex-direction: column; gap: 10px; }
+        .tbl-row {
+            position: relative; display: flex; align-items: center; gap: 12px;
+            background: linear-gradient(180deg, #12203c, #0b1526);
+            border: 1px solid rgba(255,255,255,0.05); border-radius: 14px;
+            padding: 12px 14px 12px 0; overflow: hidden; cursor: pointer;
+            transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+        }
+        .tbl-row:hover { border-color: rgba(45,212,191,0.35); transform: translateY(-1px); background: linear-gradient(180deg, #16294a, #0c1a30); }
+        .tbl-row:active { transform: scale(0.985); }
+        .tbl-spine {
+            align-self: stretch; width: 26px; flex: none; display: flex; align-items: center; justify-content: center;
+            font-size: 8.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+            writing-mode: vertical-rl; transform: rotate(180deg);
+            border-right: 2px solid var(--spineC, #2dd4bf);
+            background: linear-gradient(90deg, color-mix(in srgb, var(--spineC, #2dd4bf) 15%, transparent), transparent 85%);
+            color: color-mix(in srgb, var(--spineC, #2dd4bf) 74%, #fff);
+        }
+        .tbl-seats { position: relative; width: 46px; height: 46px; flex: none; display: flex; align-items: center; justify-content: center; }
+        .tbl-seats .tbl-ring { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 3px rgba(45,212,191,0.20)); }
+        .tbl-seats > span { font-size: 11px; font-weight: 700; color: #cbd5e1; }
+        .tbl-seats .seat-cap { color: #5b6b82; font-weight: 600; }
+        .tbl-main { flex: 1; min-width: 0; }
+        .tbl-name { font-size: 12px; font-weight: 600; color: #8b98ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+        .tbl-me { font-size: 9px; font-weight: 900; color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); border-radius: 99px; padding: 0 6px; flex: none; }
+        .tbl-stakes { font-size: 18px; font-weight: 700; color: #e8edf4; line-height: 1.2; }
+        .tbl-sub { font-size: 10px; font-weight: 600; color: #5b6779; }
+        .tbl-live { color: #34d399; display: inline-flex; align-items: center; gap: 5px; }
+        .tbl-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 7px rgba(52,211,153,0.85); animation: pulse 1.4s ease-in-out infinite; }
+        .tbl-buyin { flex: none; text-align: left; display: flex; flex-direction: column; align-items: flex-start; margin-left: 4px; }
+        .tbl-buyin-label { font-size: 9px; font-weight: 700; color: #556179; letter-spacing: 0.08em; text-transform: uppercase; }
+        .tbl-buyin-val { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+        .tbl-coins { flex: none; color: #f5c860; font-size: 15px; }
+        .tbl-del { flex: none; width: 32px; height: 32px; border-radius: 9px; color: #475569; font-size: 11px; background: transparent; border: none; cursor: pointer; }
+        .tbl-del:hover { color: #fb7185; background: rgba(244,63,94,0.08); }
+        /* טאבים לסינון (בסגנון קו-תחתון) */
+        .tbl-toolbar { display: flex; align-items: center; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 14px; }
+        .tbl-toolbar::-webkit-scrollbar { display: none; }
+        .vtab { flex: none; padding: 9px 14px; font-size: 13px; font-weight: 800; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s ease; background: transparent; border-top: none; border-left: none; border-right: none; cursor: pointer; white-space: nowrap; }
+        .vtab.active { color: #2dd4bf; border-bottom-color: #2dd4bf; }
+        .vtab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; margin-inline-start: 5px; padding: 0 4px; font-size: 10px; font-weight: 900; border-radius: 99px; background: rgba(148,163,184,0.18); color: #cbd5e1; }
         /* אבני נוי צפות ברקע מסך הקלאבים */
         .float-tile {
             position: absolute; pointer-events: none; opacity: 0.06; filter: blur(1.5px);
@@ -899,7 +942,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v24';
+        const APP_VER = 'v25';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -3333,6 +3376,7 @@
            ================================================================ */
         function LobbyView({ user, tables, tournaments, clubSettings, tab, setTab, onJoinRummy, onJoinPoker, onJoinDurak, onJoinShesh, onJoinPres, onJoinYaniv, onJoinBridge, onJoinGin, onJoinTwist, onJoinOfc, onCreatePoker, showToast }) {
             const [showCreateRummy, setShowCreateRummy] = useState(false);
+            const [rtab, setRtab] = useState('all'); // סינון רשימת שולחנות הרמי לפי גודל
             const [showCreateShesh, setShowCreateShesh] = useState(false);
             const [sheshOpts, setSheshOpts] = useState({ buyIn: 5 });
             const [newTableOptions, setNewTableOptions] = useState({ maxPlayers: 4, stakes: 0.10 });
@@ -4028,31 +4072,57 @@
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {rummyTables.map(t => (
-                                        <div key={t.docId} className="grad-card cursor-pointer" onClick={()=>onJoinRummy(t)}>
-                                            <div className="grad-card-inner p-5 relative">
-                                                {canManageGame(user, 'rummikub') && (
-                                                    <button onClick={(e) => handleDelete(e, t)} className="absolute top-3 left-3 w-8 h-8 rounded-lg bg-slate-800/80 text-slate-500 hover:text-rose-400 flex items-center justify-center z-10"><i className="fa-solid fa-trash text-xs"></i></button>
-                                                )}
-                                                {t.players && t.players[user.uid] && <div className="absolute top-3 right-3 bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full animate-pulse font-bold z-10">🟢 אתה יושב כאן</div>}
-                                                <div className="flex items-center gap-3 mb-4 mt-3">
-                                                    <div className="w-11 h-11 rounded-xl bg-emerald-900/40 border border-emerald-700/50 flex items-center justify-center"><i className="fa-solid fa-border-all text-emerald-400"></i></div>
-                                                    <div>
-                                                        <h3 className="text-lg font-black text-white leading-tight" dir="ltr">{formatMoney(t.stakes)} ₪ / נק'</h3>
-                                                        <p className="text-slate-400 text-xs font-bold">כניסה: {formatMoney(t.minBuyIn)}</p>
-                                                    </div>
-                                                    {t.phase === 'playing' && <span className="mr-auto text-[10px] text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full">● LIVE</span>}
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <AvatarsRow players={t.players} />
-                                                    <span className="text-emerald-400 font-bold text-xs bg-emerald-900/30 border border-emerald-700/40 px-3 py-1 rounded-full">{Object.keys(t.players||{}).length}/{t.maxPlayers}</span>
-                                                </div>
-                                            </div>
+                                {(() => {
+                                    const sizes = [...new Set(rummyTables.map(t => Number(t.maxPlayers) || 4))].sort((a, b) => a - b);
+                                    const shown = rummyTables.filter(t => rtab === 'all' || Number(t.maxPlayers) === rtab);
+                                    return (
+                                    <>
+                                    {rummyTables.length > 0 && (
+                                        <div className="tbl-toolbar">
+                                            <button onClick={() => setRtab('all')} className={`vtab ${rtab === 'all' ? 'active' : ''}`}>הכל<span className="vtab-count">{rummyTables.length}</span></button>
+                                            {sizes.map(sz => {
+                                                const n = rummyTables.filter(t => Number(t.maxPlayers) === sz).length;
+                                                return <button key={sz} onClick={() => setRtab(sz)} className={`vtab ${rtab === sz ? 'active' : ''}`}>{sz} שחקנים{n > 0 && <span className="vtab-count">{n}</span>}</button>;
+                                            })}
                                         </div>
-                                    ))}
-                                    {rummyTables.length === 0 && <div className="col-span-full text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות רמיקוב פתוחים.</div>}
-                                </div>
+                                    )}
+                                    <div className="tbl-list">
+                                        {shown.map(t => {
+                                            const seated = Object.keys(t.players || {}).length;
+                                            const cap = Number(t.maxPlayers) || 4;
+                                            const mine = t.players && t.players[user.uid];
+                                            const playing = t.phase === 'playing';
+                                            return (
+                                                <div key={t.docId} className="tbl-row" onClick={() => onJoinRummy(t)}>
+                                                    <div className="tbl-spine">רמי</div>
+                                                    <div className="tbl-seats">
+                                                        <svg className="tbl-ring" viewBox="0 0 44 44">
+                                                            <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="3.5" />
+                                                            <circle cx="22" cy="22" r="19" fill="none" stroke={seated > 0 ? '#2dd4bf' : 'rgba(148,163,184,0.28)'} strokeWidth="3.5" strokeDasharray={`${119 * seated / cap} 119`} strokeLinecap="round" transform="rotate(-90 22 22)" />
+                                                        </svg>
+                                                        <span dir="ltr">{seated}<span className="seat-cap">/{cap}</span></span>
+                                                    </div>
+                                                    <div className="tbl-main">
+                                                        <div className="tbl-name">רמיקוב{mine && <span className="tbl-me">אתה יושב</span>}</div>
+                                                        <div className="tbl-stakes" dir="ltr">{formatMoney(t.stakes)} ₪ / נק'</div>
+                                                        <div className="tbl-sub">{playing ? <span className="tbl-live"><span className="tbl-live-dot"></span>במשחק</span> : 'ממתין'}</div>
+                                                    </div>
+                                                    <div className="tbl-buyin" dir="ltr">
+                                                        <span className="tbl-buyin-label">כניסה</span>
+                                                        <span className="tbl-buyin-val">{formatMoney(t.minBuyIn)}</span>
+                                                    </div>
+                                                    <i className="fa-solid fa-coins tbl-coins"></i>
+                                                    {canManageGame(user, 'rummikub') && (
+                                                        <button onClick={(e) => handleDelete(e, t)} className="tbl-del"><i className="fa-solid fa-trash"></i></button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {rummyTables.length === 0 && <div className="text-center py-16 text-slate-500 font-bold glass-panel rounded-3xl border-dashed">אין שולחנות רמיקוב פתוחים.</div>}
+                                    </div>
+                                    </>
+                                    );
+                                })()}
                                 <div className="border-t border-white/5 my-8"></div>
                                 <TournamentsTab game="rummikub" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast} onJoinTable={onJoinRummy} />
                             </div>
