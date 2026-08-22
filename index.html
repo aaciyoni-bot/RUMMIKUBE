@@ -352,6 +352,12 @@
             .pl-avatar { width: clamp(2.3rem, 11dvh, 3.6rem); height: clamp(2.3rem, 11dvh, 3.6rem); }
         }
 
+        /* פאנל GOD: האבנים בו לתצוגה בלבד - בלי touch-action:none של הגרירה,
+           אחרת החלקת אצבע על אבן לא מגלגלת את הפאנל וכל מה שמעבר לשני
+           שחקנים לא נגיש במובייל. */
+        .god-panel { overscroll-behavior: contain; }
+        .god-panel .rummy-tile { touch-action: pan-y; }
+
         /* ===== כפתורי הפעולה: לוחיות מוגבהות על הנייבי ===== */
         .rk-btn {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -5684,7 +5690,7 @@
 
                     {/* פאנל GOD MODE */}
                     {isGod && godOpen && (isPlaying || isShowdown) && (
-                        <div className="absolute bottom-24 sm:bottom-4 left-2 sm:left-36 z-[200] bg-slate-950/95 border border-white/10 rounded-2xl p-4 shadow-2xl max-w-[70vw] max-h-[60vh] overflow-y-auto backdrop-blur">
+                        <div className="god-panel absolute bottom-24 sm:bottom-4 left-2 sm:left-36 z-[200] bg-slate-950/95 border border-white/10 rounded-2xl p-4 shadow-2xl max-w-[70vw] max-h-[72vh] overflow-y-auto backdrop-blur">
                             <div className="flex items-center justify-between mb-3">
                                 <span className="font-black text-purple-400 text-sm"><i className="fa-solid fa-eye ml-1"></i> GOD MODE</span>
                                 <button onClick={()=>setGodOpen(false)} className="text-slate-500 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
