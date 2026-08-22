@@ -2358,7 +2358,9 @@
                 ['30 יום אחרונים', periodStats(Date.now() - 30 * 24 * 3600 * 1000, null)],
             ];
             const lifetime = mem.stats || {};
-            const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', bridge: "ברידג'", gin: "ג'ין רמי", twist: 'טוויסט', ofc: 'פוקר סיני', tournament: 'טורניר' };
+            const GAME_HEB = { rummikub: 'רמיקוב', poker: 'פוקר', durak: 'דוראק', shesh: 'שש-בש', president: 'פרזידנט', yaniv: 'יניב', bridge: "ברידג'", gin: "ג'ין רמי", twist: 'טוויסט', ofc: 'פוקר סיני', tournament: 'טורניר', adjust: 'תיקון' };
+            // יומן גולמי: 300 השורות האחרונות, חדש למעלה
+            const rawLog = useMemo(() => (log || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 300), [log]);
             return ReactDOM.createPortal(
                 <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
                     <div onClick={e=>e.stopPropagation()} className="glass-panel rounded-3xl p-5 max-w-lg w-full max-h-[88vh] overflow-y-auto">
@@ -2407,6 +2409,21 @@
                                     <span className="text-amber-300 font-black text-xs">כל הזמנים</span>
                                     <span className="text-[11px] text-slate-400 font-bold">{lifetime.gamesPlayed || 0} משחקים · {lifetime.gamesWon || 0} ניצחונות · <span className={`${(lifetime.totalProfit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-black`} dir="ltr">{(lifetime.totalProfit || 0) > 0 ? '+' : ''}{formatMoney(lifetime.totalProfit || 0)}</span></span>
                                 </div>
+                                {rawLog.length > 0 && (
+                                    <div className="bg-slate-950/60 border border-white/5 rounded-2xl p-3">
+                                        <div className="text-slate-300 font-black text-xs mb-2">יומן משחקים ({rawLog.length}) · שולחן ותוצאה</div>
+                                        <div className="max-h-56 overflow-y-auto flex flex-col gap-1 pl-1">
+                                            {rawLog.map((e, i) => (
+                                                <div key={i} className="flex items-center gap-2 text-[11px] font-bold bg-slate-900/50 rounded-lg px-2.5 py-1.5">
+                                                    <span className="text-slate-500 shrink-0" dir="ltr">{new Date(e.at || 0).toLocaleDateString('he-IL')} {new Date(e.at || 0).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    <span className="text-slate-300 truncate">{GAME_HEB[e.game] || e.game}</span>
+                                                    {e.tableId && <span className="text-slate-600 font-mono text-[10px] shrink-0" dir="ltr">{tableCode(e.tableId)}</span>}
+                                                    <span className={`mr-auto shrink-0 font-black ${(e.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(e.profit || 0) > 0 ? '+' : ''}{formatMoney(e.profit || 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -2753,6 +2770,40 @@
             );
         }
 
+        /* גרף בנקרול: רווח מצטבר לאורך זמן, SVG נקי בלי תלויות.
+           עטוף ב-dir=ltr — ציר הזמן חייב לרוץ שמאל-ימין ולא להתהפך ב-RTL. */
+        function BankrollGraph({ rows }) {
+            const pts = useMemo(() => {
+                const asc = [...rows].sort((a, b) => (a.at || 0) - (b.at || 0));
+                let acc = 0;
+                return asc.map(r => { acc = round2(acc + (Number(r.profit) || 0)); return acc; });
+            }, [rows]);
+            if (pts.length < 2) return null;
+            const W = 560, H = 120, P = 6;
+            const min = Math.min(0, ...pts), max = Math.max(0, ...pts);
+            const span = (max - min) || 1;
+            const x = (i) => P + (i / (pts.length - 1)) * (W - P * 2);
+            const y = (v) => P + (1 - (v - min) / span) * (H - P * 2);
+            const path = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+            const up = pts[pts.length - 1] >= 0;
+            const line = up ? '#34d399' : '#f87171';
+            const zero = y(0);
+            return (
+                <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-3 mb-4" dir="ltr">
+                    <div className="flex items-center justify-between mb-1 px-1">
+                        <span className="text-[10px] text-slate-400 font-bold">📈 הבנקרול לאורך זמן</span>
+                        <span className={`text-xs font-black ${up ? 'text-emerald-400' : 'text-rose-400'}`}>{pts[pts.length - 1] > 0 ? '+' : ''}{formatMoney(pts[pts.length - 1])}</span>
+                    </div>
+                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" preserveAspectRatio="none">
+                        <line x1={P} y1={zero} x2={W - P} y2={zero} stroke="rgba(148,163,184,0.25)" strokeWidth="1" strokeDasharray="4 4" />
+                        <path d={`${path} L${x(pts.length - 1).toFixed(1)},${zero} L${x(0).toFixed(1)},${zero} Z`} fill={line} opacity="0.10" />
+                        <path d={path} fill="none" stroke={line} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                        <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1])} r="3" fill={line} />
+                    </svg>
+                </div>
+            );
+        }
+
         function ProfileView({ user, showToast }) {
             const [avatarOpen, setAvatarOpen] = useState(false);
             const [avStyle, setAvStyle] = useState('av3d');
@@ -2789,6 +2840,7 @@
             const [fGame, setFGame] = useState('all');
             const [fFrom, setFFrom] = useState('');
             const [fTo, setFTo] = useState('');
+            const [rowsShown, setRowsShown] = useState(50);
 
             const loadLogs = async () => {
                 setLogsLoading(true);
@@ -2799,6 +2851,8 @@
                 } catch(e) { setLogs([]); }
                 setLogsLoading(false);
             };
+            // הדוח נטען מעצמו - בלי כפתור "טען דוח"
+            useEffect(() => { loadLogs(); }, []);
 
             const filtered = (logs || []).filter(l => {
                 if (fGame !== 'all' && l.game !== fGame) return false;
@@ -2814,12 +2868,12 @@
             });
 
             const exportMyCSV = () => {
-                const rows = [['תאריך', 'שעה', 'משחק', 'רווח/הפסד']];
+                const rows = [['תאריך', 'שעה', 'משחק', 'שולחן', 'רווח/הפסד']];
                 filtered.forEach(l => {
                     const d = new Date(l.at);
-                    rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), GAME_LABEL(l.game), l.profit]);
+                    rows.push([d.toLocaleDateString('he-IL'), d.toLocaleTimeString('he-IL'), GAME_LABEL(l.game), tableCode(l.tableId), l.profit]);
                 });
-                rows.push([]); rows.push(['סה"כ', '', filtered.length + ' משחקים', round2(filtered.reduce((s, l) => s + (l.profit || 0), 0))]);
+                rows.push([]); rows.push(['סה"כ', '', filtered.length + ' משחקים', '', round2(filtered.reduce((s, l) => s + (l.profit || 0), 0))]);
                 downloadCSV(rows, `my-report-${new Date().toISOString().slice(0,10)}.csv`);
             };
 
@@ -2924,7 +2978,7 @@
                                     <input type="date" value={fTo} onChange={e=>setFTo(e.target.value)} className="bg-slate-900 text-white border border-white/10 rounded-xl px-3 py-2 text-sm font-bold outline-none" />
                                 </div>
                                 <button onClick={loadLogs} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
-                                    {logsLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : logs === null ? 'טען דוח' : 'רענן'}
+                                    {logsLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'רענן'}
                                 </button>
                                 {logs !== null && filtered.length > 0 && (
                                     <button onClick={exportMyCSV} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
@@ -2933,8 +2987,10 @@
                                 )}
                             </div>
 
+                            {logs === null && <div className="text-center py-8 text-emerald-500"><i className="fa-solid fa-spinner fa-spin text-2xl"></i></div>}
                             {logs !== null && (
                                 <React.Fragment>
+                                    {filtered.length > 1 && <BankrollGraph rows={filtered} />}
                                     <div className="flex flex-wrap gap-3 mb-4">
                                         {Object.entries(totalsByGame).map(([g, t]) => (
                                             <div key={g} className="bg-slate-900/70 border border-white/5 rounded-2xl px-4 py-2.5">
@@ -2945,19 +3001,24 @@
                                         {filtered.length === 0 && <div className="text-slate-500 text-sm font-bold py-4">אין תוצאות בטווח שנבחר.</div>}
                                     </div>
                                     <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pl-1">
-                                        {filtered.slice(0, 200).map((l, i) => (
+                                        {filtered.slice(0, rowsShown).map((l, i) => (
                                             <div key={i} className="flex items-center justify-between bg-slate-900/60 rounded-xl px-4 py-2 border border-white/5 text-sm">
                                                 <span className="font-bold text-slate-300">
                                                     <span className="text-slate-500 text-xs ml-2">{new Date(l.at).toLocaleDateString('he-IL')} {new Date(l.at).toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}</span>
                                                     {GAME_LABEL(l.game)}
+                                                    {l.tableId && <span className="text-slate-600 font-mono text-[10px] mr-1.5" dir="ltr">{tableCode(l.tableId)}</span>}
                                                 </span>
                                                 <span className={`font-black ${(l.profit||0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">{(l.profit||0) >= 0 ? '+' : ''}{formatMoney(l.profit)}</span>
                                             </div>
                                         ))}
+                                        {filtered.length > rowsShown && (
+                                            <button onClick={()=>setRowsShown(n => n + 100)} className="mt-1 py-2 rounded-xl bg-slate-800/80 border border-white/10 text-slate-300 hover:text-white font-bold text-xs">
+                                                הצג עוד ({filtered.length - rowsShown} נותרו)
+                                            </button>
+                                        )}
                                     </div>
                                 </React.Fragment>
                             )}
-                            {logs === null && <p className="text-slate-500 text-xs font-bold">לחץ "טען דוח" לצפייה בכל תוצאות המשחקים שלך.</p>}
                         </div>
                     </div>
                 </div>
