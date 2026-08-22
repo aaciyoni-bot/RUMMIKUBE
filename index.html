@@ -246,10 +246,12 @@
         /* הלוח זורם: קבוצות נשענות שמאלה-לימין ויורדות שורה. אין חפיפות ואין
            מיקום חופשי — אותה פריסה בדיוק בכל מכשיר, כמו לוח רמיקוב אמיתי. */
         .board-flow {
-            display: flex; flex-wrap: wrap; align-content: flex-start;
+            display: flex; flex-wrap: wrap;
+            /* כמו במקור: כל שורה ממורכזת אופקית, הקבוצות נערמות מלמעלה */
+            justify-content: center; align-content: flex-start;
             direction: ltr;
-            gap: calc(1.4rem * var(--board-scale, 1)) calc(1.1rem * var(--board-scale, 1));
-            padding: calc(1.1rem * var(--board-scale, 1));
+            gap: calc(1.5rem * var(--board-scale, 1)) calc(1.6rem * var(--board-scale, 1));
+            padding: calc(1.6rem * var(--board-scale, 1)) calc(1.2rem * var(--board-scale, 1));
             min-height: 100%;
         }
         /* קבוצה נחה ישירות על הלבד — בלי מסגרת. המסגרת שמורה למצב (לא-חוקי / יעד גרירה / חדש). */
@@ -286,6 +288,23 @@
             box-shadow: inset 0 1px 0 rgba(255,240,210,0.35);
             pointer-events: none;
         }
+        /* ===== כפתורי הפעולה: לוחיות מוגבהות על הנייבי ===== */
+        .rk-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 0.85rem; border: 2px solid rgba(150,195,255,0.45);
+            background: linear-gradient(180deg, #24406e 0%, #16294a 55%, #101d36 100%);
+            color: #eaf2ff; font-weight: 900; line-height: 1;
+            box-shadow: inset 0 1px 0 rgba(190,220,255,0.35), 0 4px 12px rgba(0,0,0,0.45);
+            transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .rk-btn:active { transform: scale(0.94); }
+        .rk-btn:disabled { opacity: 0.4; }
+        .rk-btn-draw { border-color: rgba(240,160,80,0.75); box-shadow: inset 0 1px 0 rgba(255,215,170,0.3), 0 4px 14px rgba(0,0,0,0.5), 0 0 16px rgba(230,140,60,0.28); }
+        .rk-btn-ok   { border-color: rgba(52,211,153,0.95); box-shadow: inset 0 1px 0 rgba(190,255,230,0.35), 0 4px 14px rgba(0,0,0,0.5), 0 0 20px rgba(16,185,129,0.5); }
+        .rk-btn-undo { border-color: rgba(248,113,113,0.85); box-shadow: inset 0 1px 0 rgba(255,200,200,0.3), 0 4px 14px rgba(0,0,0,0.5), 0 0 16px rgba(239,68,68,0.35); }
+        /* ספרות הכפתור בצבעי האבנים, כמו במשחק */
+        .rk-sort-d1 { color: #ff6b6b; } .rk-sort-d2 { color: #6bb6ff; } .rk-sort-d3 { color: #ffb347; }
+
         .rack-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 4px; direction: ltr; }
         /* Rummy plays best in landscape (wide 14-column rack). Nudge portrait users to rotate. */
         @keyframes rotateHint { 0%, 18% { transform: rotate(0deg); } 50%, 68% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
@@ -5099,7 +5118,7 @@
                                     <React.Fragment key={groupObj.id}>
                                         {insertHint && insertHint.beforeId === groupObj.id && <div className="board-caret" />}
                                         <div data-drop={`board-group-${groupObj.id}`} data-board-id={groupObj.id} data-board-next={nextId}
-                                             className={`board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.45)] bg-emerald-400/10' : ''}`}>
+                                             className={`board-group ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
                                             {groupObj.tiles.map((t, tIdx) => (
                                                 <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
                                             ))}
@@ -5122,15 +5141,15 @@
                                 </div>
                                 {isMyTurn && (
                                     <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור"
-                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 text-white shadow-[0_10px_25px_rgba(245,158,11,0.55)] border-[3px] border-amber-200 active:scale-90 transition-transform flex flex-col items-center justify-center leading-none">
-                                        <i className="fa-solid fa-plus text-2xl"></i>
-                                        <span className="text-[9px] font-black mt-0.5">📦 {(tableState.deck || []).length}</span>
+                                            className="rk-btn rk-btn-draw pointer-events-auto w-16 h-16 rounded-2xl">
+                                        <i className="fa-solid fa-plus text-2xl text-amber-300"></i>
+                                        <span className="text-[10px] font-black mt-0.5 text-amber-200/90" dir="ltr">{(tableState.deck || []).length}</span>
                                     </button>
                                 )}
                                 {isMyTurn && (
                                     <button onClick={handleEndTurn} title="סיים תור"
-                                            className="pointer-events-auto w-16 h-16 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 text-white text-3xl shadow-[0_10px_25px_rgba(6,182,212,0.55)] border-[3px] border-emerald-200 active:scale-90 transition-transform flex items-center justify-center">
-                                        <i className="fa-solid fa-check"></i>
+                                            className="rk-btn rk-btn-ok pointer-events-auto w-16 h-16 rounded-2xl text-3xl">
+                                        <i className="fa-solid fa-check text-emerald-300"></i>
                                     </button>
                                 )}
                             </div>
@@ -5180,14 +5199,17 @@
 
                         {isSeated && isPlaying && (
                             <div className="flex-1 flex flex-row sm:flex-col w-auto sm:w-full gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto items-center sm:items-stretch">
-                                <button onClick={handleSort789} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-blue-400">789</span> סדרות</button>
-                                <button onClick={handleSort777} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><span className="text-rose-400">777</span> שלישיות</button>
-                                <button onClick={handleArrangeBoard} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs whitespace-nowrap shrink-0"><i className="fa-solid fa-table-cells ml-1 text-emerald-400"></i> סדר שולחן</button>
-                                {isMyTurn && <button onClick={handleUndo} className="w-auto sm:w-full px-2.5 py-2 sm:py-3 rounded-lg action-btn text-slate-300 font-bold text-[10px] sm:text-xs hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"><i className="fa-solid fa-undo"></i> בטל</button>}
+                                <button onClick={handleSort789} title="סדר לפי סדרות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></span></button>
+                                <button onClick={handleSort777} title="סדר לפי שלישיות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></span></button>
+                                <button onClick={handleArrangeBoard} title="סדר את הלוח" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-table-cells text-sky-300"></i></button>
+                                {isMyTurn && <button onClick={handleUndo} title="בטל את המהלך" className="rk-btn rk-btn-undo w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-rotate-left text-rose-300"></i></button>}
                                 <div className="hidden sm:block w-full h-px bg-slate-800 my-1"></div>
                                 <div className="sm:mt-auto flex flex-row sm:flex-col gap-2 shrink-0">
-                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] border-2 border-amber-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-hand-holding"></i></button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="hidden sm:block w-12 sm:w-full py-2 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-[0_0_15px_rgba(6,182,212,0.4)] border-2 border-emerald-400 transition-all active:scale-95 shrink-0"><i className="fa-solid fa-check"></i></button>}
+                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="rk-btn rk-btn-draw hidden sm:flex w-12 sm:w-full py-3 sm:py-5 shrink-0 gap-1.5">
+                                        <i className="fa-solid fa-plus text-2xl text-amber-300"></i>
+                                        <span className="text-[10px] font-black text-amber-200/90" dir="ltr">{(tableState.deck || []).length}</span>
+                                    </button>}
+                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="rk-btn rk-btn-ok hidden sm:flex w-12 sm:w-full py-3 sm:py-5 text-3xl shrink-0"><i className="fa-solid fa-check text-emerald-300"></i></button>}
                                 </div>
                             </div>
                         )}
