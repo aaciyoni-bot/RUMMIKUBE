@@ -359,6 +359,17 @@
             .pl-avatar { width: clamp(2.3rem, 11dvh, 3.6rem); height: clamp(2.3rem, 11dvh, 3.6rem); }
         }
 
+        /* כרטיסי קלאב: ריחוף עדין */
+        .club-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .club-card:hover { transform: translateY(-3px); }
+        /* אבני נוי צפות ברקע מסך הקלאבים */
+        .float-tile {
+            position: absolute; pointer-events: none; opacity: 0.06; filter: blur(1.5px);
+            animation: floatDrift 14s ease-in-out infinite alternate;
+        }
+        @keyframes floatDrift { 0% { transform: translateY(0) rotate(var(--ft-r, -8deg)); } 100% { transform: translateY(-26px) rotate(calc(var(--ft-r, -8deg) + 5deg)); } }
+        @media (prefers-reduced-motion: reduce) { .float-tile { animation: none; } }
+
         /* פאנל GOD: האבנים בו לתצוגה בלבד - בלי touch-action:none של הגרירה,
            אחרת החלקת אצבע על אבן לא מגלגלת את הפאנל וכל מה שמעבר לשני
            שחקנים לא נגיש במובייל. */
@@ -2562,34 +2573,43 @@
                 setCreating(false);
             };
 
+            /* כרטיס קלאב: באנר בצבע הקלאב, מדליון עם ברק, שורת נתונים ופעולה */
             const ClubCard = ({ c, action }) => {
                 const m = memOf(c.id);
                 const isOwner = c.ownerUid === user.uid;
                 const hue = clubHue(c.id);
                 return (
-                    <div className="rounded-3xl p-[1.5px] transition-transform hover:-translate-y-0.5"
-                         style={{ background: `linear-gradient(135deg, ${hue.a}66, rgba(255,255,255,0.04) 35%, rgba(255,255,255,0.04) 65%, ${hue.a}44)`, boxShadow: `0 12px 32px ${hue.glow}` }}>
-                        <div className="bg-slate-900/95 rounded-[22px] p-3.5 flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-3 min-w-0">
-                                {(isOwner || god) && c.id !== 'main' && (
-                                    <button onClick={(e) => { e.stopPropagation(); deleteClub(c); }} title="מחק קלאב" className="w-9 h-9 rounded-full bg-slate-800/80 text-slate-500 hover:text-white hover:bg-rose-700 border border-white/5 flex items-center justify-center shrink-0 transition-colors">
-                                        <i className="fa-solid fa-trash text-xs"></i>
-                                    </button>
-                                )}
-                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg text-white font-black text-xl"
-                                     style={{ background: `linear-gradient(135deg, ${hue.a}, ${hue.b})`, textShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>
+                    <div className="club-card rounded-3xl p-[1.5px]"
+                         style={{ background: `linear-gradient(135deg, ${hue.a}88, rgba(255,255,255,0.06) 40%, rgba(255,255,255,0.06) 60%, ${hue.a}55)`, boxShadow: `0 14px 40px ${hue.glow}` }}>
+                        <div className="bg-slate-900/95 rounded-[22px] overflow-hidden h-full flex flex-col">
+                            <div className="relative px-4 pt-4 pb-3 flex items-center gap-3"
+                                 style={{ background: `linear-gradient(135deg, ${hue.a}30, transparent 60%)` }}>
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-white font-black text-2xl"
+                                     style={{ background: `linear-gradient(145deg, ${hue.a}, ${hue.b})`, boxShadow: `0 8px 18px ${hue.glow}, inset 0 2px 0 rgba(255,255,255,0.35)`, textShadow: '0 2px 6px rgba(0,0,0,0.45)' }}>
                                     {(c.name || '?').trim().charAt(0)}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     <div className="font-black text-white text-lg truncate flex items-center gap-2">
                                         {c.name}
-                                        {isOwner && <span className="text-[9px] px-2 py-0.5 rounded-full font-black border" style={{ color: hue.a, borderColor: hue.a + '80', background: hue.a + '1f' }}>👑 שלך</span>}
+                                        {isOwner && <span className="text-[9px] px-2 py-0.5 rounded-full font-black border shrink-0" style={{ color: hue.a, borderColor: hue.a + '80', background: hue.a + '1f' }}>👑 שלך</span>}
                                     </div>
-                                    <div className="text-[11px] text-slate-400 font-bold">בעלים: {c.ownerName || ''}{m && m.status === 'approved' ? <span style={{ color: hue.a }}> · היתרה שלך: {formatMoney(m.balance || 0)}</span> : ''}</div>
-                                    <div className="text-[10px] text-slate-500 font-black tracking-wider mt-0.5" dir="ltr">🆔 {clubCode(c.id)}</div>
+                                    <div className="text-[11px] text-slate-400 font-bold truncate">בעלים: {c.ownerName || ''}</div>
                                 </div>
+                                {(isOwner || god) && c.id !== 'main' && (
+                                    <button onClick={(e) => { e.stopPropagation(); deleteClub(c); }} title="מחק קלאב" className="w-8 h-8 rounded-full bg-slate-950/60 text-slate-500 hover:text-white hover:bg-rose-700 border border-white/5 flex items-center justify-center shrink-0 transition-colors">
+                                        <i className="fa-solid fa-trash text-[10px]"></i>
+                                    </button>
+                                )}
                             </div>
-                            {action}
+                            <div className="px-4 pb-4 pt-1 flex items-center justify-between gap-3 flex-wrap mt-auto">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                    {m && m.status === 'approved' && (
+                                        <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 whitespace-nowrap" dir="ltr">💰 {formatMoney(m.balance || 0)}</span>
+                                    )}
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-950/70 border border-white/10 text-slate-400 tracking-wider whitespace-nowrap" dir="ltr">🆔 {clubCode(c.id)}</span>
+                                </div>
+                                {action}
+                            </div>
                         </div>
                     </div>
                 );
@@ -2597,7 +2617,13 @@
 
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
-                    <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+                        <div className="float-tile rummy-tile w-16 h-20 flex items-center justify-center text-4xl" style={{ top: '12%', right: '6%', '--ft-r': '-10deg', color: '#c62828' }}>7</div>
+                        <div className="float-tile rummy-tile w-14 h-[4.2rem] flex items-center justify-center text-3xl" style={{ top: '58%', left: '4%', '--ft-r': '7deg', color: '#1257a8', animationDelay: '-5s' }}>11</div>
+                        <div className="float-tile rummy-tile w-12 h-14 flex items-center justify-center text-2xl" style={{ top: '32%', left: '14%', '--ft-r': '-4deg', color: '#e05a00', animationDelay: '-9s' }}>3</div>
+                        <div className="float-tile rummy-tile w-16 h-20 flex items-center justify-center text-4xl" style={{ top: '76%', right: '12%', '--ft-r': '9deg', color: '#14161c', animationDelay: '-2s' }}>13</div>
+                    </div>
+                    <div className="max-w-3xl mx-auto animate-fade-in relative z-10">
                         <div className="clubs-head text-center mb-5 mt-2">
                             <h1 className="logo-shine text-3xl sm:text-4xl font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.3)]">RUMMIKUBE</h1>
                             <p className="tagline text-emerald-400/80 text-[11px] sm:text-xs font-black tracking-[0.2em] mt-1.5">משחקים וטורנירים בין חברים</p>
@@ -2648,12 +2674,12 @@
                         </div>
 
                         {myClubs.length > 0 && (
-                            <div className="mb-4">
-                                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
-                                <div className="flex flex-col gap-3">
+                            <div className="mb-5">
+                                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-2.5"><i className="fa-solid fa-door-open ml-1"></i> הקלאבים שלי</h3>
+                                <div className={myClubs.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'flex flex-col gap-4'}>
                                     {myClubs.map(c => <ClubCard key={c.id} c={c} action={
-                                        <button onClick={() => onEnter(c)} className="text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0 hover:brightness-110 transition-all"
-                                                style={{ background: `linear-gradient(180deg, ${clubHue(c.id).a}, ${clubHue(c.id).b})` }}>כניסה</button>
+                                        <button onClick={() => onEnter(c)} className="text-white px-7 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0 hover:brightness-110 transition-all"
+                                                style={{ background: `linear-gradient(180deg, ${clubHue(c.id).a}, ${clubHue(c.id).b})`, boxShadow: `0 8px 20px ${clubHue(c.id).glow}` }}>כניסה ←</button>
                                     } />)}
                                 </div>
                             </div>
@@ -2670,8 +2696,9 @@
                             </div>
                         )}
 
-                        <div className="mb-4">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
+                        <div className="grid sm:grid-cols-2 gap-4 items-start mb-4">
+                        <div className="glass-panel rounded-3xl p-5 border border-sky-500/15">
+                            <h3 className="text-xs font-black text-sky-300 uppercase tracking-widest mb-3"><i className="fa-solid fa-magnifying-glass ml-1"></i> חפש קלאב לפי מזהה</h3>
                             <div className="flex gap-2 mb-2">
                                 <input value={searchCode} onChange={e => setSearchCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} onKeyDown={e => e.key === 'Enter' && doClubSearch()} placeholder="מזהה 6 ספרות" dir="ltr" maxLength={6} className="flex-1 min-w-0 bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-white font-black text-center tracking-[0.2em] text-sm outline-none focus:border-emerald-500/60" />
                                 <button onClick={doClubSearch} className="bg-gradient-to-b from-sky-500 to-sky-700 hover:from-sky-400 text-white px-5 rounded-xl font-black text-sm shadow-lg shrink-0">חפש</button>
@@ -2710,15 +2737,16 @@
                             </div>
                         , document.body)}
 
-                        <div className="glass-panel rounded-3xl p-6 border border-emerald-500/20">
-                            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1 text-emerald-400"></i> הקם קלאב חדש</h3>
+                        <div className="glass-panel rounded-3xl p-5 border border-emerald-500/20">
+                            <h3 className="text-xs font-black text-emerald-300 uppercase tracking-widest mb-3"><i className="fa-solid fa-plus ml-1"></i> הקם קלאב חדש</h3>
                             <div className="flex gap-2">
-                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." maxLength={30} className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
-                                <button onClick={createClub} disabled={creating || !newName.trim()} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white px-6 py-3 rounded-xl font-black shadow-lg">
+                                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="שם הקלאב..." maxLength={30} className="flex-1 min-w-0 bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-white font-bold text-sm outline-none focus:border-emerald-500/60" />
+                                <button onClick={createClub} disabled={creating || !newName.trim()} className="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-lg shrink-0">
                                     {creating ? <i className="fa-solid fa-spinner fa-spin"></i> : 'הקם 👑'}
                                 </button>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-bold mt-2">אתה תהיה בעל הקלאב: מתחיל עם 100,000,000 צ'יפים לחלוקה, מאשר חברים, קובע את הכללים, ממנה מנהלים וסוכנים - והרווחים שלך.</p>
+                            <p className="text-[11px] text-slate-500 font-bold mt-2 leading-relaxed">אתה בעל הקלאב: 100,000,000 צ'יפים לחלוקה, אישור חברים, מינוי מנהלים וסוכנים - והרווחים שלך.</p>
+                        </div>
                         </div>
                     </div>
                 </div>
