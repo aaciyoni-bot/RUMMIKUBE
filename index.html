@@ -981,7 +981,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v38';
+        const APP_VER = 'v39';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7140,22 +7140,35 @@
                 prevIdsRef.current = handIds;
                 return cleanup;
             }, [handKey]);
-            // הדגשה + הפרדה: כל קבוצה מופרדת-ברווח נבדקת; תת-רצף חוקי (רצף 234 / שלישייה 777) נדלק בירוק
-            const meldIds = (() => {
-                const s = new Set(); let run = [];
+            // המערכת "מבינה" את הסידור שלך: כל קבוצה מופרדת-ברווח נבדקת בנפרד.
+            // קבוצה שלמה-חוקית → רקע ירוק חזק + תווית סוג (רצף / שלישייה / רביעייה).
+            // תת-רצף חוקי בתוך קבוצה לא-שלמה → טבעת ירוקה בלבד.
+            const arrange = (() => {
+                const ring = new Set(), full = new Set(), badges = {}, recognized = [];
+                let grp = [];
                 const flush = () => {
-                    let i = 0;
-                    while (i < run.length) {
-                        let best = 0;
-                        for (let len = Math.min(run.length - i, 13); len >= 3; len--) { if (validateGroup(run.slice(i, i + len).map(x => x.t))) { best = len; break; } }
-                        if (best >= 3) { for (let k = i; k < i + best; k++) s.add(run[k].id); i += best; } else i++;
+                    if (grp.length >= 3 && validateGroup(grp.map(x => x.t))) {
+                        grp.forEach(x => { ring.add(x.id); full.add(x.id); });
+                        const nums = grp.map(x => x.t.val).filter(v => v !== '☻');
+                        const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
+                        const label = isGroup ? (grp.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
+                        badges[grp[0].slotIdx] = label;
+                        recognized.push({ label, n: grp.length });
+                    } else {
+                        let i = 0;
+                        while (i < grp.length) {
+                            let best = 0;
+                            for (let len = Math.min(grp.length - i, 13); len >= 3; len--) { if (validateGroup(grp.slice(i, i + len).map(x => x.t))) { best = len; break; } }
+                            if (best >= 3) { for (let k = i; k < i + best; k++) ring.add(grp[k].id); i += best; } else i++;
+                        }
                     }
-                    run = [];
+                    grp = [];
                 };
-                slots.forEach(id => { if (id && tileById[id]) run.push({ id, t: tileById[id] }); else flush(); });
+                slots.forEach((id, idx) => { if (id && tileById[id]) grp.push({ id, t: tileById[id], slotIdx: idx }); else flush(); });
                 flush();
-                return s;
+                return { ring, full, badges, recognized };
             })();
+            const meldIds = arrange.ring;
             // "סדר לי": פורש קומבינציות למגש עם רווח-מפריד בין כל קבוצה, ולבסוף הלא-מסודרות
             const autoArrange = () => {
                 const arr = Array(SLOT_COUNT).fill(null); let p = 0;
@@ -7302,6 +7315,13 @@
                 const tick = () => setTimeLeft(Math.max(0, (turnSecs + curTb) - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
             }, [t && t.turnStartedAt, t && t.phase]);
+
+            // אינדיקציית-תור: רטט קצר ברגע שמגיע התור שלך
+            const wasMyTurnRef = useRef(false);
+            useEffect(() => {
+                if (myTurn && !wasMyTurnRef.current) { try { if (navigator.vibrate) navigator.vibrate([140, 70, 140]); } catch (_) {} }
+                wasMyTurnRef.current = myTurn;
+            }, [myTurn]);
 
             // פעולה אוטומטית כשנגמר הזמן שלי (משיכה מהקופה / זריקת האבן הגבוהה)
             const autoRef = useRef(null);
@@ -7471,7 +7491,7 @@
             const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
             return (
-                <div className="absolute inset-0 flex flex-col aurora-bg overflow-hidden" dir="rtl">
+                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden transition-shadow ${myTurn ? 'ring-4 ring-inset ring-emerald-400/70' : ''}`} style={myTurn ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
@@ -7483,9 +7503,14 @@
                     <div className="shrink-0 px-3 py-2 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                         {uids.filter(u => u !== user.uid).map(u => {
                             const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
-                            return <div key={u} className={`rounded-xl px-3 py-1.5 border text-center shrink-0 ${t.currentTurn === u ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                            const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
+                            const oppTb = Number(p.tb) || 0;
+                            return <div key={u} className={`rounded-xl px-3 py-1 border text-center shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
                                 <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate">{p.username}</div>
-                                <div className="text-[10px] text-slate-400 font-bold" dir="ltr">🁢 {cnt} {t.currentTurn === u && <i className="fa-solid fa-circle text-emerald-400 text-[6px] animate-pulse"></i>}</div>
+                                <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
+                                    <span>🁢 {cnt}</span>
+                                    {isTheirTurn && <span className={`font-mono font-black px-1 rounded ${timeLeft <= 10 ? 'text-rose-400 bg-rose-500/10 animate-pulse' : (timeLeft <= oppTb && oppTb > 0 ? 'text-amber-300 bg-amber-500/10' : 'text-emerald-300 bg-emerald-500/10')}`}>⏱{timeLeft}s{timeLeft <= oppTb && oppTb > 0 ? ' 🏦' : ''}</span>}
+                                </div>
                             </div>;
                         })}
                     </div>
@@ -7503,18 +7528,24 @@
                             <div className="text-[10px] text-slate-400 font-bold mt-0.5">זריקה</div>
                         </div>
                     </div>
-                    <div className="shrink-0 text-center text-xs font-black h-5">
-                        {myTurn && t.turnPhase === 'draw' && <span className="text-emerald-300">תורך — משוך אבן מהקופה או מהזריקה</span>}
-                        {myTurn && t.turnPhase === 'discard' && !goOut && <span className="text-amber-300">הקש על אבן ביד כדי לזרוק</span>}
-                        {myTurn && goOut && <span className="text-emerald-300 animate-pulse">🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
-                        {!myTurn && <span className="text-slate-500">ממתין לתור של {turnName}…</span>}
-                    </div>
+                    {myTurn
+                        ? <div className="shrink-0 mx-2 mt-1 rounded-xl py-1.5 text-center font-black text-sm bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
+                            {t.turnPhase === 'draw' && <span>▶ תורך! משוך אבן מהקופה או מהזריקה</span>}
+                            {t.turnPhase === 'discard' && !goOut && <span>▶ תורך! הקש על אבן ביד כדי לזרוק</span>}
+                            {goOut && <span>🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
+                        </div>
+                        : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
                     {/* המדף שלי — מגש עם משבצות ריקות: גררו אבנים למקומות הריקים לסידור בקבוצות */}
                     <div className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1">
-                        <div className="shrink-0 flex items-center justify-between px-2 py-1">
-                            <span className="text-[11px] text-slate-400 font-bold">היד שלך ({myHand.filter(Boolean).length}){part.leftoverPoints > 0 ? <span className="text-slate-500"> · לא-מסודר {part.leftoverPoints}</span> : <span className="text-emerald-400 font-black"> · מסודרת ✓</span>}</span>
-                            <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">✨ סדר לי</button>
+                        <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                <span className="text-[11px] text-slate-400 font-bold shrink-0">היד שלך ({myHand.filter(Boolean).length})</span>
+                                {arrange.recognized.length > 0
+                                    ? arrange.recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
+                                    : <span className="text-[10px] text-slate-500 font-bold">סדר קבוצות עם רווח ביניהן →</span>}
+                            </div>
+                            <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
                         </div>
                         <div ref={gridRef}
                             style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.3rem', alignContent: 'start', touchAction: 'none' }}
@@ -7523,14 +7554,17 @@
                                 const tile = id ? tileById[id] : null;
                                 if (!tile) return <div key={idx} data-slot={idx} className="rounded-lg border-2 border-dashed border-white/10" style={{ minHeight: '3.95rem' }}></div>;
                                 const inMeld = meldIds.has(id);
+                                const isFull = arrange.full.has(id);
+                                const badge = arrange.badges[idx];
                                 const flash = flashId === id;
                                 const dragging = dragId === id;
                                 return (
-                                    <div key={idx} data-slot={idx} className="flex items-center justify-center">
+                                    <div key={idx} data-slot={idx} className="relative flex items-center justify-center">
+                                        {badge && <span className="absolute -top-0.5 right-0 z-10 text-[8px] font-black text-emerald-100 bg-emerald-600/90 rounded px-1 leading-tight pointer-events-none shadow">{badge}</span>}
                                         <div data-tid={id}
                                             onPointerDown={(e) => onTileDown(e, id)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
                                             style={{ touchAction: 'none', transform: dragging ? 'scale(1.1)' : 'none', transition: 'transform 0.12s', WebkitUserSelect: 'none', userSelect: 'none' }}
-                                            className={`rounded-lg ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/70' : (inMeld ? 'ring-2 ring-emerald-400/80' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                            className={`rounded-lg ${isFull ? 'bg-emerald-500/25' : ''} ${dragging ? 'z-20 shadow-2xl ring-2 ring-white/70' : (inMeld ? 'ring-2 ring-emerald-400/80' : '')} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
                                             <RamiTile tile={tile} />
                                         </div>
                                     </div>
