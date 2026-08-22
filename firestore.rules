@@ -76,12 +76,17 @@ service cloud.firestore {
              && exists(/databases/$(database)/documents/clubs/$(request.resource.data.clubId))
              && get(/databases/$(database)/documents/clubs/$(request.resource.data.clubId)).data.ownerUid == uid() )
       );
-      // צוות משנה הכול; שחקן/משחק יכול לגעת בכסף (שלב 2 ינעל) אבל לא בתפקיד/סטטוס/סוכן
+      // צוות/GOD משנה הכול (קופה, ניהול). שחקן רגיל: אסור לגעת בתפקיד/סטטוס/סוכן,
+      // אסור להגדיל את היתרה של עצמו (מניעת המצאת כסף), ואסור לגעת ביתרת אחר
+      // (מניעת גניבה). כל תנועת כסף אמיתית עוברת דרך Cloud Functions (עוקפות חוקים).
       allow update: if signedIn() && (
         isStaffOf(resource.data.clubId)
         || ( same('role') && same('status') && same('uid') && same('clubId')
              && same('agentUid') && same('agentPct') && same('agentSharePct')
-             && same('agentCode') )
+             && same('agentCode') && same('clubProfits') && same('agentProfits')
+             && ( same('balance')
+                  || ( id == uid() + '_' + resource.data.clubId
+                       && request.resource.data.get('balance', 0) <= resource.data.get('balance', 0) ) ) )
         // הגשה-מחדש אחרי דחייה: בעל החברות בלבד, רק rejected -> pending, בלי לגעת בשאר
         || ( id == uid() + '_' + resource.data.clubId
              && resource.data.status == 'rejected'
@@ -107,11 +112,14 @@ service cloud.firestore {
     }
 
     // ─────────── tables (משחק חי) ───────────
-    // נשאר פתוח לכתיבה לשחקנים מחוברים - המשחק רץ בצד הלקוח. שלב 2/מנוע-שרת
-    // ינעל את stack ואת הקלפים הפרטיים.
+    // המשחק (קלפים/לוח/תור) נכתב מהלקוח, אבל bank (הסטאקים = כסף) נעול:
+    // אותו כותבות רק Cloud Functions (עוקפות חוקים) או GOD (מוח-הבוטים).
     match /tables/{id} {
       allow read: if signedIn();
-      allow write: if signedIn();
+      allow create: if signedIn();
+      allow update: if isGod()
+        || ( signedIn() && !('bank' in request.resource.data.diff(resource.data).affectedKeys()) );
+      allow delete: if signedIn();
     }
     // קלפים פרטיים למנוע-שרת עתידי: כל שחקן קורא רק את שלו, כותב רק השרת
     match /tables/{id}/priv/{u} {
