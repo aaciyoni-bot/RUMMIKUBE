@@ -746,7 +746,6 @@ exports.ramiSettle = onCall(async (request) => {
     // כתיבות
     tx.update(tRef, {players, bank, phase: "showdown", winner: winnerUid, currentTurn: null, turnPhase: null,
       lastResults: {winnerName: players[winnerUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now()}});
-    if (bankSnap.exists && botDelta !== 0) tx.update(bankRef, {balance: round2((Number(bankSnap.data().balance) || 0) + botDelta)});
     for (const [u, d] of Object.entries(memData)) {
       if (!d) continue;
       const st = d.stats || {gamesPlayed: 0, gamesWon: 0, totalProfit: 0};
@@ -754,7 +753,8 @@ exports.ramiSettle = onCall(async (request) => {
       const delta = isW ? winnerProfit : -((details[u] && details[u].pay) || 0);
       tx.update(memRefs[u], {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta)});
     }
-    if (ownerRef && ownerData && rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + rake - totalCuts), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)});
+    // בעל הקלאב מממן את הבוטים (כמו בית): מקבל את הרייק (פחות נתחי סוכנים) + הרווח/ההפסד הנקי של הבוטים
+    if (ownerRef && ownerData) { const ownerGain = round2((rake - totalCuts) + botDelta); if (ownerGain !== 0 || rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + ownerGain), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)}); }
     for (const [aUid, amt] of Object.entries(agentCuts)) { const ad = agentData[aUid]; if (ad) tx.update(agentRefs[aUid], {balance: round2((Number(ad.balance) || 0) + amt), agentProfits: round2((Number(ad.agentProfits) || 0) + amt)}); }
     return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId, winHand: (players[winnerUid].cards || []).filter(Boolean)};
   });
