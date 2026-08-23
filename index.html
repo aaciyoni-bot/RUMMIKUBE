@@ -941,7 +941,7 @@
         const memId = (uid, cid) => `${uid}_${cid || CLUB_ID}`;
         const memDoc = (uid, cid) => window.fb.doc(window.fb.db, "memberships", memId(uid, cid));
         const newMembership = (uid, u, extra) => ({
-            uid, clubId: CLUB_ID, username: u.username || '', email: (u.email || '').toLowerCase(),
+            uid, clubId: CLUB_ID, username: u.username || '', email: (u.email || '').toLowerCase(), phone: u.phone || '',
             photo: u.photo || '', avatarSeed: u.avatarSeed || '', playerId: u.playerId || genPlayerId(), isBot: !!u.isBot,
             role: ROLES.PLAYER, status: 'pending', balance: 0, clubProfits: 0, agentProfits: 0,
             agentUid: '', agentPct: 0, managedGames: [], stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 },
@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v60';
+        const APP_VER = 'v61';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2530,6 +2530,20 @@
                 doRequestJoin(true);
             }, [fbReady, dbUser?.uid, activeMem]);
 
+            // מספר טלפון לזיהוי: משתמש גוגל שאין לו מספר — מתבקש להזין פעם אחת
+            const [phoneVal, setPhoneVal] = useState('');
+            const needPhone = !!(dbUser && !dbUser.isGuest && !dbUser.phone && !isGodUser(dbUser) && !isSiteOwner(dbUser));
+            const savePhone = async () => {
+                const ph = phoneVal.replace(/[^0-9]/g, '');
+                if (ph.length < 6) { showToast('הזן מספר טלפון תקין', 'error'); return; }
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", dbUser.uid), { phone: ph });
+                    const mRef = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${CLUB_ID}`);
+                    try { const ms = await window.fb.getDoc(mRef); if (ms.exists()) await window.fb.updateDoc(mRef, { phone: ph }); } catch (e) {}
+                    setPhoneVal(''); showToast('המספר נשמר ✔', 'success');
+                } catch (e) { showToast('שגיאה בשמירת המספר', 'error'); }
+            };
+
             // ── איפוס מלא (GOD בלבד): מוחק את כל המשתמשים חוץ מבעל-האתר והבוטים,
             //    מוחק את כל ההיסטוריה, מגדיר את בעל-האתר כבעלים עם 10,000,000 ─ מתחילים מ-0 ──
             const resetBusyRef = useRef(false);
@@ -2715,6 +2729,17 @@
                     )}
 
                     <OrientationNudge view={currentView} />
+                    {needPhone && currentView !== 'auth' && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[350] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+                                <div className="text-4xl mb-2">📱</div>
+                                <h3 className="text-xl font-black text-white mb-1">מספר טלפון לזיהוי</h3>
+                                <p className="text-slate-400 text-sm font-bold mb-4">כדי שבעל האתר יוכל לזהות ולאשר אותך, הזן את מספר הטלפון שלך.</p>
+                                <input value={phoneVal} onChange={e => setPhoneVal(e.target.value.replace(/[^0-9]/g, ''))} placeholder="מספר טלפון" inputMode="numeric" maxLength={20} dir="ltr" className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-black text-center tracking-widest outline-none focus:border-emerald-500/60 mb-4" />
+                                <button onClick={savePhone} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black shadow-lg">שמור והמשך ←</button>
+                            </div>
+                        </div>
+                    , document.body)}
                     <main className="flex-1 overflow-hidden relative z-0">
                         {currentView === 'auth' && <AuthView />}
                         {currentView === 'clubs' && dbUser && <ClubsView user={dbUser} clubs={clubsList} myMems={myMems} onEnter={enterClub} showToast={showToast} />}
@@ -5692,7 +5717,7 @@
                                             <img src={avatarUrl({ ...u, uid: u.id })} className="w-10 h-10 rounded-xl bg-slate-800 shrink-0" />
                                             <div className="min-w-0">
                                                 <div className="font-bold text-white truncate flex items-center gap-1.5">{u.username}{!u.email && <span className="text-[9px] bg-amber-500/15 border border-amber-500/40 text-amber-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">אורח</span>}</div>
-                                                <div className="text-sm text-emerald-300 font-black truncate" dir="ltr">📱 {u.playerId || '—'}</div>
+                                                <div className="text-sm text-emerald-300 font-black truncate" dir="ltr">📱 {u.phone || u.playerId || '—'}</div>
                                                 {u.email && <div className="text-[10px] text-slate-500 truncate" dir="ltr">{u.email}</div>}
                                             </div>
                                         </div>
@@ -5807,7 +5832,7 @@
                                                     {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">חסום</span>}
                                                     {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">{ROLE_LABELS[u.role]}</span>}
                                                 </div>
-                                                <div className="text-[10px] text-slate-500 truncate" dir="ltr">{u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
+                                                <div className="text-[10px] text-slate-500 truncate" dir="ltr">📱 {u.phone || u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
                                             </div>
                                             <div className="text-left shrink-0">
                                                 <div className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(u.balance || 0)} ₪</div>
