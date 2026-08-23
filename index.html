@@ -997,7 +997,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v65';
+        const APP_VER = 'v66';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2889,7 +2889,13 @@
                     await window.fb.signInAnonymously(window.fb.auth);
                 } catch (e) {
                     window.__guestName = ''; window.__guestNumber = '';
-                    setLoginErr('כניסת אורח נכשלה. נסה שוב, או התחבר עם גוגל.');
+                    const code = e && e.code;
+                    if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
+                        // כניסת-אורח (Anonymous) כבויה במסוף Firebase — צריך להפעיל אותה
+                        setLoginErr('כניסת אורח אינה מופעלת עדיין. יש להפעיל "Anonymous" ב-Firebase → Authentication. בינתיים אפשר להתחבר עם גוגל.');
+                    } else {
+                        setLoginErr('כניסת אורח נכשלה' + (code ? ' (' + code + ')' : '') + '. נסה שוב, או התחבר עם גוגל.');
+                    }
                 } finally { setBusy(false); }
             };
             // האם אנחנו בתוך דפדפן מוטמע (וואטסאפ/פייסבוק/אינסטגרם) - גוגל חוסם OAuth שם
@@ -7774,12 +7780,26 @@
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
             }, [t && t.turnStartedAt, t && t.phase, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
 
-            // אינדיקציית-תור: רטט קצר ברגע שמגיע התור שלך
+            // אינדיקציית-תור: צליל עדין + רטט קצר ברגע שמגיע התור שלך
             const wasMyTurnRef = useRef(false);
             useEffect(() => {
-                if (myTurn && !wasMyTurnRef.current) { try { if (navigator.vibrate) navigator.vibrate([140, 70, 140]); } catch (_) {} }
+                if (myTurn && !wasMyTurnRef.current) {
+                    try { playSnd('turn'); } catch (_) {}
+                    try { if (navigator.vibrate) navigator.vibrate([140, 70, 140]); } catch (_) {}
+                }
                 wasMyTurnRef.current = myTurn;
             }, [myTurn]);
+
+            // 10 שניות אחרונות בתור שלי: טיק-טק של שעון פעם בשנייה (עדין)
+            const lastTickRef = useRef(0);
+            useEffect(() => {
+                if (!myTurn || t.phase !== 'playing') { lastTickRef.current = 0; return; }
+                if (timeLeft > 0 && timeLeft <= 10) {
+                    if (lastTickRef.current !== timeLeft) { lastTickRef.current = timeLeft; try { playSnd('tick'); } catch (_) {} }
+                } else {
+                    lastTickRef.current = 0;
+                }
+            }, [myTurn, timeLeft, t && t.phase]);
 
             // פעולה אוטומטית כשנגמר הזמן שלי (משיכה מהקופה / זריקת האבן הגבוהה)
             const autoRef = useRef(null);
@@ -7970,7 +7990,7 @@
             const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
             return (
-                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden transition-shadow ${myTurn ? 'ring-4 ring-inset ring-emerald-400/70' : ''}`} style={myTurn ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
+                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden transition-shadow ${myTurn ? (timeLeft <= 10 ? 'ring-4 ring-inset ring-rose-500 animate-pulse' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn ? { boxShadow: timeLeft <= 10 ? 'inset 0 0 55px rgba(244,63,94,0.45)' : 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
