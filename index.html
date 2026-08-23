@@ -261,6 +261,9 @@
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
             animation: jokerBob 1.9s ease-in-out infinite;
         }
+        /* רמז התקנה לאייפון — אייקון מהבהב */
+        .rk-ios-blink { animation: rkIosBlink 1.1s ease-in-out infinite; }
+        @keyframes rkIosBlink { 0%,100% { opacity: 1; transform: translateY(0); } 50% { opacity: 0.35; transform: translateY(-2px); } }
         /* 10 שניות אחרונות: מסגרת אדומה מהבהבת בלבד (לא ממלא את הלוח) */
         .rami-edge-red { box-shadow: inset 0 0 0 6px rgba(244,63,94,0.9); animation: ramiEdgeRed 0.7s ease-in-out infinite; }
         @keyframes ramiEdgeRed { 0%,100% { box-shadow: inset 0 0 0 5px rgba(244,63,94,0.3); } 50% { box-shadow: inset 0 0 0 7px rgba(244,63,94,1); } }
@@ -1059,7 +1062,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v76';
+        const APP_VER = 'v77';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2594,6 +2597,15 @@
                     if (!silent) showToast("בקשת ההצטרפות נשלחה לבעל האתר ✔", "success");
                 } catch (e) { if (!silent) showToast("שגיאה בשליחת הבקשה", "error"); }
             };
+            // עזרה (סימן שאלה) + רמז התקנה לאייפון
+            const [showHelp, setShowHelp] = useState(false);
+            const appIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const appIsIOSSafari = appIsIOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+            const appStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+            const [iosHint, setIosHint] = useState(() => { try { return localStorage.getItem('rk_ios_hint_off') !== '1'; } catch (e) { return true; } });
+            const dismissIosHint = () => { setIosHint(false); try { localStorage.setItem('rk_ios_hint_off', '1'); } catch (e) {} };
+            const showIosHint = appIsIOSSafari && !appStandalone && iosHint;
+
             // משתמש רגיל (לא GOD, לא בעל-אתר): נרשם אוטומטית כבקשה ממתינה בכניסה
             const autoJoinRef = useRef(false);
             useEffect(() => {
@@ -2819,6 +2831,7 @@
                                         <i className="fa-solid fa-trash-can-arrow-up"></i>
                                     </button>
                                 )}
+                                <button onClick={() => setShowHelp(true)} title="הוראות המשחק" className="w-10 h-10 rounded-xl border border-sky-500/40 bg-slate-800/80 text-sky-300 hover:text-white hover:bg-sky-700 transition-colors flex items-center justify-center font-black text-lg">?</button>
                                 <InstallButton showToast={showToast} label="📲" className="w-10 h-10 rounded-xl border border-emerald-500/30 bg-slate-800/80 hover:bg-emerald-700 transition-colors flex items-center justify-center text-base" />
                                 <button onClick={() => changeView(currentView === 'leaders' ? 'lobby' : 'leaders')} className={`w-10 h-10 rounded-xl border transition-colors flex items-center justify-center ${currentView === 'leaders' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800/80 text-amber-400 border-white/5 hover:bg-amber-700 hover:text-white'}`} title="לוח המובילים">
                                     <i className="fa-solid fa-ranking-star"></i>
@@ -2852,6 +2865,15 @@
                         </div>
                     )}
 
+                    {/* אייפון: רמז מהבהב להוספה למסך הבית */}
+                    {showIosHint && !inTable && (
+                        <div className="shrink-0 px-3 py-2 border-b border-sky-500/30 bg-sky-500/10 z-30 flex items-center gap-2">
+                            <span className="text-xl rk-ios-blink shrink-0">📲</span>
+                            <div className="flex-1 min-w-0 text-[12px] text-sky-100 font-bold leading-tight">הוסף את RUMMIKUBE למסך הבית: הקש על <span className="font-black">שיתוף</span> <span className="inline-block border border-sky-300/60 rounded px-1">⬆️</span> ואז <span className="font-black">"הוסף למסך הבית"</span></div>
+                            <button onClick={dismissIosHint} className="shrink-0 w-7 h-7 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center border border-white/10"><i className="fa-solid fa-xmark"></i></button>
+                        </div>
+                    )}
+
                     {clubMsg && !inTable && currentView !== 'clubs' && (
                         <div className="shrink-0 bg-gradient-to-l from-amber-600/25 via-amber-500/10 to-transparent border-b border-amber-500/30 px-4 py-2.5 flex items-start gap-3 z-30">
                             <div className="text-2xl shrink-0 mt-0.5">📣</div>
@@ -2864,6 +2886,28 @@
                     )}
 
                     <OrientationNudge view={currentView} />
+                    {showHelp && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[360] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowHelp(false)}>
+                            <div onClick={e => e.stopPropagation()} className="glass-panel rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6 shadow-2xl">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-2xl font-black text-white">📖 איך משחקים רמי</h3>
+                                    <button onClick={() => setShowHelp(false)} className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center border border-white/10"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div className="space-y-3 text-slate-200 text-sm font-bold leading-relaxed">
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🎯 המטרה</div>לסדר את כל 14 האבנים שביד לקומבינציות חוקיות ו"לרדת" — הראשון שיורד מנצח.</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🀄 קומבינציות</div><b>רצף</b> — 3+ אבנים באותו צבע במספרים עוקבים (למשל 5-6-7). <b>קבוצה</b> — 3 או 4 אבנים באותו מספר בצבעים שונים. ה-<b>1</b> יכול לפתוח (1-2-3) או לסגור (12-13-1).</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🔄 תור</div>בכל תור: מושכים אבן (מהקופה או מערימת הזריקה) ואז זורקים אבן אחת. יש טיימר לכל תור.</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🃏 ג'וקר</div>מחליף כל אבן בקומבינציה. שווה הרבה — נצל אותו!</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🖐️ הלוח והמגש</div>גרור אבנים מ<b>המגש</b> התחתון ל<b>לוח</b> העליון כדי לבנות קומבינציות. רווח (תא ריק) מפריד בין קבוצות. "✨ סדר לי" מסדר אוטומטית.</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-emerald-300 font-black mb-1">🏆 רד וגמור</div>כשכל היד מסודרת בקומבינציות חוקיות — הכפתור "רד וגמור" נדלק. לחיצה = ניצחון!</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-amber-300 font-black mb-1">🔥 פריש</div>מציע חלוקה מחדש (אבנים חדשות לכולם) והכפלת המשחק ×2 — רק בהסכמת כולם.</div>
+                                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3"><div className="text-rose-300 font-black mb-1">❤️ טורניר (חיים)</div>בטורניר אין כסף בכל יד — מי שהכי רחוק מירידה מאבד חיים; ב-0 חיים מודחים. האחרון ששורד זוכה בפרס.</div>
+                                </div>
+                                <button onClick={() => setShowHelp(false)} className="w-full mt-4 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black shadow-lg">הבנתי, בהצלחה! 🍀</button>
+                            </div>
+                        </div>
+                    , document.body)}
+
                     {needPhone && currentView !== 'auth' && ReactDOM.createPortal(
                         <div dir="rtl" className="fixed inset-0 z-[350] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
