@@ -261,6 +261,12 @@
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
             animation: jokerBob 1.9s ease-in-out infinite;
         }
+        /* 10 שניות אחרונות: מסגרת אדומה מהבהבת בלבד (לא ממלא את הלוח) */
+        .rami-edge-red { box-shadow: inset 0 0 0 6px rgba(244,63,94,0.9); animation: ramiEdgeRed 0.7s ease-in-out infinite; }
+        @keyframes ramiEdgeRed { 0%,100% { box-shadow: inset 0 0 0 5px rgba(244,63,94,0.3); } 50% { box-shadow: inset 0 0 0 7px rgba(244,63,94,1); } }
+        /* התראת-תור בולטת שקופצת לרגע */
+        .rami-turn-pop { animation: ramiTurnPop 1.4s ease forwards; }
+        @keyframes ramiTurnPop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.55); } 14% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); } 28% { transform: translate(-50%,-50%) scale(1); } 78% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.06); } }
         @keyframes jokerShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
         @keyframes jokerBob { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-8%) rotate(5deg); } }
         /* אבן מורמת: מתרוממת, צל עמוק מתחתיה והילה כחולה רכה סביבה */
@@ -1053,7 +1059,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v75';
+        const APP_VER = 'v76';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7579,6 +7585,7 @@
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
             const [dropSlot, setDropSlot] = useState(null); // {zone,idx} התא שמתחת לאצבע
+            const [turnAlert, setTurnAlert] = useState(false);
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
             const dropSlotRef = useRef(null);
@@ -7998,12 +8005,15 @@
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
             }, [t && t.turnStartedAt, t && t.phase, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
 
-            // אינדיקציית-תור: צליל עדין + רטט קצר ברגע שמגיע התור שלך
+            // אינדיקציית-תור: באנר בולט + צליל כפול + רטט חזק ברגע שמגיע התור שלך.
+            // (באייפון אין רטט בדפדפן — לכן ההתראה הויזואלית היא העיקר.)
             const wasMyTurnRef = useRef(false);
             useEffect(() => {
                 if (myTurn && !wasMyTurnRef.current) {
-                    try { playSnd('turn'); } catch (_) {}
-                    try { if (navigator.vibrate) navigator.vibrate([140, 70, 140]); } catch (_) {}
+                    setTurnAlert(true); const tm = setTimeout(() => setTurnAlert(false), 1400);
+                    try { playSnd('turn'); setTimeout(() => { try { playSnd('turn'); } catch (_) {} }, 260); } catch (_) {}
+                    try { if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 300]); } catch (_) {}
+                    return () => clearTimeout(tm);
                 }
                 wasMyTurnRef.current = myTurn;
             }, [myTurn]);
@@ -8256,7 +8266,7 @@
             const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
             return (
-                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden transition-shadow ${myTurn ? (timeLeft <= 10 ? 'ring-4 ring-inset ring-rose-500 animate-pulse' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn ? { boxShadow: timeLeft <= 10 ? 'inset 0 0 55px rgba(244,63,94,0.45)' : 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
+                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
@@ -8366,6 +8376,16 @@
                             </div>
                         )}
                     </div>
+
+                    {/* התראת-תור בולטת (עובדת גם באייפון — ויזואלית) */}
+                    {turnAlert && ReactDOM.createPortal(
+                        <div key={t.turnStartedAt} className="rami-turn-pop" style={{ position: 'fixed', left: '50%', top: '38%', zIndex: 500, pointerEvents: 'none' }}>
+                            <div className="px-8 py-5 rounded-3xl text-center shadow-2xl" style={{ background: 'linear-gradient(135deg, #059669, #10b981)', border: '3px solid #6ee7b7', boxShadow: '0 0 60px rgba(16,185,129,0.7)' }}>
+                                <div className="text-5xl mb-1">🔔</div>
+                                <div className="text-white font-black text-3xl tracking-wide">תורך!</div>
+                            </div>
+                        </div>
+                    , document.body)}
 
                     {/* אבן-רפאים שעוקבת אחרי האצבע בזמן גרירה */}
                     {dragId && tileById[dragId] && ReactDOM.createPortal(
