@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v85';
+        const APP_VER = 'v86';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7682,8 +7682,8 @@
 
             // ── שני אזורים כמו ברמיקוב: "לוח" עליון לבניית קומבינציות (מודגש בירוק),
             //    ו"מגש" תחתון אישי לסידור חופשי של האבנים בגרירה. גוררים אבן בין/בתוך האזורים.
-            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // לוח עליון
-            const RACK_COLS = 7, RACK_ROWS = 3, RACK_N = RACK_COLS * RACK_ROWS;      // מקום סידור תחתון
+            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפי המעמד העליונים — כל היד יושבת כאן
+            const RACK_COLS = 7, RACK_ROWS = 2, RACK_N = RACK_COLS * RACK_ROWS;      // מדפים תחתונים — מקום נוסף לסידור
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
             const [flashId, setFlashId] = useState(null);
@@ -7707,20 +7707,21 @@
             useEffect(() => {
                 // התאמה ליד: מסירים אבנים שיצאו משני האזורים; אבנים חדשות נכנסות למגש התחתון.
                 const inHand = new Set(handIds);
-                let placedNow = null;
-                setBoardSlots(prev => {
-                    const arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
-                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
-                    placedNow = new Set(arr.filter(Boolean));
-                    return arr;
-                });
+                let rackKept = null;
+                // תחילה מנקים מהמדפים התחתונים אבנים שיצאו, ושומרים מה שנשאר שם
                 setRackSlots(prev => {
                     const arr = (prev && prev.length >= RACK_N) ? [...prev] : Array(RACK_N).fill(null);
                     for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
-                    const onBoard = placedNow || new Set();
-                    const placed = new Set([...onBoard, ...arr.filter(Boolean)]);
+                    rackKept = new Set(arr.filter(Boolean));
+                    return arr;
+                });
+                // המדפים העליונים סופגים כל אבן חדשה/לא-משובצת (כך שהיד גלויה מיד למעלה)
+                setBoardSlots(prev => {
+                    const arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
+                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
+                    const placed = new Set([...(rackKept || new Set()), ...arr.filter(Boolean)]);
                     for (const id of handIds) {
-                        if (placed.has(id)) continue;         // כבר על הלוח או במגש
+                        if (placed.has(id)) continue;         // כבר משובצת באחד המדפים
                         let idx = arr.indexOf(null);
                         if (idx < 0) { arr.push(id); } else { arr[idx] = id; }
                         placed.add(id);
@@ -7734,9 +7735,9 @@
                     const added = handIds.filter(id => !prev.includes(id));
                     if (added.length === 1) {
                         setFlashId(added[0]); const tm = setTimeout(() => setFlashId(null), 2200); cleanup = () => clearTimeout(tm);
-                        // גלילה למגש כדי שרואים את האבן החדשה (במסך קטן המגש נמצא למטה)
+                        // האבן החדשה נכנסת למדף העליון — גוללים למעלה כדי לראות אותה
                         try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
-                        setTimeout(() => { try { if (gridRef.current) gridRef.current.scrollTo({ top: gridRef.current.scrollHeight, behavior: 'smooth' }); } catch (_) {} }, 60);
+                        setTimeout(() => { try { if (gridRef.current) gridRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {} }, 60);
                         if (tileById[added[0]] && tileById[added[0]].val === '☻') {
                             try { playSnd('win'); } catch (_) {}
                             try { if (navigator.vibrate) navigator.vibrate([60, 40, 120]); } catch (_) {}
@@ -8446,7 +8447,7 @@
                     </div>
 
                     {/* יריבים (שורה דקה נגללת) */}
-                    <div className="shrink-0 px-3 py-2 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <div className="shrink-0 px-3 py-1 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                         {uids.filter(u => u !== user.uid).map(u => {
                             const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
                             const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
@@ -8489,7 +8490,7 @@
                         </div>
                     )}
                     {myTurn
-                        ? <div className="shrink-0 mx-2 mt-1 rounded-xl py-1.5 text-center font-black text-sm bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
+                        ? <div className="shrink-0 mx-2 mt-0.5 rounded-xl py-1 text-center font-black text-xs bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
                             {t.turnPhase === 'draw' && <span>▶ תורך! משוך אבן מהקופה או מהזריקה</span>}
                             {t.turnPhase === 'discard' && !goOut && <span>▶ תורך! הקש על אבן ביד כדי לזרוק</span>}
                             {goOut && <span>🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
