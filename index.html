@@ -878,10 +878,14 @@
     (function () {
       var el = document.getElementById('orizis-intro');
       var done = false;
-      function out() { if (done) return; done = true; el.classList.add('oi-out'); setTimeout(function () { el.remove(); }, 500); }
+      var MIN = 1500, MAX = 6000, start = Date.now();
+      function out() { if (done) return; done = true; el.classList.add('oi-out'); setTimeout(function () { if (el && el.parentNode) el.remove(); }, 500); }
+      // נסגר כשהאפליקציה מוכנה (מ-React), אבל לא לפני MIN — כדי שרואים את ORIZIS גם אחרי מסך-הטעינה של המערכת
+      window.__orizisReady = function () { var wait = Math.max(0, MIN - (Date.now() - start)); setTimeout(out, wait); };
+      if (window.__appIsReady) window.__orizisReady();
       el.addEventListener('click', out);
       el.addEventListener('touchstart', out, { passive: true });
-      setTimeout(out, 1300);
+      setTimeout(out, MAX); // גיבוי אם משהו נתקע
     })();
   </script>
 </div>
@@ -987,7 +991,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v61';
+        const APP_VER = 'v62';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2571,11 +2575,16 @@
                     await F.setDoc(F.doc(db, 'memberships', ownerUid + '_main'), { uid: ownerUid, clubId: 'main', username: ownerDoc.data().username || 'בעל האתר', email: ownerEmail, role: ROLES.CLUB_OWNER, status: 'approved', balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }, joinedAt: Date.now() }, { merge: true });
                     // קבוצה יחידה: בעל-האתר הוא הבעלים
                     await F.setDoc(F.doc(db, 'clubs', 'main'), { name: FIXED_CLUB.name, ownerUid, ownerName: ownerDoc.data().username || 'בעל האתר', rakePct: DEFAULT_RAKE_PCT, ownerSeeded: true }, { merge: true });
-                    // מחיקת כל ההיסטוריה והמצב
+                    // מחיקת כל ההיסטוריה והמצב — סופרים כשלונות כדי לא להסתיר בעיית-הרשאות
+                    let deleted = 0, failed = 0, lastErr = '';
                     for (const col of ['gameLog', 'agentLog', 'broadcasts', 'tables', 'tournaments', 'securityAlerts']) {
-                        try { const s = await F.getDocs(F.collection(db, col)); for (const d of s.docs) { try { await F.deleteDoc(d.ref); } catch (e) {} } } catch (e) {}
+                        try {
+                            const s = await F.getDocs(F.collection(db, col));
+                            for (const d of s.docs) { try { await F.deleteDoc(d.ref); deleted++; } catch (e) { failed++; lastErr = e.message || String(e); } }
+                        } catch (e) { lastErr = e.message || String(e); }
                     }
-                    showToast('איפוס הושלם — מתחילים מ-0 ✔', 'success');
+                    if (failed > 0) showToast(`איפוס חלקי: נמחקו ${deleted}, נכשלו ${failed} (${lastErr})`, 'error');
+                    else showToast('איפוס הושלם — מתחילים מ-0 ✔', 'success');
                 } catch (e) { showToast('שגיאה באיפוס: ' + (e.message || ''), 'error'); }
                 resetBusyRef.current = false;
             };
@@ -2634,6 +2643,12 @@
                 return () => { dead = true; clearInterval(iv); };
             }, [fbReady, dbUser?.uid]);
 
+            // סיום מסך-הפתיח ORIZIS ברגע שהאפליקציה מוכנה (לא לפני MIN שמוגדר במודול הפתיח)
+            useEffect(() => {
+                if (!fbReady) return;
+                try { window.__appIsReady = true; if (typeof window.__orizisReady === 'function') window.__orizisReady(); } catch (e) {}
+            }, [fbReady]);
+
             // מתזמן הטורנירים - רץ אצל הסופר-אדמין: זינוק בזמן, קידום סבבים, סיום ופרסים
             useEffect(() => {
                 if (!fbReady || !dbUser || dbUser.role !== ROLES.SUPER_ADMIN) return;
@@ -2672,8 +2687,8 @@
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
                     {effUser && activeClub && effUser.status === 'approved' && !inTable && currentView !== 'clubs' && (
-                        <nav className="bg-slate-900/80 backdrop-blur-xl px-4 py-3 z-40 shrink-0 border-b border-white/5 shadow-xl flex justify-between items-center">
-                            <div className="flex items-center gap-2 sm:gap-3">
+                        <nav className="bg-slate-900/80 backdrop-blur-xl px-3 sm:px-4 py-3 z-40 shrink-0 border-b border-white/5 shadow-xl flex flex-wrap gap-y-2 justify-between items-center">
+                            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
                                 {!NO_CLUBS && <button onClick={leaveToClubs} title="החלף קלאב" className="w-10 h-10 rounded-xl bg-slate-800/80 text-emerald-400 border border-emerald-500/30 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center">
                                     <i className="fa-solid fa-building-columns"></i>
                                 </button>}
@@ -2689,8 +2704,8 @@
                                     </button>
                                 )}
                                 {isGodUser(dbUser) && !(activeMem && typeof activeMem === 'object' && activeMem.status === 'approved') && (
-                                    <button onClick={() => doRequestJoin(false)} className="h-10 px-3 rounded-xl border border-emerald-500/40 bg-emerald-600/20 text-emerald-300 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-black" title="הצטרף כשחקן (דורש אישור בעל-האתר)">
-                                        🎮 {(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending') ? 'ממתין לאישור' : 'הצטרף כשחקן'}
+                                    <button onClick={() => doRequestJoin(false)} className="h-10 px-2.5 sm:px-3 rounded-xl border border-emerald-500/40 bg-emerald-600/20 text-emerald-300 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-black shrink-0" title="הצטרף כשחקן (דורש אישור בעל-האתר)">
+                                        🎮 <span className="hidden sm:inline">{(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending') ? 'ממתין לאישור' : 'הצטרף כשחקן'}</span>
                                     </button>
                                 )}
                                 <InstallButton showToast={showToast} label="📲" className="w-10 h-10 rounded-xl border border-emerald-500/30 bg-slate-800/80 hover:bg-emerald-700 transition-colors flex items-center justify-center text-base" />
@@ -2710,8 +2725,8 @@
                                     <Coin amount={effUser.balance} className="text-xs" />
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end cursor-pointer" onClick={() => changeView('lobby')}>
-                                <h1 className="logo-shine text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h1>
+                            <div className="flex flex-col items-end cursor-pointer shrink-0 pr-0.5" onClick={() => changeView('lobby')}>
+                                <h1 className="logo-shine text-lg sm:text-xl font-black tracking-wide sm:tracking-wider text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400 leading-tight">RUMMIKUBE</h1>
                                 <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· {APP_VER.toUpperCase()}</span></p>
                             </div>
                         </nav>
