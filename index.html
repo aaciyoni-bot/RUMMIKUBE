@@ -874,6 +874,42 @@
     </script>
 </head>
 <body class="bg-slate-950 h-full w-full">
+<!-- ═══ RUMMIKUBE BRAND INTRO · מוצג ראשון, ואז מוסר את עצמו ל-ORIZIS ═══ -->
+<div id="rk-intro">
+  <style>
+    #rk-intro { position: fixed; inset: 0; z-index: 1000000; background: radial-gradient(120% 80% at 50% 40%, #0b1220 0%, #04060d 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+    #rk-intro.rk-out { opacity: 0; pointer-events: none; }
+    #rk-intro .rk-tiles { display: flex; gap: 6px; margin-bottom: 20px; }
+    #rk-intro .rk-tile { width: clamp(30px, 8vw, 46px); height: clamp(40px, 10.5vw, 62px); border-radius: 8px; background: linear-gradient(180deg,#fdfdfb,#eee7d4 60%,#dcd2b6); box-shadow: 0 4px 0 #b7ab86, 0 8px 14px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; font-family: 'Rubik', system-ui, sans-serif; font-weight: 900; font-size: clamp(20px, 5.5vw, 30px); opacity: 0; transform: translateY(-24px) rotate(-8deg); animation: rkDrop 0.55s cubic-bezier(0.22,1.4,0.5,1) forwards; }
+    #rk-intro .rk-tile:nth-child(1){ animation-delay: 0.05s; color:#c62828; }
+    #rk-intro .rk-tile:nth-child(2){ animation-delay: 0.15s; color:#1257a8; }
+    #rk-intro .rk-tile:nth-child(3){ animation-delay: 0.25s; color:#e05a00; }
+    #rk-intro .rk-tile:nth-child(4){ animation-delay: 0.35s; color:#1b7f47; }
+    #rk-intro .rk-word { font-family: 'Heebo', Arial, sans-serif; font-weight: 900; font-size: clamp(30px, 8.5vw, 60px); letter-spacing: 0.14em; margin-right: -0.14em; background: linear-gradient(100deg, #34d399 0%, #99f6e4 30%, #5eead4 50%, #34d399 72%, #0d9488 100%); background-size: 240% auto; -webkit-background-clip: text; background-clip: text; color: transparent; opacity: 0; animation: rkShine 2.2s linear 0.4s infinite, rkRise 0.7s cubic-bezier(0.22,1,0.36,1) 0.35s forwards; text-shadow: 0 0 40px rgba(52,211,153,0.25); }
+    #rk-intro .rk-line { width: 0; height: 2px; margin-top: 16px; border-radius: 2px; background: linear-gradient(90deg, transparent, #34d399, transparent); animation: rkLine 0.9s ease 0.7s forwards; }
+    #rk-intro .rk-sub { font-family: 'Heebo', Arial, sans-serif; font-weight: 800; font-size: clamp(10px, 2.4vw, 13px); letter-spacing: 0.4em; margin-right: -0.4em; color: #5eead4; opacity: 0; margin-top: 16px; animation: rkFade 0.7s ease 1s forwards; }
+    @keyframes rkDrop { to { opacity: 1; transform: translateY(0) rotate(0); } }
+    @keyframes rkShine { from { background-position: 200% center; } to { background-position: -40% center; } }
+    @keyframes rkRise { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
+    @keyframes rkLine { to { width: min(320px, 62vw); } }
+    @keyframes rkFade { to { opacity: 1; } }
+  </style>
+  <div class="rk-tiles"><div class="rk-tile">R</div><div class="rk-tile">U</div><div class="rk-tile">M</div><div class="rk-tile">I</div></div>
+  <div class="rk-word">RUMMIKUBE</div>
+  <div class="rk-line"></div>
+  <div class="rk-sub">CLUB</div>
+  <script>
+    (function () {
+      var el = document.getElementById('rk-intro');
+      var done = false;
+      function out() { if (done) return; done = true; el.classList.add('rk-out'); setTimeout(function () { if (el && el.parentNode) el.remove(); }, 550); }
+      setTimeout(out, 2000);           // אחרי ~2 שניות עובר לפתיח ORIZIS שמתחת
+      el.addEventListener('click', out);
+      el.addEventListener('touchstart', out, { passive: true });
+    })();
+  </script>
+</div>
+<!-- ═══ /RUMMIKUBE BRAND INTRO ═══ -->
 <!-- ═══ ORIZIS INTRO · standalone module · copy this whole block into any product ═══ -->
 <div id="orizis-intro">
   <style>
@@ -1017,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v68';
+        const APP_VER = 'v69';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8117,6 +8153,7 @@
 
                     {/* שני אזורים כמו ברמיקוב: לוח-בנייה עליון + מגש אישי תחתון (גרירה חופשית) */}
                     <div ref={gridRef} style={{ touchAction: 'none' }} className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1 overflow-y-auto">
+                        {isSeated ? <>
                         {/* ── לוח בנייה ── */}
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
@@ -8142,6 +8179,13 @@
                                 {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
                             </div>
                         </div>
+                        </> : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-8 gap-2">
+                                <div className="text-3xl">👁️</div>
+                                <div className="text-slate-300 font-black">אתה צופה במשחק</div>
+                                <div className="text-slate-500 text-xs font-bold">רק שחקנים שיושבים בשולחן רואים יד ומבצעים פעולות.</div>
+                            </div>
+                        )}
                     </div>
 
                     {/* אבן-רפאים שעוקבת אחרי האצבע בזמן גרירה */}
@@ -8151,11 +8195,15 @@
                         </div>
                     , document.body)}
 
-                    {/* סרגל פעולות מוצמד לתחתית */}
-                    <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
-                        <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>
-                        <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
-                    </div>
+                    {/* סרגל פעולות מוצמד לתחתית — רק לשחקן שיושב בשולחן */}
+                    {isSeated
+                        ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+                            <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>
+                            <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
+                        </div>
+                        : <div className="shrink-0 flex px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+                            <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 rounded-2xl font-black border border-white/10">← יציאה מהצפייה</button>
+                        </div>}
 
                     {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
                     {freshReq && ReactDOM.createPortal(
