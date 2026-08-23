@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v52';
+        const APP_VER = 'v53';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5607,38 +5607,46 @@
                                 ))}
                             </div>
                             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
-                                {players.map(u => (
-                                    <div key={u.id} className="flex items-center justify-between bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
-                                        <div className="flex items-center gap-3 min-w-0 cursor-pointer flex-1" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
-                                            <img src={avatarUrl({ ...u, uid: u.id })} className={`w-10 h-10 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
-                                            <div className="min-w-0">
-                                                <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
-                                                    {u.username}
-                                                    {u.isBot && <span className="text-purple-400 text-[10px]">(Bot)</span>}
-                                                    {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-2 py-0.5 rounded-full font-bold">חסום</span>}
-                                                    {isGodUser(u) && isGodUser(user) && <i className="fa-solid fa-eye text-purple-400 text-[10px]" title="GOD MODE"></i>}
-                                                    {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-2 py-0.5 rounded-full font-bold">{ROLE_LABELS[u.role]}</span>}
+                                {players.map(u => {
+                                    const net = (u.stats && u.stats.totalProfit) || 0;
+                                    return (
+                                    <div key={u.id} className="bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer flex-1" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
+                                                <img src={avatarUrl({ ...u, uid: u.id })} className={`w-11 h-11 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
+                                                        {u.username}
+                                                        {u.isBot && <span className="text-purple-400 text-[10px]">(Bot)</span>}
+                                                        {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-1.5 py-0.5 rounded-full font-bold">חסום</span>}
+                                                        {isGodUser(u) && isGodUser(user) && <i className="fa-solid fa-eye text-purple-400 text-[10px]" title="GOD MODE"></i>}
+                                                        {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-1.5 py-0.5 rounded-full font-bold">{ROLE_LABELS[u.role]}</span>}
+                                                    </div>
+                                                    {/* יתרה — תמיד גלויה, בולטת */}
+                                                    <div className="flex items-baseline gap-2 mt-0.5">
+                                                        <span className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(u.balance || 0)} ₪</span>
+                                                        <span className={`text-[10px] font-black leading-none ${net > 0 ? 'text-emerald-400' : net < 0 ? 'text-rose-400' : 'text-slate-500'}`} dir="ltr" title="רווח/הפסד מצטבר">{net > 0 ? '▲' : net < 0 ? '▼' : ''}{net !== 0 ? formatMoney(Math.abs(net)) : '0'}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 truncate mt-0.5" dir="ltr">{u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
                                                 </div>
-                                                <div className="text-[11px] text-slate-400 truncate" dir="ltr">{u.email} · <span className="text-slate-500 font-black">{u.playerId || ''}</span></div>
-                                                {u.agentUid && <div className="text-[10px] text-purple-300/90 font-bold truncate">🤝 {agentName(u.agentUid)} ({u.agentPct || 0}%)</div>}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <button onClick={()=>adjustBalance(u, true)} className="w-10 h-10 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-800 hover:from-emerald-400 text-white font-black text-lg shadow-md" title="הפקד צ'יפים">+</button>
+                                                <button onClick={()=>adjustBalance(u, false)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-rose-900 text-white font-black text-lg border border-white/10" title="משוך צ'יפים">−</button>
+                                                {isOwner && !u.isBot && (
+                                                    <button onClick={()=>openRoleEditor(u)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
+                                                )}
+                                                {canManageAny && !u.isBot && (
+                                                    <button onClick={()=>toggleBan(u)} className={`w-10 h-10 rounded-xl border transition-colors ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
+                                                )}
+                                                {isGodUser(user) && (u.photo || u.avatarSeed) && (
+                                                    <button onClick={()=>censorPhoto(u)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                            <Coin amount={u.balance} className="text-sm hidden sm:inline-flex" />
-                                            <button onClick={()=>adjustBalance(u, true)} className="w-9 h-9 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-800 hover:from-emerald-400 text-white font-black shadow-md" title="הפקד צ'יפים">+</button>
-                                            <button onClick={()=>adjustBalance(u, false)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-900 text-white font-black border border-white/10" title="משוך צ'יפים">−</button>
-                                            {isOwner && !u.isBot && (
-                                                <button onClick={()=>openRoleEditor(u)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
-                                            )}
-                                            {isGodUser(user) && (u.photo || u.avatarSeed) && (
-                                                <button onClick={()=>censorPhoto(u)} className="w-9 h-9 rounded-full bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
-                                            )}
-                                            {canManageAny && !u.isBot && (
-                                                <button onClick={()=>toggleBan(u)} className={`w-9 h-9 rounded-full border transition-colors ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
-                                            )}
-                                        </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
