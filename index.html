@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v54';
+        const APP_VER = 'v55';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2521,6 +2521,30 @@
                 (async () => { try { await window.fb.httpsCallable(window.fb.functions, 'siteOwnerSetup')({}); } catch (e) {} })();
             }, [fbReady, dbUser?.uid]);
 
+            // בקרת שלמות ברקע (GOD בלבד): סופר כמה התראות יש, לנקודה אדומה על אייקון הניהול
+            const [integrityAlerts, setIntegrityAlerts] = useState(0);
+            useEffect(() => {
+                if (!fbReady || !dbUser || !isGodUser(dbUser)) { setIntegrityAlerts(0); return; }
+                let dead = false;
+                const check = async () => {
+                    try {
+                        const [ls, ms, cs] = await Promise.all([
+                            window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID))),
+                            window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID))),
+                            window.fb.getDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID))
+                        ]);
+                        const ledger = {}; ls.docs.forEach(d => { const l = d.data(); if (!l.uid) return; ledger[l.uid] = round2((ledger[l.uid] || 0) + (Number(l.profit) || 0)); });
+                        const ownerUid = cs.exists() ? (cs.data().ownerUid || '') : '';
+                        let cnt = 0;
+                        ms.docs.forEach(d => { const m = d.data(); if (m.isBot || m.uid === 'bot_bank' || m.uid === ownerUid) return; const bal = round2(Number(m.balance) || 0); const exp = round2(ledger[m.uid] || 0); if (Math.abs(bal - exp) > 0.01 || bal >= 1000000) cnt++; });
+                        if (!dead) setIntegrityAlerts(cnt);
+                    } catch (e) {}
+                };
+                check();
+                const iv = setInterval(check, 60000);
+                return () => { dead = true; clearInterval(iv); };
+            }, [fbReady, dbUser?.uid]);
+
             // מתזמן הטורנירים - רץ אצל הסופר-אדמין: זינוק בזמן, קידום סבבים, סיום ופרסים
             useEffect(() => {
                 if (!fbReady || !dbUser || dbUser.role !== ROLES.SUPER_ADMIN) return;
@@ -2565,8 +2589,9 @@
                                     <i className="fa-solid fa-building-columns"></i>
                                 </button>}
                                 {([ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(effUser.role)) && (
-                                    <button onClick={() => changeView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/80 text-blue-400 border-white/5 hover:text-white'}`} title="ניהול מועדון">
+                                    <button onClick={() => changeView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/80 text-blue-400 border-white/5 hover:text-white'}`} title="ניהול מועדון">
                                         <i className="fa-solid fa-chart-line"></i>
+                                        {isGodUser(dbUser) && integrityAlerts > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-slate-900 animate-pulse" title="התראת בקרת שלמות">{integrityAlerts}</span>}
                                     </button>
                                 )}
                                 {isGodUser(dbUser) && (
