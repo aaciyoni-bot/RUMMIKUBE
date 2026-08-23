@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v59';
+        const APP_VER = 'v60';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1485,14 +1485,20 @@
             };
             const isRun = () => {
                 if (!regulars.every(t => t.color === regulars[0].color)) return false;
-                if (new Set(regulars.map(t => Number(t.val))).size !== regulars.length) return false;
-                const sorted = [...regulars].sort((a,b) => Number(a.val) - Number(b.val));
-                let gaps = 0;
-                for(let i=0; i<sorted.length-1; i++) gaps += (Number(sorted[i+1].val) - Number(sorted[i].val) - 1);
-                if (gaps > jokersCount) return false;
-                const extra = jokersCount - gaps;
-                const lo = Number(sorted[0].val), hi = Number(sorted[sorted.length-1].val);
-                return (13 - hi) + (lo - 1) >= extra;
+                const nums = regulars.map(t => Number(t.val));
+                // "1" יכול לשמש כנמוך (1-2-3) או כגבוה (12-13-1) — אבל בלי גלישה (13-1-2 פסול)
+                const tryRun = (vals) => {
+                    if (new Set(vals).size !== vals.length) return false;
+                    const s = [...vals].sort((a, b) => a - b);
+                    let gaps = 0;
+                    for (let i = 0; i < s.length - 1; i++) gaps += (s[i + 1] - s[i] - 1);
+                    if (gaps > jokersCount) return false;
+                    const extra = jokersCount - gaps;
+                    return (14 - s[s.length - 1]) + (s[0] - 1) >= extra; // 14 = "1" כגבוה
+                };
+                if (tryRun(nums)) return true;
+                if (nums.filter(v => v === 1).length === 1 && tryRun(nums.map(v => v === 1 ? 14 : v))) return true;
+                return false;
             };
             return isSet() || isRun();
         };
@@ -1546,6 +1552,10 @@
                 const byVal = new Map();
                 for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== '☻' && t.color === c) { const vv = Number(t.val); if (!byVal.has(vv)) byVal.set(vv, i); } }
                 for (let lo = 1; lo <= v; lo++) for (let hi = v; hi <= 13; hi++) { const len = hi - lo + 1; if (len < 3 || len > 13) continue; let missing = 0; const idx = [0]; for (let val = lo; val <= hi; val++) { if (val === v) continue; if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; } if (missing > J) continue; for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]); const meld = idx.map(i => arr[i]); if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice()); }
+                // "1" כגבוה: רצפים כמו 12-13-1 (האבן 1 בקצה העליון)
+                if (v === 1) {
+                    for (let lo = 2; lo <= 12; lo++) { const len = (13 - lo + 1) + 1; if (len < 3 || len > 13) continue; let missing = 0; const idx = [0]; for (let val = lo; val <= 13; val++) { if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; } if (missing > J) continue; for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]); const meld = idx.map(i => arr[i]); if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice()); }
+                }
                 return out;
             };
             const solve = (arr) => {
@@ -2166,6 +2176,35 @@
             );
         };
 
+        // כפתור התקנת-אפליקציה עצמאי (עובד בלי מסך הקלאבים) — Android/דסקטופ + מדריך iOS
+        function InstallButton({ showToast, className, label }) {
+            const [canInstall, setCanInstall] = useState(!!window.__installEvt);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+            const [iosGuide, setIosGuide] = useState(false);
+            useEffect(() => { const h = () => setCanInstall(true); window.addEventListener('pwa-installable', h); return () => window.removeEventListener('pwa-installable', h); }, []);
+            const doInstall = async () => { const evt = window.__installEvt; if (!evt) { setIosGuide(true); return; } evt.prompt(); try { const res = await evt.userChoice; if (res.outcome === 'accepted') { showToast && showToast("האפליקציה מותקנת! 📲", "success"); setCanInstall(false); window.__installEvt = null; } } catch (e) {} };
+            if (isStandalone) return null;
+            if (!canInstall && !isIOS) return null;
+            return (
+                <React.Fragment>
+                    <button onClick={() => { if (canInstall) doInstall(); else setIosGuide(true); }} title="התקן אפליקציה" className={className || "bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white px-3 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-1.5"}>{label || '📲 התקן אפליקציה'}</button>
+                    {iosGuide && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[400] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIosGuide(false)}>
+                            <div onClick={e => e.stopPropagation()} className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+                                <div className="text-4xl mb-2">📲</div>
+                                <h3 className="text-xl font-black text-white mb-3">התקנה למסך הבית</h3>
+                                {isIOS
+                                    ? <div className="text-slate-300 text-sm font-bold text-right leading-relaxed space-y-2"><p>1. פתח את האתר ב<b>ספארי</b>.</p><p>2. לחץ על כפתור <b>השיתוף</b> (ריבוע עם חץ למעלה).</p><p>3. בחר <b>"הוסף למסך הבית"</b>.</p></div>
+                                    : <div className="text-slate-300 text-sm font-bold text-right leading-relaxed space-y-2"><p>1. פתח את תפריט הדפדפן (⋮).</p><p>2. בחר <b>"התקן אפליקציה"</b> / <b>"הוסף למסך הבית"</b>.</p></div>}
+                                <button onClick={() => setIosGuide(false)} className="mt-4 text-slate-400 hover:text-white underline text-sm font-bold">סגור</button>
+                            </div>
+                        </div>
+                    , document.body)}
+                </React.Fragment>
+            );
+        }
+
         /* ================================================================
            אפליקציה ראשית
            ================================================================ */
@@ -2640,6 +2679,7 @@
                                         🎮 {(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending') ? 'ממתין לאישור' : 'הצטרף כשחקן'}
                                     </button>
                                 )}
+                                <InstallButton showToast={showToast} label="📲" className="w-10 h-10 rounded-xl border border-emerald-500/30 bg-slate-800/80 hover:bg-emerald-700 transition-colors flex items-center justify-center text-base" />
                                 <button onClick={() => changeView(currentView === 'leaders' ? 'lobby' : 'leaders')} className={`w-10 h-10 rounded-xl border transition-colors flex items-center justify-center ${currentView === 'leaders' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800/80 text-amber-400 border-white/5 hover:bg-amber-700 hover:text-white'}`} title="לוח המובילים">
                                     <i className="fa-solid fa-ranking-star"></i>
                                 </button>
@@ -2797,6 +2837,7 @@
                                 </div>
                             )}
                         {loginErr && <p className="text-rose-300 text-xs font-bold mt-3">{loginErr}</p>}
+                        <div className="mt-4 flex justify-center"><InstallButton className="bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-4 py-2.5 rounded-xl font-black text-xs flex items-center gap-1.5" /></div>
                         {inApp && <p className="text-amber-300/90 text-[11px] font-bold mt-4 leading-relaxed">פתחת דרך אפליקציה (וואטסאפ/פייסבוק)? לחץ על ⋮ ובחר "פתח בדפדפן" כדי להתחבר.</p>}
                     </div>
                     <div className="absolute bottom-4 right-4 z-20 flex flex-col items-center gap-1">

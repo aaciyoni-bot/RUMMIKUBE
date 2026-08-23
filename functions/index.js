@@ -100,14 +100,20 @@ function validateGroup(group) {
   const isSet = () => group.length <= 4 && regs.every((t) => t.val === regs[0].val) && new Set(regs.map((t) => t.color)).size === regs.length;
   const isRun = () => {
     if (!regs.every((t) => t.color === regs[0].color)) return false;
-    if (new Set(regs.map((t) => Number(t.val))).size !== regs.length) return false;
-    const s = [...regs].sort((a, b) => Number(a.val) - Number(b.val));
-    let gaps = 0;
-    for (let i = 0; i < s.length - 1; i++) gaps += (Number(s[i + 1].val) - Number(s[i].val) - 1);
-    if (gaps > jokers) return false;
-    const extra = jokers - gaps;
-    const lo = Number(s[0].val); const hi = Number(s[s.length - 1].val);
-    return (13 - hi) + (lo - 1) >= extra;
+    const nums = regs.map((t) => Number(t.val));
+    // "1" יכול לשמש כנמוך (1-2-3) או כגבוה (12-13-1) — בלי גלישה (13-1-2 פסול)
+    const tryRun = (vals) => {
+      if (new Set(vals).size !== vals.length) return false;
+      const s = [...vals].sort((a, b) => a - b);
+      let gaps = 0;
+      for (let i = 0; i < s.length - 1; i++) gaps += (s[i + 1] - s[i] - 1);
+      if (gaps > jokers) return false;
+      const extra = jokers - gaps;
+      return (14 - s[s.length - 1]) + (s[0] - 1) >= extra; // 14 = "1" כגבוה
+    };
+    if (tryRun(nums)) return true;
+    if (nums.filter((v) => v === 1).length === 1 && tryRun(nums.map((v) => v === 1 ? 14 : v))) return true;
+    return false;
   };
   return isSet() || isRun();
 }
@@ -523,6 +529,18 @@ function ramiBestPartition(hand) {
       for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]);
       const meld = idx.map((i) => arr[i]);
       if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice());
+    }
+    // "1" כגבוה: רצפים כמו 12-13-1 (האבן 1 בקצה העליון)
+    if (v === 1) {
+      for (let lo = 2; lo <= 12; lo++) {
+        const len = (13 - lo + 1) + 1; if (len < 3 || len > 13) continue;
+        let missing = 0; const idx = [0];
+        for (let val = lo; val <= 13; val++) { if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; }
+        if (missing > J) continue;
+        for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]);
+        const meld = idx.map((i) => arr[i]);
+        if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice());
+      }
     }
     return out;
   }
