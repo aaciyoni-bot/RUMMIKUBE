@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v48';
+        const APP_VER = 'v49';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2463,6 +2463,7 @@
                 if (!window.confirm('איפוס מלא: למחוק את כל השחקנים (חוץ מבעל-האתר והבוטים) ואת כל ההיסטוריה, ולאפס את בעל-האתר ל-10,000,000. בטוח?')) return;
                 if (!window.confirm('אזהרה אחרונה — פעולה בלתי-הפיכה. להמשיך?')) return;
                 resetBusyRef.current = true;
+                changeView('lobby'); // לא נשארים במסך ניהול בזמן שהנתונים נמחקים
                 const F = window.fb, db = window.fb.db;
                 try {
                     showToast('מבצע איפוס…', 'info');
@@ -15315,8 +15316,25 @@
             );
         }
 
+        // גבול-שגיאה: אם רכיב קורס — מציגים מסך "רענן" במקום מסך שחור
+        class ErrorBoundary extends React.Component {
+            constructor(p) { super(p); this.state = { err: null }; }
+            static getDerivedStateFromError(err) { return { err }; }
+            componentDidCatch(err, info) { try { console.error('App crash', err, info); } catch (e) {} }
+            render() {
+                if (this.state.err) return (
+                    <div dir="rtl" style={{ position: 'fixed', inset: 0, background: '#04060d', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
+                        <div style={{ fontSize: '2.5rem' }}>😕</div>
+                        <div style={{ fontWeight: 900, fontSize: '1.15rem' }}>משהו נתקע לרגע</div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '20rem' }}>נסה לרענן את הדף. אם זה חוזר — כתוב לנו.</div>
+                        <button onClick={() => window.location.reload()} style={{ background: '#10b981', color: '#fff', fontWeight: 900, padding: '0.75rem 2rem', borderRadius: '1rem', border: 'none', fontSize: '1rem' }}>רענן</button>
+                    </div>
+                );
+                return this.props.children;
+            }
+        }
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
