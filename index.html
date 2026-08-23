@@ -1062,7 +1062,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v80';
+        const APP_VER = 'v81';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2366,6 +2366,11 @@
                 const prev = viewRef.current;
                 setCurrentView(view);
                 setActiveTable(tableObj);
+                // זוכרים אם אנחנו בתוך שולחן, כדי לחזור אליו אחרי רענון (לא "נזרקים" החוצה).
+                try {
+                    if (view.endsWith('-table') && tableObj?.docId) localStorage.setItem('rk_route', JSON.stringify({ view, docId: tableObj.docId }));
+                    else localStorage.removeItem('rk_route');
+                } catch (e) {}
                 // לא דוחפים היסטוריה כשלא באמת מחליפים מסך - אחרת ה-back בונה ערימה
                 // ענקית והמשתמש צריך ללחוץ הרבה פעמים כדי לצאת.
                 if (view !== 'auth' && view !== 'pending' && view !== prev) {
@@ -2373,14 +2378,20 @@
                 }
             };
 
-            // חזרה אוטומטית לשולחן פעיל: אם המשתמש עדיין יושב בשולחן חי (סגר את
-            // האפליקציה באמצע), מחזירים אותו אליו כשהוא נכנס שוב ללובי. פעם אחת לכל טעינה.
+            // חזרה אוטומטית לשולחן פעיל: אם המשתמש עדיין יושב בשולחן חי (רענן/סגר את
+            // האפליקציה באמצע), מחזירים אותו אליו מיד — כולל showdown וטורנירים. פעם אחת לכל טעינה.
             const rejoinRef = useRef(false);
             useEffect(() => {
                 if (rejoinRef.current) return;
-                if (!effUser?.uid || !activeClub || currentView !== 'lobby' || !tablesDB.length) return;
-                const active = tablesDB.find(t => (t.clubId || 'main') === CLUB_ID && !t.tournamentId && t.players && t.players[effUser.uid]
-                    && (t.type === 'rummikub' || t.type === 'rami') && (t.phase === 'playing' || t.phase === 'waiting'));
+                const inTableNow = typeof currentView === 'string' && currentView.endsWith('-table');
+                if (!effUser?.uid || !activeClub || inTableNow || !tablesDB.length) return;
+                if (['auth', 'clubs', 'pending'].includes(currentView)) return; // מחכים שנגיע ללובי
+                let saved = null; try { saved = JSON.parse(localStorage.getItem('rk_route') || 'null'); } catch (e) {}
+                const seated = t => t.players && t.players[effUser.uid] && (t.clubId || 'main') === CLUB_ID
+                    && (t.phase === 'playing' || t.phase === 'waiting' || t.phase === 'showdown');
+                // מעדיפים את השולחן ששמרנו בדיוק לפני הרענון, אחרת כל שולחן חי שיושבים בו
+                let active = saved?.docId ? tablesDB.find(t => t.docId === saved.docId && seated(t)) : null;
+                if (!active) active = tablesDB.find(t => (t.type === 'rummikub' || t.type === 'rami') && seated(t));
                 if (!active) return;
                 const map = { rummikub: 'rummy-table', rami: 'rami-table', poker: 'poker-table', durak: 'durak-table', shesh: 'shesh-table', president: 'president-table', yaniv: 'yaniv-table', bridge: 'bridge-table', gin: 'gin-table', twist: 'twist-table', ofc: 'ofc-table' };
                 const view = map[active.type];
@@ -6974,6 +6985,20 @@
                 finally { sitBusyRef.current = false; }
             };
 
+            /* ---------- הוספת בוט ידנית (בעל-האתר / GOD) — דרך Cloud Function ---------- */
+            const addBotBusyRef = useRef(false);
+            const handleAddBot = async () => {
+                if (addBotBusyRef.current) return; addBotBusyRef.current = true;
+                try {
+                    const usedNames = new Set(Object.values(tableState.players || {}).map(p => p.username));
+                    const usedKeys = new Set(Object.values(tableState.players || {}).map(p => (p.username || '').split(' ')[0]));
+                    const nm = botDisplayName(usedNames, usedKeys);
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'rummyAddBot')({ tableId: tableState.id, name: nm });
+                    if (res?.data?.becameFull) spawnTwinTable(tableState);
+                } catch (e) { showToast(fnErr(e), 'error'); }
+                finally { addBotBusyRef.current = false; }
+            };
+
             /* ---------- משיכה מהקופה ---------- */
             const handleDraw = async (isTimeout = false) => {
                 if (tableState?.currentTurn !== user.uid || tableState.phase !== 'playing') return;
@@ -7253,6 +7278,9 @@
                                     })}
                                 </div>
                                 {!isSeated && <button onClick={handleSit} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-black w-full text-lg shadow-lg">התיישב בשולחן ({formatMoney(tableState.minBuyIn)})</button>}
+                                {(isBotAdder(user) || isGodUser(user)) && Object.keys(tableState.players || {}).length < (Number(tableState.maxPlayers) || 4) && (
+                                    <button onClick={handleAddBot} className="w-full mt-2 bg-purple-600/80 hover:bg-purple-500 text-white py-2.5 rounded-2xl font-black border border-purple-400/30">➕ הוסף בוט</button>
+                                )}
                                 <button onClick={handleLeave} className="mt-4 text-slate-400 hover:text-white underline text-sm font-bold">חזרה ללובי</button>
                             </div>
                         </div>
@@ -7296,7 +7324,7 @@
                                     {ch.bubbles[uid] && <div className="chat-bubble" style={{ top: '-1.4rem' }}>{ch.bubbles[uid]}</div>}
                                     {ch.gifts.filter(g => g.to === uid).map((g, gi) => <div key={'g'+gi} className="gift-fx" style={{ top: '-1.8rem' }}>{g.giftE}</div>)}
                                     <div className={`pl-ring ${isTurn ? 'is-turn' : ''}`}
-                                         style={isTurn ? { '--pl-t': Math.max(0, timeLeft / TURN_SECONDS), '--pl-c': timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#34d399' } : undefined}>
+                                         style={isTurn ? { '--pl-t': Math.max(0, timeLeft / TURN_SECONDS), '--pl-c': timeLeft <= 20 ? '#fbbf24' : '#34d399' } : undefined}>
                                         <img src={avatarUrl({ ...pData, uid })} className="pl-avatar" />
                                     </div>
                                     <span className="text-[11px] font-bold text-white truncate max-w-full text-center leading-tight">{pData.username}</span>
@@ -7856,9 +7884,13 @@
             const renderCell = (zone, id, idx, valid) => {
                 const tile = id ? tileById[id] : null;
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
+                // משבצת ריקה: על הפלט העליון — תא כהה-שקוף עם קו-מתאר כחלחל; על מגש-העץ התחתון — שקע עץ
+                const emptyStyle = zone === 'rack'
+                    ? { background: 'rgba(70,46,20,0.55)', boxShadow: 'inset 0 3px 7px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,240,210,0.18)' }
+                    : { background: 'rgba(2,8,20,0.30)', boxShadow: 'inset 0 0 0 1px rgba(148,190,255,0.14), inset 0 2px 5px rgba(0,0,0,0.35)' };
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.05rem', ...(tile ? {} : { background: 'rgba(0,0,0,0.18)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' }) }}
+                        style={{ touchAction: 'none', minHeight: '3.05rem', ...(tile ? {} : emptyStyle) }}
                         className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'ring-2 ring-emerald-400/80' : '') : ''} ${isDrop ? 'ring-2 ring-amber-300' : ''}`}>
                         {tile && (
                             <div data-tid={id}
@@ -8402,7 +8434,7 @@
                                 <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
                                     <span>🁢 {cnt}</span>
                                     {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
-                                    {isTheirTurn && <span className={`font-mono font-black px-1 rounded ${timeLeft <= 10 ? 'text-rose-400 bg-rose-500/10 animate-pulse' : 'text-emerald-300 bg-emerald-500/10'}`}>⏱{timeLeft}s</span>}
+                                    {isTheirTurn && <span className="font-mono font-black px-1 rounded text-amber-200 bg-amber-500/10">⏱{timeLeft}s</span>}
                                 </div>
                             </div>;
                         })}
@@ -8429,31 +8461,33 @@
                         </div>
                         : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
-                    {/* שני אזורים כמו ברמיקוב: לוח-בנייה עליון + מגש אישי תחתון (גרירה חופשית) */}
-                    <div ref={gridRef} style={{ touchAction: 'none', background: 'linear-gradient(180deg, #6b4f30 0%, #533c22 55%, #3f2d18 100%)', borderTop: '3px solid #8a6a3f', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.35)' }} className="flex-1 min-h-0 flex flex-col mt-1 overflow-y-auto">
+                    {/* כמו ברמיקוב אמיתי: לוח-המשחק (פלט כחול) למעלה, ומגש-העץ החום למטה — קבוע ותמיד גלוי */}
+                    <div ref={gridRef} style={{ touchAction: 'none' }} className="flex-1 min-h-0 flex flex-col mt-1">
                         {isSeated ? <>
-                        {/* ── לוח בנייה ── */}
-                        <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
-                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                <span className="text-[11px] text-emerald-200 font-black shrink-0">🎯 הלוח שלי</span>
-                                {recognized.length > 0
-                                    ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                    : <span className="text-[10px] text-amber-200/70 font-bold">כאן מסדרים את הקומבינציות הטובות</span>}
+                        {/* ── לוח המשחק: פלט כחול למעלה (נגלל אם צריך) ── */}
+                        <div className="felt-bg relative flex-1 min-h-0 flex flex-col overflow-y-auto">
+                            <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
+                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                    <span className="text-[11px] text-emerald-100 font-black shrink-0" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>🎯 לוח המשחק</span>
+                                    {recognized.length > 0
+                                        ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-200 bg-emerald-900/40 border border-emerald-400/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
+                                        : <span className="text-[10px] text-sky-100/70 font-bold">כאן מסדרים את הקומבינציות הטובות</span>}
+                                </div>
+                                <button onClick={autoArrange} className="text-[11px] font-black text-emerald-100 bg-emerald-600/40 border border-emerald-300/40 rounded-lg px-2.5 py-1 shrink-0 shadow">✨ סדר לי</button>
                             </div>
-                            <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
-                        </div>
-                        <div className="shrink-0 px-2 pb-1">
-                            <div className="grid gap-1 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr' }}>
-                                {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
+                            <div className="flex-1 min-h-0 px-2 pb-2 relative z-10">
+                                <div className="grid gap-1 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr' }}>
+                                    {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
+                                </div>
                             </div>
                         </div>
-                        {/* ── המגש שלך (מחוץ ללוח) — סידור חופשי ── */}
-                        <div className="shrink-0 flex items-center gap-2 px-2 pt-1.5 pb-1 border-t border-white/10 mt-1">
-                            <span className="text-[11px] text-cyan-200 font-black shrink-0">🎴 מקום לסידור ({myHand.filter(Boolean).length})</span>
-                            <span className="text-[10px] text-slate-300/70 font-bold">גרור מכאן ללוח</span>
-                        </div>
-                        <div className="shrink-0 px-2 pb-2">
-                            <div className="grid gap-1 mx-auto rounded-xl p-1.5" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr', background: 'linear-gradient(180deg, #2f2213, #241a0f)', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06)' }}>
+                        {/* ── מגש-העץ שלך: חום כמו ברמיקוב, קבוע בתחתית ותמיד גלוי ── */}
+                        <div className="rummy-rack shrink-0 px-2 pt-1.5 pb-2">
+                            <div className="flex items-center gap-2 pb-1 relative z-10">
+                                <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המגש שלי ({myHand.filter(Boolean).length})</span>
+                                <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>גרור מכאן אל הלוח למעלה</span>
+                            </div>
+                            <div className="grid gap-1 mx-auto relative z-10" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr' }}>
                                 {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
                             </div>
                         </div>
