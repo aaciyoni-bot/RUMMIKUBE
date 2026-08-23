@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v56';
+        const APP_VER = 'v57';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2480,12 +2480,12 @@
                     const ownerDoc = uq.docs[0];
                     if (!ownerDoc) { showToast('בעל-האתר עוד לא נכנס בפעם הראשונה — שיתחבר פעם אחת ואז נריץ', 'error'); resetBusyRef.current = false; return; }
                     const ownerUid = ownerDoc.id;
-                    // מחיקת משתמשים: כולם חוץ מבעל-האתר, GOD עצמו, והבוטים
+                    // מחיקת משתמשים: כולם חוץ מבעל-האתר, GOD עצמו, והבוטים. בוטים — מאפסים יתרה.
                     const allUsers = await F.getDocs(F.collection(db, 'users'));
-                    for (const d of allUsers.docs) { const x = d.data(); if (d.id === ownerUid || d.id === dbUser.uid || x.isBot || d.id === 'bot_bank') continue; try { await F.deleteDoc(d.ref); } catch (e) {} }
-                    // מחיקת חברויות: כולן חוץ מבעל-האתר והבוטים
+                    for (const d of allUsers.docs) { const x = d.data(); if (d.id === ownerUid || d.id === dbUser.uid) continue; if (x.isBot || d.id === 'bot_bank') { if ((Number(x.balance) || 0) !== 0) { try { await F.updateDoc(d.ref, { balance: 0 }); } catch (e) {} } continue; } try { await F.deleteDoc(d.ref); } catch (e) {} }
+                    // מחיקת חברויות: כולן חוץ מבעל-האתר והבוטים. בוטים/קופת-בוטים — מאפסים יתרה.
                     const allMems = await F.getDocs(F.collection(db, 'memberships'));
-                    for (const d of allMems.docs) { const x = d.data(); const uid = x.uid || d.id.split('_')[0]; if (uid === ownerUid || x.isBot || uid === 'bot_bank') continue; try { await F.deleteDoc(d.ref); } catch (e) {} }
+                    for (const d of allMems.docs) { const x = d.data(); const uid = x.uid || d.id.split('_')[0]; if (uid === ownerUid) continue; if (x.isBot || uid === 'bot_bank') { if ((Number(x.balance) || 0) !== 0) { try { await F.updateDoc(d.ref, { balance: 0 }); } catch (e) {} } continue; } try { await F.deleteDoc(d.ref); } catch (e) {} }
                     // בעל-האתר: חברות מאופסת, בעלים, 10,000,000
                     await F.setDoc(F.doc(db, 'memberships', ownerUid + '_main'), { uid: ownerUid, clubId: 'main', username: ownerDoc.data().username || 'בעל האתר', email: ownerEmail, role: ROLES.CLUB_OWNER, status: 'approved', balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }, joinedAt: Date.now() }, { merge: true });
                     // קבוצה יחידה: בעל-האתר הוא הבעלים
@@ -5458,7 +5458,7 @@
             const copyText = async (txt, msg) => { try { await navigator.clipboard.writeText(txt); showToast(msg, "success"); } catch(e) { showToast(txt, "info"); } };
             const realPlayers = usersList.filter(u => u.status === 'approved' && !u.isBot);
             // סוכן שאינו בעלים/מנהל רואה ומנהל רק את השחקנים שלו
-            const players = usersList.filter(u => (u.status === 'approved' || u.status === 'banned') && u.uid !== user.uid)
+            const players = usersList.filter(u => (u.status === 'approved' || u.status === 'banned') && u.uid !== user.uid && !u.isBot && u.uid !== 'bot_bank')
                 .filter(u => canManageAny || u.agentUid === user.uid)
                 .filter(u => memFilter === 'all' || (memFilter === 'agents' && u.role === ROLES.AGENT) || (memFilter === 'managers' && u.role === ROLES.MANAGER) || (memFilter === 'banned' && u.status === 'banned'))
                 .filter(u => !search || (u.username||'').toLowerCase().includes(search.toLowerCase()) || (u.email||'').toLowerCase().includes(search.toLowerCase()) || (u.playerId||'').toLowerCase().includes(search.toLowerCase()));
@@ -5469,12 +5469,7 @@
                 { label: 'רווחי מועדון (Rake)', value: formatMoney(user.clubProfits || 0), icon: 'fa-building-columns', color: 'text-amber-400' },
                 { label: 'שחקנים רשומים', value: realPlayers.length, icon: 'fa-id-card', color: 'text-emerald-400' },
             ];
-            // קופת הבוטים: המאזן המצטבר של רווחי/הפסדי הבוטים - לבעלים בלבד
-            const botBank = usersList.find(u => u.uid === 'bot_bank');
-            if (isOwner && botBank) {
-                const bb = botBank.balance || 0;
-                statTiles.push({ label: 'קופת הבוטים 🤖', value: (bb > 0 ? '+' : '') + formatMoney(bb), icon: 'fa-robot', color: bb >= 0 ? 'text-emerald-400' : 'text-rose-400' });
-            }
+            // הערה: הבוטים ממומנים ע"י בעל-הקלאב (הבית), אז אין יותר "קופת בוטים" נפרדת.
 
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
@@ -5728,38 +5723,32 @@
                                     const net = (u.stats && u.stats.totalProfit) || 0;
                                     return (
                                     <div key={u.id} className="bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-3 min-w-0 cursor-pointer flex-1" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
-                                                <img src={avatarUrl({ ...u, uid: u.id })} className={`w-11 h-11 rounded-xl bg-slate-800 shrink-0 ${u.isBot ? 'ring-1 ring-purple-500' : ''}`} />
-                                                <div className="min-w-0">
-                                                    <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
-                                                        {u.username}
-                                                        {u.isBot && <span className="text-purple-400 text-[10px]">(Bot)</span>}
-                                                        {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-1.5 py-0.5 rounded-full font-bold">חסום</span>}
-                                                        {isGodUser(u) && isGodUser(user) && <i className="fa-solid fa-eye text-purple-400 text-[10px]" title="GOD MODE"></i>}
-                                                        {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-1.5 py-0.5 rounded-full font-bold">{ROLE_LABELS[u.role]}</span>}
-                                                    </div>
-                                                    {/* יתרה — תמיד גלויה, בולטת */}
-                                                    <div className="flex items-baseline gap-2 mt-0.5">
-                                                        <span className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(u.balance || 0)} ₪</span>
-                                                        <span className={`text-[10px] font-black leading-none ${net > 0 ? 'text-emerald-400' : net < 0 ? 'text-rose-400' : 'text-slate-500'}`} dir="ltr" title="רווח/הפסד מצטבר">{net > 0 ? '▲' : net < 0 ? '▼' : ''}{net !== 0 ? formatMoney(Math.abs(net)) : '0'}</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-500 truncate mt-0.5" dir="ltr">{u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
+                                        {/* שורה עליונה: זהות + יתרה (תמיד גלויה, מיושרת) */}
+                                        <div className="flex items-center gap-3">
+                                            <img src={avatarUrl({ ...u, uid: u.id })} onClick={() => !u.isBot && setPlayerFile(u)} className="w-11 h-11 rounded-xl bg-slate-800 shrink-0 cursor-pointer" />
+                                            <div className="min-w-0 flex-1 cursor-pointer" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
+                                                <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
+                                                    {u.username}
+                                                    {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">חסום</span>}
+                                                    {u.role && u.role !== ROLES.PLAYER && <span className="text-[9px] bg-blue-500/15 border border-blue-500/40 text-blue-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">{ROLE_LABELS[u.role]}</span>}
                                                 </div>
+                                                <div className="text-[10px] text-slate-500 truncate" dir="ltr">{u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
                                             </div>
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                <button onClick={()=>adjustBalance(u, true)} className="w-10 h-10 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-800 hover:from-emerald-400 text-white font-black text-lg shadow-md" title="הפקד צ'יפים">+</button>
-                                                <button onClick={()=>adjustBalance(u, false)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-rose-900 text-white font-black text-lg border border-white/10" title="משוך צ'יפים">−</button>
-                                                {isOwner && !u.isBot && (
-                                                    <button onClick={()=>openRoleEditor(u)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10" title="הגדר תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
-                                                )}
-                                                {canManageAny && !u.isBot && (
-                                                    <button onClick={()=>toggleBan(u)} className={`w-10 h-10 rounded-xl border transition-colors ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
-                                                )}
-                                                {isGodUser(user) && (u.photo || u.avatarSeed) && (
-                                                    <button onClick={()=>censorPhoto(u)} className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-white border border-white/10" title="אפס תמונת פרופיל (צנזור)"><i className="fa-solid fa-user-slash text-xs"></i></button>
-                                                )}
+                                            <div className="text-left shrink-0">
+                                                <div className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(u.balance || 0)} ₪</div>
+                                                {net !== 0 && <div className={`text-[10px] font-black leading-none mt-0.5 ${net > 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr" title="רווח/הפסד מצטבר">{net > 0 ? '▲ +' : '▼ '}{formatMoney(Math.abs(net))}</div>}
                                             </div>
+                                        </div>
+                                        {/* שורה תחתונה: פעולות ברוחב מלא, בלי חפיפה */}
+                                        <div className="flex items-center gap-2 mt-2.5">
+                                            <button onClick={()=>adjustBalance(u, true)} className="flex-1 h-9 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-800 hover:from-emerald-400 text-white font-black text-sm shadow-md flex items-center justify-center gap-1"><span className="text-lg">+</span> הפקד</button>
+                                            <button onClick={()=>adjustBalance(u, false)} className="flex-1 h-9 rounded-xl bg-slate-800 hover:bg-rose-900 text-white font-black text-sm border border-white/10 flex items-center justify-center gap-1"><span className="text-lg">−</span> משוך</button>
+                                            {isOwner && (
+                                                <button onClick={()=>openRoleEditor(u)} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-900 text-slate-300 hover:text-white border border-white/10 shrink-0" title="תפקיד ושיוך סוכן"><i className="fa-solid fa-user-gear text-xs"></i></button>
+                                            )}
+                                            {canManageAny && (
+                                                <button onClick={()=>toggleBan(u)} className={`w-9 h-9 rounded-xl border transition-colors shrink-0 ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
+                                            )}
                                         </div>
                                     </div>
                                     );
