@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v84';
+        const APP_VER = 'v85';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7751,25 +7751,35 @@
             }, [handKey]);
             // זיהוי קומבינציות: בכל שורה, כל רצף-רצוף של אבנים (שמופרד ברווח) נבדק בנפרד.
             // בלוק חוקי (רצף/שלישייה/רביעייה) → כל תאיו מודגשים בירוק. הרווח (תא ריק) הוא המפריד.
-            const cellValid = Array(BOARD_N).fill(false);
-            const recognized = [];
-            for (let r = 0; r < BOARD_ROWS; r++) {
-                let c = 0;
-                while (c < BOARD_COLS) {
-                    const base = r * BOARD_COLS;
-                    if (!boardSlots[base + c]) { c++; continue; }
-                    let end = c; while (end < BOARD_COLS && boardSlots[base + end]) end++;
-                    const tiles = [];
-                    for (let k = c; k < end; k++) { const tt = tileById[boardSlots[base + k]]; if (tt) tiles.push(tt); }
-                    if (tiles.length >= 3 && validateGroup(tiles)) {
-                        for (let k = c; k < end; k++) cellValid[base + k] = true;
-                        const nums = tiles.map(x => x.val).filter(v => v !== '☻');
-                        const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
-                        recognized.push({ label: isGroup ? (tiles.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף', n: tiles.length });
+            // מעמד עץ אחד: כל שורה (בשני חלקי-המעמד) נבדקת בנפרד — כל רצף-רצוף מופרד ברווח
+            // הוא קומבינציה עצמאית. בלוק חוקי → מודגש בירוק במקומו, בכל מקום על המעמד.
+            const recognizeSlots = (slots, cols, rows) => {
+                const valid = Array(cols * rows).fill(false);
+                const combos = [];
+                for (let r = 0; r < rows; r++) {
+                    let c = 0;
+                    while (c < cols) {
+                        const base = r * cols;
+                        if (!slots[base + c]) { c++; continue; }
+                        let end = c; while (end < cols && slots[base + end]) end++;
+                        const tiles = [];
+                        for (let k = c; k < end; k++) { const tt = tileById[slots[base + k]]; if (tt) tiles.push(tt); }
+                        if (tiles.length >= 3 && validateGroup(tiles)) {
+                            for (let k = c; k < end; k++) valid[base + k] = true;
+                            const nums = tiles.map(x => x.val).filter(v => v !== '☻');
+                            const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
+                            combos.push({ label: isGroup ? (tiles.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף', n: tiles.length });
+                        }
+                        c = end;
                     }
-                    c = end;
                 }
-            }
+                return { valid, combos };
+            };
+            const boardRec = recognizeSlots(boardSlots, BOARD_COLS, BOARD_ROWS);
+            const rackRec = recognizeSlots(rackSlots, RACK_COLS, RACK_ROWS);
+            const cellValid = boardRec.valid;
+            const rackValid = rackRec.valid;
+            const recognized = [...boardRec.combos, ...rackRec.combos];
             // סידור אבנים בתוך קומבינציה לתצוגה: ג'וקר יושב במקום שהוא מייצג (9,10,🃏,12), לא בסוף
             const orderMeld = (m) => {
                 const jokers = m.filter(x => x.val === '☻');
@@ -7894,17 +7904,12 @@
             const renderCell = (zone, id, idx, valid) => {
                 const tile = id ? tileById[id] : null;
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
-                // מגש-העץ התחתון = מדף עץ בוק אמיתי: לכל תא קנט-עץ בתחתית שעליו "נשענות"
-                // האבנים (כמו במעמד רמיקוב), ותא ריק הוא שקע עץ עדין — לא קופסה כהה.
-                const isRack = zone === 'rack';
+                // מעמד עץ בוק אמיתי: לכל תא קנט-עץ בתחתית שעליו "נשענות" האבנים
+                // (כמו במעמד רמיקוב), ותא ריק הוא שקע עץ עדין — לא קופסה כהה. כל המעמד עץ.
                 const rackLedge = 'inset 0 -0.34em 0 -0.22em rgba(140,101,56,0.55), inset 0 0.5em 0.5em -0.4em rgba(120,82,38,0.30)';
-                const cellStyle = isRack
-                    ? (tile
-                        ? { boxShadow: rackLedge }
-                        : { background: 'linear-gradient(180deg, rgba(255,247,228,0.12) 0%, rgba(120,82,38,0.10) 60%, rgba(90,60,25,0.16) 100%)', boxShadow: rackLedge })
-                    : (tile
-                        ? {}
-                        : { background: 'rgba(2,8,20,0.30)', boxShadow: 'inset 0 0 0 1px rgba(148,190,255,0.14), inset 0 2px 5px rgba(0,0,0,0.35)' });
+                const cellStyle = tile
+                    ? { boxShadow: rackLedge }
+                    : { background: 'linear-gradient(180deg, rgba(255,247,228,0.12) 0%, rgba(120,82,38,0.10) 60%, rgba(90,60,25,0.16) 100%)', boxShadow: rackLedge };
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
                         style={{ touchAction: 'none', minHeight: '3.05rem', ...cellStyle }}
@@ -8491,36 +8496,30 @@
                         </div>
                         : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
-                    {/* כמו ברמיקוב אמיתי: לוח-המשחק (פלט כחול) למעלה, ומגש-העץ החום למטה — קבוע ותמיד גלוי */}
-                    <div ref={gridRef} style={{ touchAction: 'none' }} className="flex-1 min-h-0 flex flex-col mt-1">
+                    {/* מעמד עץ אחד גדול — כמו רמיקוב אמיתי: כל היד יושבת עליו ומסדרים עליו את הקומבינציות */}
+                    <div ref={gridRef} style={{ touchAction: 'none' }} className={`flex-1 min-h-0 flex flex-col mt-1 overflow-y-auto ${isSeated ? 'rummy-rack' : ''}`}>
                         {isSeated ? <>
-                        {/* ── לוח המשחק: פלט כחול למעלה (נגלל אם צריך) ── */}
-                        <div className="felt-bg relative flex-1 min-h-0 flex flex-col overflow-y-auto">
                             <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
                                 <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                    <span className="text-[11px] text-emerald-100 font-black shrink-0" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>🎯 לוח המשחק</span>
+                                    <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המעמד שלי ({myHand.filter(Boolean).length})</span>
                                     {recognized.length > 0
-                                        ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-200 bg-emerald-900/40 border border-emerald-400/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                        : <span className="text-[10px] text-sky-100/70 font-bold">כאן מסדרים את הקומבינציות הטובות</span>}
+                                        ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
+                                        : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
                                 </div>
-                                <button onClick={autoArrange} className="text-[11px] font-black text-emerald-100 bg-emerald-600/40 border border-emerald-300/40 rounded-lg px-2.5 py-1 shrink-0 shadow">✨ סדר לי</button>
+                                <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>
                             </div>
-                            <div className="flex-1 min-h-0 px-2 pb-2 relative z-10">
-                                <div className="grid gap-1 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr' }}>
+                            {/* מדפי המעמד — כל היד על אותו עץ; קומבינציות חוקיות מודגשות בירוק במקומן */}
+                            <div className="px-2 pb-1 relative z-10">
+                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '32rem', direction: 'ltr', rowGap: '0.55rem' }}>
                                     {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
                                 </div>
                             </div>
-                        </div>
-                        {/* ── מגש-העץ שלך: חום כמו ברמיקוב, קבוע בתחתית ותמיד גלוי ── */}
-                        <div className="rummy-rack shrink-0 px-2 pt-1.5 pb-2">
-                            <div className="flex items-center gap-2 pb-1 relative z-10">
-                                <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המגש שלי ({myHand.filter(Boolean).length})</span>
-                                <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>גרור מכאן אל הלוח למעלה</span>
+                            <div className="mx-3 my-1 relative z-10" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, rgba(90,60,25,0.5), transparent)' }}></div>
+                            <div className="px-2 pb-2 relative z-10">
+                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '32rem', direction: 'ltr', rowGap: '0.55rem' }}>
+                                    {rackSlots.map((id, idx) => renderCell('rack', id, idx, !!(id && rackValid[idx])))}
+                                </div>
                             </div>
-                            <div className="grid gap-0.5 mx-auto relative z-10" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr', rowGap: '0.55rem' }}>
-                                {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
-                            </div>
-                        </div>
                         </> : (
                             <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
                                 <div className="text-center"><span className="text-2xl">👁️</span> <span className="text-slate-200 font-black text-sm">אתה צופה — הידיים מוסתרות</span></div>
