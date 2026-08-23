@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v57';
+        const APP_VER = 'v58';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2463,6 +2463,34 @@
 
             const leaveToClubs = () => { if (NO_CLUBS) return; setActiveClubState(null); setActiveMem(null); changeView('clubs'); };
 
+            // בקשת הצטרפות (מצב קבוצה-יחידה): יוצרת חברות 'pending' שבעל-האתר מאשר.
+            // תומך בקישור-שיוך-סוכן (?agent=CODE). מיושם אוטומטית למשתמש רגיל, וידנית ל-GOD.
+            const doRequestJoin = async (silent) => {
+                try {
+                    const ref = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${CLUB_ID}`);
+                    const snap = await window.fb.getDoc(ref);
+                    if (snap.exists()) { if (!silent) showToast(snap.data().status === 'approved' ? "אתה כבר מאושר" : "בקשתך כבר ממתינה לאישור", "info"); return; }
+                    let extra = {};
+                    const code = new URLSearchParams(window.location.search).get('agent');
+                    if (code) {
+                        try {
+                            const aq = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID), window.fb.where("agentCode", "==", code.trim().toUpperCase())));
+                            const a = aq.docs[0]; if (a) { const ad = a.data(); extra = { agentUid: ad.uid, agentPct: Number(ad.agentSharePct) || 50 }; }
+                        } catch (e) {}
+                    }
+                    await window.fb.setDoc(ref, { ...newMembership(dbUser.uid, dbUser), clubId: CLUB_ID, status: 'pending', ...extra }, { merge: true });
+                    if (!silent) showToast("בקשת ההצטרפות נשלחה לבעל האתר ✔", "success");
+                } catch (e) { if (!silent) showToast("שגיאה בשליחת הבקשה", "error"); }
+            };
+            // משתמש רגיל (לא GOD, לא בעל-אתר): נרשם אוטומטית כבקשה ממתינה בכניסה
+            const autoJoinRef = useRef(false);
+            useEffect(() => {
+                if (!NO_CLUBS || !fbReady || !dbUser || isGodUser(dbUser) || isSiteOwner(dbUser)) return;
+                if (activeMem !== 'missing' || autoJoinRef.current) return;
+                autoJoinRef.current = true;
+                doRequestJoin(true);
+            }, [fbReady, dbUser?.uid, activeMem]);
+
             // ── איפוס מלא (GOD בלבד): מוחק את כל המשתמשים חוץ מבעל-האתר והבוטים,
             //    מוחק את כל ההיסטוריה, מגדיר את בעל-האתר כבעלים עם 10,000,000 ─ מתחילים מ-0 ──
             const resetBusyRef = useRef(false);
@@ -2605,6 +2633,11 @@
                                 {isGodUser(dbUser) && (
                                     <button onClick={handleFullReset} className="w-10 h-10 rounded-xl border border-rose-500/40 bg-slate-800/80 text-rose-400 hover:text-white hover:bg-rose-700 transition-colors flex items-center justify-center" title="איפוס מלא — מתחילים מ-0 (GOD)">
                                         <i className="fa-solid fa-trash-can-arrow-up"></i>
+                                    </button>
+                                )}
+                                {isGodUser(dbUser) && !(activeMem && typeof activeMem === 'object' && activeMem.status === 'approved') && (
+                                    <button onClick={() => doRequestJoin(false)} className="h-10 px-3 rounded-xl border border-emerald-500/40 bg-emerald-600/20 text-emerald-300 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-black" title="הצטרף כשחקן (דורש אישור בעל-האתר)">
+                                        🎮 {(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending') ? 'ממתין לאישור' : 'הצטרף כשחקן'}
                                     </button>
                                 )}
                                 <button onClick={() => changeView(currentView === 'leaders' ? 'lobby' : 'leaders')} className={`w-10 h-10 rounded-xl border transition-colors flex items-center justify-center ${currentView === 'leaders' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800/80 text-amber-400 border-white/5 hover:bg-amber-700 hover:text-white'}`} title="לוח המובילים">
