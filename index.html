@@ -1062,7 +1062,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v79';
+        const APP_VER = 'v80';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2814,6 +2814,20 @@
                 }, 8000);
                 return () => clearInterval(iv);
             }, [fbReady, dbUser?.role, dbUser?.uid, clubSettings?.rakePct]);
+
+            // מנוע טורניר-רמי רץ בשרת (tourTick) — כל משתמש מחובר "דוחף" אותו כל 10 שניות
+            // כשיש טורניר רמי פעיל, כך שהוא מתקדם בלי תלות בבעל-האתר המחובר.
+            useEffect(() => {
+                if (!fbReady || !dbUser?.uid) return;
+                const tick = () => {
+                    const tours = toursRef.current || [];
+                    const active = tours.some(t => t.game === 'rami' && ((t.status === 'reg' && t.startAt && Date.now() >= t.startAt - 60000) || t.status === 'running'));
+                    if (!active) return;
+                    try { window.fb.httpsCallable(window.fb.functions, 'tourTick')({ clubId: CLUB_ID }); } catch (e) {}
+                };
+                const iv = setInterval(tick, 10000);
+                return () => clearInterval(iv);
+            }, [fbReady, dbUser?.uid]);
 
             // שער: בלי קלאב פעיל - מסך הקלאבים. ממתינים שהחברות תיטען לפני שקובעים "בהמתנה"!
             useEffect(() => {
@@ -15607,6 +15621,7 @@
         const tourOrchestrate = async (tours, tables, rakePct) => {
             for (const tor of tours || []) {
                 try {
+                    if (tor.game === 'rami') continue; // טורניר רמי מנוהל בשרת (tourTick)
                     if (tor.status === 'reg' && tor.startAt && Date.now() >= tor.startAt) { await tourStart(tor); continue; }
                     if (tor.status !== 'running') continue;
                     const myTables = (tables || []).filter(tb => tb.tournamentId === tor.id);

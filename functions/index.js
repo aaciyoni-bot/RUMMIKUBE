@@ -870,6 +870,138 @@ exports.ramiLeave = onCall(async (request) => {
   return {ok: true, ...out};
 });
 
+// ══════════════ מנוע טורניר-רמי בשרת (בלי תלות בבעל-האתר המחובר) ══════════════
+// שמירת-כסף: פרסים לזוכים לפי האחוזים, רייק (feeTotal) לבעלים; בוטים לא מקבלים
+// פרס; העודף לאלוף (אם אנושי) אחרת לבעלים. אידמפוטנטי (תובע 'done').
+async function ramiPayoutSrv(tournamentId, championUid) {
+  const logs = [];
+  const done = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tournaments/${tournamentId}`);
+    const s = await tx.get(tRef);
+    if (!s.exists) return false;
+    const t = s.data();
+    if (t.game !== "rami") return false;
+    if (t.status === "done" || t.status === "paying") return false;
+    const clubId = t.clubId || "main";
+    const pl = {...(t.players || {})};
+    if (championUid && pl[championUid]) pl[championUid] = {...pl[championUid], rank: 1, out: false};
+    const entrants = Object.values(pl);
+    const net = round2(t.prizePool || 0);
+    const rake = round2(t.feeTotal || 0);
+    const custom = Array.isArray(t.payouts) && t.payouts.length ? t.payouts.map((x) => (Number(x) || 0) / 100) : null;
+    const n = entrants.length;
+    const scheme = custom || (n >= 5 ? [0.5, 0.3, 0.2] : n >= 3 ? [0.7, 0.3] : [1]);
+    const ranked = entrants.filter((p) => p.rank).sort((a, b) => a.rank - b.rank);
+    const clubSnap = await tx.get(db.doc(`clubs/${clubId}`));
+    const ownerUid = clubSnap.exists ? (clubSnap.data().ownerUid || "") : "";
+    const results = []; const credits = {}; const netLog = {}; let paidOut = 0;
+    for (let i = 0; i < ranked.length; i++) {
+      const p = ranked[i];
+      const prize = i < scheme.length ? round2(Math.floor(net * scheme[i] * 100) / 100) : 0;
+      results.push({name: p.name, rank: p.rank, prize, bounties: p.bounties || 0});
+      if (prize > 0 && !p.isBot) { credits[p.uid] = round2((credits[p.uid] || 0) + prize); paidOut = round2(paidOut + prize); }
+      if (!p.isBot) netLog[p.uid] = round2((netLog[p.uid] || 0) + (prize - (Number(p.paid) || 0)));
+    }
+    const champ = ranked[0]; const dust = round2(net - paidOut);
+    if (dust > 0) {
+      if (champ && !champ.isBot) { credits[champ.uid] = round2((credits[champ.uid] || 0) + dust); netLog[champ.uid] = round2((netLog[champ.uid] || 0) + dust); if (results[0]) results[0].prize = round2((results[0].prize || 0) + dust); }
+      else if (ownerUid) { credits[ownerUid] = round2((credits[ownerUid] || 0) + dust); netLog[ownerUid] = round2((netLog[ownerUid] || 0) + dust); }
+    }
+    if (rake > 0 && ownerUid) { credits[ownerUid] = round2((credits[ownerUid] || 0) + rake); netLog[ownerUid] = round2((netLog[ownerUid] || 0) + rake); }
+    const targets = Object.keys(credits); const snaps = {};
+    for (const u of targets) snaps[u] = await tx.get(db.doc(`memberships/${u}_${clubId}`));
+    for (const u of targets) { const sn = snaps[u]; if (sn && sn.exists) tx.update(sn.ref, {balance: round2((Number(sn.data().balance) || 0) + credits[u])}); }
+    for (const u of Object.keys(netLog)) { const p = pl[u] || {}; logs.push({uid: u, username: p.name || "", clubId, profit: round2(netLog[u])}); }
+    tx.update(tRef, {status: "done", players: pl, results, finishedAt: Date.now()});
+    return true;
+  });
+  if (done) { for (const l of logs) { try { await db.collection("gameLog").add({uid: l.uid, username: l.username, game: "tournament", clubId: l.clubId, profit: l.profit, rake: 0, tableId: "tournament:" + tournamentId, at: Date.now()}); } catch (e) { /* לוג */ } } }
+  return done;
+}
+
+// זריעת סבב רמי בשרת: מפצל לשולחנות (עד 4), מחלק ומאתחל חיים
+async function ramiSeedSrv(tor, uids, round) {
+  const lives = Math.max(1, Number(tor.lives) || 3);
+  const shuffled = [...uids];
+  for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+  const size = 4; const nTables = Math.max(1, Math.ceil(shuffled.length / size));
+  const groups = Array(nTables).fill(0).map(() => []);
+  shuffled.forEach((uid, i) => groups[i % nTables].push(uid));
+  for (let gi = 0; gi < groups.length; gi++) {
+    const g = groups[gi]; const pm = {};
+    g.forEach((uid) => { const p = (tor.players || {})[uid] || {}; pm[uid] = {username: p.name || "", photo: p.photo || "", avatarSeed: p.avatarSeed || "", isBot: !!p.isBot, lives, out: false}; });
+    const meta = {name: tor.name, round, finished: g.length < 2, tableWinner: g.length < 2 ? (g[0] || null) : null};
+    const dealt = g.length >= 2 ? ramiDeal(pm, {}, 0, 0) : {players: pm, phase: "showdown", deck: [], discard: [], currentTurn: null, turnPhase: "draw", drawnThisTurn: false, winner: g[0] || null, lastResults: null, freshMult: 1, freshReq: null};
+    await db.collection("tables").add(Object.assign({type: "rami", clubId: tor.clubId || "main", createdAt: Date.now(), tournamentId: tor.id, tournament: meta, maxPlayers: g.length, minBuyIn: 0, stakes: 0, turnSeconds: 60, timeBank: 0, timeBankUses: 0, rakeMode: "pct", rakePct: 0, rakeFee: 0, bank: {}, chat: [], elimOrder: []}, dealt));
+  }
+}
+
+// טיק טורניר-רמי: זינוק, קידום-יד בשולחן, מיזוג סבבים וסיום — הכל בשרת
+exports.tourTick = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const clubId = (request.data && request.data.clubId) || "main";
+  const now = Date.now();
+  const tSnap = await db.collection("tournaments").where("clubId", "==", clubId).where("game", "==", "rami").get();
+  for (const d of tSnap.docs) {
+    const tor = {id: d.id, ...d.data()};
+    try {
+      // (1) זינוק בזמן — תביעה אטומית
+      if (tor.status === "reg" && tor.startAt && now >= tor.startAt) {
+        const claim = await db.runTransaction(async (tx) => {
+          const s = await tx.get(d.ref); if (!s.exists) return null;
+          const t = s.data(); if (t.status !== "reg") return null;
+          tx.update(d.ref, {status: "running", startedAt: now, round: 1});
+          return t;
+        });
+        if (claim) {
+          const entrants = Object.values(claim.players || {}).filter((p) => !p.out);
+          if (entrants.length < 2) {
+            for (const p of entrants) { if (!p.isBot && (Number(p.paid) || 0) > 0) { try { const mr = db.doc(`memberships/${p.uid}_${tor.clubId || "main"}`); await db.runTransaction(async (tx) => { const ms = await tx.get(mr); if (ms.exists) tx.update(mr, {balance: round2((Number(ms.data().balance) || 0) + (Number(p.paid) || 0))}); }); } catch (e) { /* */ } } }
+            await d.ref.update({status: "cancelled"});
+          } else { await ramiSeedSrv({...claim, id: tor.id}, entrants.map((p) => p.uid), 1); }
+        }
+        continue;
+      }
+      if (tor.status !== "running") continue;
+      const tablesSnap = await db.collection("tables").where("tournamentId", "==", tor.id).get();
+      const myTables = tablesSnap.docs.map((x) => ({docId: x.id, ...x.data()}));
+      if (!myTables.length) continue;
+      // (2) קידום-יד: שולחן ב-showdown שלא הסתיים → יד חדשה לחיים שנותרו / מנצח-שולחן
+      for (const tb of myTables) {
+        if (tb.phase !== "showdown" || (tb.tournament && tb.tournament.finished)) continue;
+        await db.runTransaction(async (tx) => {
+          const ref = db.doc(`tables/${tb.docId}`);
+          const s = await tx.get(ref); if (!s.exists) return;
+          const cur = s.data();
+          if (cur.phase !== "showdown" || (cur.tournament && cur.tournament.finished)) return;
+          const players = cur.players || {};
+          const alive = Object.keys(players).filter((u) => !players[u].out && (Number(players[u].lives) || 0) > 0);
+          if (alive.length <= 1) { tx.update(ref, {"tournament.finished": true, "tournament.tableWinner": alive[0] || null, phase: "showdown"}); return; }
+          const pm = {};
+          alive.forEach((u) => { const p = players[u] || {}; pm[u] = {username: p.username || "", photo: p.photo || "", avatarSeed: p.avatarSeed || "", isBot: !!p.isBot, lives: Number(p.lives) || 0, out: false}; });
+          const dealt = ramiDeal(pm, {}, 0, 0);
+          tx.update(ref, Object.assign({elimOrder: cur.elimOrder || []}, dealt));
+        });
+      }
+      // (3) מיזוג סבבים / סיום — כשכל השולחנות הסתיימו
+      const fresh = (await db.collection("tables").where("tournamentId", "==", tor.id).get()).docs.map((x) => ({docId: x.id, ...x.data()}));
+      if (fresh.length && fresh.every((tb) => tb.tournament && tb.tournament.finished)) {
+        const winners = fresh.map((tb) => tb.tournament.tableWinner).filter(Boolean);
+        for (const tb of fresh) { try { await db.doc(`tables/${tb.docId}`).delete(); } catch (e) { /* */ } }
+        if (winners.length <= 1) { await ramiPayoutSrv(tor.id, winners[0] || null); }
+        else {
+          const nr = (Number(tor.round) || 1) + 1;
+          await d.ref.update({round: nr});
+          const cur = (await d.ref.get()).data();
+          await ramiSeedSrv({...cur, id: tor.id}, winners, nr);
+        }
+      }
+    } catch (e) { /* לוג */ }
+  }
+  return {ok: true};
+});
+
 // תחילת המחזור השבועי (יום שני 00:01 שעון ישראל) - זהה ללקוח
 function cycleStartIL() {
   const now = new Date();
