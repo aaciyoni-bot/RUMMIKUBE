@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v74';
+        const APP_VER = 'v75';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8338,10 +8338,31 @@
                             </div>
                         </div>
                         </> : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-8 gap-2">
-                                <div className="text-3xl">👁️</div>
-                                <div className="text-slate-300 font-black">אתה צופה במשחק</div>
-                                <div className="text-slate-500 text-xs font-bold">רק שחקנים שיושבים בשולחן רואים יד ומבצעים פעולות.</div>
+                            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+                                <div className="text-center"><span className="text-2xl">👁️</span> <span className="text-slate-200 font-black text-sm">אתה צופה — הידיים מוסתרות</span></div>
+                                {/* לוח מצב חי: כל השחקנים, מי בתור, כמה אבנים, שעון */}
+                                <div className="grid grid-cols-1 gap-2">
+                                    {uids.map(u => {
+                                        const p = t.players[u] || {}; const cnt = (p.cards || []).filter(Boolean).length; const turn = t.currentTurn === u && t.phase === 'playing';
+                                        return (
+                                            <div key={u} className={`flex items-center gap-3 rounded-xl px-3 py-2 border ${turn ? 'border-emerald-400 bg-emerald-500/15 animate-pulse' : 'border-white/10 bg-slate-950/40'}`}>
+                                                <img src={avatarUrl({ ...p, uid: u })} className="w-9 h-9 rounded-full border border-white/20 bg-slate-800 shrink-0" />
+                                                <div className="flex-1 min-w-0"><div className="font-black text-white truncate">{p.username}{p.isBot ? ' 🤖' : ''}{turn && <span className="text-emerald-300 text-xs font-bold"> · תורו</span>}</div></div>
+                                                <div className="text-slate-200 font-bold text-sm shrink-0" dir="ltr">🁢 {cnt}</div>
+                                                {turn && <div className={`font-mono font-black shrink-0 ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`} dir="ltr">{timeLeft}s</div>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {/* ערימת הזריקה האחרונה + גודל הקופה */}
+                                <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3">
+                                    <div className="text-[11px] text-slate-400 font-bold mb-2 flex justify-between"><span>🗑 זריקות אחרונות</span><span dir="ltr">קופה: {(t.deck || []).length}</span></div>
+                                    <div className="flex flex-wrap gap-1 justify-center" dir="ltr">
+                                        {((t.discard || []).slice(-10)).map((tile, i, a) => <div key={tile.id} style={{ opacity: 0.55 + 0.45 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>)}
+                                        {(!t.discard || !t.discard.length) && <span className="text-slate-500 text-xs font-bold">אין עדיין זריקות</span>}
+                                    </div>
+                                </div>
+                                <div className="text-center text-[11px] text-slate-500 font-bold">💡 האבנים בערימת הזריקה גלויות לכולם · הידיים הפרטיות מוסתרות</div>
                             </div>
                         )}
                     </div>
