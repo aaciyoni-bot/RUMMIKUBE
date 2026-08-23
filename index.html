@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v55';
+        const APP_VER = 'v56';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1000,7 +1000,7 @@
         const BOT_FIRST_EN_F = ['Rachel', 'Sarah', 'Michal', 'Noa', 'Tamar', 'Yael', 'Dana', 'Maya', 'Shira', 'Hila', 'Orit', 'Sigal', 'Anat', 'Galit', 'Ronit', 'Meirav', 'Keren', 'Liat', 'Efrat', 'Adi', 'Shani', 'Moran', 'Avigail', 'Rivka', 'Esther', 'Vered', 'Iris', 'Dorit', 'Nurit', 'Hana', 'Talia', 'Einav', 'Sapir', 'Agam', 'Marina', 'Nicole', 'Diana', 'Sofia', 'Julia', 'Anna'];
         const BOT_FIRST_EN_M = ['Eli', 'Yossi', 'Avi', 'Kobi', 'Rami', 'Moti', 'Shlomi', 'Oren', 'Nadav', 'Doron', 'Meir', 'Roy', 'Idan', 'Lior', 'Tomer', 'Assaf', 'Nir', 'Guy', 'Alon', 'Tal', 'Yuval', 'Ronen', 'Shay', 'Eran', 'Danny'];
         const BOT_LAST_EN = ['Cohen', 'Levi', 'Mizrahi', 'Peretz', 'Biton', 'Ohayon', 'Dahan', 'Hadad', 'Gabay', 'Azulay', 'Malka', 'Amar', 'Ben-David', 'Sharabi', 'Elbaz', 'Amsalem', 'Edri', 'Saban', 'Toledano', 'Buzaglo', 'Ashkenazi', 'Maman', 'Shukrun', 'Zrihen', 'Kadosh', 'Baruch', 'Swissa', 'Hazan', 'Elmaliach', 'Atia', 'Nahum', 'Tsarfati', 'Vaknin', 'Lugassi', 'Avitan', 'Shitrit', 'Ifrah', 'Danieli'];
-        const BOT_NICKS_HE = ['המלכה השחורה', 'מלכת הגוקר', 'ליידי רמי', 'המלכה האדומה', 'מלכת הרצפים', 'הדוכסית', 'מלכת הלילה', 'כוכבת הערב', 'הנמרה', 'מלכת השולחן', 'הגברת בכחול', 'הדיווה', 'הקוסמת', 'שרת האבנים', 'המהמרת', 'גברת מזל', 'מלכת הצפון', 'הברונית'];
+        const BOT_NICKS_HE = ['המלכה השחורה', 'התימניה', 'גברת פלפלת', 'מלכת הגוקר', 'ליידי רמי', 'המלכה האדומה', 'מלכת הרצפים', 'הדוכסית', 'מלכת הלילה', 'כוכבת הערב', 'הנמרה', 'מלכת השולחן', 'הגברת בכחול', 'הדיווה', 'הקוסמת', 'שרת האבנים', 'המהמרת', 'גברת מזל', 'מלכת הצפון', 'הברונית', 'המרוקאית', 'הפרסיה', 'הצברית', 'סבתא קלפים', 'מלכת השכונה', 'גברת ניצחון', 'הצוענייה', 'מלכת האבנים', 'ליידי לאק', 'הפנתרה', 'גברת רמי', 'מלכת הפוקר', 'הבוסית', 'גברת שוקולד', 'מאמא מזל'];
         const BOT_NICKS_EN = ['BlackQueen', 'LadyJoker', 'TileDiva', 'RedQueen', 'QueenOfRuns', 'NightQueen', 'MissThirteen', 'TheDuchess', 'SabraQueen', 'LadyLuck', 'TigressTLV', 'MadameRummy', 'StarOfJaffa', 'QueenBee', 'GoldieIL', 'ComboQueen'];
         const BOT_NAMES_RM = BOT_NICKS_EN;
         const BOT_NAME_NUM = ['Marina', 'Maya', 'Nicole', 'Diana', 'Sofia', 'Tanya', 'Lena', 'Julia', 'Dana', 'Anna', 'Rita', 'Ella', 'Nina', 'Karin', 'Noa', 'Alona', 'Vika', 'Mila', 'Irena', 'Olga', 'David', 'Alex', 'Leon', 'Mark', 'Max'];
@@ -1010,27 +1010,35 @@
             const parts = String(nm || '').trim().split(' ');
             return parts.length > 1 && isNaN(Number(parts[parts.length - 1])) ? parts[parts.length - 1] : String(parts[0]).replace(/\d+$/, '');
         };
-        /* התמהיל: שמות פרטיים+משפחה ישראליים אמיתיים (עברית/אנגלית 50/50),
-           רוב נשים (~78%), ו-10% עם שנת לידה 1991 ומעלה. בלי כינויים. */
+        /* התמהיל: ~15% כינוי-שחקנית (המלכה השחורה / התימניה / גברת פלפלת…),
+           השאר שם פרטי+משפחה ישראלי (עברית/אנגלית 50/50), רוב נשים (~78%),
+           ו-10% מהשמות עם שנת לידה 1991 ומעלה. מפתח ייחודיות = השם-הפרטי,
+           כדי שלא יופיעו שתי "גלית" באותו שולחן. */
         const botDisplayName = (usedNames, usedKeys) => {
             for (let i = 0; i < 90; i++) {
-                const fem = Math.random() < 0.78;                 // רוב נשים
-                const he = Math.random() < 0.5;                   // חצי עברית / חצי אנגלית
-                const first = pick(he ? (fem ? BOT_FIRST_HE_F : BOT_FIRST_HE_M) : (fem ? BOT_FIRST_EN_F : BOT_FIRST_EN_M));
-                const last = pick(he ? BOT_LAST_HE : BOT_LAST_EN);
-                let nm = first + ' ' + last;
-                if (Math.random() < 0.10) {                        // 10%: שנת לידה 1991 ומעלה
-                    const yr = 1991 + Math.floor(Math.random() * 16); // 1991..2006
-                    nm = Math.random() < 0.5 ? (first + ' ' + last + ' ' + yr) : (he ? (first + ' ' + yr) : (first + String(yr).slice(2)));
+                let nm, firstKey;
+                if (Math.random() < 0.15) {                       // כינוי-שחקנית
+                    nm = Math.random() < 0.8 ? pick(BOT_NICKS_HE) : pick(BOT_NICKS_EN);
+                    firstKey = nm;
+                } else {
+                    const fem = Math.random() < 0.78;             // רוב נשים
+                    const he = Math.random() < 0.5;               // חצי עברית / חצי אנגלית
+                    const first = pick(he ? (fem ? BOT_FIRST_HE_F : BOT_FIRST_HE_M) : (fem ? BOT_FIRST_EN_F : BOT_FIRST_EN_M));
+                    const last = pick(he ? BOT_LAST_HE : BOT_LAST_EN);
+                    firstKey = first;
+                    nm = first + ' ' + last;
+                    if (Math.random() < 0.10) {                   // 10%: שנת לידה 1991 ומעלה
+                        const yr = 1991 + Math.floor(Math.random() * 16);
+                        nm = Math.random() < 0.5 ? (first + ' ' + last + ' ' + yr) : (he ? (first + ' ' + yr) : (first + String(yr).slice(2)));
+                    }
                 }
-                const key = botNameKey(nm);
                 if (usedNames && usedNames.has(nm)) continue;
-                if (usedKeys && usedKeys.has(key) && i < 70) continue;
+                if (usedKeys && usedKeys.has(firstKey) && i < 70) continue; // ייחודיות לפי שם-פרטי
                 if (usedNames) usedNames.add(nm);
-                if (usedKeys) usedKeys.add(key);
+                if (usedKeys) usedKeys.add(firstKey);
                 return nm;
             }
-            return pick(BOT_FIRST_HE_F) + ' ' + (1991 + Math.floor(Math.random() * 16));
+            return pick(BOT_NICKS_HE) + ' ' + (2 + Math.floor(Math.random() * 97));
         };
         const BOT_NAMES = BOT_NAMES_RM;
 
@@ -7597,9 +7605,9 @@
             const handleAddBot = async () => {
                 if (addBotBusyRef.current) return; addBotBusyRef.current = true;
                 try {
-                    // שם עברי/ישראלי טרי, ייחודי בשולחן (רוב נשים, 10% עם שנת לידה 1991+)
+                    // שם עברי/ישראלי טרי, ייחודי בשולחן לפי השם-הפרטי (בלי שתי "גלית")
                     const usedNames = new Set(Object.values(t.players || {}).map(p => p.username));
-                    const usedKeys = new Set(Object.values(t.players || {}).map(p => botNameKey(p.username)));
+                    const usedKeys = new Set(Object.values(t.players || {}).map(p => (p.username || '').split(' ')[0]));
                     const nm = botDisplayName(usedNames, usedKeys);
                     const res = await window.fb.httpsCallable(window.fb.functions, 'ramiAddBot')({ tableId: t.id, name: nm });
                     if (res?.data?.becameFull) spawnTwinTable(t);
@@ -7845,7 +7853,7 @@
                                 if (seg.meld) return (
                                     <div key={si} className="flex flex-col items-stretch rounded-xl bg-emerald-500/12 border border-emerald-500/40 p-1">
                                         <span className="text-[9px] font-black text-emerald-300 mb-0.5 text-center leading-none">{seg.label} · {seg.tiles.length}</span>
-                                        <div className="flex flex-nowrap items-center gap-0.5 max-w-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>{seg.tiles.map(renderTile)}</div>
+                                        <div className="flex flex-wrap items-center gap-0.5 justify-center" style={{ touchAction: 'none' }}>{seg.tiles.map(renderTile)}</div>
                                     </div>
                                 );
                                 return <div key={si} className="flex flex-wrap items-center gap-0.5 self-center">{seg.tiles.map(renderTile)}</div>;
