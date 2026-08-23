@@ -857,7 +857,7 @@
 <!-- ═══ ORIZIS INTRO · standalone module · copy this whole block into any product ═══ -->
 <div id="orizis-intro">
   <style>
-    #orizis-intro { position: fixed; inset: 0; z-index: 999999; background: #05070f; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.45s ease; }
+    #orizis-intro { position: fixed; inset: 0; z-index: 999999; background: #04060d; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.45s ease; }
     #orizis-intro.oi-out { opacity: 0; pointer-events: none; }
     #orizis-intro .oi-mark { font-family: 'Heebo', Arial, sans-serif; font-weight: 900; font-size: clamp(38px, 9vw, 72px); letter-spacing: 0.22em; margin-right: -0.22em; background: linear-gradient(100deg, #64748b 0%, #f8fafc 28%, #e3ae4e 50%, #f8fafc 72%, #64748b 100%); background-size: 240% auto; -webkit-background-clip: text; background-clip: text; color: transparent; opacity: 0; animation: oiShine 1.9s ease forwards, oiRise 0.9s cubic-bezier(0.22,1,0.36,1) forwards; }
     #orizis-intro .oi-sub { font-family: 'Heebo', Arial, sans-serif; font-weight: 700; font-size: clamp(10px, 2.2vw, 14px); letter-spacing: 0.55em; margin-right: -0.55em; color: #64748b; margin-top: 14px; opacity: 0; animation: oiFade 0.7s ease 0.55s forwards; }
@@ -877,11 +877,17 @@
   <script>
     (function () {
       var el = document.getElementById('orizis-intro');
-      var done = false;
-      var MIN = 1500, MAX = 6000, start = Date.now();
+      var done = false, scheduled = false;
+      // HOLD = כמה זמן ORIZIS נשאר גלוי אחרי שהאפליקציה מוכנה (אחרי שמסך-הפתיחה של
+      // מערכת-ההפעלה מתרומם) — כדי שתמיד רואים אותו, גם באפליקציה מותקנת (PWA).
+      var HOLD = 1600, MIN = 1600, MAX = 7000, start = Date.now();
       function out() { if (done) return; done = true; el.classList.add('oi-out'); setTimeout(function () { if (el && el.parentNode) el.remove(); }, 500); }
-      // נסגר כשהאפליקציה מוכנה (מ-React), אבל לא לפני MIN — כדי שרואים את ORIZIS גם אחרי מסך-הטעינה של המערכת
-      window.__orizisReady = function () { var wait = Math.max(0, MIN - (Date.now() - start)); setTimeout(out, wait); };
+      window.__orizisReady = function () {
+        if (scheduled || done) return; scheduled = true;
+        // נשאר גלוי HOLD אחרי המוכנוּת, וגם לא פחות מ-MIN מרגע הטעינה
+        var wait = Math.max(HOLD, MIN - (Date.now() - start));
+        setTimeout(out, wait);
+      };
       if (window.__appIsReady) window.__orizisReady();
       el.addEventListener('click', out);
       el.addEventListener('touchstart', out, { passive: true });
@@ -991,7 +997,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v64';
+        const APP_VER = 'v65';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2665,6 +2671,30 @@
                 return () => unsub();
             }, [fbReady, dbUser?.uid, dbUser?.role]);
 
+            // ניקוי שולחנות רמי "מתים": משחק שהסתיים/נתקע ונשארו בו רק בוטים (בלי אף אנושי) —
+            // נמחק אוטומטית. הצ'יפים של הבוטים פיקטיביים (אינם מארנק אמיתי) והאנושיים כבר קיבלו
+            // את שלהם ביציאה, כך שאין פגיעה בשמירת-הכסף. רץ אצל בעל-האתר/GOD/צוות.
+            useEffect(() => {
+                const staff = dbUser && (isGodUser(dbUser) || isSiteOwner(dbUser) || [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(dbUser.role));
+                if (!fbReady || !staff) return;
+                const sweep = async () => {
+                    try {
+                        for (const t of (tablesRef2.current || [])) {
+                            if (!t || t.type !== 'rami' || t.tournamentId) continue;
+                            if (t.phase !== 'playing' && t.phase !== 'showdown') continue; // 'waiting' = שולחן פתוח לגיטימי
+                            const players = t.players || {};
+                            const humans = Object.keys(players).filter(u => !u.startsWith('bot_') && !players[u].isBot);
+                            if (humans.length === 0) {
+                                try { await window.fb.deleteDoc(window.fb.doc(window.fb.db, "tables", t.docId || t.id)); } catch (e) {}
+                            }
+                        }
+                    } catch (e) {}
+                };
+                sweep();
+                const iv = setInterval(sweep, 15000);
+                return () => clearInterval(iv);
+            }, [fbReady, dbUser?.uid, dbUser?.role]);
+
             // סיום מסך-הפתיח ORIZIS ברגע שהאפליקציה מוכנה (לא לפני MIN שמוגדר במודול הפתיח)
             useEffect(() => {
                 if (!fbReady) return;
@@ -3922,7 +3952,8 @@
             React.useEffect(() => { if (RUMMY_ONLY && !['rummikub', 'rami'].includes(tab)) setTab('rummikub'); }, [tab]);
 
             const rummyTables = tables.filter(t => t.type === 'rummikub' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-            const ramiTables = tables.filter(t => t.type === 'rami' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+            // משחק שהסתיים (showdown) לא מוצג בלובי — הזוכה נרשם בהיסטוריה, לא כשולחן פעיל.
+            const ramiTables = tables.filter(t => t.type === 'rami' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID && t.phase !== 'showdown').sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const pokerTables = tables.filter(t => t.type === 'poker' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const durakTables = tables.filter(t => t.type === 'durak' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
             const sheshTables = tables.filter(t => t.type === 'shesh' && !t.tournamentId && (t.clubId || 'main') === CLUB_ID).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
