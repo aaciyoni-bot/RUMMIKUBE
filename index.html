@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v88';
+        const APP_VER = 'v89';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8445,6 +8445,114 @@
             const freshApprovedCount = freshReq ? Object.keys(freshReq.approvals || {}).length : 0;
             const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
+
+            // ── חלקים משותפים לשתי הפריסות (לרוחב / לאורך) ──
+            const oppCards = uids.filter(u => u !== user.uid).map(u => {
+                const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
+                const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
+                const oppTbUses = Number(p.tbUses) || 0;
+                return <div key={u} className={`rounded-xl px-3 py-1.5 border text-center shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                    <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate mx-auto">{p.username}{p.isBot ? ' 🤖' : ''}</div>
+                    <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
+                        <span>🁢 {cnt}</span>
+                        {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
+                        {isTheirTurn && <span className="font-mono font-black px-1 rounded text-amber-200 bg-amber-500/10">⏱{timeLeft}s</span>}
+                    </div>
+                </div>;
+            });
+            const poolStrip = (
+                <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', direction: 'ltr' }} dir="ltr">
+                    <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} title="משוך מהקופה" className={`shrink-0 h-12 px-2 rounded-lg bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex flex-col items-center justify-center leading-none shadow disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-lg"></i><span className="text-[9px] font-bold mt-0.5">{(t.deck || []).length}</span></button>
+                    {topDiscard
+                        ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} title="משוך מהזריקה" className={`shrink-0 ${myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-lg' : ''}`} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} board /></div>
+                        : <div className="shrink-0 w-9 h-12 rounded-lg border-2 border-dashed border-white/10"></div>}
+                    {(t.discard || []).length > 1 && <div className="shrink-0 w-px h-10 bg-white/10 mx-0.5"></div>}
+                    <span className="shrink-0 text-[10px] text-slate-500 font-black">🗑</span>
+                    {(t.discard || []).slice(0, -1).slice(-16).map((tile, i, a) => (
+                        <div key={tile.id} className="shrink-0" style={{ opacity: 0.35 + 0.55 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>
+                    ))}
+                </div>
+            );
+            const turnBannerEl = myTurn
+                ? <div className="rounded-xl py-1 px-3 text-center font-black text-xs bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
+                    {t.turnPhase === 'draw' && <span>▶ תורך! משוך אבן מהקופה או מהזריקה</span>}
+                    {t.turnPhase === 'discard' && !goOut && <span>▶ תורך! הקש על אבן ביד כדי לזרוק</span>}
+                    {goOut && <span>🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
+                </div>
+                : <div className="text-center text-xs font-bold text-slate-500">ממתין לתור של {turnName}…</div>;
+            // תוכן המעמד (כותרת + מדפים) — נעטף ב-gridRef ובעץ בכל פריסה
+            const rackInner = (<>
+                <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המעמד שלי ({myHand.filter(Boolean).length})</span>
+                        {recognized.length > 0
+                            ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
+                            : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
+                    </div>
+                    <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>
+                </div>
+                <div className="px-2 pb-1 relative z-10">
+                    <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
+                        {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
+                    </div>
+                </div>
+                <div className="mx-3 my-1 relative z-10" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, rgba(90,60,25,0.5), transparent)' }}></div>
+                <div className="px-2 pb-2 relative z-10">
+                    <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
+                        {rackSlots.map((id, idx) => renderCell('rack', id, idx, !!(id && rackValid[idx])))}
+                    </div>
+                </div>
+            </>);
+            const spectatorPanel = (
+                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+                    <div className="text-center"><span className="text-2xl">👁️</span> <span className="text-slate-200 font-black text-sm">אתה צופה — הידיים מוסתרות</span></div>
+                    <div className="grid grid-cols-1 gap-2">
+                        {uids.map(u => {
+                            const p = t.players[u] || {}; const cnt = (p.cards || []).filter(Boolean).length; const turn = t.currentTurn === u && t.phase === 'playing';
+                            return (
+                                <div key={u} className={`flex items-center gap-3 rounded-xl px-3 py-2 border ${turn ? 'border-emerald-400 bg-emerald-500/15 animate-pulse' : 'border-white/10 bg-slate-950/40'}`}>
+                                    <img src={avatarUrl({ ...p, uid: u })} className="w-9 h-9 rounded-full border border-white/20 bg-slate-800 shrink-0" />
+                                    <div className="flex-1 min-w-0"><div className="font-black text-white truncate">{p.username}{p.isBot ? ' 🤖' : ''}{turn && <span className="text-emerald-300 text-xs font-bold"> · תורו</span>}</div></div>
+                                    <div className="text-slate-200 font-bold text-sm shrink-0" dir="ltr">🁢 {cnt}</div>
+                                    {turn && <div className={`font-mono font-black shrink-0 ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`} dir="ltr">{timeLeft}s</div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3">
+                        <div className="text-[11px] text-slate-400 font-bold mb-2 flex justify-between"><span>🗑 זריקות אחרונות</span><span dir="ltr">קופה: {(t.deck || []).length}</span></div>
+                        <div className="flex flex-wrap gap-1 justify-center" dir="ltr">
+                            {((t.discard || []).slice(-10)).map((tile, i, a) => <div key={tile.id} style={{ opacity: 0.55 + 0.45 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>)}
+                            {(!t.discard || !t.discard.length) && <span className="text-slate-500 text-xs font-bold">אין עדיין זריקות</span>}
+                        </div>
+                    </div>
+                </div>
+            );
+            const topBar = (
+                <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">יציאה ←</button>
+                        <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 hover:text-white hover:bg-sky-700 transition-colors flex items-center justify-center font-black text-xs" />
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">{t.tournamentId
+                        ? <span className="text-amber-300 font-black">🏆 {(t.tournament || {}).name || 'טורניר'}{isSeated ? <span className="text-rose-300"> · חיים: ❤️×{myLives}</span> : ''}</span>
+                        : <>דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</>}</div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {myTurn && myTbUses > 0 && myTb > 0 && (
+                            <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 hover:bg-amber-500/40 transition-colors">🏦 +{myTb}s · {myTbUses}</button>
+                        )}
+                        <div className={`text-xs font-black px-2.5 py-1 rounded-full ${myTurn ? (timeLeft <= 10 ? 'bg-rose-500/20 text-rose-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך ${timeLeft}s` : `תור ${turnName}`}</div>
+                    </div>
+                </div>
+            );
+            const actionBar = isSeated
+                ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+                    {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>}
+                    <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
+                </div>
+                : <div className="shrink-0 flex px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+                    <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 rounded-2xl font-black border border-white/10">← יציאה מהצפייה</button>
+                </div>;
             return (
                 <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     {needRotate && (
@@ -8455,115 +8563,50 @@
                             <button onClick={(e) => { e.stopPropagation(); setNeedRotate(false); }} className="mt-2 text-slate-500 hover:text-white underline text-xs font-bold">המשך בפורטרייט בכל זאת</button>
                         </div>
                     )}
-                    {/* סרגל עליון דק */}
-                    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">יציאה ←</button>
-                            <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 hover:text-white hover:bg-sky-700 transition-colors flex items-center justify-center font-black text-xs" />
-                        </div>
-                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">{t.tournamentId
-                            ? <span className="text-amber-300 font-black">🏆 {(t.tournament || {}).name || 'טורניר'}{isSeated ? <span className="text-rose-300"> · חיים: ❤️×{myLives}</span> : ''}</span>
-                            : <>דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</>}</div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            {myTurn && myTbUses > 0 && myTb > 0 && (
-                                <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 hover:bg-amber-500/40 transition-colors">🏦 +{myTb}s · {myTbUses}</button>
-                            )}
-                            <div className={`text-xs font-black px-2.5 py-1 rounded-full ${myTurn ? (timeLeft <= 10 ? 'bg-rose-500/20 text-rose-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך ${timeLeft}s` : `תור ${turnName}`}</div>
-                        </div>
-                    </div>
-
-                    {/* יריבים (שורה דקה נגללת) */}
-                    <div className="shrink-0 px-3 py-1 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                        {uids.filter(u => u !== user.uid).map(u => {
-                            const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
-                            const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
-                            const oppTbUses = Number(p.tbUses) || 0;
-                            return <div key={u} className={`rounded-xl px-3 py-1 border text-center shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
-                                <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate">{p.username}</div>
-                                <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
-                                    <span>🁢 {cnt}</span>
-                                    {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
-                                    {isTheirTurn && <span className="font-mono font-black px-1 rounded text-amber-200 bg-amber-500/10">⏱{timeLeft}s</span>}
+                    {wide && isSeated ? (
+                        /* ── פריסה לרוחב כמו רמיקוב: עמודת פעולות | מרכז (שולחן + מעמד-עץ תחום) | עמודת יריבים ── */
+                        <div className="flex-1 min-h-0 flex" dir="rtl">
+                            {/* עמודת יריבים (ימין) */}
+                            <div className="w-36 shrink-0 flex flex-col gap-1.5 p-2 border-l border-white/5 overflow-y-auto bg-slate-950/50">
+                                <div className="flex items-center justify-between">
+                                    <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">← יציאה</button>
+                                    <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 flex items-center justify-center font-black text-xs" />
                                 </div>
-                            </div>;
-                        })}
-                    </div>
-
-                    {/* קופה + זריקה + היסטוריית-זריקות — הכל בשורה אחת קומפקטית (חוסך גובה, חשוב במיוחד לרוחב) */}
-                    <div className="shrink-0 flex items-center gap-2 px-2 pt-1 pb-0.5 overflow-x-auto" style={{ scrollbarWidth: 'none', direction: 'ltr' }} dir="ltr">
-                        <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} title="משוך מהקופה" className={`shrink-0 h-12 px-2 rounded-lg bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex flex-col items-center justify-center leading-none shadow disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-lg"></i><span className="text-[9px] font-bold mt-0.5">{(t.deck || []).length}</span></button>
-                        {topDiscard
-                            ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} title="משוך מהזריקה" className={`shrink-0 ${myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-lg' : ''}`} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} board /></div>
-                            : <div className="shrink-0 w-9 h-12 rounded-lg border-2 border-dashed border-white/10"></div>}
-                        {(t.discard || []).length > 1 && <div className="shrink-0 w-px h-10 bg-white/10 mx-0.5"></div>}
-                        <span className="shrink-0 text-[10px] text-slate-500 font-black">🗑</span>
-                        {(t.discard || []).slice(0, -1).slice(-16).map((tile, i, a) => (
-                            <div key={tile.id} className="shrink-0" style={{ opacity: 0.35 + 0.55 * (i / Math.max(1, a.length - 1)) }}>
-                                <RamiTile tile={tile} board />
+                                <div className="text-[10px] text-slate-400 font-bold text-center truncate">{t.tournamentId ? <span className="text-amber-300 font-black">🏆 חיים ❤️×{myLives}</span> : <>כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)}₪{freshMult > 1 && <span className="text-amber-400"> ·×{freshMult}</span>}</>}</div>
+                                <div className={`text-xs font-black px-2 py-1 rounded-full text-center ${myTurn ? (timeLeft <= 10 ? 'bg-rose-500/20 text-rose-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך ${timeLeft}s` : `תור ${turnName}`}</div>
+                                {oppCards}
                             </div>
-                        ))}
-                    </div>
-                    {myTurn
-                        ? <div className="shrink-0 mx-2 mt-0.5 rounded-xl py-1 text-center font-black text-xs bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
-                            {t.turnPhase === 'draw' && <span>▶ תורך! משוך אבן מהקופה או מהזריקה</span>}
-                            {t.turnPhase === 'discard' && !goOut && <span>▶ תורך! הקש על אבן ביד כדי לזרוק</span>}
-                            {goOut && <span>🎉 יש לך יד שלמה! לחץ "רד וגמור"</span>}
-                        </div>
-                        : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
-
-                    {/* מעמד עץ אחד גדול — כמו רמיקוב אמיתי: כל היד יושבת עליו ומסדרים עליו את הקומבינציות */}
-                    <div ref={gridRef} style={{ touchAction: 'none' }} className={`flex-1 min-h-0 flex flex-col mt-1 overflow-y-auto ${isSeated ? 'rummy-rack' : ''}`}>
-                        {isSeated ? <>
-                            <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
-                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                    <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המעמד שלי ({myHand.filter(Boolean).length})</span>
-                                    {recognized.length > 0
-                                        ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                        : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
-                                </div>
-                                <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>
-                            </div>
-                            {/* מדפי המעמד — כל היד על אותו עץ; קומבינציות חוקיות מודגשות בירוק במקומן */}
-                            <div className="px-2 pb-1 relative z-10">
-                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
-                                    {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
-                                </div>
-                            </div>
-                            <div className="mx-3 my-1 relative z-10" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, rgba(90,60,25,0.5), transparent)' }}></div>
-                            <div className="px-2 pb-2 relative z-10">
-                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
-                                    {rackSlots.map((id, idx) => renderCell('rack', id, idx, !!(id && rackValid[idx])))}
-                                </div>
-                            </div>
-                        </> : (
-                            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
-                                <div className="text-center"><span className="text-2xl">👁️</span> <span className="text-slate-200 font-black text-sm">אתה צופה — הידיים מוסתרות</span></div>
-                                {/* לוח מצב חי: כל השחקנים, מי בתור, כמה אבנים, שעון */}
-                                <div className="grid grid-cols-1 gap-2">
-                                    {uids.map(u => {
-                                        const p = t.players[u] || {}; const cnt = (p.cards || []).filter(Boolean).length; const turn = t.currentTurn === u && t.phase === 'playing';
-                                        return (
-                                            <div key={u} className={`flex items-center gap-3 rounded-xl px-3 py-2 border ${turn ? 'border-emerald-400 bg-emerald-500/15 animate-pulse' : 'border-white/10 bg-slate-950/40'}`}>
-                                                <img src={avatarUrl({ ...p, uid: u })} className="w-9 h-9 rounded-full border border-white/20 bg-slate-800 shrink-0" />
-                                                <div className="flex-1 min-w-0"><div className="font-black text-white truncate">{p.username}{p.isBot ? ' 🤖' : ''}{turn && <span className="text-emerald-300 text-xs font-bold"> · תורו</span>}</div></div>
-                                                <div className="text-slate-200 font-bold text-sm shrink-0" dir="ltr">🁢 {cnt}</div>
-                                                {turn && <div className={`font-mono font-black shrink-0 ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`} dir="ltr">{timeLeft}s</div>}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                {/* ערימת הזריקה האחרונה + גודל הקופה */}
-                                <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3">
-                                    <div className="text-[11px] text-slate-400 font-bold mb-2 flex justify-between"><span>🗑 זריקות אחרונות</span><span dir="ltr">קופה: {(t.deck || []).length}</span></div>
-                                    <div className="flex flex-wrap gap-1 justify-center" dir="ltr">
-                                        {((t.discard || []).slice(-10)).map((tile, i, a) => <div key={tile.id} style={{ opacity: 0.55 + 0.45 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>)}
-                                        {(!t.discard || !t.discard.length) && <span className="text-slate-500 text-xs font-bold">אין עדיין זריקות</span>}
+                            {/* מרכז: שולחן למעלה, מעמד-עץ תחום למטה */}
+                            <div className="flex-1 min-w-0 flex flex-col">
+                                <div className="shrink-0 flex items-center justify-center px-3 pt-2">{poolStrip}</div>
+                                <div className="shrink-0 flex items-center justify-center px-3 pt-1">{turnBannerEl}</div>
+                                <div className="flex-1 min-h-0 flex items-end justify-center px-2 pb-2">
+                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack w-full max-w-[64rem] rounded-2xl overflow-y-auto max-h-full shadow-2xl">
+                                        {rackInner}
                                     </div>
                                 </div>
-                                <div className="text-center text-[11px] text-slate-500 font-bold">💡 האבנים בערימת הזריקה גלויות לכולם · הידיים הפרטיות מוסתרות</div>
                             </div>
-                        )}
-                    </div>
+                            {/* עמודת פעולות (שמאל) */}
+                            <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center bg-slate-950/50">
+                                {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
+                                <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg">✨ סדר לי</button>
+                                {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
+                                <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
+                            </div>
+                        </div>
+                    ) : (
+                        /* ── פריסה לאורך (וגם צופה): מחסנית אנכית ── */
+                        <>
+                            {topBar}
+                            <div className="shrink-0 px-3 py-1 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>{oppCards}</div>
+                            <div className="shrink-0 px-2 pt-1 pb-0.5">{poolStrip}</div>
+                            <div className="shrink-0 mx-2 mt-0.5">{turnBannerEl}</div>
+                            <div ref={gridRef} style={{ touchAction: 'none' }} className={`flex-1 min-h-0 flex flex-col mt-1 overflow-y-auto ${isSeated ? 'rummy-rack' : ''}`}>
+                                {isSeated ? rackInner : spectatorPanel}
+                            </div>
+                            {actionBar}
+                        </>
+                    )}
 
                     {/* התראת-תור בולטת (עובדת גם באייפון — ויזואלית) */}
                     {turnAlert && ReactDOM.createPortal(
