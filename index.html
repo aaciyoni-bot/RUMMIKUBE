@@ -991,7 +991,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v63';
+        const APP_VER = 'v64';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2644,6 +2644,27 @@
                 return () => { dead = true; clearInterval(iv); };
             }, [fbReady, dbUser?.uid]);
 
+            // סימן לבעל-האתר/הצוות: כמה בקשות-הצטרפות ממתינות לאישור (בזמן-אמת)
+            const [pendingJoins, setPendingJoins] = useState(0);
+            const prevPendingRef = useRef(null); // null = טרם אותחל (בלי התראה בטעינה ראשונה)
+            useEffect(() => {
+                const staff = dbUser && (isGodUser(dbUser) || isSiteOwner(dbUser) || [ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER].includes(dbUser.role));
+                if (!fbReady || !staff) { setPendingJoins(0); prevPendingRef.current = null; return; }
+                const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
+                const unsub = window.fb.onSnapshot(q, (s) => {
+                    let cnt = 0;
+                    s.docs.forEach(d => { const m = d.data(); if (m.isBot || m.uid === 'bot_bank') return; if (m.status === 'pending') cnt++; });
+                    const prev = prevPendingRef.current;
+                    if (prev !== null && cnt > prev) { // בקשה חדשה נכנסה — התראה פעילה
+                        try { showToast(`🔔 בקשת הצטרפות חדשה ממתינה לאישור (${cnt})`, 'info'); } catch (_) {}
+                        try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) {}
+                    }
+                    prevPendingRef.current = cnt;
+                    setPendingJoins(cnt);
+                }, () => {});
+                return () => unsub();
+            }, [fbReady, dbUser?.uid, dbUser?.role]);
+
             // סיום מסך-הפתיח ORIZIS ברגע שהאפליקציה מוכנה (לא לפני MIN שמוגדר במודול הפתיח)
             useEffect(() => {
                 if (!fbReady) return;
@@ -2696,6 +2717,7 @@
                                 {([ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(effUser.role)) && (
                                     <button onClick={() => changeView(currentView === 'backoffice' ? 'lobby' : 'backoffice')} className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${currentView === 'backoffice' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/80 text-blue-400 border-white/5 hover:text-white'}`} title="ניהול מועדון">
                                         <i className="fa-solid fa-chart-line"></i>
+                                        {pendingJoins > 0 && <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-slate-900 animate-pulse" title="בקשות הצטרפות ממתינות לאישור">{pendingJoins}</span>}
                                         {isGodUser(dbUser) && integrityAlerts > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-slate-900 animate-pulse" title="התראת בקרת שלמות">{integrityAlerts}</span>}
                                     </button>
                                 )}
