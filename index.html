@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v51';
+        const APP_VER = 'v52';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2226,7 +2226,7 @@
                 if (rejoinRef.current) return;
                 if (!effUser?.uid || !activeClub || currentView !== 'lobby' || !tablesDB.length) return;
                 const active = tablesDB.find(t => (t.clubId || 'main') === CLUB_ID && !t.tournamentId && t.players && t.players[effUser.uid]
-                    && ((t.type === 'rummikub' || t.type === 'rami') ? (t.phase === 'playing' || t.phase === 'waiting') : (t.status && t.status !== 'showdown' && t.status !== 'finished' && t.status !== 'done')));
+                    && (t.type === 'rummikub' || t.type === 'rami') && (t.phase === 'playing' || t.phase === 'waiting'));
                 if (!active) return;
                 const map = { rummikub: 'rummy-table', rami: 'rami-table', poker: 'poker-table', durak: 'durak-table', shesh: 'shesh-table', president: 'president-table', yaniv: 'yaniv-table', bridge: 'bridge-table', gin: 'gin-table', twist: 'twist-table', ofc: 'ofc-table' };
                 const view = map[active.type];
@@ -13187,7 +13187,7 @@
             const [errMsg, setErrMsg] = useState("");
             const [roundLeft, setRoundLeft] = useState(0);
             const [stayHide, setStayHide] = useState(false);
-            useEffect(() => { setStayHide(false); }, [T.status]);
+            useEffect(() => { setStayHide(false); }, [tableState && tableState.status]);
             const tableRef = useRef(null);
             const settlingRef = useRef(false);
 
