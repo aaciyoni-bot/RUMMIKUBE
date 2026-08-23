@@ -1062,7 +1062,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v81';
+        const APP_VER = 'v82';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1708,7 +1708,15 @@
             if (regs.length === 0) return tiles;
             const sameColor = regs.every(t => t.color === regs[0].color);
             if (!sameColor || new Set(regs.map(t => Number(t.val))).size !== regs.length) return tiles;
-            const sorted = [...regs].sort((a, b) => Number(a.val) - Number(b.val));
+            let sorted = [...regs].sort((a, b) => Number(a.val) - Number(b.val));
+            // "1" כגבוה (=14): אם יש 1 והשאר גבוהים כך שאי-אפשר לשבץ אותו בתחתית
+            // (הפער בין 1 לאבן הבאה גדול ממספר הג'וקרים), ה-1 מוצג בקצה הגבוה — אחרי ה-13 —
+            // ולא בתחילת הרצף. אחרת נראה כאילו "1 ו-7 מחוברים" וזה נראה לא-חוקי.
+            const ones = sorted.filter(t => Number(t.val) === 1);
+            const rest = sorted.filter(t => Number(t.val) !== 1);
+            if (ones.length === 1 && rest.length && (Number(rest[0].val) - 2) > jokers.length) {
+                sorted = [...rest, ones[0]];
+            }
             if (jokers.length === 0) return sorted;
             const out = []; let j = 0;
             for (let i = 0; i < sorted.length; i++) {
@@ -7033,7 +7041,7 @@
                         const nextTurn = uids[(uids.indexOf(user.uid) + 1) % uids.length];
                         t.update(tblRef, { deck: newDeck, board: srvSnapBoard, [`players.${user.uid}.cards`]: newRack, [`players.${user.uid}.missed`]: isTimeout ? (tbl.players[user.uid].missed || 0) + 1 : 0, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: srvSnapBoard, turnSnapRack: [...((tbl.players[nextTurn] || {}).cards || [])] });
                     });
-                    if (!isTimeout && (tableState.deck || []).length === 0) showToast("הקופה ריקה - התור עובר", "info");
+                    if (!isTimeout) showToast((tableState.deck || []).length === 0 ? "הקופה ריקה - התור עובר" : "🀄 משכת אבן — היא נכנסה למגש והתור עובר", "info");
                 } catch(e) {}
             };
 
@@ -7242,6 +7250,9 @@
             const isMyTurn = tableState.currentTurn === user.uid;
             const myTileCount = rack.filter(t=>t!==null).length;
             const results = tableState.lastResults;
+            // ג'וקר זהה למשחק הרמי: דמות 🃏 חגיגית במקום הסמל ☻
+            const JK = ({ v }) => v === '☻' ? <span className="joker-glyph">🃏</span> : <>{v}</>;
+            const jcls = (v) => v === '☻' ? ' joker' : '';
 
             return (
                 <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl" style={skinStyle}>
@@ -7353,7 +7364,7 @@
                                              style={{ pointerEvents: dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'none' : undefined }}
                                              className={`board-group ${settleGid === groupObj.id ? 'group-settle' : ''} ${hoverTarget === `board-group-${groupObj.id}` ? 'bg-emerald-400/20 shadow-[0_0_0_2px_rgba(16,185,129,0.9)]' : !validateGroup(groupObj.tiles) ? 'board-invalid-group' : isMyNewGroup ? 'shadow-[0_0_0_2px_rgba(226,150,74,0.85)] bg-amber-500/10' : ''}`}>
                                             {groupObj.tiles.map((t, tIdx) => (
-                                                <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}>{t.val}</div>
+                                                <div key={t.id} onPointerDown={(e) => startDrag(e, t, 'board', groupObj.id, tIdx)} className={`rummy-tile board-tile flex items-center justify-center cursor-grab active:cursor-grabbing${jcls(t.val)} ${dragData?.type === 'group' && dragData.groupId === groupObj.id ? 'opacity-30' : dragData?.tile?.id === t.id ? 'opacity-30' : ''}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>
                                             ))}
                                         </div>
                                     </React.Fragment>
@@ -7405,7 +7416,7 @@
                                         return (
                                             <div key={index} data-drop={`rack-slot-${index}`} className={`rack-slot flex items-center justify-center ${hoverTarget === `rack-slot-${index}` ? 'is-hover' : !tile ? 'is-empty' : ''}`}>
                                                 {tile && (
-                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing ${dealing ? 'tile-deal-in' : drawInId === tile.id ? 'tile-draw-in' : ''} ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color), animationDelay: dealing ? `${index * 45}ms` : undefined }}>{tile.val}</div>
+                                                    <div onPointerDown={(e) => startDrag(e, tile, 'rack', null, index)} className={`rummy-tile flex items-center justify-center text-xl sm:text-3xl z-10 cursor-grab active:cursor-grabbing${jcls(tile.val)} ${dealing ? 'tile-deal-in' : drawInId === tile.id ? 'tile-draw-in' : ''} ${dragData?.tile?.id === tile.id ? 'opacity-20' : isDragGrp ? 'opacity-20' : 'hover:-translate-y-1'}`} style={{ color: inkOf(tile.color), animationDelay: dealing ? `${index * 45}ms` : undefined }}><JK v={tile.val} /></div>
                                                 )}
                                             </div>
                                         );
@@ -7470,7 +7481,7 @@
                                     <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({(p.cards||[]).filter(c=>c).length} אבנים · {rackPenalty(p.cards)} נק')</span></div>
                                     <div className="flex flex-wrap gap-1" dir="ltr">
                                         {(p.cards||[]).filter(c=>c).map(t => (
-                                            <div key={t.id} className="rummy-tile w-6 h-9 flex items-center justify-center text-xs" style={{ color: inkOf(t.color) }}>{t.val}</div>
+                                            <div key={t.id} className={`rummy-tile w-6 h-9 flex items-center justify-center text-xs${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>
                                         ))}
                                     </div>
                                 </div>
@@ -7510,8 +7521,8 @@
                         </div>, document.body)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className="fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}>{dragData.tile.val}</div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className="rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5" style={{ color: inkOf(t.color) }}>{t.val}</div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className={`fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl${jcls(dragData.tile.val)}`} style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}><JK v={dragData.tile.val} /></div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>))}</div>}
                 </div>
             );
         }
