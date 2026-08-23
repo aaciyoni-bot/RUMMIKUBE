@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v69';
+        const APP_VER = 'v70';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7739,8 +7739,8 @@
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.6rem' }}
-                        className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'bg-emerald-500/15 ring-1 ring-emerald-400/60' : 'bg-slate-800/40') : (zone === 'board' ? 'border border-dashed border-emerald-500/20' : 'border border-dashed border-white/10')} ${isDrop ? 'ring-2 ring-amber-300 bg-amber-300/15' : ''}`}>
+                        style={{ touchAction: 'none', minHeight: '3.6rem', ...(tile ? {} : { background: 'rgba(0,0,0,0.18)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' }) }}
+                        className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'ring-2 ring-emerald-400/80' : '') : ''} ${isDrop ? 'ring-2 ring-amber-300' : ''}`}>
                         {tile && (
                             <div data-tid={id}
                                 onPointerDown={(e) => onTileDown(e, id, zone, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
@@ -8152,7 +8152,7 @@
                         : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
                     {/* שני אזורים כמו ברמיקוב: לוח-בנייה עליון + מגש אישי תחתון (גרירה חופשית) */}
-                    <div ref={gridRef} style={{ touchAction: 'none' }} className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1 overflow-y-auto">
+                    <div ref={gridRef} style={{ touchAction: 'none', background: 'linear-gradient(180deg, #6b4f30 0%, #533c22 55%, #3f2d18 100%)', borderTop: '3px solid #8a6a3f', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.35)' }} className="flex-1 min-h-0 flex flex-col mt-1 overflow-y-auto">
                         {isSeated ? <>
                         {/* ── לוח בנייה ── */}
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
@@ -8175,7 +8175,7 @@
                             <span className="text-[10px] text-slate-500 font-bold">סדר כאן את האבנים בגרירה</span>
                         </div>
                         <div className="shrink-0 px-2 pb-2">
-                            <div className="grid gap-1 mx-auto rounded-xl bg-slate-900/40 p-1" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr' }}>
+                            <div className="grid gap-1 mx-auto rounded-xl p-1.5" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr', background: 'linear-gradient(180deg, #2f2213, #241a0f)', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06)' }}>
                                 {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
                             </div>
                         </div>
