@@ -1017,7 +1017,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v67';
+        const APP_VER = 'v68';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7533,13 +7533,15 @@
             const seatedHumans = t ? Object.keys(t.players || {}).filter(u => t.players[u] && !t.players[u].isBot).sort() : [];
             const isBotDriver = !!(t && (user.uid === seatedHumans[0] || ((isGodUser(user) || isBotAdder(user)) && seatedHumans.length === 0)));
 
-            // ── לוח-משבצות: גריד קבוע של תאים ריקים. גוררים אבן לכל תא, רווח (תא ריק) מפריד ──
-            // בין קומבינציות, וכל קומבינציה חוקית מודגשת בירוק. כמו מעמד רמי אמיתי.
-            const BOARD_COLS = 7, BOARD_ROWS = 6, BOARD_N = BOARD_COLS * BOARD_ROWS;
-            const [slots, setSlots] = useState(() => Array(BOARD_N).fill(null)); // כל תא: id של אבן או null
+            // ── שני אזורים כמו ברמיקוב: "לוח" עליון לבניית קומבינציות (מודגש בירוק),
+            //    ו"מגש" תחתון אישי לסידור חופשי של האבנים בגרירה. גוררים אבן בין/בתוך האזורים.
+            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // לוח בנייה עליון
+            const RACK_COLS = 7, RACK_ROWS = 3, RACK_N = RACK_COLS * RACK_ROWS;      // מגש תחתון אישי
+            const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
+            const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
-            const [dropSlot, setDropSlot] = useState(null); // אינדקס התא שמתחת לאצבע
+            const [dropSlot, setDropSlot] = useState(null); // {zone,idx} התא שמתחת לאצבע
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
             const dropSlotRef = useRef(null);
@@ -7551,15 +7553,22 @@
             const handIds = myHand.filter(Boolean).map(x => x.id);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
             useEffect(() => {
-                // התאמת הלוח ליד: מסירים אבנים שיצאו, מוסיפים אבנים חדשות לתאים הריקים הראשונים
-                setSlots(prev => {
-                    let arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
-                    while (arr.length < BOARD_N) arr.push(null);
-                    const inHand = new Set(handIds);
+                // התאמה ליד: מסירים אבנים שיצאו משני האזורים; אבנים חדשות נכנסות למגש התחתון.
+                const inHand = new Set(handIds);
+                let placedNow = null;
+                setBoardSlots(prev => {
+                    const arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
                     for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
-                    const placed = new Set(arr.filter(Boolean));
+                    placedNow = new Set(arr.filter(Boolean));
+                    return arr;
+                });
+                setRackSlots(prev => {
+                    const arr = (prev && prev.length >= RACK_N) ? [...prev] : Array(RACK_N).fill(null);
+                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
+                    const onBoard = placedNow || new Set();
+                    const placed = new Set([...onBoard, ...arr.filter(Boolean)]);
                     for (const id of handIds) {
-                        if (placed.has(id)) continue;
+                        if (placed.has(id)) continue;         // כבר על הלוח או במגש
                         let idx = arr.indexOf(null);
                         if (idx < 0) { arr.push(id); } else { arr[idx] = id; }
                         placed.add(id);
@@ -7592,10 +7601,10 @@
                 let c = 0;
                 while (c < BOARD_COLS) {
                     const base = r * BOARD_COLS;
-                    if (!slots[base + c]) { c++; continue; }
-                    let end = c; while (end < BOARD_COLS && slots[base + end]) end++;
+                    if (!boardSlots[base + c]) { c++; continue; }
+                    let end = c; while (end < BOARD_COLS && boardSlots[base + end]) end++;
                     const tiles = [];
-                    for (let k = c; k < end; k++) { const tt = tileById[slots[base + k]]; if (tt) tiles.push(tt); }
+                    for (let k = c; k < end; k++) { const tt = tileById[boardSlots[base + k]]; if (tt) tiles.push(tt); }
                     if (tiles.length >= 3 && validateGroup(tiles)) {
                         for (let k = c; k < end; k++) cellValid[base + k] = true;
                         const nums = tiles.map(x => x.val).filter(v => v !== '☻');
@@ -7626,31 +7635,38 @@
                 while (jq.length) out.push(jq.shift());
                 return out;
             };
-            // "סדר לי": כל קומבינציה בשורה משלה (ג'וקר במקומו), ואז הלא-מסודרות בשורות חדשות
+            // "סדר לי": הקומבינציות עולות ללוח (כל אחת בשורה משלה, ג'וקר במקומו),
+            //           והאבנים הלא-מסודרות יורדות למגש התחתון.
             const autoArrange = () => {
-                const arr = Array(BOARD_N).fill(null);
+                const board = Array(BOARD_N).fill(null);
                 let pos = 0;
                 const placeRow = (ids) => {
                     if (pos % BOARD_COLS !== 0) pos = (Math.floor(pos / BOARD_COLS) + 1) * BOARD_COLS; // תחילת שורה חדשה
-                    for (const id of ids) { if (pos < BOARD_N) arr[pos++] = id; }
+                    for (const id of ids) { if (pos < BOARD_N) board[pos++] = id; }
                 };
                 (part.melds || []).forEach(m => placeRow(orderMeld(m).map(x => x.id)));
-                const leftIds = [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).map(x => x.id);
-                placeRow(leftIds);
-                // ביטחון: כל אבן שלא הונחה → לתא ריק ראשון
-                const placedSet = new Set(arr.filter(Boolean));
-                handIds.forEach(id => { if (!placedSet.has(id)) { const idx = arr.indexOf(null); if (idx >= 0) { arr[idx] = id; placedSet.add(id); } } });
-                setSlots(arr);
+                const onBoard = new Set(board.filter(Boolean));
+                // כל השאר (כולל אבנים שלא נכנסו ללוח) → מגש, ממוין
+                const rack = Array(RACK_N).fill(null);
+                const rest = handIds.filter(id => !onBoard.has(id))
+                    .map(id => tileById[id]).filter(Boolean)
+                    .sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b))
+                    .map(x => x.id);
+                rest.forEach((id, i) => { if (i < RACK_N) rack[i] = id; });
+                setBoardSlots(board);
+                setRackSlots(rack);
             };
-            // איזה תא נמצא מתחת לאצבע
+            // איזה תא נמצא מתחת לאצבע — מחזיר {zone,idx} (board/rack)
             const slotUnder = (px, py) => {
                 if (!gridRef.current) return null;
                 const els = gridRef.current.querySelectorAll('[data-slot]');
-                for (const c of els) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return Number(c.getAttribute('data-slot')); }
+                for (const c of els) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return { zone: c.getAttribute('data-zone'), idx: Number(c.getAttribute('data-slot')) }; }
                 return null;
             };
-            const onTileDown = (e, id, slotIdx) => {
-                dragIdRef.current = id; dragFromRef.current = slotIdx; dragMovedRef.current = false; dropSlotRef.current = null;
+            const sameCell = (a, b) => a && b && a.zone === b.zone && a.idx === b.idx;
+            const setZone = (zone, updater) => (zone === 'board' ? setBoardSlots(updater) : setRackSlots(updater));
+            const onTileDown = (e, id, zone, slotIdx) => {
+                dragIdRef.current = id; dragFromRef.current = { zone, idx: slotIdx }; dragMovedRef.current = false; dropSlotRef.current = null;
                 dragStartRef.current = { x: e.clientX, y: e.clientY };
                 setDragId(id); setDropSlot(null);
                 try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
@@ -7661,17 +7677,44 @@
                 if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; }
                 if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - 10) + 'px'; }
                 const a = slotUnder(x, y);
-                if (a !== dropSlotRef.current) { dropSlotRef.current = a; setDropSlot(a); }
+                if (!sameCell(a, dropSlotRef.current)) { dropSlotRef.current = a; setDropSlot(a); }
             };
             const onTileUp = () => {
                 const did = dragIdRef.current, moved = dragMovedRef.current, from = dragFromRef.current, to = dropSlotRef.current;
                 dragIdRef.current = null; dragMovedRef.current = false; dropSlotRef.current = null; dragStartRef.current = null; dragFromRef.current = null;
                 setDragId(null); setDropSlot(null);
                 if (!did) return;
-                if (moved && to != null && to !== from) {
-                    // הנחה בתא היעד; אם התא תפוס — החלפה (האבן שהייתה שם עוברת לתא-המקור)
-                    setSlots(prev => { const arr = [...prev]; const occ = arr[to]; arr[to] = did; if (from != null) arr[from] = (occ && occ !== did) ? occ : null; return arr; });
+                if (moved && to && !sameCell(to, from)) {
+                    if (to.zone === from.zone) {
+                        // תוך אותו אזור: הנחה/החלפה
+                        setZone(to.zone, prev => { const arr = [...prev]; const occ = arr[to.idx]; arr[to.idx] = did; arr[from.idx] = (occ && occ !== did) ? occ : null; return arr; });
+                    } else {
+                        // בין אזורים: מוציאים מהמקור, מניחים ביעד; אם היעד תפוס — האבן שם עוברת למקור
+                        const toArr = to.zone === 'board' ? boardSlots : rackSlots;
+                        const occ = toArr[to.idx] || null;
+                        setZone(to.zone, prev => { const arr = [...prev]; arr[to.idx] = did; return arr; });
+                        setZone(from.zone, prev => { const arr = [...prev]; arr[from.idx] = (occ && occ !== did) ? occ : null; return arr; });
+                    }
                 } else if (!moved && myTurn && t && t.turnPhase === 'discard') { doDiscard(did); }
+            };
+            // תא בודד (משמש גם ללוח וגם למגש)
+            const renderCell = (zone, id, idx, valid) => {
+                const tile = id ? tileById[id] : null;
+                const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
+                return (
+                    <div key={zone + idx} data-zone={zone} data-slot={idx}
+                        style={{ touchAction: 'none', minHeight: '3.6rem' }}
+                        className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'bg-emerald-500/15 ring-1 ring-emerald-400/60' : 'bg-slate-800/40') : (zone === 'board' ? 'border border-dashed border-emerald-500/20' : 'border border-dashed border-white/10')} ${isDrop ? 'ring-2 ring-amber-300 bg-amber-300/15' : ''}`}>
+                        {tile && (
+                            <div data-tid={id}
+                                onPointerDown={(e) => onTileDown(e, id, zone, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
+                                style={{ touchAction: 'none', opacity: dragId === id ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
+                                className={`rounded-lg ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                <RamiTile tile={tile} board />
+                            </div>
+                        )}
+                    </div>
+                );
             };
 
             // נעילת-מסך: שהמסך לא ייכבה/יתעמעם באמצע המשחק
@@ -8072,40 +8115,31 @@
                         </div>
                         : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
-                    {/* הלוח שלי — גריד משבצות ריקות: גררו אבן לכל תא. רווח (תא ריק) מפריד בין קומבינציות */}
-                    <div className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1">
+                    {/* שני אזורים כמו ברמיקוב: לוח-בנייה עליון + מגש אישי תחתון (גרירה חופשית) */}
+                    <div ref={gridRef} style={{ touchAction: 'none' }} className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1 overflow-y-auto">
+                        {/* ── לוח בנייה ── */}
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                <span className="text-[11px] text-slate-400 font-bold shrink-0">הלוח שלך ({myHand.filter(Boolean).length})</span>
+                                <span className="text-[11px] text-emerald-300/90 font-black shrink-0">🎯 לוח בנייה</span>
                                 {recognized.length > 0
                                     ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                    : <span className="text-[10px] text-slate-500 font-bold">גרור אבנים לתאים · השאר רווח בין קבוצות</span>}
+                                    : <span className="text-[10px] text-slate-500 font-bold">גרור לכאן לבניית קומבינציות</span>}
                             </div>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
                         </div>
-                        <div ref={gridRef}
-                            style={{ touchAction: 'none' }}
-                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                        <div className="shrink-0 px-2 pb-1">
                             <div className="grid gap-1 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr' }}>
-                                {slots.map((id, idx) => {
-                                    const tile = id ? tileById[id] : null;
-                                    const valid = tile && cellValid[idx];
-                                    const isDrop = dropSlot === idx && dragId != null;
-                                    return (
-                                        <div key={idx} data-slot={idx}
-                                            style={{ touchAction: 'none', minHeight: '3.7rem' }}
-                                            className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'bg-emerald-500/15 ring-1 ring-emerald-400/60' : 'bg-slate-800/40') : 'border border-dashed border-white/10'} ${isDrop ? 'ring-2 ring-amber-300 bg-amber-300/15' : ''}`}>
-                                            {tile && (
-                                                <div data-tid={id}
-                                                    onPointerDown={(e) => onTileDown(e, id, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                                                    style={{ touchAction: 'none', opacity: dragId === id ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
-                                                    className={`rounded-lg ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
-                                                    <RamiTile tile={tile} board />
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
+                            </div>
+                        </div>
+                        {/* ── המגש שלך (מחוץ ללוח) — סידור חופשי ── */}
+                        <div className="shrink-0 flex items-center gap-2 px-2 pt-1.5 pb-1 border-t border-white/10 mt-1">
+                            <span className="text-[11px] text-cyan-300/90 font-black shrink-0">🎴 המגש שלך ({myHand.filter(Boolean).length})</span>
+                            <span className="text-[10px] text-slate-500 font-bold">סדר כאן את האבנים בגרירה</span>
+                        </div>
+                        <div className="shrink-0 px-2 pb-2">
+                            <div className="grid gap-1 mx-auto rounded-xl bg-slate-900/40 p-1" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr' }}>
+                                {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
                             </div>
                         </div>
                     </div>
