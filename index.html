@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v73';
+        const APP_VER = 'v74';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7932,12 +7932,16 @@
 
             // פריש: הצעה שדורשת הסכמת כל השחקנים. כשכולם מאשרים → מחלקים מחדש
             // והמשחק נהיה כפול ×2 (עד תקרה). כל אחד יכול לסרב ואז ההצעה מבוטלת.
-            const proposeFresh = () => applyTx(cur => {
-                if (cur.phase !== 'playing' || cur.freshReq) return null;
-                if ((Number(cur.freshMult) || 1) >= RAMI_FRESH_CAP) return null;
-                if (!cur.players[user.uid]) return null;
-                return { freshReq: { by: user.uid, byName: (cur.players[user.uid] || {}).username || '', approvals: { [user.uid]: true }, at: Date.now() } };
-            });
+            const proposeFresh = () => {
+                // אישור מפורש — "פריש" מחלק לכולם אבנים חדשות לגמרי ומכפיל את המשחק ×2
+                if (!window.confirm('פריש = חלוקה מחדש! כל השחקנים יקבלו אבנים חדשות לגמרי, וסכום המשחק יוכפל ×2.\n\nזה דורש הסכמת כל השחקנים. להציע פריש?')) return;
+                applyTx(cur => {
+                    if (cur.phase !== 'playing' || cur.freshReq) return null;
+                    if ((Number(cur.freshMult) || 1) >= RAMI_FRESH_CAP) return null;
+                    if (!cur.players[user.uid]) return null;
+                    return { freshReq: { by: user.uid, byName: (cur.players[user.uid] || {}).username || '', approvals: { [user.uid]: true }, at: Date.now() } };
+                });
+            };
             const respondFresh = (approve, asUid) => applyTx(cur => {
                 const req = cur.freshReq; if (!req) return null;
                 if (!approve) return { freshReq: null };
