@@ -991,7 +991,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v62';
+        const APP_VER = 'v63';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1343,6 +1343,7 @@
             stakes: Number(o.stakes) || 0.1,
             turnSeconds: Math.max(15, Math.min(300, Number(o.turnSeconds) || 60)),
             timeBank: Math.max(0, Math.min(300, Number(o.timeBank) || 0)),
+            timeBankUses: Math.max(0, Math.min(10, Number(o.timeBankUses) || 0)),
             rakeMode: o.rakeMode === 'flat' ? 'flat' : 'pct',
             rakePct: o.rakePct == null || o.rakePct === '' ? null : Number(o.rakePct),
             rakeFee: round2(Number(o.rakeFee) || 0),
@@ -1352,11 +1353,11 @@
         });
         // חלוקת סבב רמי בצד-הלקוח (רק GOD מפעיל, כשהשולחן מתמלא בבוטים) — זהה לשרת.
         // freshMult נשמר בין חלוקות של אותה יד (פריש מחלק-מחדש ומכפיל); mult פרמטר.
-        const ramiDealC = (players, bank, mult, timeBank) => {
+        const ramiDealC = (players, bank, mult, timeBank, timeBankUses) => {
             const d = generateDeck();
             const uids = Object.keys(players).sort();
             const np = {};
-            uids.forEach(uid => { np[uid] = { ...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0, tb: Math.max(0, Number(timeBank) || 0) }; });
+            uids.forEach(uid => { np[uid] = { ...players[uid], cards: d.splice(0, 14), missed: 0, stack: (bank && bank[uid]) || 0, tb: Math.max(0, Number(timeBank) || 0), tbUses: Math.max(0, Number(timeBankUses) || 0), tbBonus: 0, tbBonusAt: 0 }; });
             return { players: np, deck: d, discard: [d.pop()], phase: 'playing', currentTurn: uids[0], turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now(), winner: null, lastResults: null, freshMult: mult || 1, freshReq: null };
         };
         const RAMI_FRESH_CAP = 8;
@@ -2703,11 +2704,6 @@
                                         <i className="fa-solid fa-trash-can-arrow-up"></i>
                                     </button>
                                 )}
-                                {isGodUser(dbUser) && !(activeMem && typeof activeMem === 'object' && activeMem.status === 'approved') && (
-                                    <button onClick={() => doRequestJoin(false)} className="h-10 px-2.5 sm:px-3 rounded-xl border border-emerald-500/40 bg-emerald-600/20 text-emerald-300 hover:text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-black shrink-0" title="הצטרף כשחקן (דורש אישור בעל-האתר)">
-                                        🎮 <span className="hidden sm:inline">{(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending') ? 'ממתין לאישור' : 'הצטרף כשחקן'}</span>
-                                    </button>
-                                )}
                                 <InstallButton showToast={showToast} label="📲" className="w-10 h-10 rounded-xl border border-emerald-500/30 bg-slate-800/80 hover:bg-emerald-700 transition-colors flex items-center justify-center text-base" />
                                 <button onClick={() => changeView(currentView === 'leaders' ? 'lobby' : 'leaders')} className={`w-10 h-10 rounded-xl border transition-colors flex items-center justify-center ${currentView === 'leaders' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800/80 text-amber-400 border-white/5 hover:bg-amber-700 hover:text-white'}`} title="לוח המובילים">
                                     <i className="fa-solid fa-ranking-star"></i>
@@ -2730,6 +2726,15 @@
                                 <p className="text-[10px] text-emerald-400/90 font-black tracking-widest leading-none">🏛️ {clubSettings?.name || activeClub.name} <span className="text-slate-600">· {APP_VER.toUpperCase()}</span></p>
                             </div>
                         </nav>
+                    )}
+
+                    {/* GOD: כפתור הצטרפות-כשחקן — שורה בולטת מתחת לניווט, נעלמת ברגע שאושר */}
+                    {isGodUser(dbUser) && effUser && activeClub && !inTable && currentView !== 'clubs' && !(activeMem && typeof activeMem === 'object' && activeMem.status === 'approved') && (
+                        <div className="shrink-0 px-3 py-2 border-b border-emerald-500/20 bg-emerald-500/5 z-30">
+                            {(activeMem && typeof activeMem === 'object' && activeMem.status === 'pending')
+                                ? <div className="w-full rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-200 font-black text-sm py-3 text-center">⏳ הבקשה שלך ממתינה לאישור בעל-האתר</div>
+                                : <button onClick={() => doRequestJoin(false)} className="w-full rounded-2xl border border-emerald-400/50 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white font-black text-base py-3 shadow-lg transition-colors flex items-center justify-center gap-2">🎮 הצטרף כשחקן — שלח בקשה לאישור</button>}
+                        </div>
                     )}
 
                     {clubMsg && !inTable && currentView !== 'clubs' && (
@@ -3856,7 +3861,7 @@
             const [ratab, setRatab] = useState('all'); // סינון שולחנות הרמי לפי גודל
             const [showCreateRami, setShowCreateRami] = useState(false);
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
-            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
             // תבניות (טמפלטים) שמורות מקומית לכל קלאב — כמו ב-POKERTEN
             const RAMI_TPL_KEY = `rummi_rami_tpls_${CLUB_ID}`;
             const [ramiTpls, setRamiTpls] = useState(() => { try { return JSON.parse(localStorage.getItem(RAMI_TPL_KEY) || '[]'); } catch (e) { return []; } });
@@ -3877,6 +3882,7 @@
                         minBuyIn: buyIn, stakes: buyIn,
                         turnSeconds: Math.max(15, Math.min(300, Number(ramiOpts.turnSeconds) || 60)),
                         timeBank: Math.max(0, Math.min(300, Number(ramiOpts.timeBank) || 0)),
+                        timeBankUses: Math.max(0, Math.min(10, Number(ramiOpts.timeBankUses) || 0)),
                         rakeMode: ramiOpts.rakeMode,
                         rakePct: ramiOpts.rakeMode === 'pct' ? (ramiOpts.rakePct === '' ? null : Math.max(0, Math.min(20, Number(ramiOpts.rakePct)))) : null,
                         rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0
@@ -4696,16 +4702,21 @@
                                             </div>
                                         </div>
                                         <p className="text-slate-400 text-xs font-bold mb-4" dir="rtl">מי שלא יורד מפסיד את סכום המשחק ({formatMoney(buyIn)} ₪) למי שירד. פריש מכפיל ×2.</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
                                             <div>
                                                 <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">זמן חשיבה בתור (שניות)</label>
                                                 <input type="number" min="15" max="300" step="5" inputMode="numeric" value={ramiOpts.turnSeconds} onChange={e => setRamiOpts({ ...ramiOpts, turnSeconds: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="60" />
                                             </div>
                                             <div>
-                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן — שניות (0 = ללא)</label>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן — שניות להפעלה</label>
                                                 <input type="number" min="0" max="300" step="5" inputMode="numeric" value={ramiOpts.timeBank} onChange={e => setRamiOpts({ ...ramiOpts, timeBank: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="30" />
                                             </div>
+                                            <div>
+                                                <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">בנק זמן — מספר הפעלות</label>
+                                                <input type="number" min="0" max="10" step="1" inputMode="numeric" value={ramiOpts.timeBankUses} onChange={e => setRamiOpts({ ...ramiOpts, timeBankUses: e.target.value })} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="2" />
+                                            </div>
                                         </div>
+                                        <p className="text-slate-500 text-[11px] font-bold mb-4" dir="rtl">בנק הזמן אינו אוטומטי: השחקן לוחץ להפעלה לפני שהזמן נגמר, עד {ramiOpts.timeBankUses || 0} פעמים בכל יד ({ramiOpts.timeBank || 0} שנ' כל הפעלה).</p>
                                         {/* עמלת רייק: אחוז מהקופה או עמלה קבועה בכניסה */}
                                         <div className="bg-slate-950/50 border border-white/10 rounded-2xl p-4 mb-4">
                                             <div className="text-slate-300 text-xs font-black mb-3 uppercase tracking-widest">עמלת רייק</div>
@@ -7399,9 +7410,9 @@
         /* ================================================================
            שולחן רמי סגור (Rami / Okey) — יד פרטית, משיכה/זריקה, ירידה בבת-אחת
            ================================================================ */
-        const RamiTile = ({ tile, onClick, dim, big }) => (
+        const RamiTile = ({ tile, onClick, dim, big, board }) => (
             <div onClick={onClick} className="rummy-tile" title={tile.val === '☻' ? "ג'וקר" : ''}
-                style={{ width: big ? '3.5rem' : '3rem', height: big ? '4.4rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
+                style={{ width: big ? '3.5rem' : board ? '2.7rem' : '3rem', height: big ? '4.4rem' : board ? '3.5rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : board ? '1.5rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
                 {tile.val === '☻' ? '🃏' : tile.val}
             </div>
         );
@@ -7428,7 +7439,8 @@
             const isSeated = !!meP;
             const myTurn = !!(t && t.currentTurn === user.uid && t.phase === 'playing');
             const turnSecs = (t && Number(t.turnSeconds)) || TURN_SECONDS;
-            const myTb = (meP && Number(meP.tb)) || 0;
+            const myTb = (meP && Number(meP.tb)) || 0;          // שניות שמתווספות בכל הפעלה
+            const myTbUses = (meP && Number(meP.tbUses)) || 0;  // הפעלות בנק-זמן שנותרו
             const myHand = (meP && meP.cards) || [];
             const handKey = myHand.map(x => x && x.id).join(',');
             const part = useMemo(() => bestPartition(myHand), [handKey]);
@@ -7439,14 +7451,17 @@
             const seatedHumans = t ? Object.keys(t.players || {}).filter(u => t.players[u] && !t.players[u].isBot).sort() : [];
             const isBotDriver = !!(t && (user.uid === seatedHumans[0] || ((isGodUser(user) || isBotAdder(user)) && seatedHumans.length === 0)));
 
-            // ── מגש גמיש: כל קומבינציה נשארת בשורה אחת, רווח קטן ביניהן + הדגשת אבן שנמשכה ──
-            const [order, setOrder] = useState([]);
+            // ── לוח-משבצות: גריד קבוע של תאים ריקים. גוררים אבן לכל תא, רווח (תא ריק) מפריד ──
+            // בין קומבינציות, וכל קומבינציה חוקית מודגשת בירוק. כמו מעמד רמי אמיתי.
+            const BOARD_COLS = 7, BOARD_ROWS = 6, BOARD_N = BOARD_COLS * BOARD_ROWS;
+            const [slots, setSlots] = useState(() => Array(BOARD_N).fill(null)); // כל תא: id של אבן או null
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
-            const [dropBefore, setDropBefore] = useState(null); // id שלפניו תיפול האבן (או '__end__')
+            const [dropSlot, setDropSlot] = useState(null); // אינדקס התא שמתחת לאצבע
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
-            const dropBeforeRef = useRef(null);
+            const dropSlotRef = useRef(null);
+            const dragFromRef = useRef(null); // התא ממנו התחילה הגרירה
             const dragStartRef = useRef(null);
             const ghostRef = useRef(null);
             const gridRef = useRef(null);
@@ -7454,7 +7469,21 @@
             const handIds = myHand.filter(Boolean).map(x => x.id);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
             useEffect(() => {
-                setOrder(prev => { const kept = prev.filter(id => handIds.includes(id)); const added = handIds.filter(id => !kept.includes(id)); return [...kept, ...added]; });
+                // התאמת הלוח ליד: מסירים אבנים שיצאו, מוסיפים אבנים חדשות לתאים הריקים הראשונים
+                setSlots(prev => {
+                    let arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
+                    while (arr.length < BOARD_N) arr.push(null);
+                    const inHand = new Set(handIds);
+                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
+                    const placed = new Set(arr.filter(Boolean));
+                    for (const id of handIds) {
+                        if (placed.has(id)) continue;
+                        let idx = arr.indexOf(null);
+                        if (idx < 0) { arr.push(id); } else { arr[idx] = id; }
+                        placed.add(id);
+                    }
+                    return arr;
+                });
                 // הבהוב רק על אבן שהרגע נמשכה: היד גדלה בדיוק באחת (14→15). לא בכניסה/חלוקה-מחדש/תור-יריב.
                 const prev = prevIdsRef.current;
                 let cleanup;
@@ -7465,34 +7494,27 @@
                 prevIdsRef.current = handIds;
                 return cleanup;
             }, [handKey]);
-            const orderedTiles = order.map(id => tileById[id]).filter(Boolean);
-            // המערכת "מבינה" את הסידור שלך: כל קבוצה מופרדת-ברווח נבדקת בנפרד.
-            // קבוצה שלמה-חוקית → רקע ירוק חזק + תווית סוג (רצף / שלישייה / רביעייה).
-            // תת-רצף חוקי בתוך קבוצה לא-שלמה → טבעת ירוקה בלבד.
-            // פירוק הסידור לקומבינציות: כל תת-רצף רצוף שחוקי (רצף / שלישייה) הוא "קומבינציה"
-            // שנשארת בשורה אחת; אבנים לא-מסודרות מתקבצות ל"אזור חופשי".
-            const segments = (() => {
-                const segs = []; let i = 0;
-                while (i < orderedTiles.length) {
-                    let best = 0;
-                    for (let len = Math.min(orderedTiles.length - i, 13); len >= 3; len--) { if (validateGroup(orderedTiles.slice(i, i + len))) { best = len; break; } }
-                    if (best >= 3) {
-                        const tiles = orderedTiles.slice(i, i + best);
+            // זיהוי קומבינציות: בכל שורה, כל רצף-רצוף של אבנים (שמופרד ברווח) נבדק בנפרד.
+            // בלוק חוקי (רצף/שלישייה/רביעייה) → כל תאיו מודגשים בירוק. הרווח (תא ריק) הוא המפריד.
+            const cellValid = Array(BOARD_N).fill(false);
+            const recognized = [];
+            for (let r = 0; r < BOARD_ROWS; r++) {
+                let c = 0;
+                while (c < BOARD_COLS) {
+                    const base = r * BOARD_COLS;
+                    if (!slots[base + c]) { c++; continue; }
+                    let end = c; while (end < BOARD_COLS && slots[base + end]) end++;
+                    const tiles = [];
+                    for (let k = c; k < end; k++) { const tt = tileById[slots[base + k]]; if (tt) tiles.push(tt); }
+                    if (tiles.length >= 3 && validateGroup(tiles)) {
+                        for (let k = c; k < end; k++) cellValid[base + k] = true;
                         const nums = tiles.map(x => x.val).filter(v => v !== '☻');
                         const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
-                        const label = isGroup ? (best >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
-                        segs.push({ meld: true, tiles, label });
-                        i += best;
-                    } else {
-                        if (segs.length && !segs[segs.length - 1].meld) segs[segs.length - 1].tiles.push(orderedTiles[i]);
-                        else segs.push({ meld: false, tiles: [orderedTiles[i]] });
-                        i++;
+                        recognized.push({ label: isGroup ? (tiles.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף', n: tiles.length });
                     }
+                    c = end;
                 }
-                return segs;
-            })();
-            const meldIds = new Set(); segments.forEach(s => { if (s.meld) s.tiles.forEach(x => meldIds.add(x.id)); });
-            const recognized = segments.filter(s => s.meld).map(s => ({ label: s.label, n: s.tiles.length }));
+            }
             // סידור אבנים בתוך קומבינציה לתצוגה: ג'וקר יושב במקום שהוא מייצג (9,10,🃏,12), לא בסוף
             const orderMeld = (m) => {
                 const jokers = m.filter(x => x.val === '☻');
@@ -7514,27 +7536,33 @@
                 while (jq.length) out.push(jq.shift());
                 return out;
             };
-            // "סדר לי": פורש את הקומבינציות (ג'וקר במקומו) ואז הלא-מסודרות — כל אחת בשורה משלה
+            // "סדר לי": כל קומבינציה בשורה משלה (ג'וקר במקומו), ואז הלא-מסודרות בשורות חדשות
             const autoArrange = () => {
-                const ids = [];
-                (part.melds || []).forEach(m => orderMeld(m).forEach(x => ids.push(x.id)));
-                [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).forEach(x => ids.push(x.id));
-                handIds.forEach(id => { if (!ids.includes(id)) ids.push(id); }); // ביטחון
-                setOrder(ids);
+                const arr = Array(BOARD_N).fill(null);
+                let pos = 0;
+                const placeRow = (ids) => {
+                    if (pos % BOARD_COLS !== 0) pos = (Math.floor(pos / BOARD_COLS) + 1) * BOARD_COLS; // תחילת שורה חדשה
+                    for (const id of ids) { if (pos < BOARD_N) arr[pos++] = id; }
+                };
+                (part.melds || []).forEach(m => placeRow(orderMeld(m).map(x => x.id)));
+                const leftIds = [...part.leftover].sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).map(x => x.id);
+                placeRow(leftIds);
+                // ביטחון: כל אבן שלא הונחה → לתא ריק ראשון
+                const placedSet = new Set(arr.filter(Boolean));
+                handIds.forEach(id => { if (!placedSet.has(id)) { const idx = arr.indexOf(null); if (idx >= 0) { arr[idx] = id; placedSet.add(id); } } });
+                setSlots(arr);
             };
-            // מה נמצא מתחת לאצבע: אבן (נשחרר לפניה) או אזור-החניה (לסוף)
-            const tileUnder = (px, py) => {
+            // איזה תא נמצא מתחת לאצבע
+            const slotUnder = (px, py) => {
                 if (!gridRef.current) return null;
-                const els = gridRef.current.querySelectorAll('[data-tid]');
-                for (const c of els) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return c.getAttribute('data-tid'); }
-                const park = gridRef.current.querySelector('[data-park]');
-                if (park) { const r = park.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return '__end__'; }
+                const els = gridRef.current.querySelectorAll('[data-slot]');
+                for (const c of els) { const r = c.getBoundingClientRect(); if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return Number(c.getAttribute('data-slot')); }
                 return null;
             };
-            const onTileDown = (e, id) => {
-                dragIdRef.current = id; dragMovedRef.current = false; dropBeforeRef.current = null;
+            const onTileDown = (e, id, slotIdx) => {
+                dragIdRef.current = id; dragFromRef.current = slotIdx; dragMovedRef.current = false; dropSlotRef.current = null;
                 dragStartRef.current = { x: e.clientX, y: e.clientY };
-                setDragId(id); setDropBefore(null);
+                setDragId(id); setDropSlot(null);
                 try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
             };
             const onTileMove = (e) => {
@@ -7542,23 +7570,18 @@
                 const x = e.clientX, y = e.clientY;
                 if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; }
                 if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - 10) + 'px'; }
-                const a = tileUnder(x, y);
-                if (a !== dropBeforeRef.current) { dropBeforeRef.current = a; setDropBefore(a); }
+                const a = slotUnder(x, y);
+                if (a !== dropSlotRef.current) { dropSlotRef.current = a; setDropSlot(a); }
             };
             const onTileUp = () => {
-                const did = dragIdRef.current, moved = dragMovedRef.current, anchor = dropBeforeRef.current;
-                dragIdRef.current = null; dragMovedRef.current = false; dropBeforeRef.current = null; dragStartRef.current = null;
-                setDragId(null); setDropBefore(null);
+                const did = dragIdRef.current, moved = dragMovedRef.current, from = dragFromRef.current, to = dropSlotRef.current;
+                dragIdRef.current = null; dragMovedRef.current = false; dropSlotRef.current = null; dragStartRef.current = null; dragFromRef.current = null;
+                setDragId(null); setDropSlot(null);
                 if (!did) return;
-                if (moved) {
-                    if (anchor === did) return; // חזר למקומו — בלי שינוי
-                    setOrder(prev => {
-                        const arr = prev.filter(x => x !== did);
-                        if (anchor == null || anchor === '__end__') arr.push(did);
-                        else { const idx = arr.indexOf(anchor); if (idx < 0) arr.push(did); else arr.splice(idx, 0, did); }
-                        return arr;
-                    });
-                } else if (myTurn && t && t.turnPhase === 'discard') { doDiscard(did); }
+                if (moved && to != null && to !== from) {
+                    // הנחה בתא היעד; אם התא תפוס — החלפה (האבן שהייתה שם עוברת לתא-המקור)
+                    setSlots(prev => { const arr = [...prev]; const occ = arr[to]; arr[to] = did; if (from != null) arr[from] = (occ && occ !== did) ? occ : null; return arr; });
+                } else if (!moved && myTurn && t && t.turnPhase === 'discard') { doDiscard(did); }
             };
 
             // נעילת-מסך: שהמסך לא ייכבה/יתעמעם באמצע המשחק
@@ -7620,12 +7643,24 @@
                 const [tile] = hand.splice(idx, 1);
                 const u = Object.keys(cur.players).sort();
                 const next = u[(u.indexOf(user.uid) + 1) % u.length];
-                // ניכוי בנק-הזמן: כמה שניות מעבר לזמן-החשיבה הבסיסי נצרכו בתור הזה
-                const baseS = Number(cur.turnSeconds) || TURN_SECONDS;
-                const tbNow = Number((cur.players[user.uid] || {}).tb) || 0;
-                const elapsed = Math.floor((Date.now() - (cur.turnStartedAt || Date.now())) / 1000);
-                const tbLeft = Math.max(0, tbNow - Math.max(0, elapsed - baseS));
-                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, [`players.${user.uid}.tb`]: tbLeft, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
+                // בנק-הזמן הוא ידני (הפעלה מדעת) ונספר ב-tbUses; אין ניכוי אוטומטי כאן.
+                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
+            });
+
+            // הפעלת בנק-זמן ידנית: מוסיף tb שניות לתור הנוכחי, מנכה הפעלה אחת
+            const activateTimeBank = () => applyTx(cur => {
+                if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return null;
+                const me = cur.players[user.uid] || {};
+                const uses = Number(me.tbUses) || 0;
+                const add = Number(cur.timeBank) || 0;
+                if (uses <= 0 || add <= 0) return null;
+                const startAt = Number(cur.turnStartedAt) || 0;
+                const already = (Number(me.tbBonusAt) || 0) === startAt ? (Number(me.tbBonus) || 0) : 0;
+                return {
+                    [`players.${user.uid}.tbUses`]: uses - 1,
+                    [`players.${user.uid}.tbBonus`]: already + add,
+                    [`players.${user.uid}.tbBonusAt`]: startAt
+                };
             });
 
             const doGoOut = async () => {
@@ -7663,7 +7698,7 @@
                 const seated = Object.keys(cur.players || {});
                 if (seated.every(u => approvals[u])) {
                     const nm = Math.min(RAMI_FRESH_CAP, (Number(cur.freshMult) || 1) * 2);
-                    return { ...ramiDealC(cur.players, cur.bank || {}, nm, cur.timeBank) };
+                    return { ...ramiDealC(cur.players, cur.bank || {}, nm, cur.timeBank, cur.timeBankUses) };
                 }
                 return { freshReq: { ...req, approvals } };
             });
@@ -7679,10 +7714,12 @@
             // טיימר תור
             useEffect(() => {
                 if (!t || t.phase !== 'playing') { setTimeLeft(turnSecs); return; }
-                const curTb = Number((t.players[t.currentTurn] || {}).tb) || 0;
-                const tick = () => setTimeLeft(Math.max(0, (turnSecs + curTb) - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
+                const cp = t.players[t.currentTurn] || {};
+                // בונוס בנק-זמן חל רק על התור שבו הופעל (נקשר ל-turnStartedAt)
+                const bonus = (Number(cp.tbBonusAt) || 0) === (Number(t.turnStartedAt) || 0) ? (Number(cp.tbBonus) || 0) : 0;
+                const tick = () => setTimeLeft(Math.max(0, (turnSecs + bonus) - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
-            }, [t && t.turnStartedAt, t && t.phase]);
+            }, [t && t.turnStartedAt, t && t.phase, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
 
             // אינדיקציית-תור: רטט קצר ברגע שמגיע התור שלך
             const wasMyTurnRef = useRef(false);
@@ -7885,7 +7922,12 @@
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
                         <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
-                        <div className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 ${myTurn ? (timeLeft <= myTb && myTb > 0 ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? (timeLeft <= myTb && myTb > 0 ? `⏱ ${timeLeft}s` : `תורך ${timeLeft}s`) : `תור ${turnName}`}</div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {myTurn && myTbUses > 0 && myTb > 0 && (
+                                <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 hover:bg-amber-500/40 transition-colors">🏦 +{myTb}s · {myTbUses}</button>
+                            )}
+                            <div className={`text-xs font-black px-2.5 py-1 rounded-full ${myTurn ? (timeLeft <= 10 ? 'bg-rose-500/20 text-rose-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך ${timeLeft}s` : `תור ${turnName}`}</div>
+                        </div>
                     </div>
 
                     {/* יריבים (שורה דקה נגללת) */}
@@ -7893,12 +7935,13 @@
                         {uids.filter(u => u !== user.uid).map(u => {
                             const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
                             const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
-                            const oppTb = Number(p.tb) || 0;
+                            const oppTbUses = Number(p.tbUses) || 0;
                             return <div key={u} className={`rounded-xl px-3 py-1 border text-center shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
                                 <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate">{p.username}</div>
                                 <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
                                     <span>🁢 {cnt}</span>
-                                    {isTheirTurn && <span className={`font-mono font-black px-1 rounded ${timeLeft <= 10 ? 'text-rose-400 bg-rose-500/10 animate-pulse' : (timeLeft <= oppTb && oppTb > 0 ? 'text-amber-300 bg-amber-500/10' : 'text-emerald-300 bg-emerald-500/10')}`}>⏱{timeLeft}s{timeLeft <= oppTb && oppTb > 0 ? ' 🏦' : ''}</span>}
+                                    {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
+                                    {isTheirTurn && <span className={`font-mono font-black px-1 rounded ${timeLeft <= 10 ? 'text-rose-400 bg-rose-500/10 animate-pulse' : 'text-emerald-300 bg-emerald-500/10'}`}>⏱{timeLeft}s</span>}
                                 </div>
                             </div>;
                         })}
@@ -7925,45 +7968,41 @@
                         </div>
                         : <div className="shrink-0 text-center text-xs font-bold h-5 text-slate-500">ממתין לתור של {turnName}…</div>}
 
-                    {/* המדף שלי — מגש עם משבצות ריקות: גררו אבנים למקומות הריקים לסידור בקבוצות */}
+                    {/* הלוח שלי — גריד משבצות ריקות: גררו אבן לכל תא. רווח (תא ריק) מפריד בין קומבינציות */}
                     <div className="flex-1 min-h-0 flex flex-col bg-slate-950/40 border-t border-white/10 mt-1">
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                <span className="text-[11px] text-slate-400 font-bold shrink-0">היד שלך ({myHand.filter(Boolean).length})</span>
+                                <span className="text-[11px] text-slate-400 font-bold shrink-0">הלוח שלך ({myHand.filter(Boolean).length})</span>
                                 {recognized.length > 0
                                     ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                    : <span className="text-[10px] text-slate-500 font-bold">גרור אבנים זו-לצד-זו לבניית קומבינציה →</span>}
+                                    : <span className="text-[10px] text-slate-500 font-bold">גרור אבנים לתאים · השאר רווח בין קבוצות</span>}
                             </div>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
                         </div>
                         <div ref={gridRef}
                             style={{ touchAction: 'none' }}
-                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 flex flex-wrap gap-2 content-start items-start">
-                            {segments.map((seg, si) => {
-                                const renderTile = (tile) => {
-                                    const id = tile.id;
-                                    const flash = flashId === id;
-                                    const dragging = dragId === id;
-                                    const isAnchor = dropBefore === id && dragId != null;
+                            className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                            <div className="grid gap-1 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr' }}>
+                                {slots.map((id, idx) => {
+                                    const tile = id ? tileById[id] : null;
+                                    const valid = tile && cellValid[idx];
+                                    const isDrop = dropSlot === idx && dragId != null;
                                     return (
-                                        <div key={id} data-tid={id}
-                                            onPointerDown={(e) => onTileDown(e, id)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                                            style={{ touchAction: 'none', opacity: dragging ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
-                                            className={`rounded-lg shrink-0 ${isAnchor ? 'ring-2 ring-amber-300' : ''} ${flash ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
-                                            <RamiTile tile={tile} />
+                                        <div key={idx} data-slot={idx}
+                                            style={{ touchAction: 'none', minHeight: '3.7rem' }}
+                                            className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'bg-emerald-500/15 ring-1 ring-emerald-400/60' : 'bg-slate-800/40') : 'border border-dashed border-white/10'} ${isDrop ? 'ring-2 ring-amber-300 bg-amber-300/15' : ''}`}>
+                                            {tile && (
+                                                <div data-tid={id}
+                                                    onPointerDown={(e) => onTileDown(e, id, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
+                                                    style={{ touchAction: 'none', opacity: dragId === id ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
+                                                    className={`rounded-lg ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                                    <RamiTile tile={tile} board />
+                                                </div>
+                                            )}
                                         </div>
                                     );
-                                };
-                                if (seg.meld) return (
-                                    <div key={si} className="flex flex-col items-stretch rounded-xl bg-emerald-500/12 border border-emerald-500/40 p-1">
-                                        <span className="text-[9px] font-black text-emerald-300 mb-0.5 text-center leading-none">{seg.label} · {seg.tiles.length}</span>
-                                        <div className="flex flex-wrap items-center gap-0.5 justify-center" style={{ touchAction: 'none' }}>{seg.tiles.map(renderTile)}</div>
-                                    </div>
-                                );
-                                return <div key={si} className="flex flex-wrap items-center gap-0.5 self-center">{seg.tiles.map(renderTile)}</div>;
-                            })}
-                            {/* אזור חופשי — גרור לכאן כדי להוציא אבן מקבוצה */}
-                            <div data-park className={`flex items-center justify-center rounded-xl border-2 border-dashed px-4 text-[10px] font-bold transition-colors self-center ${dropBefore === '__end__' ? 'border-amber-300 bg-amber-300/15 text-amber-200' : 'border-white/10 text-slate-600'}`} style={{ minHeight: '3.8rem' }}>אזור<br />חופשי</div>
+                                })}
+                            </div>
                         </div>
                     </div>
 
