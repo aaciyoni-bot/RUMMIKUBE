@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v49';
+        const APP_VER = 'v50';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -15323,11 +15323,12 @@
             componentDidCatch(err, info) { try { console.error('App crash', err, info); } catch (e) {} }
             render() {
                 if (this.state.err) return (
-                    <div dir="rtl" style={{ position: 'fixed', inset: 0, background: '#04060d', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
+                    <div dir="rtl" style={{ position: 'fixed', inset: 0, background: '#04060d', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.9rem', padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', overflow: 'auto' }}>
                         <div style={{ fontSize: '2.5rem' }}>😕</div>
                         <div style={{ fontWeight: 900, fontSize: '1.15rem' }}>משהו נתקע לרגע</div>
-                        <div style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '20rem' }}>נסה לרענן את הדף. אם זה חוזר — כתוב לנו.</div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '20rem' }}>נסה לרענן. אם זה חוזר — צלם את הטקסט למטה ושלח לי.</div>
                         <button onClick={() => window.location.reload()} style={{ background: '#10b981', color: '#fff', fontWeight: 900, padding: '0.75rem 2rem', borderRadius: '1rem', border: 'none', fontSize: '1rem' }}>רענן</button>
+                        <pre dir="ltr" style={{ color: '#f87171', background: '#0b1120', border: '1px solid #1e293b', borderRadius: '0.75rem', padding: '0.75rem', fontSize: '0.7rem', maxWidth: '90vw', maxHeight: '40vh', overflow: 'auto', whiteSpace: 'pre-wrap', textAlign: 'left', direction: 'ltr' }}>{String((this.state.err && (this.state.err.stack || this.state.err.message)) || this.state.err).slice(0, 1200)}</pre>
                     </div>
                 );
                 return this.props.children;
