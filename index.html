@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v72';
+        const APP_VER = 'v73';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7618,12 +7618,16 @@
                 if (prev !== null && handIds.length === prev.length + 1) {
                     const added = handIds.filter(id => !prev.includes(id));
                     if (added.length === 1) {
-                        setFlashId(added[0]); const tm = setTimeout(() => setFlashId(null), 1600); cleanup = () => clearTimeout(tm);
-                        // קיבלת ג'וקר! חגיגה קטנה — צליל, רטט וברכה
+                        setFlashId(added[0]); const tm = setTimeout(() => setFlashId(null), 2200); cleanup = () => clearTimeout(tm);
+                        // גלילה למגש כדי שרואים את האבן החדשה (במסך קטן המגש נמצא למטה)
+                        try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
+                        setTimeout(() => { try { if (gridRef.current) gridRef.current.scrollTo({ top: gridRef.current.scrollHeight, behavior: 'smooth' }); } catch (_) {} }, 60);
                         if (tileById[added[0]] && tileById[added[0]].val === '☻') {
                             try { playSnd('win'); } catch (_) {}
                             try { if (navigator.vibrate) navigator.vibrate([60, 40, 120]); } catch (_) {}
                             try { showToast('🃏 קיבלת ג\'וקר!', 'success'); } catch (_) {}
+                        } else {
+                            try { showToast('🀄 משכת אבן — עכשיו זרוק אבן', 'info'); } catch (_) {}
                         }
                     }
                 }
