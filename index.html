@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v86';
+        const APP_VER = 'v87';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7682,10 +7682,28 @@
 
             // ── שני אזורים כמו ברמיקוב: "לוח" עליון לבניית קומבינציות (מודגש בירוק),
             //    ו"מגש" תחתון אישי לסידור חופשי של האבנים בגרירה. גוררים אבן בין/בתוך האזורים.
-            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפי המעמד העליונים — כל היד יושבת כאן
-            const RACK_COLS = 7, RACK_ROWS = 2, RACK_N = RACK_COLS * RACK_ROWS;      // מדפים תחתונים — מקום נוסף לסידור
+            // הרמי משוחק לרוחב (כמו רמיקוב אמיתי): לרוחב — מעמד רחב ונמוך; לאורך — מעמד צר וגבוה.
+            const [needRotate, setNeedRotate] = useState(false);
+            const [wide, setWide] = useState(() => (typeof window !== 'undefined' && window.innerWidth > window.innerHeight && window.innerWidth >= 640));
+            useEffect(() => {
+                let locked = false;
+                try { const so = window.screen && window.screen.orientation; if (so && so.lock) so.lock('landscape').then(() => { locked = true; }).catch(() => {}); } catch (e) {}
+                const check = () => {
+                    const portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+                    setNeedRotate(!!portrait && Math.min(window.innerWidth, window.innerHeight) < 820);
+                    setWide(window.innerWidth > window.innerHeight && window.innerWidth >= 640);
+                };
+                check();
+                window.addEventListener('resize', check); window.addEventListener('orientationchange', check);
+                return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {} };
+            }, []);
+            const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = wide ? 2 : 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפי המעמד העליונים — כל היד יושבת כאן
+            const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 1 : 2, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — מקום נוסף לסידור
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
+            // בסיבוב מסך — מאתחלים את המדפים כך שהיד תיפרס נקי למידות החדשות
+            const wideRef = useRef(wide);
+            useEffect(() => { if (wideRef.current !== wide) { wideRef.current = wide; setBoardSlots(Array(BOARD_N).fill(null)); setRackSlots(Array(RACK_N).fill(null)); } }, [wide]);
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
             const [dropSlot, setDropSlot] = useState(null); // {zone,idx} התא שמתחת לאצבע
@@ -8429,6 +8447,14 @@
             const turnName = t.players[t.currentTurn]?.username || '';
             return (
                 <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
+                    {needRotate && (
+                        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
+                            <div className="text-6xl" style={{ animation: 'rotateHint 2s ease-in-out infinite' }}>📱</div>
+                            <div className="text-emerald-300 text-2xl font-black">סובב את המכשיר לרוחב</div>
+                            <p className="text-slate-400 text-sm font-bold max-w-xs leading-relaxed">רמי משוחק לרוחב — כך תקבל מעמד עץ רחב עם כל האבנים פרוסות, בדיוק כמו רמיקוב אמיתי.</p>
+                            <button onClick={(e) => { e.stopPropagation(); setNeedRotate(false); }} className="mt-2 text-slate-500 hover:text-white underline text-xs font-bold">המשך בפורטרייט בכל זאת</button>
+                        </div>
+                    )}
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -8463,32 +8489,20 @@
                         })}
                     </div>
 
-                    {/* קופה + זריקה — רצועה קומפקטית */}
-                    <div className="shrink-0 flex items-center justify-center gap-6 pt-1 pb-0.5">
-                        <div className="text-center">
-                            <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} className={`w-12 h-16 rounded-xl bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex items-center justify-center shadow-lg disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-xl"></i></button>
-                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">קופה · {(t.deck || []).length}</div>
-                        </div>
-                        <div className="text-center">
-                            {topDiscard
-                                ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} className={myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-xl' : ''} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} /></div>
-                                : <div className="w-12 h-16 rounded-xl border-2 border-dashed border-white/10"></div>}
-                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">זריקה</div>
-                        </div>
-                    </div>
-                    {/* היסטוריית זריקות גלויה — כדי לדעת מה כבר נזרק (מידע מקצועי, כמו ברמי אמיתי) */}
-                    {isSeated && (t.discard || []).length > 0 && (
-                        <div className="shrink-0 px-2 pb-0.5">
-                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none', direction: 'ltr' }} dir="ltr">
-                                <span className="text-[9px] text-slate-500 font-black shrink-0 sticky left-0 bg-slate-950/70 rounded px-1" style={{ writingMode: 'horizontal-tb' }}>🗑</span>
-                                {(t.discard || []).slice(-16).map((tile, i, a) => (
-                                    <div key={tile.id} className="shrink-0" style={{ opacity: 0.4 + 0.6 * (i / Math.max(1, a.length - 1)) }} title={i === a.length - 1 ? 'הזריקה האחרונה' : ''}>
-                                        <RamiTile tile={tile} board />
-                                    </div>
-                                ))}
+                    {/* קופה + זריקה + היסטוריית-זריקות — הכל בשורה אחת קומפקטית (חוסך גובה, חשוב במיוחד לרוחב) */}
+                    <div className="shrink-0 flex items-center gap-2 px-2 pt-1 pb-0.5 overflow-x-auto" style={{ scrollbarWidth: 'none', direction: 'ltr' }} dir="ltr">
+                        <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} title="משוך מהקופה" className={`shrink-0 h-12 px-2 rounded-lg bg-gradient-to-b from-indigo-600 to-indigo-900 border-2 text-white flex flex-col items-center justify-center leading-none shadow disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse' : 'border-indigo-500/40'}`}><i className="fa-solid fa-layer-group text-lg"></i><span className="text-[9px] font-bold mt-0.5">{(t.deck || []).length}</span></button>
+                        {topDiscard
+                            ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} title="משוך מהזריקה" className={`shrink-0 ${myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-lg' : ''}`} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} board /></div>
+                            : <div className="shrink-0 w-9 h-12 rounded-lg border-2 border-dashed border-white/10"></div>}
+                        {(t.discard || []).length > 1 && <div className="shrink-0 w-px h-10 bg-white/10 mx-0.5"></div>}
+                        <span className="shrink-0 text-[10px] text-slate-500 font-black">🗑</span>
+                        {(t.discard || []).slice(0, -1).slice(-16).map((tile, i, a) => (
+                            <div key={tile.id} className="shrink-0" style={{ opacity: 0.35 + 0.55 * (i / Math.max(1, a.length - 1)) }}>
+                                <RamiTile tile={tile} board />
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                     {myTurn
                         ? <div className="shrink-0 mx-2 mt-0.5 rounded-xl py-1 text-center font-black text-xs bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 shadow-lg animate-pulse">
                             {t.turnPhase === 'draw' && <span>▶ תורך! משוך אבן מהקופה או מהזריקה</span>}
@@ -8511,13 +8525,13 @@
                             </div>
                             {/* מדפי המעמד — כל היד על אותו עץ; קומבינציות חוקיות מודגשות בירוק במקומן */}
                             <div className="px-2 pb-1 relative z-10">
-                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: '32rem', direction: 'ltr', rowGap: '0.55rem' }}>
+                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
                                     {boardSlots.map((id, idx) => renderCell('board', id, idx, !!(id && cellValid[idx])))}
                                 </div>
                             </div>
                             <div className="mx-3 my-1 relative z-10" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, rgba(90,60,25,0.5), transparent)' }}></div>
                             <div className="px-2 pb-2 relative z-10">
-                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '32rem', direction: 'ltr', rowGap: '0.55rem' }}>
+                                <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
                                     {rackSlots.map((id, idx) => renderCell('rack', id, idx, !!(id && rackValid[idx])))}
                                 </div>
                             </div>
