@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v87';
+        const APP_VER = 'v88';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2871,7 +2871,7 @@
 
             if (!fbReady) return <div className="h-full w-full flex items-center justify-center text-emerald-500"><i className="fa-solid fa-circle-notch fa-spin text-4xl"></i></div>;
 
-            const inTable = ['rummy-table', 'poker-table', 'durak-table', 'shesh-table', 'president-table', 'yaniv-table'].includes(currentView);
+            const inTable = ['rummy-table', 'rami-table', 'poker-table', 'durak-table', 'shesh-table', 'president-table', 'yaniv-table', 'bridge-table', 'gin-table', 'twist-table', 'ofc-table'].includes(currentView);
 
             return (
                 <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -3002,7 +3002,7 @@
                 return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); };
             }, []);
             useEffect(() => { setDismissed(false); }, [view]);
-            const wantsLandscape = view === 'rummy-table';
+            const wantsLandscape = view === 'rummy-table' || view === 'rami-table';
             useEffect(() => {
                 // רמיקוב נועל לרוחב בעצמו; בכל שאר המסכים נועלים לאורך (עובד ב-PWA)
                 if (wantsLandscape) return;
