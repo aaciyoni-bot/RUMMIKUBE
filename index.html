@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v47';
+        const APP_VER = 'v48';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2510,6 +2510,14 @@
                     }
                 });
                 return () => { unsubT(); unsubTours(); unsubU(); };
+            }, [fbReady, dbUser?.uid]);
+
+            // הקמת בעל-האתר אוטומטית: בכניסה ראשונה מקבל בעלות + 10,000,000 (דרך Cloud Function)
+            const ownerSetupRef = useRef(false);
+            useEffect(() => {
+                if (!fbReady || !dbUser || !isSiteOwner(dbUser) || ownerSetupRef.current) return;
+                ownerSetupRef.current = true;
+                (async () => { try { await window.fb.httpsCallable(window.fb.functions, 'siteOwnerSetup')({}); } catch (e) {} })();
             }, [fbReady, dbUser?.uid]);
 
             // מתזמן הטורנירים - רץ אצל הסופר-אדמין: זינוק בזמן, קידום סבבים, סיום ופרסים

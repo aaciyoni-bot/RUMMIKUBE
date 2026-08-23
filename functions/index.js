@@ -609,6 +609,34 @@ exports.ramiSit = onCall(async (request) => {
   return {ok: true, becameFull};
 });
 
+// ── הקמת בעל-האתר אוטומטית: בכניסה ראשונה מקבל בעלות על הקבוצה + 10,000,000 ──
+const SITE_OWNER_EMAILS_SRV = ["liorabrgel1991@gmail.com"];
+exports.siteOwnerSetup = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  if (!SITE_OWNER_EMAILS_SRV.includes(email)) throw new HttpsError("permission-denied", "לא בעל האתר");
+  await db.runTransaction(async (tx) => {
+    const cRef = db.doc("clubs/main");
+    const mRef = db.doc(`memberships/${uid}_main`);
+    const uRef = db.doc(`users/${uid}`);
+    const cSnap = await tx.get(cRef);
+    const mSnap = await tx.get(mRef);
+    const uSnap = await tx.get(uRef);
+    const uname = (uSnap.exists && uSnap.data().username) ? uSnap.data().username : "בעל האתר";
+    tx.set(cRef, {name: "RUMMIKUBE", ownerUid: uid, ownerName: uname, rakePct: (cSnap.exists && cSnap.data().rakePct != null) ? cSnap.data().rakePct : DEFAULT_RAKE_PCT, ownerSeeded: true}, {merge: true});
+    if (!mSnap.exists) {
+      tx.set(mRef, {uid, clubId: "main", username: uname, email, role: "club_owner", status: "approved", balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: {gamesPlayed: 0, gamesWon: 0, totalProfit: 0}, joinedAt: Date.now()});
+    } else {
+      const d = mSnap.data();
+      const upd = {role: "club_owner", status: "approved"};
+      if (!(Number(d.balance) > 0)) upd.balance = 10000000; // מזרים 10M רק אם היתרה ריקה
+      tx.update(mRef, upd);
+    }
+  });
+  return {ok: true};
+});
+
 // ── הוספת בוט ידנית (בעל האתר / GOD בלבד) — כתיבת bank מותרת רק לשרת ──
 const BOT_ADMIN_EMAILS = ["liorabrgel1991@gmail.com", "aaci.yoni@gmail.com"];
 exports.ramiAddBot = onCall(async (request) => {
