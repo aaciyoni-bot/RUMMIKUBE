@@ -1062,7 +1062,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v78';
+        const APP_VER = 'v79';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7638,9 +7638,13 @@
             const [dragId, setDragId] = useState(null);
             const [dropSlot, setDropSlot] = useState(null); // {zone,idx} התא שמתחת לאצבע
             const [turnAlert, setTurnAlert] = useState(false);
+            const [groupDrag, setGroupDrag] = useState(null); // מערך ids של סדרה שנגררת יחד
             const dragIdRef = useRef(null);
             const dragMovedRef = useRef(false);
             const dropSlotRef = useRef(null);
+            const lpTimerRef = useRef(null);   // טיימר לחיצה-ארוכה
+            const groupIdsRef = useRef(null);  // ids של הסדרה בגרירה קבוצתית
+            const groupZoneRef = useRef(null); // האזור שממנו נלקחה הסדרה
             const dragFromRef = useRef(null); // התא ממנו התחילה הגרירה
             const dragStartRef = useRef(null);
             const ghostRef = useRef(null);
@@ -7765,31 +7769,68 @@
             };
             const sameCell = (a, b) => a && b && a.zone === b.zone && a.idx === b.idx;
             const setZone = (zone, updater) => (zone === 'board' ? setBoardSlots(updater) : setRackSlots(updater));
+            // הבלוק הרצוף (סדרה/קבוצה פוטנציאלית) שמכיל את התא — בשורה שלו, מקצה לקצה
+            const contiguousGroup = (zone, idx) => {
+                const arr = zone === 'board' ? boardSlots : rackSlots;
+                const cols = zone === 'board' ? BOARD_COLS : RACK_COLS;
+                const row = Math.floor(idx / cols), base = row * cols, col = idx % cols;
+                if (!arr[idx]) return [];
+                let s = col; while (s > 0 && arr[base + s - 1]) s--;
+                let e = col; while (e < cols - 1 && arr[base + e + 1]) e++;
+                const ids = []; for (let c = s; c <= e; c++) if (arr[base + c]) ids.push(arr[base + c]);
+                return ids;
+            };
+            // הנחת סדרה שלמה החל מתא-היעד: מוציאים את האבנים ומניחים ברצף פנוי הכי קרוב ליעד
+            const dropGroup = (ids, groupZone, targetZone, targetIdx) => {
+                const place = (arr) => {
+                    const cleaned = arr.map(x => (ids.includes(x) ? null : x));
+                    const N = cleaned.length, k = ids.length;
+                    const findRun = (start) => { for (let i = Math.max(0, start); i <= N - k; i++) { let ok = true; for (let j = 0; j < k; j++) if (cleaned[i + j] != null) { ok = false; break; } if (ok) return i; } return -1; };
+                    let pos = findRun(targetIdx); if (pos < 0) pos = findRun(0);
+                    if (pos >= 0) ids.forEach((id, j) => { cleaned[pos + j] = id; });
+                    else { let j = 0; for (let i = 0; i < N && j < k; i++) if (cleaned[i] == null) cleaned[i] = ids[j++]; }
+                    return cleaned;
+                };
+                if (groupZone === targetZone) { setZone(targetZone, prev => place(prev)); }
+                else { setZone(groupZone, prev => prev.map(x => (ids.includes(x) ? null : x))); setZone(targetZone, prev => place(prev)); }
+            };
             const onTileDown = (e, id, zone, slotIdx) => {
                 dragIdRef.current = id; dragFromRef.current = { zone, idx: slotIdx }; dragMovedRef.current = false; dropSlotRef.current = null;
                 dragStartRef.current = { x: e.clientX, y: e.clientY };
+                groupIdsRef.current = null; groupZoneRef.current = null; setGroupDrag(null);
                 setDragId(id); setDropSlot(null);
                 try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+                // לחיצה-ארוכה → גרירת הסדרה השלמה
+                try { clearTimeout(lpTimerRef.current); } catch (_) {}
+                lpTimerRef.current = setTimeout(() => {
+                    if (dragMovedRef.current || !dragIdRef.current) return;
+                    // גרירת-סדרה בלחיצה ארוכה — רק בלוח העליון (שם בונים קומבינציות)
+                    if (zone !== 'board') return;
+                    const grp = contiguousGroup(zone, slotIdx);
+                    if (grp.length >= 2) { groupIdsRef.current = grp; groupZoneRef.current = zone; setGroupDrag(grp); try { if (navigator.vibrate) navigator.vibrate(35); } catch (_) {} }
+                }, 300);
             };
             const onTileMove = (e) => {
                 if (!dragIdRef.current) return;
                 const x = e.clientX, y = e.clientY;
-                if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; }
+                if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; if (!groupIdsRef.current) { try { clearTimeout(lpTimerRef.current); } catch (_) {} } }
                 if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - 10) + 'px'; }
                 const a = slotUnder(x, y);
                 if (!sameCell(a, dropSlotRef.current)) { dropSlotRef.current = a; setDropSlot(a); }
             };
             const onTileUp = () => {
+                try { clearTimeout(lpTimerRef.current); } catch (_) {}
                 const did = dragIdRef.current, moved = dragMovedRef.current, from = dragFromRef.current, to = dropSlotRef.current;
+                const grp = groupIdsRef.current, grpZone = groupZoneRef.current;
                 dragIdRef.current = null; dragMovedRef.current = false; dropSlotRef.current = null; dragStartRef.current = null; dragFromRef.current = null;
-                setDragId(null); setDropSlot(null);
+                groupIdsRef.current = null; groupZoneRef.current = null;
+                setDragId(null); setDropSlot(null); setGroupDrag(null);
                 if (!did) return;
+                if (grp && grp.length >= 2) { if (moved && to) dropGroup(grp, grpZone, to.zone, to.idx); return; }
                 if (moved && to && !sameCell(to, from)) {
                     if (to.zone === from.zone) {
-                        // תוך אותו אזור: הנחה/החלפה
                         setZone(to.zone, prev => { const arr = [...prev]; const occ = arr[to.idx]; arr[to.idx] = did; arr[from.idx] = (occ && occ !== did) ? occ : null; return arr; });
                     } else {
-                        // בין אזורים: מוציאים מהמקור, מניחים ביעד; אם היעד תפוס — האבן שם עוברת למקור
                         const toArr = to.zone === 'board' ? boardSlots : rackSlots;
                         const occ = toArr[to.idx] || null;
                         setZone(to.zone, prev => { const arr = [...prev]; arr[to.idx] = did; return arr; });
@@ -7808,8 +7849,8 @@
                         {tile && (
                             <div data-tid={id}
                                 onPointerDown={(e) => onTileDown(e, id, zone, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
-                                style={{ touchAction: 'none', opacity: dragId === id ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
-                                className={`rounded-lg ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                style={{ touchAction: 'none', opacity: (dragId === id || (groupDrag && groupDrag.includes(id))) ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
+                                className={`rounded-lg ${groupDrag && groupDrag.includes(id) ? 'ring-2 ring-amber-300' : ''} ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
                                 <RamiTile tile={tile} board />
                             </div>
                         )}
@@ -8445,7 +8486,7 @@
                     {/* אבן-רפאים שעוקבת אחרי האצבע בזמן גרירה */}
                     {dragId && tileById[dragId] && ReactDOM.createPortal(
                         <div ref={ghostRef} style={{ position: 'fixed', left: (dragStartRef.current ? dragStartRef.current.x : 0) + 'px', top: (dragStartRef.current ? dragStartRef.current.y - 10 : 0) + 'px', transform: 'translate(-50%,-50%) scale(1.18) rotate(-3deg)', zIndex: 400, pointerEvents: 'none', filter: 'drop-shadow(0 12px 20px rgba(0,0,0,0.65))' }}>
-                            <RamiTile tile={tileById[dragId]} />
+                            <div className="relative"><RamiTile tile={tileById[dragId]} />{groupDrag && groupDrag.length > 1 && <span className="absolute -top-2 -right-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center border-2 border-slate-900">×{groupDrag.length}</span>}</div>
                         </div>
                     , document.body)}
 
