@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v83';
+        const APP_VER = 'v84';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7894,13 +7894,20 @@
             const renderCell = (zone, id, idx, valid) => {
                 const tile = id ? tileById[id] : null;
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
-                // משבצת ריקה: על הפלט העליון — תא כהה-שקוף עם קו-מתאר כחלחל; על מגש-העץ התחתון — שקע עץ
-                const emptyStyle = zone === 'rack'
-                    ? { background: 'rgba(70,46,20,0.55)', boxShadow: 'inset 0 3px 7px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,240,210,0.18)' }
-                    : { background: 'rgba(2,8,20,0.30)', boxShadow: 'inset 0 0 0 1px rgba(148,190,255,0.14), inset 0 2px 5px rgba(0,0,0,0.35)' };
+                // מגש-העץ התחתון = מדף עץ בוק אמיתי: לכל תא קנט-עץ בתחתית שעליו "נשענות"
+                // האבנים (כמו במעמד רמיקוב), ותא ריק הוא שקע עץ עדין — לא קופסה כהה.
+                const isRack = zone === 'rack';
+                const rackLedge = 'inset 0 -0.34em 0 -0.22em rgba(140,101,56,0.55), inset 0 0.5em 0.5em -0.4em rgba(120,82,38,0.30)';
+                const cellStyle = isRack
+                    ? (tile
+                        ? { boxShadow: rackLedge }
+                        : { background: 'linear-gradient(180deg, rgba(255,247,228,0.12) 0%, rgba(120,82,38,0.10) 60%, rgba(90,60,25,0.16) 100%)', boxShadow: rackLedge })
+                    : (tile
+                        ? {}
+                        : { background: 'rgba(2,8,20,0.30)', boxShadow: 'inset 0 0 0 1px rgba(148,190,255,0.14), inset 0 2px 5px rgba(0,0,0,0.35)' });
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.05rem', ...(tile ? {} : emptyStyle) }}
+                        style={{ touchAction: 'none', minHeight: '3.05rem', ...cellStyle }}
                         className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'ring-2 ring-emerald-400/80' : '') : ''} ${isDrop ? 'ring-2 ring-amber-300' : ''}`}>
                         {tile && (
                             <div data-tid={id}
@@ -8510,7 +8517,7 @@
                                 <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המגש שלי ({myHand.filter(Boolean).length})</span>
                                 <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>גרור מכאן אל הלוח למעלה</span>
                             </div>
-                            <div className="grid gap-1 mx-auto relative z-10" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr' }}>
+                            <div className="grid gap-0.5 mx-auto relative z-10" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '30rem', direction: 'ltr', rowGap: '0.55rem' }}>
                                 {rackSlots.map((id, idx) => renderCell('rack', id, idx, false))}
                             </div>
                         </div>
