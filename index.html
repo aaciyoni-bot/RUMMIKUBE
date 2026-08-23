@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v71';
+        const APP_VER = 'v72';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2757,14 +2757,15 @@
                 try { window.__appIsReady = true; if (typeof window.__orizisReady === 'function') window.__orizisReady(); } catch (e) {}
             }, [fbReady]);
 
-            // מתזמן הטורנירים - רץ אצל הסופר-אדמין: זינוק בזמן, קידום סבבים, סיום ופרסים
+            // מתזמן הטורנירים - רץ אצל הסופר-אדמין / GOD / בעל-האתר: זינוק, קידום סבבים, סיום ופרסים
             useEffect(() => {
-                if (!fbReady || !dbUser || dbUser.role !== ROLES.SUPER_ADMIN) return;
+                const driver = dbUser && (dbUser.role === ROLES.SUPER_ADMIN || isGodUser(dbUser) || isSiteOwner(dbUser));
+                if (!fbReady || !driver) return;
                 const iv = setInterval(() => {
                     tourOrchestrate(toursRef.current, tablesRef2.current, clubSettings?.rakePct ?? DEFAULT_RAKE_PCT);
                 }, 8000);
                 return () => clearInterval(iv);
-            }, [fbReady, dbUser?.role, clubSettings?.rakePct]);
+            }, [fbReady, dbUser?.role, dbUser?.uid, clubSettings?.rakePct]);
 
             // שער: בלי קלאב פעיל - מסך הקלאבים. ממתינים שהחברות תיטען לפני שקובעים "בהמתנה"!
             useEffect(() => {
@@ -4664,7 +4665,7 @@
                         {tab === 'tours' && (
                             <div className="animate-fade-in">
                                 <TournamentsTab game="all" user={user} tournaments={tournaments} tables={tables} clubSettings={clubSettings} showToast={showToast}
-                                    onJoinTable={(t) => { if (t.type === 'poker') onJoinPoker(t); else if (t.type === 'durak') onJoinDurak(t); else if (t.type === 'shesh') onJoinShesh(t); else if (t.type === 'president') onJoinPres(t); else if (t.type === 'yaniv') onJoinYaniv(t); else onJoinRummy(t); }} />
+                                    onJoinTable={(t) => { if (t.type === 'poker') onJoinPoker(t); else if (t.type === 'rami') onJoinRami(t); else if (t.type === 'durak') onJoinDurak(t); else if (t.type === 'shesh') onJoinShesh(t); else if (t.type === 'president') onJoinPres(t); else if (t.type === 'yaniv') onJoinYaniv(t); else onJoinRummy(t); }} />
                             </div>
                         )}
 
@@ -7832,10 +7833,53 @@
                 };
             });
 
+            // ── טורניר-חיים: סיום יד. המנצח ירד; מבין החיים-האחרים, מי שהכי רחוק מירידה
+            //    (הכי הרבה נקודות שאריות) מאבד חיים אחד; ב-0 חיים — הודח. ללא כסף. ──
+            const ramiTourResolve = (cur, winnerUid) => {
+                const players = cur.players || {};
+                const alive = Object.keys(players).filter(u => !players[u].out && (Number(players[u].lives) || 0) > 0);
+                const losers = alive.filter(u => u !== winnerUid);
+                let worstUid = null, worstPts = -1;
+                losers.forEach(u => { const hand = ((players[u] || {}).cards || []).filter(Boolean); const pts = bestPartition(hand).leftoverPoints; if (pts > worstPts) { worstPts = pts; worstUid = u; } });
+                const upd = { phase: 'showdown', winner: winnerUid, currentTurn: null, turnPhase: null };
+                let eliminatedUid = null;
+                const winnerName = (players[winnerUid] || {}).username || '';
+                let loserName = '', livesLeft = null;
+                if (worstUid) {
+                    const newLives = Math.max(0, (Number(players[worstUid].lives) || 0) - 1);
+                    upd[`players.${worstUid}.lives`] = newLives;
+                    loserName = (players[worstUid] || {}).username || ''; livesLeft = newLives;
+                    if (newLives <= 0) { upd[`players.${worstUid}.out`] = true; eliminatedUid = worstUid; upd.elimOrder = [...(cur.elimOrder || []), worstUid]; }
+                }
+                upd.lastResults = { tournament: true, winnerName, loserName, loserPts: worstPts, livesLeft, eliminated: !!eliminatedUid };
+                return { upd, eliminatedUid };
+            };
+
             const doGoOut = async () => {
                 const go = findGoOut(myHand); if (!go || actingRef.current) return;
                 actingRef.current = true;
                 try {
+                    if (t.tournamentId) {
+                        // מצב טורניר: בלי כסף — ניכוי חיים והדחה
+                        let elim = null;
+                        await window.fb.runTransaction(window.fb.db, async (tx) => {
+                            const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                            const snap = await tx.get(ref); if (!snap.exists()) return;
+                            const cur = snap.data();
+                            if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return;
+                            const hand = ((cur.players[user.uid] || {}).cards || []).filter(Boolean);
+                            const idx = hand.findIndex(x => x.id === go.discard.id);
+                            const final = idx >= 0 ? hand.slice(0, idx).concat(hand.slice(idx + 1)) : hand;
+                            const cur2 = { ...cur, players: { ...cur.players, [user.uid]: { ...cur.players[user.uid], cards: final } } };
+                            const { upd, eliminatedUid } = ramiTourResolve(cur2, user.uid);
+                            upd[`players.${user.uid}.cards`] = final;
+                            upd.discard = [...(cur.discard || []), go.discard];
+                            elim = eliminatedUid;
+                            tx.update(ref, upd);
+                        });
+                        if (elim) { try { await tourReportBust(t.tournamentId, [elim], [], 0, false); } catch (e) {} }
+                        return;
+                    }
                     await window.fb.runTransaction(window.fb.db, async (tx) => {
                         const ref = window.fb.doc(window.fb.db, "tables", t.id);
                         const snap = await tx.get(ref); if (!snap.exists()) return;
@@ -7850,6 +7894,37 @@
                 } catch (e) { showToast(fnErr(e), "error"); }
                 finally { actingRef.current = false; }
             };
+
+            // טורניר: קידום היד הבאה — יד חדשה לחיים שנותרו, או סימון מנצח-שולחן אם נשאר אחד.
+            // מריץ המנהיג בשולחן (isBotDriver) אחרי הצגת התוצאה.
+            const tourNextRef = useRef(null);
+            useEffect(() => {
+                if (!t || !t.tournamentId || t.phase !== 'showdown') return;
+                if (t.tournament && t.tournament.finished) return;
+                if (!isBotDriver) return;
+                const aliveNow = Object.keys(t.players || {}).filter(u => !t.players[u].out && (Number(t.players[u].lives) || 0) > 0);
+                const key = `${t.winner}|${aliveNow.slice().sort().join(',')}`;
+                if (tourNextRef.current === key) return;
+                const tm = setTimeout(async () => {
+                    tourNextRef.current = key;
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (tx) => {
+                            const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                            const snap = await tx.get(ref); if (!snap.exists()) return;
+                            const cur = snap.data();
+                            if (cur.phase !== 'showdown' || (cur.tournament && cur.tournament.finished)) return;
+                            const players = cur.players || {};
+                            const alive = Object.keys(players).filter(u => !players[u].out && (Number(players[u].lives) || 0) > 0);
+                            if (alive.length <= 1) { tx.update(ref, { 'tournament.finished': true, 'tournament.tableWinner': alive[0] || null, phase: 'showdown' }); return; }
+                            const pm = {};
+                            alive.forEach(u => { const p = players[u] || {}; pm[u] = { username: p.username || '', photo: p.photo || '', avatarSeed: p.avatarSeed || '', isBot: !!p.isBot, lives: Number(p.lives) || 0, out: false }; });
+                            const dealt = ramiDealC(pm, {}, 1, 0, 0);
+                            tx.update(ref, { ...dealt, elimOrder: cur.elimOrder || [] });
+                        });
+                    } catch (e) {}
+                }, 4500);
+                return () => clearTimeout(tm);
+            }, [t && t.tournamentId, t && t.phase, t && t.winner, isBotDriver]);
 
             // פריש: הצעה שדורשת הסכמת כל השחקנים. כשכולם מאשרים → מחלקים מחדש
             // והמשחק נהיה כפול ×2 (עד תקרה). כל אחד יכול לסרב ואז ההצעה מבוטלת.
@@ -7874,6 +7949,31 @@
 
             const newRound = async () => { try { await window.fb.httpsCallable(window.fb.functions, 'ramiNewRound')({ tableId: t.id }); } catch (e) { showToast(fnErr(e), "error"); } };
             const leaveTable = async () => {
+                if (t && t.tournamentId) {
+                    if (t.players && t.players[user.uid] && !(t.players[user.uid].out) && t.phase !== 'showdown') {
+                        if (!window.confirm('פרישה מהטורניר נחשבת הדחה. לצאת בכל זאת?')) return;
+                    }
+                    if (t.players && t.players[user.uid]) {
+                        let elim = null;
+                        try {
+                            await window.fb.runTransaction(window.fb.db, async (tx) => {
+                                const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                                const snap = await tx.get(ref); if (!snap.exists()) return;
+                                const cur = snap.data(); const players = cur.players || {};
+                                if (!players[user.uid]) return;
+                                const wasAlive = !players[user.uid].out && (Number(players[user.uid].lives) || 0) > 0;
+                                const upd = { [`players.${user.uid}.out`]: true, [`players.${user.uid}.lives`]: 0 };
+                                if (wasAlive) { upd.elimOrder = [...(cur.elimOrder || []), user.uid]; elim = user.uid; }
+                                const remain = Object.keys(players).filter(u => u !== user.uid && !players[u].out && (Number(players[u].lives) || 0) > 0);
+                                if (remain.length <= 1) { upd.phase = 'showdown'; upd['tournament.finished'] = true; upd['tournament.tableWinner'] = remain[0] || null; upd.currentTurn = null; }
+                                else if (cur.phase === 'playing' && cur.currentTurn === user.uid) { const s = remain.slice().sort(); upd.currentTurn = s[0]; upd.turnPhase = 'draw'; upd.drawnThisTurn = false; upd.turnStartedAt = Date.now(); }
+                                tx.update(ref, upd);
+                            });
+                            if (elim) { try { await tourReportBust(t.tournamentId, [elim], [], 0, false); } catch (e) {} }
+                        } catch (e) {}
+                    }
+                    onLeave(); return;
+                }
                 if (t && t.phase === 'playing' && t.players && t.players[user.uid]) {
                     if (!window.confirm('אתה באמצע יד — יציאה עכשיו נחשבת כניעה והפסד הכניסה. לצאת בכל זאת?')) return;
                 }
@@ -7972,13 +8072,23 @@
                                 const di = newHand.findIndex(x => x.id === (ev.drop || newHand[0]).id);
                                 const finalHand = newHand.slice(0, di).concat(newHand.slice(di + 1));
                                 const dropTile = newHand[di];
-                                if (ev.complete) { tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile] }); return { win: cu }; }
+                                if (ev.complete) {
+                                    if (cur.tournamentId) {
+                                        const cur2 = { ...cur, players: { ...cur.players, [cu]: { ...cur.players[cu], cards: finalHand } } };
+                                        const { upd, eliminatedUid } = ramiTourResolve(cur2, cu);
+                                        upd[`players.${cu}.cards`] = finalHand; upd.deck = deck; upd.discard = [...discard, dropTile];
+                                        tx.update(ref, upd);
+                                        return { tourWin: cu, elim: eliminatedUid };
+                                    }
+                                    tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile] }); return { win: cu };
+                                }
                                 const u = Object.keys(cur.players).sort();
                                 const next = u[(u.indexOf(cu) + 1) % u.length];
                                 tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() });
                                 return null;
                             });
                             if (res && res.win) await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: res.win });
+                            if (res && res.tourWin && res.elim) { try { await tourReportBust(t.tournamentId, [res.elim], [], 0, false); } catch (e) {} }
                         } catch (e) {}
                     }, think);
                     return () => clearTimeout(tm);
@@ -8030,6 +8140,43 @@
                                 {(isBotAdder(user) || isGodUser(user)) && uids.length < (Number(t.maxPlayers) || 4) && (
                                     <button onClick={handleAddBot} className="w-full mt-2 bg-purple-600/80 hover:bg-purple-500 text-white py-2.5 rounded-2xl font-black border border-purple-400/30">➕ הוסף בוט</button>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ── מסך תוצאות: טורניר (חיים, בלי כסף) ──
+            if (t.phase === 'showdown' && t.tournamentId) {
+                const lr = t.lastResults || {};
+                const finished = !!(t.tournament && t.tournament.finished);
+                const tw = finished ? (t.players[t.tournament.tableWinner] || {}) : null;
+                const meOut = !!(t.players[user.uid] && (t.players[user.uid].out || (Number(t.players[user.uid].lives) || 0) <= 0));
+                const livesList = Object.entries(t.players || {}).map(([u, p]) => ({ u, name: p.username || '', lives: Number(p.lives) || 0, out: !!p.out || (Number(p.lives) || 0) <= 0 })).sort((a, b) => (a.out ? 1 : 0) - (b.out ? 1 : 0) || b.lives - a.lives);
+                const winUid = t.winner; const winCards = ((t.players[winUid] || {}).cards || []).filter(Boolean);
+                return (
+                    <div className="absolute inset-0 overflow-y-auto p-4 sm:p-8" style={{ background: 'radial-gradient(120% 80% at 50% 30%, #0b1220, #05070f)', paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }} dir="rtl">
+                        <div className="max-w-lg mx-auto">
+                            <div className="glass-panel rounded-3xl p-6 text-center">
+                                <div className="text-4xl mb-1">🏆</div>
+                                <h2 className="text-xl font-black text-white mb-1">{lr.winnerName} ירד!</h2>
+                                {lr.loserName && (lr.eliminated
+                                    ? <p className="text-rose-400 font-black mb-3">❌ {lr.loserName} הודח מהטורניר!</p>
+                                    : <p className="text-amber-300 font-black mb-3">💔 {lr.loserName} איבד חיים — נותרו {lr.livesLeft}</p>)}
+                                {finished
+                                    ? <div className="mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 p-3"><div className="text-emerald-300 font-black">🎉 {tw.username} עלה לשלב הבא!</div><div className="text-slate-400 text-xs font-bold mt-1">ממתין לסיום שאר השולחנות…</div></div>
+                                    : <div className="mb-4 text-slate-400 text-xs font-bold">היד הבאה מתחילה מיד…</div>}
+                                <div className="grid grid-cols-2 gap-1.5 mb-4">
+                                    {livesList.map(p => <div key={p.u} className={`flex items-center justify-between rounded-xl px-3 py-1.5 text-sm font-bold ${p.out ? 'bg-rose-500/10 text-rose-300' : 'bg-slate-950/50 text-slate-200'}`}><span className="truncate">{p.name}</span><span dir="ltr">{p.out ? '❌' : '❤️×' + p.lives}</span></div>)}
+                                </div>
+                                {winUid && winCards.length > 0 && (() => {
+                                    const wp = bestPartition(winCards); const melds = wp.melds || [];
+                                    return (<div className="mb-4">
+                                        <div className="text-[11px] font-black text-slate-400 mb-1.5">🔍 היד הזוכה של {lr.winnerName}:</div>
+                                        <div className="flex flex-col gap-1.5">{melds.map((m, i) => <div key={i} className="flex flex-wrap gap-1 justify-center bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-1.5">{m.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div>)}</div>
+                                    </div>);
+                                })()}
+                                <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">{meOut ? 'ללובי ←' : 'פרוש מהטורניר (הדחה) ←'}</button>
                             </div>
                         </div>
                     </div>
@@ -8093,7 +8240,8 @@
             }
 
             // ── מסך משחק ──
-            const canFresh = t.phase === 'playing' && !t.freshReq && freshMult < RAMI_FRESH_CAP;
+            const canFresh = t.phase === 'playing' && !t.freshReq && freshMult < RAMI_FRESH_CAP && !t.tournamentId;
+            const myLives = t.tournamentId ? (Number((t.players[user.uid] || {}).lives) || 0) : 0;
             const freshReq = t.freshReq;
             const iApprovedFresh = freshReq && (freshReq.approvals || {})[user.uid];
             const freshApprovedCount = freshReq ? Object.keys(freshReq.approvals || {}).length : 0;
@@ -8104,7 +8252,9 @@
                     {/* סרגל עליון דק */}
                     <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-white/5">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs shrink-0">יציאה ←</button>
-                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</div>
+                        <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">{t.tournamentId
+                            ? <span className="text-amber-300 font-black">🏆 {(t.tournament || {}).name || 'טורניר'}{isSeated ? <span className="text-rose-300"> · חיים: ❤️×{myLives}</span> : ''}</span>
+                            : <>דמי כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪{freshMult > 1 && <span className="text-amber-400 font-black"> · פריש ×{freshMult}</span>}</>}</div>
                         <div className="flex items-center gap-1.5 shrink-0">
                             {myTurn && myTbUses > 0 && myTb > 0 && (
                                 <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 hover:bg-amber-500/40 transition-colors">🏦 +{myTb}s · {myTbUses}</button>
@@ -8198,7 +8348,7 @@
                     {/* סרגל פעולות מוצמד לתחתית — רק לשחקן שיושב בשולחן */}
                     {isSeated
                         ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
-                            <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>
+                            {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>}
                             <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
                         </div>
                         : <div className="shrink-0 flex px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
@@ -13563,7 +13713,7 @@
         }
 
         const TOUR_SIZE = 6;
-        const TOUR_SIZES = { poker: 6, rummikub: 4, durak: 5, shesh: 2, president: 4, yaniv: 4, bridge: 4, gin: 2, twist: 4, ofc: 2 };
+        const TOUR_SIZES = { poker: 6, rummikub: 4, rami: 4, durak: 5, shesh: 2, president: 4, yaniv: 4, bridge: 4, gin: 2, twist: 4, ofc: 2 };
         const tourEntryOf = (tor) => round2((Number(tor.buyIn) || 0) + (Number(tor.fee) || 0) + (Number(tor.bounty) || 0));
         /* ================================================================
            יניב - זריקה, משיכה, יניב! ואסף
@@ -15007,6 +15157,22 @@
                 }
                 return;
             }
+            if (tor.game === 'rami') {
+                const lives = Math.max(1, Number(tor.lives) || 3);
+                for (let gi = 0; gi < groups.length; gi++) {
+                    const g = groups[gi];
+                    const pm = {};
+                    g.forEach(uid => { const p = tor.players[uid] || {}; pm[uid] = { username: p.name || '', photo: p.photo || '', avatarSeed: p.avatarSeed || '', isBot: !!p.isBot, lives, out: false }; });
+                    const dealt = g.length >= 2 ? ramiDealC(pm, {}, 1, 0, 0) : { players: pm, phase: 'showdown', deck: [], discard: [], currentTurn: null, turnPhase: 'draw', drawnThisTurn: false, winner: g[0] || null, lastResults: null, freshMult: 1, freshReq: null };
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
+                        type: 'rami', clubId: tor.clubId || CLUB_ID, createdAt: Date.now(), tournamentId: tor.id,
+                        tournament: tourMeta(gi), maxPlayers: g.length, minBuyIn: 0, stakes: 0,
+                        turnSeconds: 60, timeBank: 0, timeBankUses: 0, rakeMode: 'pct', rakePct: 0, rakeFee: 0,
+                        bank: {}, chat: [], elimOrder: [], ...dealt
+                    });
+                }
+                return;
+            }
             if (tor.game === 'durak') {
                 for (let gi = 0; gi < groups.length; gi++) {
                     const g = groups[gi];
@@ -15304,7 +15470,7 @@
                     if (!myTables.every(tb => tb.tournament && tb.tournament.finished)) continue;
                     const winners = myTables.map(tb => tb.tournament.tableWinner).filter(Boolean);
                     // משחקי נוק-אאוטים (לא פוקר): גזירת מקומות 2-3 משולחן הגמר לפני המחיקה
-                    if (winners.length <= 1 && tor.game !== 'poker' && winners[0]) {
+                    if (winners.length <= 1 && !['poker', 'rami'].includes(tor.game) && winners[0]) {
                         const champ = winners[0];
                         const finalT = myTables.find(tb => (tb.tournament || {}).tableWinner === champ);
                         if (finalT) {
@@ -15338,7 +15504,7 @@
             const [soloChamp, setSoloChamp] = useState(null);
             const [browseTables, setBrowseTables] = useState(null);
             const [tick, setTick] = useState(0);
-            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, mttMode: false, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20] });
+            const [opts, setOpts] = useState({ name: '', gameSel: 'poker', buyIn: 500, fee: 50, addedPrize: 0, bounty: 0, date: '', time: '20:00', maxPlayers: 12, levelMins: 5, rebuys: true, rebuyUntilLevel: 2, addon: true, addonLevel: 3, mttMode: false, pokerType: 'NLH', startStack: 1000, paidPlaces: 3, payouts: [50, 30, 20], lives: 3 });
             const isAll = game === 'all';
             const effGame = isAll ? (opts.gameSel || 'poker') : game;
             const isPoker = effGame === 'poker';
@@ -15366,6 +15532,7 @@
                     rebuyUntilLevel: isPoker ? Math.max(1, Number(opts.rebuyUntilLevel) || 2) : 0, addonLevel: isPoker ? Math.max(1, Number(opts.addonLevel) || 3) : 0,
                     mttMode: isPoker ? !!opts.mttMode : false,
                     startStack: isPoker ? Math.max(100, Number(opts.startStack) || 1000) : 1000,
+                    lives: effGame === 'rami' ? Math.max(1, Math.min(9, Number(opts.lives) || 3)) : 0,
                     payouts: payoutsArr, creatorUid: user.uid,
                     status: 'reg', players: {}, prizePool: addedPrize, feeTotal: 0, round: 0, createdAt: Date.now()
                 };
@@ -15587,6 +15754,13 @@
                                     <div>
                                         <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">צ'יפים לשחקן (סטאק פתיחה)</label>
                                         <input type="number" min="100" step="100" value={opts.startStack} onChange={e=>setOpts({...opts, startStack: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-purple-500 font-bold" dir="ltr" />
+                                    </div>
+                                )}
+                                {effGame === 'rami' && (
+                                    <div>
+                                        <label className="text-slate-400 text-xs font-bold mb-1 block uppercase tracking-widest">חיים לכל שחקן ❤️</label>
+                                        <input type="number" min="1" max="9" step="1" value={opts.lives} onChange={e=>setOpts({...opts, lives: e.target.value})} className="w-full bg-slate-900 text-white border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 font-bold" dir="ltr" placeholder="3" />
+                                        <p className="text-[10px] text-emerald-400/80 font-bold mt-1">בכל יד מי שהכי רחוק מ"ירידה" מאבד חיים אחד; ב-0 חיים — הודחת. האחרון ששורד מנצח.</p>
                                     </div>
                                 )}
                                 <div>
