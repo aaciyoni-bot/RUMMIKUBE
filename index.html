@@ -1053,7 +1053,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v70';
+        const APP_VER = 'v71';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7529,7 +7529,7 @@
             const isJoker = tile.val === '☻';
             return (
                 <div onClick={onClick} className={`rummy-tile${isJoker ? ' joker' : ''}`} title={isJoker ? "ג'וקר" : ''}
-                    style={{ width: big ? '3.5rem' : board ? '2.7rem' : '3rem', height: big ? '4.4rem' : board ? '3.5rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : board ? '1.5rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
+                    style={{ width: big ? '3.5rem' : board ? '2.4rem' : '3rem', height: big ? '4.4rem' : board ? '3rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : board ? '1.35rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
                     {isJoker ? <span className="joker-glyph">🃏</span> : tile.val}
                 </div>
             );
@@ -7571,8 +7571,8 @@
 
             // ── שני אזורים כמו ברמיקוב: "לוח" עליון לבניית קומבינציות (מודגש בירוק),
             //    ו"מגש" תחתון אישי לסידור חופשי של האבנים בגרירה. גוררים אבן בין/בתוך האזורים.
-            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // לוח בנייה עליון
-            const RACK_COLS = 7, RACK_ROWS = 3, RACK_N = RACK_COLS * RACK_ROWS;      // מגש תחתון אישי
+            const BOARD_COLS = 7, BOARD_ROWS = 3, BOARD_N = BOARD_COLS * BOARD_ROWS; // לוח עליון
+            const RACK_COLS = 7, RACK_ROWS = 3, RACK_N = RACK_COLS * RACK_ROWS;      // מקום סידור תחתון
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
             const [flashId, setFlashId] = useState(null);
@@ -7739,7 +7739,7 @@
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.6rem', ...(tile ? {} : { background: 'rgba(0,0,0,0.18)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' }) }}
+                        style={{ touchAction: 'none', minHeight: '3.05rem', ...(tile ? {} : { background: 'rgba(0,0,0,0.18)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' }) }}
                         className={`relative flex items-center justify-center rounded-lg transition-colors ${tile ? (valid ? 'ring-2 ring-emerald-400/80' : '') : ''} ${isDrop ? 'ring-2 ring-amber-300' : ''}`}>
                         {tile && (
                             <div data-tid={id}
@@ -8157,10 +8157,10 @@
                         {/* ── לוח בנייה ── */}
                         <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                <span className="text-[11px] text-emerald-300/90 font-black shrink-0">🎯 לוח בנייה</span>
+                                <span className="text-[11px] text-emerald-200 font-black shrink-0">🎯 הלוח שלי</span>
                                 {recognized.length > 0
                                     ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                                    : <span className="text-[10px] text-slate-500 font-bold">גרור לכאן לבניית קומבינציות</span>}
+                                    : <span className="text-[10px] text-amber-200/70 font-bold">כאן מסדרים את הקומבינציות הטובות</span>}
                             </div>
                             <button onClick={autoArrange} className="text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1 shrink-0">✨ סדר לי</button>
                         </div>
@@ -8171,8 +8171,8 @@
                         </div>
                         {/* ── המגש שלך (מחוץ ללוח) — סידור חופשי ── */}
                         <div className="shrink-0 flex items-center gap-2 px-2 pt-1.5 pb-1 border-t border-white/10 mt-1">
-                            <span className="text-[11px] text-cyan-300/90 font-black shrink-0">🎴 המגש שלך ({myHand.filter(Boolean).length})</span>
-                            <span className="text-[10px] text-slate-500 font-bold">סדר כאן את האבנים בגרירה</span>
+                            <span className="text-[11px] text-cyan-200 font-black shrink-0">🎴 מקום לסידור ({myHand.filter(Boolean).length})</span>
+                            <span className="text-[10px] text-slate-300/70 font-bold">גרור מכאן ללוח</span>
                         </div>
                         <div className="shrink-0 px-2 pb-2">
                             <div className="grid gap-1 mx-auto rounded-xl p-1.5" style={{ gridTemplateColumns: `repeat(${RACK_COLS}, minmax(0, 1fr))`, maxWidth: '26rem', direction: 'ltr', background: 'linear-gradient(180deg, #2f2213, #241a0f)', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06)' }}>
