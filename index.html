@@ -987,7 +987,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v53';
+        const APP_VER = 'v54';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5081,6 +5081,87 @@
             );
         }
 
+        // בקרת שלמות (GOD בלבד): כל תנועת-צ'יפים חוקית נרשמת ב-gameLog (הפקדה מהבעלים,
+        // זכיות/הפסדי משחק, תיקונים). אם יתרת שחקן חורגת ממה שהיומן מסביר — צ'יפים
+        // נכנסו מחוץ למערכת (פריצה) → התראה אדומה. וגם התראה על יתרה קיצונית.
+        function IntegrityMonitor({ user, extremeThreshold = 1000000 }) {
+            const [rows, setRows] = useState(null);
+            const reload = async () => {
+                try {
+                    const [ls, ms, cs] = await Promise.all([
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "gameLog"), window.fb.where("clubId", "==", CLUB_ID))),
+                        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID))),
+                        window.fb.getDoc(window.fb.doc(window.fb.db, "clubs", CLUB_ID))
+                    ]);
+                    const ledger = {};
+                    ls.docs.forEach(d => { const l = d.data(); if (!l.uid) return; ledger[l.uid] = round2((ledger[l.uid] || 0) + (Number(l.profit) || 0)); });
+                    const ownerUid = cs.exists() ? (cs.data().ownerUid || '') : '';
+                    const mems = ms.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => !m.isBot && m.uid !== 'bot_bank');
+                    const out = mems.map(m => {
+                        const bal = round2(Number(m.balance) || 0);
+                        const isOwner = m.uid === ownerUid;
+                        // הבעלים מקבל 10,000,000 בזריעה (לא ביומן) → מנטרלים אותו מבדיקת-היומן
+                        const expected = round2((ledger[m.uid] || 0) + (isOwner ? 10000000 : 0));
+                        const discrepancy = round2(bal - expected);
+                        return { uid: m.uid, username: m.username || '', playerId: m.playerId || '', role: m.role, bal, expected, discrepancy, isOwner, agentUid: m.agentUid || '' };
+                    });
+                    setRows(out);
+                } catch (e) { setRows([]); }
+            };
+            useEffect(() => { reload(); }, []);
+            const suspects = (rows || []).filter(r => !r.isOwner && Math.abs(r.discrepancy) > 0.01);
+            const extreme = (rows || []).filter(r => !r.isOwner && r.bal >= extremeThreshold);
+            const totalBalances = round2((rows || []).reduce((s, r) => s + r.bal, 0));
+            const alertCount = new Set([...suspects, ...extreme].map(r => r.uid)).size;
+            return (
+                <div className={`glass-panel p-5 rounded-3xl mb-6 border ${alertCount ? 'border-rose-500/50' : 'border-emerald-500/25'}`}>
+                    <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                        <h3 className="text-lg font-black text-white flex items-center gap-2">
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center border ${alertCount ? 'bg-rose-500/15 border-rose-500/40' : 'bg-emerald-500/15 border-emerald-500/30'}`}><i className={`fa-solid ${alertCount ? 'fa-triangle-exclamation text-rose-400' : 'fa-shield-halved text-emerald-400'} text-sm`}></i></span>
+                            בקרת שלמות · רק אתה רואה
+                        </h3>
+                        <button onClick={reload} className="text-[11px] font-black text-slate-300 bg-slate-800 border border-white/10 rounded-lg px-3 py-1.5"><i className="fa-solid fa-rotate ml-1"></i>רענן</button>
+                    </div>
+                    {rows === null ? <div className="text-slate-500 text-sm font-bold py-3 text-center"><i className="fa-solid fa-spinner fa-spin"></i></div> : (
+                        <React.Fragment>
+                            <div className="flex flex-wrap gap-3 mb-3">
+                                <div className="bg-slate-900/70 border border-white/5 rounded-2xl px-4 py-2.5">
+                                    <div className="text-[10px] text-slate-400 font-bold">סך יתרות במערכת</div>
+                                    <div className="text-base font-black text-white" dir="ltr">{formatMoney(totalBalances)} ₪</div>
+                                </div>
+                                <div className={`rounded-2xl px-4 py-2.5 border ${alertCount ? 'bg-rose-500/10 border-rose-500/40' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+                                    <div className="text-[10px] text-slate-400 font-bold">התראות</div>
+                                    <div className={`text-base font-black ${alertCount ? 'text-rose-400' : 'text-emerald-400'}`}>{alertCount ? `⚠ ${alertCount}` : 'הכל תקין ✓'}</div>
+                                </div>
+                            </div>
+                            {suspects.length > 0 && (
+                                <div className="mb-2">
+                                    <div className="text-[11px] font-black text-rose-300 mb-1">🚨 יתרה שלא תואמת ליומן (צ'יפים מחוץ למערכת):</div>
+                                    <div className="flex flex-col gap-1.5">
+                                        {suspects.map(r => (
+                                            <div key={r.uid} className="flex items-center justify-between bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2 text-sm">
+                                                <span className="font-black text-white truncate">{r.username} <span className="text-slate-500 text-[10px]" dir="ltr">{r.playerId}</span></span>
+                                                <span className="text-rose-300 font-black text-xs" dir="ltr" title="יתרה בפועל מול מה שהיומן מסביר">{formatMoney(r.bal)} ≠ {formatMoney(r.expected)} ({r.discrepancy > 0 ? '+' : ''}{formatMoney(r.discrepancy)})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {extreme.length > 0 && (
+                                <div>
+                                    <div className="text-[11px] font-black text-amber-300 mb-1">⚠ יתרה קיצונית (מעל {formatMoney(extremeThreshold)}):</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {extreme.map(r => <span key={r.uid} className="bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-full px-3 py-1 text-xs font-black">{r.username}: {formatMoney(r.bal)}</span>)}
+                                    </div>
+                                </div>
+                            )}
+                            {!suspects.length && !extreme.length && <div className="text-emerald-400/80 text-sm font-bold">כל היתרות תואמות ליומן. לא נמצאו צ'יפים שנוצרו מחוץ למערכת. ✓</div>}
+                        </React.Fragment>
+                    )}
+                </div>
+            );
+        }
+
         function BackofficeView({ user, clubSettings, showToast }) {
             const [usersList, setUsersList] = useState([]);
             const [botsList, setBotsList] = useState([]);
@@ -5398,6 +5479,9 @@
                                 </div>
                             ))}
                         </div>
+
+                        {/* בקרת שלמות — GOD בלבד (התראה על צ'יפים שנוצרו מחוץ למערכת) */}
+                        {isGodUser(user) && <IntegrityMonitor user={user} />}
 
                         {/* דוח סגירה שבועי - לבעלים, מנהלים וסוכנים (סוכן רואה רק את עצמו) */}
                         {[ROLES.SUPER_ADMIN, ROLES.CLUB_OWNER, ROLES.MANAGER, ROLES.AGENT].includes(user.role) && (
