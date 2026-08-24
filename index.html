@@ -115,6 +115,9 @@
                 0 0 0 1px rgba(255,240,210,0.12) inset,
                 0 -18px 40px -20px rgba(0,0,0,0.6) inset;
         }
+        /* פעימת-זוהר עדינה לקומבינציה חוקית (לא נוגעת ב-box-shadow כדי לא להתנגש בסטייל) */
+        .rk-combo-glow { animation: rkComboPulse 1.9s ease-in-out infinite; }
+        @keyframes rkComboPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.2); } }
         /* עמודות-צד מזוגגות ועדינות */
         .rami-side {
             background: linear-gradient(180deg, rgba(15,22,38,0.72), rgba(8,12,22,0.86));
@@ -1088,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v96';
+        const APP_VER = 'v97';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7724,7 +7727,7 @@
                 window.addEventListener('resize', check); window.addEventListener('orientationchange', check);
                 return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {} };
             }, []);
-            const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = wide ? 1 : 2, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפים עליונים — כאן מסדרים את הקומבינציות
+            const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = 2, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפים עליונים — כאן מסדרים את הקומבינציות
             const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 2 : 3, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — כאן נוחתות אבנים חדשות (מקום סידור)
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
@@ -7859,20 +7862,31 @@
             //           והאבנים הלא-מסודרות יורדות למגש התחתון.
             const autoArrange = () => {
                 const board = Array(BOARD_N).fill(null);
-                let pos = 0;
-                const placeRow = (ids) => {
-                    if (pos % BOARD_COLS !== 0) pos = (Math.floor(pos / BOARD_COLS) + 1) * BOARD_COLS; // תחילת שורה חדשה
-                    for (const id of ids) { if (pos < BOARD_N) board[pos++] = id; }
-                };
-                (part.melds || []).forEach(m => placeRow(orderMeld(m).map(x => x.id)));
-                const onBoard = new Set(board.filter(Boolean));
-                // כל השאר (כולל אבנים שלא נכנסו ללוח) → מגש, ממוין
                 const rack = Array(RACK_N).fill(null);
-                const rest = handIds.filter(id => !onBoard.has(id))
+                // אורז מלדים בצפיפות: רווח-תא אחד מפריד בין קבוצה לקבוצה, מעבר-שורה כשלא נכנס.
+                // מחזיר את המלדים שלא נכנסו (כדי לנסות אותם במדף הבא).
+                const packMelds = (arr, cols, melds) => {
+                    let pos = 0; const unplaced = [];
+                    for (const ids of melds) {
+                        if (ids.length > cols) { unplaced.push(ids); continue; }
+                        let p = pos; const col = pos % cols;
+                        if (col !== 0) { p = (col + 1 + ids.length > cols) ? (Math.floor(pos / cols) + 1) * cols : pos + 1; }
+                        if (p + ids.length > arr.length) { unplaced.push(ids); continue; }
+                        for (const id of ids) arr[p++] = id;
+                        pos = p;
+                    }
+                    return unplaced;
+                };
+                const meldIds = (part.melds || []).map(m => orderMeld(m).map(x => x.id));
+                const spill = packMelds(board, BOARD_COLS, meldIds);   // מלדים על הלוח העליון (צפוף)
+                packMelds(rack, RACK_COLS, spill);                     // מלדים שלא נכנסו — יורדים למדף התחתון
+                const placed = new Set([...board.filter(Boolean), ...rack.filter(Boolean)]);
+                // אבנים בודדות (לא-מלד) → למדף התחתון, ממוינות, אחרי המלדים
+                const loose = handIds.filter(id => !placed.has(id))
                     .map(id => tileById[id]).filter(Boolean)
                     .sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b))
                     .map(x => x.id);
-                rest.forEach((id, i) => { if (i < RACK_N) rack[i] = id; });
+                for (const id of loose) { const i = rack.indexOf(null); if (i >= 0) rack[i] = id; else rack.push(id); }
                 setBoardSlots(board);
                 setRackSlots(rack);
             };
@@ -7920,10 +7934,9 @@
                 try { clearTimeout(lpTimerRef.current); } catch (_) {}
                 lpTimerRef.current = setTimeout(() => {
                     if (dragMovedRef.current || !dragIdRef.current) return;
-                    // גרירת-סדרה בלחיצה ארוכה — רק בלוח העליון (שם בונים קומבינציות)
-                    if (zone !== 'board') return;
+                    // גרירת-סדרה שלמה בלחיצה ארוכה — בכל מדף (עליון או תחתון)
                     const grp = contiguousGroup(zone, slotIdx);
-                    if (grp.length >= 2) { groupIdsRef.current = grp; groupZoneRef.current = zone; setGroupDrag(grp); try { if (navigator.vibrate) navigator.vibrate(35); } catch (_) {} }
+                    if (grp.length >= 2) { groupIdsRef.current = grp; groupZoneRef.current = zone; setGroupDrag(grp); try { if (navigator.vibrate) navigator.vibrate([30, 40, 60]); } catch (_) {} }
                 }, 300);
             };
             const onTileMove = (e) => {
@@ -7964,10 +7977,13 @@
                 const cellStyle = tile
                     ? { boxShadow: rackLedge }
                     : { background: 'linear-gradient(180deg, rgba(255,247,228,0.12) 0%, rgba(120,82,38,0.10) 60%, rgba(90,60,25,0.16) 100%)', boxShadow: rackLedge };
+                // אינדיקציית סט/רצף חוקי: פס זוהר ירוק סביב הקומבינציה (הזוהר של תאים סמוכים מתלכד לפס אחד)
+                const comboGlow = 'inset 0 0 0 2px rgba(52,211,153,0.95), 0 0 14px 2px rgba(52,211,153,0.6)';
+                const validStyle = (valid && tile) ? { boxShadow: rackLedge + ', ' + comboGlow, background: 'rgba(52,211,153,0.13)', zIndex: 10 } : {};
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.05rem', ...cellStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
-                        className={`relative flex items-center justify-center rounded-lg transition-all ${tile ? (valid ? 'ring-2 ring-emerald-400/80' : '') : ''}`}>
+                        style={{ touchAction: 'none', minHeight: '3.05rem', ...cellStyle, ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
+                        className={`relative flex items-center justify-center rounded-lg transition-all ${valid && tile ? 'rk-combo-glow' : ''}`}>
                         {/* סמן "כאן תונח" מעל התא — נראה גם כשהאצבע מסתירה את התא עצמו */}
                         {isDrop && <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ bottom: 'calc(100% + 4px)', zIndex: 30 }}><div className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-black shadow-lg animate-bounce">⬇ כאן</div></div>}
                         {tile && (
