@@ -195,6 +195,17 @@ exports.rummySettle = onCall(async (request) => {
     if (t.phase !== "playing") throw new HttpsError("failed-precondition", "כבר הסתיים");
     if (!t.players || !t.players[winnerUid]) throw new HttpsError("failed-precondition", "המנצח עזב");
     assertParticipant(t, uid, email);
+    // אנטי-רמאות: מנצח חייב באמת "לרדת" — כל אבני-היד השמורות בשרת שלו חייבות להיות
+    // מונחות על הלוח שהוגש. אחרת שחקן מפסיד יכול לקרוא ל-rummySettle עם winnerUid=עצמו
+    // ולוח-דמה קטן, בעודו מחזיק יד מלאה, ולגזול את הקופה. יד לגיטימית: 0 חסרות.
+    // סף 3 מונע דחייה-שגויה בגלל ג'וקר בודד שקיבל מזהה חדש.
+    {
+      const wRack = (((t.players[winnerUid] || {}).cards) || []).filter(Boolean);
+      const placedIds = new Set();
+      for (const g of (board || [])) for (const tl of ((g && g.tiles) || [])) if (tl && tl.id != null) placedIds.add(tl.id);
+      const notPlaced = wRack.filter((tl) => tl && tl.id != null && !placedIds.has(tl.id)).length;
+      if (notPlaced >= 3) throw new HttpsError("failed-precondition", "המנצח לא ירד — היד אינה מונחת על הלוח");
+    }
     const clubId = t.clubId;
     const stakes = Number(t.stakes) || 0.1;
     const bank = {...(t.bank || {})};
@@ -709,71 +720,75 @@ exports.godMergePlayers = onCall(async (request) => {
 exports.guestEnter = onCall(async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  // רק אורח (התחברות אנונימית) יכול לקרוא לזה — כדי שמשתמש-גוגל לא ישתמש בזה
+  // כדי "לתפוס" חשבון של מישהו אחר לפי טלפון.
+  const prov = request.auth.token && request.auth.token.firebase && request.auth.token.firebase.sign_in_provider;
+  if (prov !== "anonymous") throw new HttpsError("permission-denied", "כניסת-אורח בלבד");
   const {phone, name, clubId} = request.data || {};
   const cid = clubId || "main";
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length < 3) throw new HttpsError("invalid-argument", "מספר מזהה לא תקין");
 
-  // אוספים את כל החברויות בקלאב עם אותו טלפון (כולל ה-uid הנוכחי, אם קיים)
+  // מגלים מועמדים: חברויות-אורח (בלי email) עם אותו טלפון. חשבון רשום (עם email/גוגל)
+  // לעולם לא נבלע דרך טלפון — הגנה מפני השתלטות על חשבון רשום.
   const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
-  const matches = [];
+  const candUids = new Set([uid]);
   memSnap.forEach((d) => {
     const m = d.data();
-    if (m.isBot) return;
+    if (m.isBot || m.email) return;
     const mp = String(m.phone || m.playerId || "").replace(/\D/g, "");
-    if (mp && mp === digits) matches.push({id: d.id, uid: m.uid || d.id.split("_")[0], m});
+    if (mp && mp === digits) candUids.add(m.uid || d.id.split("_")[0]);
   });
-
-  // בוחרים את חשבון-העל: מאושר קודם, ואז היתרה הגבוהה ביותר
-  const scoreOf = (x) => (x.m.status === "approved" ? 1e15 : 0) + (Number(x.m.balance) || 0);
-  let best = null;
-  for (const x of matches) { if (!best || scoreOf(x) > scoreOf(best)) best = x; }
-
-  // מאחדים יתרה + סטטיסטיקה מכל ההתאמות
-  const sumBal = round2(matches.reduce((s, x) => s + (Number(x.m.balance) || 0), 0));
-  const anyApproved = matches.some((x) => x.m.status === "approved");
-  const mergedStats = matches.reduce((a, x) => {
-    const st = x.m.stats || {};
-    a.gamesPlayed += Number(st.gamesPlayed) || 0;
-    a.gamesWon += Number(st.gamesWon) || 0;
-    a.totalProfit = round2(a.totalProfit + (Number(st.totalProfit) || 0));
-    a.bestStreak = Math.max(a.bestStreak, Number(st.bestStreak) || 0);
-    return a;
-  }, {gamesPlayed: 0, gamesWon: 0, totalProfit: 0, bestStreak: 0, streak: (best && best.m.stats && Number(best.m.stats.streak)) || 0});
-
-  const bestUsername = (best && best.m.username) || name || "אורח";
-  const bestRole = (best && best.m.role) || "player";
-  const bestAgent = best && best.m.agentUid ? {agentUid: best.m.agentUid, agentPct: best.m.agentPct || 0} : {};
-  const status = anyApproved ? "approved" : "pending";
 
   const newMemRef = db.doc(`memberships/${uid}_${cid}`);
   const newUserRef = db.doc(`users/${uid}`);
 
-  await db.runTransaction(async (tx) => {
-    // חובה לקרוא לפני שכותבים; קוראים גם את מסמכי-המקור למחיקה
-    const others = matches.filter((x) => x.uid !== uid);
-    const otherUserRefs = others.map((x) => db.doc(`users/${x.uid}`));
-    const otherMemRefs = others.map((x) => db.doc(`memberships/${x.uid}_${cid}`));
-    const [curUser] = await Promise.all([tx.get(newUserRef), ...otherUserRefs.map((r) => tx.get(r)), ...otherMemRefs.map((r) => tx.get(r))]);
+  const out = await db.runTransaction(async (tx) => {
+    // קוראים את כל המועמדים *בתוך* הטרנזקציה כדי שסכום-הכסף יהיה עקבי (בלי מרוץ)
+    const uids = [...candUids];
+    const memRefs = uids.map((u) => db.doc(`memberships/${u}_${cid}`));
+    const userRefs = uids.map((u) => db.doc(`users/${u}`));
+    const memSnaps = await Promise.all(memRefs.map((r) => tx.get(r)));
+    const curUserSnap = await tx.get(newUserRef);
 
-    const memDoc = {
+    const found = [];
+    memSnaps.forEach((s, i) => { if (s.exists) { const m = s.data(); if (!m.isBot && !m.email) found.push({uid: uids[i], m}); } });
+
+    const sumBal = round2(found.reduce((s, x) => s + (Number(x.m.balance) || 0), 0));
+    const anyApproved = found.some((x) => x.m.status === "approved");
+    const scoreOf = (x) => (x.m.status === "approved" ? 1e15 : 0) + (Number(x.m.balance) || 0);
+    let best = null; for (const x of found) { if (!best || scoreOf(x) > scoreOf(best)) best = x; }
+    const mergedStats = found.reduce((a, x) => {
+      const st = x.m.stats || {};
+      a.gamesPlayed += Number(st.gamesPlayed) || 0;
+      a.gamesWon += Number(st.gamesWon) || 0;
+      a.totalProfit = round2(a.totalProfit + (Number(st.totalProfit) || 0));
+      a.bestStreak = Math.max(a.bestStreak, Number(st.bestStreak) || 0);
+      return a;
+    }, {gamesPlayed: 0, gamesWon: 0, totalProfit: 0, bestStreak: 0, streak: (best && best.m.stats && Number(best.m.stats.streak)) || 0});
+
+    const bestUsername = (best && best.m.username) || name || "אורח";
+    const bestRole = (best && best.m.role) || "player";
+    const bestAgent = best && best.m.agentUid ? {agentUid: best.m.agentUid, agentPct: best.m.agentPct || 0} : {};
+    const status = anyApproved ? "approved" : "pending";
+
+    tx.set(newMemRef, {
       uid, clubId: cid, username: bestUsername, phone: digits, playerId: digits,
       role: bestRole, status, balance: sumBal, isBot: false, stats: mergedStats, ...bestAgent,
-    };
-    tx.set(newMemRef, memDoc, {merge: true});
-
-    const cu = curUser.exists ? curUser.data() : {};
+    }, {merge: true});
+    const cu = curUserSnap.exists ? curUserSnap.data() : {};
     tx.set(newUserRef, {
       username: bestUsername, isGuest: true, role: bestRole, status,
       playerId: digits, phone: digits, balance: sumBal, isBot: false,
       avatarSeed: cu.avatarSeed || (best && best.m.avatarSeed) || null, stats: mergedStats,
     }, {merge: true});
 
-    // מוחקים את כל החשבונות הכפולים (uid אחר) — הכסף כבר סוכם לחשבון הנוכחי
-    others.forEach((x) => { tx.delete(db.doc(`memberships/${x.uid}_${cid}`)); tx.delete(db.doc(`users/${x.uid}`)); });
+    // מוחקים את הכפילויות (uid אחר) — הכסף כבר סוכם לחשבון הנוכחי
+    uids.forEach((u, i) => { if (u !== uid && memSnaps[i].exists) { tx.delete(memRefs[i]); tx.delete(userRefs[i]); } });
+    return {status, balance: sumBal, merged: found.filter((x) => x.uid !== uid).length};
   });
 
-  return {ok: true, status, balance: sumBal, merged: matches.filter((x) => x.uid !== uid).length};
+  return {ok: true, ...out};
 });
 
 // ── איפוס מלא (GOD בלבד): מאפס יתרות + היסטוריה, בעל-האתר מקבל 10,000,000 ──

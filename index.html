@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v132';
+        window.__APP_VER = 'v133';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v132';
+        const APP_VER = window.__APP_VER || 'v133';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2862,7 +2862,10 @@
                         setDbUser({ uid: d.id, ...data });
                         if (!data.playerId) { try { window.fb.updateDoc(d.ref, { playerId: genPlayerId() }); } catch(e) {} }
                         if (viewRef.current === 'auth') {
-                            if (NO_CLUBS) { setActiveClub(FIXED_CLUB); setActiveClubState(FIXED_CLUB); changeView('lobby'); }
+                            // לא קופצים ישר ל-lobby: שחקן שעדיין לא אושר היה רואה לרגע את רשימת
+                            // השולחנות וכפתורי-הצטרפות. קופצים ל-'pending', ואפקט-השער (למטה) מקדם
+                            // מיד שחקן מאושר/בעלים/GOD ל-lobby לפי החברות.
+                            if (NO_CLUBS) { setActiveClub(FIXED_CLUB); setActiveClubState(FIXED_CLUB); changeView('pending'); }
                             else changeView('clubs');
                         }
                     }
@@ -3184,8 +3187,11 @@
                         new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 15000))
                     ]);
                 } catch (e) {
-                    window.__guestName = ''; window.__guestNumber = '';
                     const code = e && e.code;
+                    // בטיים-אאוט לא מוחקים את השם/טלפון: ההתחברות האנונימית עשויה עדיין
+                    // להסתיים מעט אחר-כך, ואז fetchOrInitUser עדיין צריך את הטלפון כדי
+                    // לזהות/לשחזר את החשבון (אחרת נוצר חשבון בלי טלפון = כפילות).
+                    if (code !== 'timeout') { window.__guestName = ''; window.__guestNumber = ''; }
                     if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
                         // כניסת-אורח (Anonymous) כבויה במסוף Firebase — צריך להפעיל אותה
                         setLoginErr('כניסת אורח אינה מופעלת עדיין. יש להפעיל "Anonymous" ב-Firebase → Authentication. בינתיים אפשר להתחבר עם גוגל.');
@@ -8687,6 +8693,12 @@
             const autoRef = useRef(null);
             useEffect(() => {
                 if (!myTurn || timeLeft > 0) return;
+                // הגנה מפני "timeLeft ישן": בתחילת תור (מיד אחרי תור קודם שנגמר בטיים-אאוט)
+                // ה-state עדיין מחזיק 0 מהתור הקודם, מה שהיה מפעיל משיכה-אוטומטית וגוזל
+                // מהשחקן את הבחירה. מאמתים מול העוגן המקומי שבאמת עבר זמן-תור מלא.
+                const anchorKey = `${t.currentTurn}_${t.turnStartedAt}`;
+                const anchorAt = (turnAnchorRef.current.key === anchorKey) ? turnAnchorRef.current.at : 0;
+                if (!anchorAt || (Date.now() - anchorAt) < (turnSecs - 1) * 1000) return;
                 const key = `${t.turnStartedAt}_${t.turnPhase}`;
                 if (autoRef.current === key) return; autoRef.current = key;
                 (async () => {
@@ -8714,7 +8726,12 @@
                 // ולא לפי turnStartedAt (שנקבע ע"י שעון של מכשיר אחר). אחרת, כשהשעונים של שני
                 // הטלפונים אינם מסונכרנים, מכשיר-היריב חושב שהתור "פג" וחוטף אותו 400ms אחרי
                 // שהתחיל — והשחקן פשוט "לא מצליח למשוך" כי התור קופץ הלאה שוב ושוב.
-                const delayMs = cpW.isBot ? BOT_MAX * 1000 : (turnSecs + bonusW + GRACE) * 1000;
+                // בסיס-הזמן הוא העוגן המקומי (מתי המכשיר הזה ראה את התור); כך הפעלת בנק-זמן
+                // באמצע התור (שמשנה את bonusW ומריצה מחדש את האפקט) מאריכה את הדדליין במקום
+                // לחתוך את התור מוקדם — ועדיין חסין להפרשי-שעונים בין מכשירים.
+                const anchorKey = `${stuckUid}_${startAt}`;
+                const anchorAt = (turnAnchorRef.current.key === anchorKey) ? turnAnchorRef.current.at : Date.now();
+                const delayMs = cpW.isBot ? BOT_MAX * 1000 : Math.max(400, (anchorAt + (turnSecs + bonusW + GRACE) * 1000) - Date.now());
                 const fire = async () => {
                     const key = `${stuckUid}_${startAt}`;
                     if (stuckRef.current === key) return; stuckRef.current = key;
@@ -8743,7 +8760,7 @@
                 };
                 const tm = setTimeout(fire, delayMs);
                 return () => clearTimeout(tm);
-            }, [t && t.currentTurn, t && t.turnStartedAt, t && t.phase, isSeated, turnSecs]);
+            }, [t && t.currentTurn, t && t.turnStartedAt, t && t.phase, isSeated, turnSecs, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
 
             // הוספת בוט ידנית — דרך Cloud Function (כתיבת bank מותרת רק לשרת).
             // כפתור זמין רק לבעל-האתר/GOD. בוטים לא נכנסים אוטומטית.

@@ -51,10 +51,12 @@ service cloud.firestore {
              && request.resource.data.isBot == false
              && request.resource.data.balance == 0 )
       );
-      // אסור לשנות email/role/isBot מהלקוח; שאר השדות (שם, אווטאר, סטטיסטיקה) מותרים
+      // אסור לשנות email/role/isBot/balance מהלקוח; שאר השדות (שם, אווטאר, סטטיסטיקה) מותרים.
+      // balance נעול כדי שלא יומצא כסף במסמך users (הכסף האמיתי ב-memberships, אבל כלים
+      // מסוימים סוכמים גם את users.balance — אז נועלים כדי שלא יזרום פנימה סכום מזויף).
       allow update: if signedIn() && (
         isGod()
-        || ( id == uid() && same('email') && same('role') && same('isBot') )
+        || ( id == uid() && same('email') && same('role') && same('isBot') && same('balance') )
       );
       allow delete: if isGod();
     }
@@ -116,10 +118,19 @@ service cloud.firestore {
     // אותו כותבות רק Cloud Functions (עוקפות חוקים) או GOD (מוח-הבוטים).
     match /tables/{id} {
       allow read: if signedIn();
-      allow create: if signedIn();
+      // יצירה: מותר לכל מחובר לפתוח שולחן, אבל ה-bank (=כסף) חייב להיות ריק. אחרת
+      // שחקן היה יכול ליצור שולחן-דמה עם bank מזויף ואז "לפדות" אותו ליתרה אמיתית
+      // (המצאת כסף). שולחנות תקינים תמיד נוצרים עם bank ריק; כסף נכנס רק דרך השרת.
+      allow create: if signedIn() && (
+        isGod() || request.resource.data.get('bank', {}).size() == 0
+      );
       allow update: if isGod()
         || ( signedIn() && !('bank' in request.resource.data.diff(resource.data).affectedKeys()) );
-      allow delete: if signedIn();
+      // מחיקה: צוות/GOD (ניקוי שולחנות, ניהול טורנירים) או שולחן ללא כסף. כך אי-אפשר
+      // למחוק שולחן חי שיש בו סטאקים (=השמדת צ'יפים של שחקנים) מבלי להיות צוות.
+      allow delete: if isGod()
+        || isStaffOf(resource.data.clubId)
+        || resource.data.get('bank', {}).size() == 0;
     }
     // קלפים פרטיים למנוע-שרת עתידי: כל שחקן קורא רק את שלו, כותב רק השרת
     match /tables/{id}/priv/{u} {
