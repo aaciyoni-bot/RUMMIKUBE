@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v89';
+        const APP_VER = 'v90';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7723,29 +7723,26 @@
             const handIds = myHand.filter(Boolean).map(x => x.id);
             const tileById = {}; myHand.filter(Boolean).forEach(x => tileById[x.id] = x);
             useEffect(() => {
-                // התאמה ליד: מסירים אבנים שיצאו משני האזורים; אבנים חדשות נכנסות למגש התחתון.
+                // התאמה ליד — מחושבת דטרמיניסטית ממצב-נוכחי (בלי תלות בסדר-עדכון בין שני ה-state,
+                // שגרם לשכפול אבנים). כל אבן מופיעה בדיוק פעם אחת: אם הופיעה בטעות בשני מדפים —
+                // נשמרת בעליון בלבד. אבנים חדשות/לא-משובצות נכנסות למדפים העליונים.
                 const inHand = new Set(handIds);
-                let rackKept = null;
-                // תחילה מנקים מהמדפים התחתונים אבנים שיצאו, ושומרים מה שנשאר שם
-                setRackSlots(prev => {
-                    const arr = (prev && prev.length >= RACK_N) ? [...prev] : Array(RACK_N).fill(null);
-                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
-                    rackKept = new Set(arr.filter(Boolean));
-                    return arr;
-                });
-                // המדפים העליונים סופגים כל אבן חדשה/לא-משובצת (כך שהיד גלויה מיד למעלה)
-                setBoardSlots(prev => {
-                    const arr = (prev && prev.length >= BOARD_N) ? [...prev] : Array(BOARD_N).fill(null);
-                    for (let i = 0; i < arr.length; i++) if (arr[i] && !inHand.has(arr[i])) arr[i] = null;
-                    const placed = new Set([...(rackKept || new Set()), ...arr.filter(Boolean)]);
-                    for (const id of handIds) {
-                        if (placed.has(id)) continue;         // כבר משובצת באחד המדפים
-                        let idx = arr.indexOf(null);
-                        if (idx < 0) { arr.push(id); } else { arr[idx] = id; }
-                        placed.add(id);
-                    }
-                    return arr;
-                });
+                const curBoard = (boardSlots && boardSlots.length >= BOARD_N) ? [...boardSlots] : Array(BOARD_N).fill(null);
+                const curRack = (rackSlots && rackSlots.length >= RACK_N) ? [...rackSlots] : Array(RACK_N).fill(null);
+                for (let i = 0; i < curBoard.length; i++) if (curBoard[i] && !inHand.has(curBoard[i])) curBoard[i] = null;
+                for (let i = 0; i < curRack.length; i++) if (curRack[i] && !inHand.has(curRack[i])) curRack[i] = null;
+                const onBoard = new Set(curBoard.filter(Boolean));                       // ניקוי כפילויות
+                for (let i = 0; i < curRack.length; i++) if (curRack[i] && onBoard.has(curRack[i])) curRack[i] = null;
+                const placed = new Set([...curBoard.filter(Boolean), ...curRack.filter(Boolean)]);
+                for (const id of handIds) {
+                    if (placed.has(id)) continue;
+                    let bi = curBoard.indexOf(null);
+                    if (bi >= 0) curBoard[bi] = id;
+                    else { const ri = curRack.indexOf(null); if (ri >= 0) curRack[ri] = id; else curBoard.push(id); }
+                    placed.add(id);
+                }
+                setBoardSlots(curBoard);
+                setRackSlots(curRack);
                 // הבהוב רק על אבן שהרגע נמשכה: היד גדלה בדיוק באחת (14→15). לא בכניסה/חלוקה-מחדש/תור-יריב.
                 const prev = prevIdsRef.current;
                 let cleanup;
@@ -8005,7 +8002,7 @@
                 const u = Object.keys(cur.players).sort();
                 const next = u[(u.indexOf(user.uid) + 1) % u.length];
                 // בנק-הזמן הוא ידני (הפעלה מדעת) ונספר ב-tbUses; אין ניכוי אוטומטי כאן.
-                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
+                return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], [`players.${user.uid}.threw`]: [...(((cur.players[user.uid] || {}).threw) || []), tile].slice(-6), currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
             });
 
             // הפעלת בנק-זמן ידנית: מוסיף tb שניות לתור הנוכחי, מנכה הפעלה אחת
@@ -8282,7 +8279,7 @@
                                 }
                                 const u = Object.keys(cur.players).sort();
                                 const next = u[(u.indexOf(cu) + 1) % u.length];
-                                tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() });
+                                tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], [`players.${cu}.threw`]: [...(((cur.players[cu] || {}).threw) || []), dropTile].slice(-6), currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() });
                                 return null;
                             });
                             if (res && res.win) await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: res.win });
@@ -8451,13 +8448,24 @@
                 const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
                 const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
                 const oppTbUses = Number(p.tbUses) || 0;
-                return <div key={u} className={`rounded-xl px-3 py-1.5 border text-center shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
-                    <div className="font-black text-white text-xs whitespace-nowrap max-w-[7rem] truncate mx-auto">{p.username}{p.isBot ? ' 🤖' : ''}</div>
+                const threw = (p.threw || []).slice(-5);
+                return <div key={u} className={`rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                    <div className="font-black text-white text-xs whitespace-nowrap max-w-full truncate text-center">{p.username}{p.isBot ? ' 🤖' : ''}</div>
                     <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
                         <span>🁢 {cnt}</span>
                         {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
                         {isTheirTurn && <span className="font-mono font-black px-1 rounded text-amber-200 bg-amber-500/10">⏱{timeLeft}s</span>}
                     </div>
+                    {threw.length > 0 && (
+                        <div className="mt-1 pt-1 border-t border-white/10">
+                            <div className="text-[8px] text-slate-500 font-black mb-0.5 text-center">זרק</div>
+                            <div className="flex items-center justify-center gap-0.5 flex-wrap" dir="ltr">
+                                {threw.map((tile, i) => (
+                                    <span key={tile.id + i} className="inline-flex items-center justify-center rounded shadow-sm" style={{ width: '1.15rem', height: '1.45rem', background: 'linear-gradient(180deg,#fdfdfb,#eee7d4)', color: tile.val === '☻' ? '#7c3aed' : inkOf(tile.color), fontSize: '0.62rem', fontWeight: 900, border: '1px solid rgba(120,100,60,0.35)', opacity: 0.55 + 0.45 * (i / Math.max(1, threw.length - 1)) }}>{tile.val === '☻' ? '🃏' : tile.val}</span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>;
             });
             const poolStrip = (
@@ -8489,7 +8497,7 @@
                             ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
                             : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
                     </div>
-                    <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>
+                    {!wide && <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>}
                 </div>
                 <div className="px-2 pb-1 relative z-10">
                     <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
