@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v125';
+        window.__APP_VER = 'v126';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v125';
+        const APP_VER = window.__APP_VER || 'v126';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -3572,9 +3572,10 @@
             return (
                 <svg width={size} height={size} viewBox="0 0 40 40" style={{ display: 'block', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.55))', opacity: dim ? 0.85 : 1 }}>
                     <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={g[0]} /><stop offset="1" stopColor={g[1]} /></linearGradient></defs>
-                    <polygon points="20,1.5 38,15 20,38.5 2,15" fill={`url(#${id})`} stroke="rgba(255,255,255,.6)" strokeWidth="1.4" />
-                    <polygon points="20,1.5 38,15 20,19 2,15" fill="rgba(255,255,255,.28)" />
-                    <text x="20" y="25.5" textAnchor="middle" fontSize="15" fontWeight="900" fill="#fff" fontFamily="'Rubik',sans-serif" style={{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,.45)', strokeWidth: '0.8px' }}>{level}</text>
+                    <polygon points="20,3 37,20 20,37 3,20" fill={`url(#${id})`} stroke="rgba(255,255,255,.62)" strokeWidth="1.4" strokeLinejoin="round" />
+                    <polygon points="20,3 37,20 20,20 3,20" fill="rgba(255,255,255,.26)" />
+                    <line x1="3" y1="20" x2="37" y2="20" stroke="rgba(255,255,255,.28)" strokeWidth="0.7" />
+                    <text x="20" y="24.6" textAnchor="middle" fontSize="14" fontWeight="900" fill="#fff" fontFamily="'Rubik',sans-serif" style={{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,.45)', strokeWidth: '0.9px' }}>{level}</text>
                 </svg>
             );
         };

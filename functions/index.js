@@ -739,8 +739,11 @@ exports.ramiAddBot = onCall(async (request) => {
     if (Object.keys(t.players || {}).length >= max) throw new HttpsError("failed-precondition", "השולחן מלא");
     if ((t.players || {})[bot.id]) throw new HttpsError("failed-precondition", "הבוט כבר בשולחן");
     const buyIn = round2(Number(t.minBuyIn) || 0);
-    const players = {...(t.players || {}), [bot.id]: {username: botName, cards: [], stack: buyIn, isBot: true, missed: 0}};
-    const bank = {...(t.bank || {}), [bot.id]: buyIn};
+    // מלאי צ'יפים נדיב לבוט (פיקטיבי — הבית סופג את רווח/הפסד הבוטים פר-יד), כדי שמשחקים
+    // ימשיכו סבבים רבים בלי שהבוט "יתרוקן" אחרי הפסד אחד ויחסום "משחק חדש".
+    const botStack = round2(Math.max(buyIn * 25, 2500));
+    const players = {...(t.players || {}), [bot.id]: {username: botName, cards: [], stack: botStack, isBot: true, missed: 0}};
+    const bank = {...(t.bank || {}), [bot.id]: botStack};
     if (Object.keys(players).length === max) { tx.update(tRef0, {...ramiDeal(players, bank, t.timeBank, t.timeBankUses), bank}); return true; }
     tx.update(tRef0, {players, bank});
     return false;
