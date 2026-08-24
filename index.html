@@ -102,9 +102,8 @@
         /* בסיס עמוק עם וינייטה חמימה שמשלימה את עץ-הבוק — השולחן "מואר" במרכז */
         .rami-table-bg {
             background:
-                radial-gradient(120% 90% at 50% 12%, rgba(56,120,110,0.16), transparent 55%),
-                radial-gradient(140% 120% at 50% 120%, rgba(120,82,38,0.14), transparent 60%),
-                linear-gradient(180deg, #0a1220 0%, #070d18 55%, #060a12 100%);
+                radial-gradient(1500px 1100px at 50% -14%, rgba(255,236,200,0.14), transparent 60%),
+                radial-gradient(120% 95% at 50% 34%, #2a4a72 0%, #1d3554 34%, #14263f 62%, #0b1626 100%);
         }
         /* מסגרת עץ מלוטשת סביב המעמד — קנט כהה בחוץ, הדגשה בהירה בפנים */
         .rami-rack-frame {
@@ -118,6 +117,10 @@
         /* פעימת-זוהר עדינה לקומבינציה חוקית (לא נוגעת ב-box-shadow כדי לא להתנגש בסטייל) */
         .rk-combo-glow { animation: rkComboPulse 1.9s ease-in-out infinite; }
         @keyframes rkComboPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.2); } }
+        /* רגליות המעמד המתקפלות שבולטות קדימה (לפי מסמך העיצוב) */
+        .rami-foot { position: relative; width: 3.4rem; height: 1.15rem; filter: drop-shadow(0 8px 9px rgba(0,0,0,0.5)); }
+        .rami-foot::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #f1d3a5, #d7a367 46%, #a8752f); clip-path: polygon(0 0, 100% 0, 84% 100%, 16% 100%); }
+        .rami-foot::after { content: ''; position: absolute; left: 16%; right: 16%; bottom: -0.28rem; height: 0.4rem; background: linear-gradient(180deg, #8c5d24, #6a4318); clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%); }
         /* עמודות-צד מזוגגות ועדינות */
         .rami-side {
             background: linear-gradient(180deg, rgba(15,22,38,0.72), rgba(8,12,22,0.86));
@@ -194,17 +197,18 @@
         /* ===== רמיקוב: חומרי הגלם =====
            טוקנים משותפים לאבן, ללבד ולמגש. משנים כאן — משתנה בכל מקום. */
         :root {
-            --tile-face-1: #fdfaf0;   /* שנהב עליון  */
-            --tile-face-2: #f4eddb;
-            --tile-face-3: #e7dec4;   /* שנהב תחתון  */
-            --tile-shelf:  #b3a684;   /* עובי האבן   */
-            --felt-1: #1d3f74;        /* נייבי מואר  */
-            --felt-2: #12274a;
-            --felt-3: #091730;        /* נייבי עמוק  */
-            --rack-hi: #dcc6a4;       /* בוק בהיר — שפת המגש  */
-            --rack-2: #c2a67f;
-            --rack-3: #9e8259;        /* בוק כהה — בסיס המגש  */
-            --rack-lip: #8c6538;      /* הקנט הקדמי           */
+            /* טוקנים לפי מסמך העיצוב (Rummikub Scene) — שנהב, נייבי, בוק */
+            --tile-face-1: #fffdf6;   /* שנהב עליון  */
+            --tile-face-2: #f3ead6;
+            --tile-face-3: #e5d9be;   /* שנהב תחתון  */
+            --tile-shelf:  #c9ba99;   /* עובי האבן   */
+            --felt-1: #2a4a72;        /* נייבי מואר  */
+            --felt-2: #1d3554;
+            --felt-3: #0b1626;        /* נייבי עמוק  */
+            --rack-hi: #f1d3a5;       /* בוק בהיר — שפת המגש  */
+            --rack-2: #d9ab6f;
+            --rack-3: #a97638;        /* בוק כהה — בסיס המגש  */
+            --rack-lip: #8c5d24;      /* הקנט הקדמי           */
             --accent:  #10b981;       /* אמרלד — תור פעיל, יעד תקין */
         }
         /* כמו במקור: אין "קופסה" ללוח — כל אזור המרכז הוא השולחן.
@@ -275,8 +279,8 @@
         }
         /* ג'וקר חגיגי: פנים צבעוניות מתחלפות + דמות ג'וקר שמרחפת — כדי שכיף לקבל אותו */
         .rummy-tile.joker {
-            background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 20%, #db2777 44%, #f59e0b 66%, #7c3aed 100%);
-            background-size: 230% 230%;
+            background: linear-gradient(150deg, #7b2ff7 0%, #b52ec9 34%, #ee3d8f 64%, #f98220 100%);
+            background-size: 200% 200%;
             border-color: rgba(255,255,255,0.85);
             animation: jokerShift 3.8s ease infinite;
             box-shadow:
@@ -1091,7 +1095,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v106';
+        const APP_VER = 'v107';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1542,10 +1546,10 @@
            ולכן אסור לגעת בו — שולחנות חיים מכילים אותו. המיפוי כאן הוא
            תצוגתי בלבד: מברירת-המחדל הדהויה של Tailwind אל דיו הדפוס הקלאסי. */
         const TILE_INK = {
-            '#ef4444': '#c11f1f',   /* אדום - עמוק, רחוק מהכתום */
-            '#3b82f6': '#1257a8',   /* כחול  */
-            '#f59e0b': '#ef8300',   /* כתום - ענברי בהיר, רחוק מהאדום */
-            '#0c1322': '#14161c'    /* שחור  */
+            '#ef4444': '#a8101a',   /* אדום — לפי מסמך העיצוב (רחוק מהכתום) */
+            '#3b82f6': '#11419b',   /* כחול — רחוק מהשחור */
+            '#f59e0b': '#d9770a',   /* כתום ענברי */
+            '#0c1322': '#17171a'    /* שחור  */
         };
         const inkOf = (c) => TILE_INK[c] || c;
 
@@ -8660,9 +8664,14 @@
                             <div className="flex-1 min-w-0 flex flex-col">
                                 <div className="shrink-0 flex items-center justify-center px-3 pt-2">{poolStrip}</div>
                                 <div className="shrink-0 flex items-center justify-center px-3 pt-1">{turnBannerEl}</div>
-                                <div className="flex-1 min-h-0 flex items-end justify-center px-2 pb-2">
-                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack rami-rack-frame w-full max-w-[64rem] rounded-2xl overflow-y-auto max-h-full">
+                                <div className="flex-1 min-h-0 flex flex-col items-center justify-end px-2 pb-2">
+                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack rami-rack-frame w-full max-w-[64rem] rounded-t-2xl overflow-y-auto min-h-0">
                                         {rackInner}
+                                    </div>
+                                    {/* הרגליות המתקפלות שבולטות קדימה מתחת למעמד */}
+                                    <div className="w-full max-w-[64rem] flex justify-between shrink-0" style={{ padding: '0 12%' }}>
+                                        <div className="rami-foot"></div>
+                                        <div className="rami-foot"></div>
                                     </div>
                                 </div>
                             </div>
