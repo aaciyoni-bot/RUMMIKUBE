@@ -1000,9 +1000,55 @@
 <!-- ═══ /ORIZIS INTRO ═══ -->
     <div id="root" class="h-full w-full"></div>
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
-        }
+        // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
+        window.__APP_VER = 'v113';
+        // ── עדכון-אוטומטי אמין: גם כשה-Service-Worker "נתקע" על גרסה ישנה ──
+        // הבעיה באייפון (PWA במסך-הבית): "משיכה לרענון" לא בודקת עדכון-SW,
+        // אז המשתמש נשאר על גרסה ישנה. הפתרון: גלאי-גרסה שעוקף את ה-SW
+        // (fetch עם no-store) ומציג באנר "עדכן עכשיו" בלחיצה אחת.
+        (function () {
+            var forcing = false;
+            window.__forceUpdate = async function () {
+                if (forcing) return; forcing = true;
+                try { if (navigator.serviceWorker) { var rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(function (r) { return r.unregister().catch(function () {}); })); } } catch (e) {}
+                try { if (window.caches) { var ks = await caches.keys(); await Promise.all(ks.map(function (k) { return caches.delete(k); })); } } catch (e) {}
+                try { window.location.reload(); } catch (e) { window.location.href = window.location.pathname + '?_r=' + Date.now(); }
+            };
+            function showUpdateBanner() {
+                if (document.getElementById('rk-update-banner') || !document.body) return;
+                var b = document.createElement('div');
+                b.id = 'rk-update-banner'; b.setAttribute('dir', 'rtl');
+                b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:2147483647;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-family:sans-serif;font-weight:900;padding:11px 16px;border-radius:16px;box-shadow:0 12px 34px rgba(0,0,0,.55);display:flex;align-items:center;gap:12px;font-size:14px;max-width:92vw;';
+                var span = document.createElement('span'); span.textContent = '🎉 גרסה חדשה זמינה';
+                var btn = document.createElement('button'); btn.textContent = 'עדכן עכשיו';
+                btn.style.cssText = 'background:#fff;color:#059669;font-weight:900;border:none;border-radius:12px;padding:8px 15px;font-size:14px;';
+                btn.onclick = function () { btn.textContent = 'מעדכן…'; window.__forceUpdate(); };
+                b.appendChild(span); b.appendChild(btn); document.body.appendChild(b);
+            }
+            async function pollVer() {
+                try {
+                    var res = await fetch('./?_v=' + Date.now(), { cache: 'no-store' });
+                    if (!res || !res.ok) return;
+                    var txt = await res.text();
+                    var m = txt.match(/__APP_VER\s*=\s*'(v\d+)'/);
+                    if (m && m[1] !== window.__APP_VER) showUpdateBanner();
+                } catch (e) {}
+            }
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function () {
+                    navigator.serviceWorker.register('./sw.js').then(function (reg) {
+                        var poke = function () { try { reg.update(); } catch (e) {} };
+                        poke(); setInterval(poke, 60000);
+                    }).catch(function () {});
+                });
+                // כשה-SW החדש עלה ברקע — מציעים עדכון (בלי לזרוק את המשתמש באמצע יד)
+                navigator.serviceWorker.addEventListener('controllerchange', showUpdateBanner);
+            }
+            // גלאי-גרסה עצמאי: בעלייה, מדי כמה דקות, וכשחוזרים לאפליקציה
+            setTimeout(pollVer, 8000);
+            setInterval(pollVer, 120000);
+            document.addEventListener('visibilitychange', function () { if (!document.hidden) pollVer(); });
+        })();
         // קישור הזמנה של סוכן: שומרים את ההפניה עד אחרי ההתחברות
         try {
             const qp = new URLSearchParams(window.location.search);
@@ -1099,7 +1145,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v112';
+        const APP_VER = window.__APP_VER || 'v113';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
