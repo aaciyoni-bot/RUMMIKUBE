@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v97';
+        const APP_VER = 'v98';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2712,7 +2712,7 @@
             const resetBusyRef = useRef(false);
             const handleFullReset = async () => {
                 if (!isGodUser(dbUser) || resetBusyRef.current) return;
-                if (!window.confirm('איפוס מלא: למחוק את כל השחקנים (חוץ מבעל-האתר והבוטים) ואת כל ההיסטוריה, ולאפס את בעל-האתר ל-10,000,000. בטוח?')) return;
+                if (!window.confirm('איפוס: מאפס היסטוריית-משחקים, ומאפס את היתרות של כל השחקנים והבוטים ל-0 — כל הכסף (10,000,000) חוזר לבעל-הקלאב. השחקנים לא נמחקים. בטוח?')) return;
                 if (!window.confirm('אזהרה אחרונה — פעולה בלתי-הפיכה. להמשיך?')) return;
                 resetBusyRef.current = true;
                 changeView('lobby'); // לא נשארים במסך ניהול בזמן שהנתונים נמחקים
@@ -2724,12 +2724,11 @@
                     const ownerDoc = uq.docs[0];
                     if (!ownerDoc) { showToast('בעל-האתר עוד לא נכנס בפעם הראשונה — שיתחבר פעם אחת ואז נריץ', 'error'); resetBusyRef.current = false; return; }
                     const ownerUid = ownerDoc.id;
-                    // מחיקת משתמשים: כולם חוץ מבעל-האתר, GOD עצמו, והבוטים. בוטים — מאפסים יתרה.
+                    // לא מוחקים שחקנים! מאפסים יתרות (שחקנים + בוטים) ל-0 ומאפסים סטטיסטיקה — כל הכסף חוזר לבעל-הקלאב.
                     const allUsers = await F.getDocs(F.collection(db, 'users'));
-                    for (const d of allUsers.docs) { const x = d.data(); if (d.id === ownerUid || d.id === dbUser.uid) continue; if (x.isBot || d.id === 'bot_bank') { if ((Number(x.balance) || 0) !== 0) { try { await F.updateDoc(d.ref, { balance: 0 }); } catch (e) {} } continue; } try { await F.deleteDoc(d.ref); } catch (e) {} }
-                    // מחיקת חברויות: כולן חוץ מבעל-האתר והבוטים. בוטים/קופת-בוטים — מאפסים יתרה.
+                    for (const d of allUsers.docs) { if (d.id === ownerUid) continue; try { await F.updateDoc(d.ref, { balance: 0, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 } }); } catch (e) {} }
                     const allMems = await F.getDocs(F.collection(db, 'memberships'));
-                    for (const d of allMems.docs) { const x = d.data(); const uid = x.uid || d.id.split('_')[0]; if (uid === ownerUid) continue; if (x.isBot || uid === 'bot_bank') { if ((Number(x.balance) || 0) !== 0) { try { await F.updateDoc(d.ref, { balance: 0 }); } catch (e) {} } continue; } try { await F.deleteDoc(d.ref); } catch (e) {} }
+                    for (const d of allMems.docs) { const x = d.data(); const uid = x.uid || d.id.split('_')[0]; if (uid === ownerUid) continue; try { await F.updateDoc(d.ref, { balance: 0, clubProfits: 0, agentProfits: 0, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 } }); } catch (e) {} }
                     // בעל-האתר: חברות מאופסת, בעלים, 10,000,000
                     await F.setDoc(F.doc(db, 'memberships', ownerUid + '_main'), { uid: ownerUid, clubId: 'main', username: ownerDoc.data().username || 'בעל האתר', email: ownerEmail, role: ROLES.CLUB_OWNER, status: 'approved', balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }, joinedAt: Date.now() }, { merge: true });
                     // קבוצה יחידה: בעל-האתר הוא הבעלים
@@ -3176,14 +3175,15 @@
             const [profileP, setProfileP] = useState(null);
             const [mems, setMems] = useState(null);
             const [logAll, setLogAll] = useState(null);
-            const [ltab, setLtab] = useState('profit');
+            const [ltab, setLtab] = useState('wins');
             const [gtab, setGtab] = useState('all');
             useEffect(() => {
                 (async () => {
                     try {
                         const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
                         const snap = await window.fb.getDocs(q);
-                        setMems(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.status === 'approved' && !m.isBot));
+                        // כולל בוטים (מוצגים כשחקנים רגילים כדי לא לחשוף שיש בוטים), פרט לקופת-הבוטים ול-GOD.
+                        setMems(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.status === 'approved' && m.uid !== 'bot_bank' && !GOD_EMAILS.includes((m.email || '').toLowerCase())));
                     } catch(e) { setMems([]); }
                 })();
             }, []);
@@ -3211,11 +3211,11 @@
                         agg[e.uid].games++;
                         if ((e.profit || 0) > 0) agg[e.uid].wins++;
                     });
-                    return Object.values(agg).map(w => ({ ...w, metric: ltab === 'wins' ? w.wins : w.profit, sub: `${w.games} משחקים · ${w.wins} ברווח` })).sort((a, b) => b.metric - a.metric);
+                    return Object.values(agg).map(w => ({ ...w, metric: w.wins, sub: `${w.games} משחקים · ${w.wins} ניצחונות` })).sort((a, b) => b.metric - a.metric);
                 }
                 const list = (mems || []).map(m => ({
                     uid: m.uid, username: m.username, photo: m.photo, avatarSeed: m.avatarSeed,
-                    metric: ltab === 'profit' ? round2((m.stats || {}).totalProfit || 0) : ((m.stats || {}).gamesWon || 0),
+                    metric: ((m.stats || {}).gamesWon || 0),
                     sub: `${(m.stats || {}).gamesPlayed || 0} משחקים · ${(m.stats || {}).gamesWon || 0} ניצחונות`
                 }));
                 return list.sort((a, b) => b.metric - a.metric);
@@ -3223,7 +3223,7 @@
             const top3 = rows.slice(0, 3);
             const rest = rows.slice(3, 25);
             const medal = ['🥇', '🥈', '🥉'];
-            const fmtM = (v) => ltab === 'wins' ? `${v} 🏆` : formatMoney(v);
+            const fmtM = (v) => `${v} 🏆`;
 
             return (
                 <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
@@ -3234,7 +3234,7 @@
                             <p className="text-slate-400 text-xs font-bold mt-1">{(window.__club || {}).name || ''}</p>
                         </div>
                         <div className="flex justify-center gap-2 mb-3">
-                            {[['profit', 'רווח כולל'], ['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
+                            {[['wins', 'ניצחונות'], ['week', 'השבוע 🔥']].map(([k, l]) => (
                                 <button key={k} onClick={() => setLtab(k)} className={`pill-tab px-5 py-2 rounded-xl font-black text-sm text-slate-400 ${ltab === k ? 'active' : 'hover:text-white'}`}>{l}</button>
                             ))}
                         </div>
@@ -8099,9 +8099,12 @@
                 return { upd, eliminatedUid };
             };
 
+            const goOutRef = useRef(false);
             const doGoOut = async () => {
-                const go = findGoOut(myHand); if (!go || actingRef.current) return;
-                actingRef.current = true;
+                const go = findGoOut(myHand);
+                if (!go) { showToast('עדיין אין לך יד שלמה לרדת', 'info'); return; }
+                if (goOutRef.current) return;
+                goOutRef.current = true;
                 try {
                     if (t.tournamentId) {
                         // מצב טורניר: בלי כסף — ניכוי חיים והדחה
@@ -8136,7 +8139,7 @@
                     });
                     await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: user.uid });
                 } catch (e) { showToast(fnErr(e), "error"); }
-                finally { actingRef.current = false; }
+                finally { goOutRef.current = false; }
             };
 
             // טורניר: קידום היד הבאה — יד חדשה לחיים שנותרו, או סימון מנצח-שולחן אם נשאר אחד.
