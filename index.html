@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v121';
+        window.__APP_VER = 'v122';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1172,7 +1172,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v121';
+        const APP_VER = window.__APP_VER || 'v122';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7801,6 +7801,25 @@
             const myTb = (meP && Number(meP.tb)) || 0;          // שניות שמתווספות בכל הפעלה
             const myTbUses = (meP && Number(meP.tbUses)) || 0;  // הפעלות בנק-זמן שנותרו
             const myHand = (meP && meP.cards) || [];
+            // דרגות שחקנים לתצוגה בשולחן: מנוי-קריאה בלבד למ-memberships (בלי נגיעה בכסף)
+            const [memRanks, setMemRanks] = useState({});
+            useEffect(() => {
+                try {
+                    const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
+                    const unsub = window.fb.onSnapshot(q, (s) => {
+                        const map = {};
+                        s.docs.forEach(d => { const m = d.data(); const uid = m.uid || d.id.split('_')[0]; if (uid) map[uid] = playerRank(m.stats, m.joinedAt); });
+                        setMemRanks(map);
+                    }, () => {});
+                    return () => unsub();
+                } catch (e) {}
+            }, []);
+            // דרגה של שחקן: אמיתי → מהסטטיסטיקה; בוט/טוען → דרגה יציבה ואמינה לפי מזהה
+            const rankFor = (uid, p) => {
+                if (p && !p.isBot && memRanks[uid]) return memRanks[uid];
+                let h = 0; const s = String(uid || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+                return RANK_TIERS[h % 5]; // מתחיל..מומחה (בוטים לא מגיעים לאלוף/אגדה)
+            };
             const handKey = myHand.map(x => x && x.id).join(',');
             const part = useMemo(() => bestPartition(myHand), [handKey]);
             const goOut = useMemo(() => (myTurn && t && t.turnPhase === 'discard') ? findGoOut(myHand) : null, [myTurn, t && t.turnPhase, handKey]);
@@ -8584,7 +8603,7 @@
                                 <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
                                 <p className="text-slate-400 font-bold text-xs mb-3" dir="rtl">דמי כניסה: {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪</p>
                                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
-                                    {uids.map(u => <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1 text-sm font-bold text-white">{t.players[u].username}{u === user.uid && ' (אתה)'}</span>)}
+                                    {uids.map(u => { const rk = rankFor(u, t.players[u]); return <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1 text-sm font-bold text-white inline-flex items-center gap-1"><span style={{ color: rk.color }} title={`דרגה: ${rk.name}`}>{rk.icon}</span>{t.players[u].username}{u === user.uid && ' (אתה)'}</span>; })}
                                     {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1 text-sm font-bold text-slate-600">מקום פנוי</span>)}
                                 </div>
                                 {!isSeated
@@ -8709,7 +8728,8 @@
                 const threw = (p.threw || []).slice(-5);
                 return <div key={u} className={`rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
                     <div className="font-black text-white text-xs whitespace-nowrap max-w-full truncate text-center">{p.username}{p.isBot ? ' 🤖' : ''}</div>
-                    <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5" dir="ltr">
+                    {(() => { const rk = rankFor(u, p); return <div className="flex items-center justify-center gap-0.5 text-[9px] font-black leading-none mt-0.5" style={{ color: rk.color }} title={`דרגה: ${rk.name}`}><span>{rk.icon}</span><span className="truncate max-w-[5.5rem]">{rk.name}</span></div>; })()}
+                    <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5 mt-0.5" dir="ltr">
                         <span>🁢 {cnt}</span>
                         {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
                         {isTheirTurn && <span className="font-mono font-black px-1 rounded text-amber-200 bg-amber-500/10">⏱{timeLeft}s</span>}
@@ -8746,6 +8766,7 @@
                 <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                         <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המעמד שלי ({myHand.filter(Boolean).length})</span>
+                        {(() => { const rk = rankFor(user.uid, meP); return <span className="text-[10px] font-black shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full" style={{ color: rk.color, background: rk.color + '22' }} title={`הדרגה שלך: ${rk.name}`}>{rk.icon}{rk.name}</span>; })()}
                         {recognized.length > 0
                             ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
                             : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
