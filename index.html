@@ -1061,7 +1061,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v92';
+        const APP_VER = 'v93';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8462,10 +8462,12 @@
                     {threw.length > 0 && (
                         <div className="mt-1 pt-1 border-t border-white/10">
                             <div className="text-[8px] text-slate-500 font-black mb-0.5 text-center">זרק</div>
-                            <div className="flex items-center justify-center gap-0.5 flex-wrap" dir="ltr">
-                                {threw.map((tile, i) => (
-                                    <span key={tile.id + i} className="inline-flex items-center justify-center rounded shadow-sm" style={{ width: '1.15rem', height: '1.45rem', background: 'linear-gradient(180deg,#fdfdfb,#eee7d4)', color: tile.val === '☻' ? '#7c3aed' : inkOf(tile.color), fontSize: '0.62rem', fontWeight: 900, border: '1px solid rgba(120,100,60,0.35)', opacity: 0.55 + 0.45 * (i / Math.max(1, threw.length - 1)) }}>{tile.val === '☻' ? '🃏' : tile.val}</span>
-                                ))}
+                            <div className="flex items-center justify-center gap-1 flex-wrap" dir="ltr">
+                                {threw.map((tile, i) => {
+                                    // רקע צבעוני מובהק (לא לבן) כדי שאדום≠כתום וכחול≠שחור גם בקטן
+                                    const bg = tile.val === '☻' ? '#7c3aed' : ({ '#ef4444': '#e01212', '#f59e0b': '#f59e0b', '#3b82f6': '#1668e3', '#0c1322': '#11151f' }[tile.color] || inkOf(tile.color));
+                                    return <span key={tile.id + i} className="inline-flex items-center justify-center rounded shadow-sm text-white" style={{ width: '1.3rem', height: '1.6rem', background: bg, fontSize: '0.72rem', fontWeight: 900, border: '1px solid rgba(255,255,255,0.35)', opacity: 0.6 + 0.4 * (i / Math.max(1, threw.length - 1)) }}>{tile.val === '☻' ? '🃏' : tile.val}</span>;
+                                })}
                             </div>
                         </div>
                     )}
@@ -8475,13 +8477,8 @@
                 <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', direction: 'ltr' }} dir="ltr">
                     <button disabled={!myTurn || t.turnPhase !== 'draw'} onClick={() => doDraw(true)} title="משוך אבן מהקופה" className={`shrink-0 h-16 px-4 rounded-xl bg-gradient-to-b from-indigo-500 to-indigo-800 border-2 text-white flex flex-col items-center justify-center leading-none shadow-lg disabled:opacity-40 ${myTurn && t.turnPhase === 'draw' ? 'border-emerald-400 ring-4 ring-emerald-400/40 animate-pulse scale-105' : 'border-indigo-400/40'}`}><i className="fa-solid fa-layer-group text-2xl"></i><span className="text-[10px] font-black mt-1">קופה {(t.deck || []).length}</span></button>
                     {topDiscard
-                        ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} title="משוך מהזריקה" className={`shrink-0 ${myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-lg' : ''}`} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} board /></div>
+                        ? <div onClick={() => (myTurn && t.turnPhase === 'draw') && doDraw(false)} title="משוך מהזריקה" className={`shrink-0 flex flex-col items-center ${myTurn && t.turnPhase === 'draw' ? 'ring-2 ring-emerald-400 rounded-lg' : ''}`} style={{ cursor: myTurn && t.turnPhase === 'draw' ? 'pointer' : 'default' }}><RamiTile tile={topDiscard} board /><span className="text-[9px] text-slate-400 font-bold mt-0.5">זריקה אחרונה</span></div>
                         : <div className="shrink-0 w-9 h-12 rounded-lg border-2 border-dashed border-white/10"></div>}
-                    {(t.discard || []).length > 1 && <div className="shrink-0 w-px h-10 bg-white/10 mx-0.5"></div>}
-                    <span className="shrink-0 text-[10px] text-slate-500 font-black">🗑</span>
-                    {(t.discard || []).slice(0, -1).slice(-16).map((tile, i, a) => (
-                        <div key={tile.id} className="shrink-0" style={{ opacity: 0.35 + 0.55 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>
-                    ))}
                 </div>
             );
             const turnBannerEl = myTurn
