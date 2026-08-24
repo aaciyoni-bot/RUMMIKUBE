@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v100';
+        const APP_VER = 'v101';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7731,9 +7731,7 @@
             const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 2 : 3, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — כאן נוחתות אבנים חדשות (מקום סידור)
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
-            // בסיבוב מסך — מאתחלים את המדפים כך שהיד תיפרס נקי למידות החדשות
-            const wideRef = useRef(wide);
-            useEffect(() => { if (wideRef.current !== wide) { wideRef.current = wide; setBoardSlots(Array(BOARD_N).fill(null)); setRackSlots(Array(RACK_N).fill(null)); } }, [wide]);
+            // סיבוב-מסך משנה את מספר העמודות/שורות — ההתאמה-ליד (למטה) מזהה שינוי-מידות ובונה מחדש.
             const [flashId, setFlashId] = useState(null);
             const [dragId, setDragId] = useState(null);
             const [dropSlot, setDropSlot] = useState(null); // {zone,idx} התא שמתחת לאצבע
@@ -7757,8 +7755,10 @@
                 // שגרם לשכפול אבנים). כל אבן מופיעה בדיוק פעם אחת: אם הופיעה בטעות בשני מדפים —
                 // נשמרת בעליון בלבד. אבנים חדשות/לא-משובצות נכנסות למדפים העליונים.
                 const inHand = new Set(handIds);
-                const curBoard = (boardSlots && boardSlots.length >= BOARD_N) ? [...boardSlots] : Array(BOARD_N).fill(null);
-                const curRack = (rackSlots && rackSlots.length >= RACK_N) ? [...rackSlots] : Array(RACK_N).fill(null);
+                // שינוי-מידות (סיבוב מסך) → בונים מדפים חדשים ומאכלסים מחדש (אחרת המעמד נשאר ריק)
+                const dimOk = boardSlots && rackSlots && boardSlots.length === BOARD_N && rackSlots.length === RACK_N;
+                const curBoard = dimOk ? [...boardSlots] : Array(BOARD_N).fill(null);
+                const curRack = dimOk ? [...rackSlots] : Array(RACK_N).fill(null);
                 for (let i = 0; i < curBoard.length; i++) if (curBoard[i] && !inHand.has(curBoard[i])) curBoard[i] = null;
                 for (let i = 0; i < curRack.length; i++) if (curRack[i] && !inHand.has(curRack[i])) curRack[i] = null;
                 const onBoard = new Set(curBoard.filter(Boolean));                       // ניקוי כפילויות
@@ -7795,7 +7795,7 @@
                 }
                 prevIdsRef.current = handIds;
                 return cleanup;
-            }, [handKey]);
+            }, [handKey, wide]);
             // זיהוי קומבינציות: בכל שורה, כל רצף-רצוף של אבנים (שמופרד ברווח) נבדק בנפרד.
             // בלוק חוקי (רצף/שלישייה/רביעייה) → כל תאיו מודגשים בירוק. הרווח (תא ריק) הוא המפריד.
             // מעמד עץ אחד: כל שורה (בשני חלקי-המעמד) נבדקת בנפרד — כל רצף-רצוף מופרד ברווח
@@ -7971,18 +7971,13 @@
             const renderCell = (zone, id, idx, valid) => {
                 const tile = id ? tileById[id] : null;
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
-                // מעמד עץ בוק אמיתי: לכל תא קנט-עץ בתחתית שעליו "נשענות" האבנים
-                // (כמו במעמד רמיקוב), ותא ריק הוא שקע עץ עדין — לא קופסה כהה. כל המעמד עץ.
-                const rackLedge = 'inset 0 -0.34em 0 -0.22em rgba(140,101,56,0.55), inset 0 0.5em 0.5em -0.4em rgba(120,82,38,0.30)';
-                const cellStyle = tile
-                    ? { boxShadow: rackLedge }
-                    : { background: 'linear-gradient(180deg, rgba(255,247,228,0.12) 0%, rgba(120,82,38,0.10) 60%, rgba(90,60,25,0.16) 100%)', boxShadow: rackLedge };
-                // אינדיקציית סט/רצף חוקי: פס זוהר ירוק סביב הקומבינציה (הזוהר של תאים סמוכים מתלכד לפס אחד)
+                // עץ חלק כמו לוח רמי מקורי — בלי ריבועי-משבצת. תא ריק שקוף (העץ של המעמד מציץ),
+                // האבן יושבת עם הצל שלה. רק קומבינציה חוקית ותא-יעד מקבלים הדגשה.
                 const comboGlow = 'inset 0 0 0 2px rgba(52,211,153,0.95), 0 0 14px 2px rgba(52,211,153,0.6)';
-                const validStyle = (valid && tile) ? { boxShadow: rackLedge + ', ' + comboGlow, background: 'rgba(52,211,153,0.13)', zIndex: 10 } : {};
+                const validStyle = (valid && tile) ? { boxShadow: comboGlow, background: 'rgba(52,211,153,0.13)', zIndex: 10 } : {};
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.05rem', ...cellStyle, ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
+                        style={{ touchAction: 'none', minHeight: '3.05rem', ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
                         className={`relative flex items-center justify-center rounded-lg transition-all ${valid && tile ? 'rk-combo-glow' : ''}`}>
                         {/* סמן "כאן תונח" מעל התא — נראה גם כשהאצבע מסתירה את התא עצמו */}
                         {isDrop && <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ bottom: 'calc(100% + 4px)', zIndex: 30 }}><div className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-black shadow-lg animate-bounce">⬇ כאן</div></div>}
