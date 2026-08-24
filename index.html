@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v98';
+        const APP_VER = 'v99';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1861,7 +1861,10 @@
            אחריה - מלדים חדשים + הרחבות. אין כלום => null (משיכה). */
         const botPlanMove = (rackArr, board, hasDropped) => {
             const tiles = rackArr.filter(Boolean);
-            const melds = botFindMelds(tiles);
+            // חכם: הפרטישן האופטימלי (אותו פותר שנבדק על עשרות-אלפי ידיים) — הקומבינציות
+            // הטובות ביותר, מקסימום אבנים מנוצלות, שימוש-ג'וקר מיטבי. גיבוי לחיפוש החמדני.
+            const bp = bestPartition(tiles);
+            const melds = (bp.melds && bp.melds.length) ? bp.melds : botFindMelds(tiles);
             if (!hasDropped) {
                 const pts = melds.reduce((s, m) => s + groupPoints(m), 0);
                 if (melds.length === 0 || pts < FIRST_MELD_MIN) return null;
@@ -6459,16 +6462,13 @@
                                 const uids = Object.keys(currentTbl.players).sort();
                                 const nextTurn = uids[(uids.indexOf(currentUid) + 1) % uids.length];
 
-                                // טעות אנושית: לפעמים "לא רואה" את המהלך - אבל לא מפספס ניצחון
+                                // בוט חכם: מוריד את הקומבינציות הטובות ביותר. נותרת רק "רעידה"
+                                // אנושית זעירה כדי שלא ייראה מכני לחלוטין — לעולם לא מפספס ניצחון.
                                 if (plan) {
                                     const tilesPlayed = plan.melds.flat().length + plan.exts.length;
                                     const winning = rack.filter(Boolean).length === tilesPlayed;
-                                    const missChance = 0.04 + (1 - skill) * 0.18; // 4%-16%
+                                    const missChance = 0.01 + (1 - skill) * 0.04; // 1%-5% בלבד
                                     if (!winning && Math.random() < missChance) plan = null;
-                                    // ולפעמים מוריד רק מלד אחד ושומר את השאר לתור הבא
-                                    else if (!winning && plan && plan.melds.length > 1 && Math.random() < 0.35) {
-                                        plan = { melds: [plan.melds[0]], exts: [] };
-                                    }
                                 }
 
                                 if (plan) {
