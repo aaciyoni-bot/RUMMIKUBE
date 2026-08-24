@@ -303,6 +303,8 @@
         @keyframes ramiEdgeRed { 0%,100% { box-shadow: inset 0 0 0 5px rgba(244,63,94,0.3); } 50% { box-shadow: inset 0 0 0 7px rgba(244,63,94,1); } }
         /* התראת-תור בולטת שקופצת לרגע */
         .rami-turn-pop { animation: ramiTurnPop 1.4s ease forwards; }
+        .rami-bell { display: inline-block; transform-origin: 50% 12%; animation: ramiBell 0.9s ease-in-out infinite; }
+        @keyframes ramiBell { 0%,100% { transform: rotate(0); } 18% { transform: rotate(17deg); } 38% { transform: rotate(-13deg); } 58% { transform: rotate(9deg); } 78% { transform: rotate(-5deg); } }
         @keyframes ramiTurnPop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.55); } 14% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); } 28% { transform: translate(-50%,-50%) scale(1); } 78% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.06); } }
         @keyframes jokerShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
         @keyframes jokerBob { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-8%) rotate(5deg); } }
@@ -1095,7 +1097,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v107';
+        const APP_VER = 'v108';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7868,46 +7870,43 @@
                 while (jq.length) out.push(jq.shift());
                 return out;
             };
-            // "סדר לי": הקומבינציות עולות ללוח (כל אחת בשורה משלה, ג'וקר במקומו),
-            //           והאבנים הלא-מסודרות יורדות למגש התחתון.
-            const autoArrange = () => {
-                const board = Array(BOARD_N).fill(null);
-                const rack = Array(RACK_N).fill(null);
-                // אורז מלדים בצפיפות: רווח-תא אחד מפריד בין קבוצה לקבוצה, מעבר-שורה כשלא נכנס.
-                // מחזיר את המלדים שלא נכנסו (כדי לנסות אותם במדף הבא).
-                const packMelds = (arr, cols, melds) => {
-                    let pos = 0; const unplaced = [];
-                    for (const ids of melds) {
-                        if (ids.length > cols) { unplaced.push(ids); continue; }
-                        let p = pos; const col = pos % cols;
-                        if (col !== 0) { p = (col + 1 + ids.length > cols) ? (Math.floor(pos / cols) + 1) * cols : pos + 1; }
-                        if (p + ids.length > arr.length) { unplaced.push(ids); continue; }
-                        for (const id of ids) arr[p++] = id;
-                        pos = p;
-                    }
-                    return unplaced;
-                };
-                const meldIds = (part.melds || []).map(m => orderMeld(m).map(x => x.id));
-                const spill = packMelds(board, BOARD_COLS, meldIds);   // מלדים על הלוח העליון (צפוף)
-                packMelds(rack, RACK_COLS, spill);                     // מלדים שלא נכנסו — יורדים למדף התחתון
-                const placed = new Set([...board.filter(Boolean), ...rack.filter(Boolean)]);
-                // אבנים בודדות (לא-מלד) → למדף התחתון, ממוינות, אחרי המלדים
-                const loose = handIds.filter(id => !placed.has(id))
-                    .map(id => tileById[id]).filter(Boolean)
-                    .sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b))
-                    .map(x => x.id);
-                for (const id of loose) { const i = rack.indexOf(null); if (i >= 0) rack[i] = id; else rack.push(id); }
-                setBoardSlots(board);
-                setRackSlots(rack);
+            // פריסה משותפת: כל מלד כבלוק רצוף מופרד ברווח-תא (כמו ברמיקוב), אבנים בודדות אחריו.
+            const packMelds = (arr, cols, melds) => {
+                let pos = 0; const unplaced = [];
+                for (const ids of melds) {
+                    if (ids.length > cols) { unplaced.push(ids); continue; }
+                    let p = pos; const col = pos % cols;
+                    if (col !== 0) { p = (col + 1 + ids.length > cols) ? (Math.floor(pos / cols) + 1) * cols : pos + 1; }
+                    if (p + ids.length > arr.length) { unplaced.push(ids); continue; }
+                    for (const id of ids) arr[p++] = id;
+                    pos = p;
+                }
+                return unplaced;
             };
-            // מיון ידני כמו ברמיקוב: 789 = לפי צבע-ואז-ערך (רצפים), 777 = לפי ערך-ואז-צבע (שלישיות).
-            const arrangeSorted = (cmp) => {
-                const sorted = handIds.map(id => tileById[id]).filter(Boolean).sort(cmp).map(x => x.id);
+            const placeLayout = (meldIds, looseIds) => {
                 const board = Array(BOARD_N).fill(null), rack = Array(RACK_N).fill(null);
-                let i = 0;
-                for (; i < sorted.length && i < BOARD_N; i++) board[i] = sorted[i];
-                for (let j = 0; i < sorted.length; i++, j++) { if (j < RACK_N) rack[j] = sorted[i]; else rack.push(sorted[i]); }
+                const spill = packMelds(board, BOARD_COLS, meldIds);   // מלדים על המדף העליון
+                packMelds(rack, RACK_COLS, spill);                     // מה שלא נכנס — למדף התחתון
+                const placed = new Set([...board.filter(Boolean), ...rack.filter(Boolean)]);
+                for (const id of looseIds) { if (placed.has(id)) continue; const i = rack.indexOf(null); if (i >= 0) rack[i] = id; else rack.push(id); placed.add(id); }
                 setBoardSlots(board); setRackSlots(rack);
+            };
+            // "סדר לי": הפרטישן האופטימלי — הקומבינציות הטובות ביותר, מופרדות ברווח.
+            const autoArrange = () => {
+                const meldIds = (part.melds || []).map(m => orderMeld(m).map(x => x.id));
+                const used = new Set(meldIds.flat());
+                const loose = handIds.filter(id => !used.has(id)).map(id => tileById[id]).filter(Boolean)
+                    .sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).map(x => x.id);
+                placeLayout(meldIds, loose);
+            };
+            // מיון ידני כמו ברמיקוב: מזהה מלדים (רצפים/שלישיות), מפריד כל אחד ברווח, ומדר את הבודדות.
+            const arrangeSorted = (cmp) => {
+                const tiles = handIds.map(id => tileById[id]).filter(Boolean);
+                const melds = botFindMelds(tiles);
+                const used = new Set(melds.flat().map(t => t.id));
+                const meldIds = melds.map(m => orderMeld(m).map(x => x.id));
+                const loose = tiles.filter(t => !used.has(t.id)).sort(cmp).map(x => x.id);
+                placeLayout(meldIds, loose);
             };
             const sortRuns = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (x.color !== y.color) return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); return Number(x.val) - Number(y.val); });
             const sortSets = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (Number(x.val) !== Number(y.val)) return Number(x.val) - Number(y.val); return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); });
@@ -8679,9 +8678,9 @@
                             <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center rami-side">
                                 {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
                                 <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg">✨ סדר לי</button>
-                                <div className="flex gap-2">
-                                    <button onClick={sortRuns} title="מיון לפי רצפים (צבע)" className="flex-1 rk-btn py-2 rounded-xl text-lg font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
-                                    <button onClick={sortSets} title="מיון לפי שלישיות (ערך)" className="flex-1 rk-btn py-2 rounded-xl text-lg font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></button>
+                                <div className="flex gap-1.5">
+                                    <button onClick={sortRuns} title="מיון לפי רצפים (צבע)" className="flex-1 rk-btn py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
+                                    <button onClick={sortSets} title="מיון לפי שלישיות (ערך)" className="flex-1 rk-btn py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></button>
                                 </div>
                                 {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
                                 <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
@@ -8703,10 +8702,10 @@
 
                     {/* התראת-תור בולטת (עובדת גם באייפון — ויזואלית) */}
                     {turnAlert && ReactDOM.createPortal(
-                        <div key={t.turnStartedAt} className="rami-turn-pop" style={{ position: 'fixed', left: '50%', top: '38%', zIndex: 500, pointerEvents: 'none' }}>
-                            <div className="px-8 py-5 rounded-3xl text-center shadow-2xl" style={{ background: 'linear-gradient(135deg, #059669, #10b981)', border: '3px solid #6ee7b7', boxShadow: '0 0 60px rgba(16,185,129,0.7)' }}>
-                                <div className="text-5xl mb-1">🔔</div>
-                                <div className="text-white font-black text-3xl tracking-wide">תורך!</div>
+                        <div key={t.turnStartedAt} className="rami-turn-pop" style={{ position: 'fixed', left: '50%', top: '30%', zIndex: 500, pointerEvents: 'none' }}>
+                            <div className="flex items-center gap-3 px-6 py-3 rounded-full" style={{ background: 'linear-gradient(135deg, rgba(5,95,70,0.94), rgba(16,185,129,0.94))', border: '2px solid rgba(167,243,208,0.7)', boxShadow: '0 12px 44px rgba(16,185,129,0.5), inset 0 1px 0 rgba(255,255,255,0.35)', WebkitBackdropFilter: 'blur(8px)', backdropFilter: 'blur(8px)' }}>
+                                <span className="rami-bell text-3xl">🔔</span>
+                                <span className="text-white font-black text-2xl tracking-wide" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>תורך!</span>
                             </div>
                         </div>
                     , document.body)}
