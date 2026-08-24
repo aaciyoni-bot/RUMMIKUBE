@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v130';
+        window.__APP_VER = 'v131';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v130';
+        const APP_VER = window.__APP_VER || 'v131';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8618,15 +8618,22 @@
                 try { await window.fb.httpsCallable(window.fb.functions, 'ramiLeave')({ tableId: t.id }); } catch (e) {} onLeave();
             };
 
-            // טיימר תור
+            // טיימר תור — עוגן-זמן *מקומי*: מודדים את משך התור מרגע שהמכשיר הזה ראה אותו
+            // (Date.now מקומי), ולא לפי turnStartedAt (שנקבע ע"י שעון של מכשיר אחר). כך הטיימר
+            // תמיד מתחיל מלא ולעולם לא קופץ ל-0 בטעות בתחילת התור — מה שקודם גרם לפעולה-
+            // אוטומטית מוקדמת שהתנגשה עם הלחיצות של השחקן ("לא מאפשר למשוך אבן").
+            const turnAnchorRef = useRef({ key: '', at: 0 });
             useEffect(() => {
                 if (!t || t.phase !== 'playing') { setTimeLeft(turnSecs); return; }
                 const cp = t.players[t.currentTurn] || {};
                 // בונוס בנק-זמן חל רק על התור שבו הופעל (נקשר ל-turnStartedAt)
                 const bonus = (Number(cp.tbBonusAt) || 0) === (Number(t.turnStartedAt) || 0) ? (Number(cp.tbBonus) || 0) : 0;
-                const tick = () => setTimeLeft(Math.max(0, (turnSecs + bonus) - Math.floor((Date.now() - (t.turnStartedAt || Date.now())) / 1000)));
+                const key = `${t.currentTurn}_${t.turnStartedAt}`;
+                if (turnAnchorRef.current.key !== key) turnAnchorRef.current = { key, at: Date.now() };
+                const anchor = turnAnchorRef.current.at;
+                const tick = () => setTimeLeft(Math.max(0, (turnSecs + bonus) - Math.floor((Date.now() - anchor) / 1000)));
                 tick(); const iv = setInterval(tick, 500); return () => clearInterval(iv);
-            }, [t && t.turnStartedAt, t && t.phase, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
+            }, [t && t.turnStartedAt, t && t.currentTurn, t && t.phase, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
 
             // מסמן "משחק חי" כדי שהעדכון-האוטומטי לא ירענן באמצע יד (מעדכן רק בין משחקים/בלובי)
             useEffect(() => {
@@ -8680,8 +8687,15 @@
                 const stuckUid = t.currentTurn;
                 const cpW = t.players[stuckUid] || {};
                 const bonusW = (Number(cpW.tbBonusAt) || 0) === startAt ? (Number(cpW.tbBonus) || 0) : 0; // מכבד בנק-זמן
-                const GRACE = 5; // שניות מעבר לזמן-התור לפני שחרור כפוי (מכסה הפרשי-שעון בין מכשירים)
-                const deadline = startAt + (turnSecs + bonusW + GRACE) * 1000;
+                const GRACE = 5; // שניות מעבר לזמן-התור לפני שחרור כפוי
+                // בוט אמור לזוז תוך שניות בודדות (מוח-הבוט חושב ~1–2.3 שנ'). אם עברו 11 שנ' והוא
+                // עדיין לא זז — משהו נתקע (טרנזקציה שנכשלה בשקט), משחררים מיד במקום לחכות טיימר-אנושי.
+                const BOT_MAX = 11;
+                // חסין-לשעונים: מודדים את ההמתנה כמרווח *מקומי* מרגע שהמכשיר הזה ראה את התור,
+                // ולא לפי turnStartedAt (שנקבע ע"י שעון של מכשיר אחר). אחרת, כשהשעונים של שני
+                // הטלפונים אינם מסונכרנים, מכשיר-היריב חושב שהתור "פג" וחוטף אותו 400ms אחרי
+                // שהתחיל — והשחקן פשוט "לא מצליח למשוך" כי התור קופץ הלאה שוב ושוב.
+                const delayMs = cpW.isBot ? BOT_MAX * 1000 : (turnSecs + bonusW + GRACE) * 1000;
                 const fire = async () => {
                     const key = `${stuckUid}_${startAt}`;
                     if (stuckRef.current === key) return; stuckRef.current = key;
@@ -8708,7 +8722,7 @@
                         });
                     } catch (e) {}
                 };
-                const tm = setTimeout(fire, Math.max(400, deadline - Date.now()));
+                const tm = setTimeout(fire, delayMs);
                 return () => clearTimeout(tm);
             }, [t && t.currentTurn, t && t.turnStartedAt, t && t.phase, isSeated, turnSecs]);
 
@@ -8734,7 +8748,9 @@
                 {
                     const cu = t.currentTurn; const cp = t.players?.[cu];
                     if (!cp || !cp.isBot) return;
-                    const think = 2500 + Math.random() * 2500;
+                    // חשיבה מהירה: עם 3 בוטים ברצף, 2.5–5 שנ' לכל אחד = עד 15 שנ' המתנה בין
+                    // תורים ומרגיש כמו קיפאון. 1.1–2.3 שנ' שומר על תחושת-חיים בלי לעכב את השחקן.
+                    const think = 1100 + Math.random() * 1200;
                     const tm = setTimeout(async () => {
                         try {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
