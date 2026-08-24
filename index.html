@@ -235,16 +235,20 @@
            בכל גודל: לוח, מגש, רוח-רפאים של גרירה ופאנל GOD. */
         .rummy-tile {
             position: relative;
-            background: linear-gradient(180deg, var(--tile-face-1) 0%, var(--tile-face-2) 54%, var(--tile-face-3) 100%);
-            border-radius: 0.4em;
-            border: 1px solid rgba(255,255,255,0.9);
+            /* פנים שנהב עם ברק-אור עדין למעלה — גימור עצם מלוטש, לא פלסטיק */
+            background:
+                radial-gradient(115% 68% at 50% 0%, rgba(255,255,255,0.55), transparent 58%),
+                linear-gradient(180deg, var(--tile-face-1) 0%, var(--tile-face-2) 54%, var(--tile-face-3) 100%);
+            border-radius: 0.46em;
+            border: 1px solid rgba(120,100,60,0.20);
+            border-top-color: rgba(255,252,244,0.9);
             border-bottom: none;
             box-shadow:
-                inset 0 1px 0 #fff,                                  /* ברק עליון */
-                inset 0 -0.3em 0.25em -0.22em rgba(150,138,108,0.35),/* הצללה פנימית תחתונה */
-                0 0.13em 0 var(--tile-shelf),                        /* עובי האבן */
-                0 0.3em 0.45em rgba(0,0,0,0.42),
-                0 0.62em 1.1em rgba(0,0,0,0.28);
+                inset 0 1px 0 rgba(255,255,255,0.95),                 /* ברק עליון רך */
+                inset 0 -0.28em 0.3em -0.24em rgba(150,138,108,0.30), /* הצללה פנימית תחתונה */
+                0 0.13em 0 var(--tile-shelf),                         /* עובי האבן */
+                0 0.26em 0.4em rgba(38,28,14,0.30),                   /* צל חמים ורך */
+                0 0.55em 0.95em rgba(38,28,14,0.20);
             font-family: 'Rubik', system-ui, sans-serif;
             font-weight: 800;
             font-variant-numeric: tabular-nums;
@@ -1084,7 +1088,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v94';
+        const APP_VER = 'v95';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
