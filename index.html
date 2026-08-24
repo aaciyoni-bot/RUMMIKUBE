@@ -98,6 +98,29 @@
             to { background-position: 34% 22%, 66% 62%; }
         }
 
+        /* ===== רמי: משטח-שולחן אלגנטי ===== */
+        /* בסיס עמוק עם וינייטה חמימה שמשלימה את עץ-הבוק — השולחן "מואר" במרכז */
+        .rami-table-bg {
+            background:
+                radial-gradient(120% 90% at 50% 12%, rgba(56,120,110,0.16), transparent 55%),
+                radial-gradient(140% 120% at 50% 120%, rgba(120,82,38,0.14), transparent 60%),
+                linear-gradient(180deg, #0a1220 0%, #070d18 55%, #060a12 100%);
+        }
+        /* מסגרת עץ מלוטשת סביב המעמד — קנט כהה בחוץ, הדגשה בהירה בפנים */
+        .rami-rack-frame {
+            border: 2px solid rgba(64,42,18,0.9);
+            box-shadow:
+                0 22px 50px rgba(0,0,0,0.55),
+                0 2px 0 rgba(255,246,225,0.25) inset,
+                0 0 0 1px rgba(255,240,210,0.12) inset,
+                0 -18px 40px -20px rgba(0,0,0,0.6) inset;
+        }
+        /* עמודות-צד מזוגגות ועדינות */
+        .rami-side {
+            background: linear-gradient(180deg, rgba(15,22,38,0.72), rgba(8,12,22,0.86));
+            -webkit-backdrop-filter: blur(10px) saturate(140%);
+            backdrop-filter: blur(10px) saturate(140%);
+        }
         .glass-panel {
             background: linear-gradient(180deg, rgba(13,20,36,0.66), rgba(7,11,22,0.84));
             -webkit-backdrop-filter: blur(18px) saturate(150%);
@@ -1061,7 +1084,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v93';
+        const APP_VER = 'v94';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8562,7 +8585,7 @@
                     <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 rounded-2xl font-black border border-white/10">← יציאה מהצפייה</button>
                 </div>;
             return (
-                <div className={`absolute inset-0 flex flex-col aurora-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
+                <div className={`absolute inset-0 flex flex-col aurora-bg rami-table-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     {needRotate && (
                         <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
                             <div className="text-6xl" style={{ animation: 'rotateHint 2s ease-in-out infinite' }}>📱</div>
@@ -8575,7 +8598,7 @@
                         /* ── פריסה לרוחב כמו רמיקוב: עמודת פעולות | מרכז (שולחן + מעמד-עץ תחום) | עמודת יריבים ── */
                         <div className="flex-1 min-h-0 flex" dir="rtl">
                             {/* עמודת יריבים (ימין) */}
-                            <div className="w-36 shrink-0 flex flex-col gap-1.5 p-2 border-l border-white/5 overflow-y-auto bg-slate-950/50">
+                            <div className="w-36 shrink-0 flex flex-col gap-1.5 p-2 border-l border-white/5 overflow-y-auto rami-side">
                                 <div className="flex items-center justify-between">
                                     <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">← יציאה</button>
                                     <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 flex items-center justify-center font-black text-xs" />
@@ -8589,13 +8612,13 @@
                                 <div className="shrink-0 flex items-center justify-center px-3 pt-2">{poolStrip}</div>
                                 <div className="shrink-0 flex items-center justify-center px-3 pt-1">{turnBannerEl}</div>
                                 <div className="flex-1 min-h-0 flex items-end justify-center px-2 pb-2">
-                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack w-full max-w-[64rem] rounded-2xl overflow-y-auto max-h-full shadow-2xl">
+                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack rami-rack-frame w-full max-w-[64rem] rounded-2xl overflow-y-auto max-h-full">
                                         {rackInner}
                                     </div>
                                 </div>
                             </div>
                             {/* עמודת פעולות (שמאל) */}
-                            <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center bg-slate-950/50">
+                            <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center rami-side">
                                 {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
                                 <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg">✨ סדר לי</button>
                                 {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
