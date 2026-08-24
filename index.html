@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v102';
+        const APP_VER = 'v103';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7666,11 +7666,14 @@
         /* ================================================================
            שולחן רמי סגור (Rami / Okey) — יד פרטית, משיכה/זריקה, ירידה בבת-אחת
            ================================================================ */
-        const RamiTile = ({ tile, onClick, dim, big, board }) => {
+        const RamiTile = ({ tile, onClick, dim, big, board, sm }) => {
             const isJoker = tile.val === '☻';
+            const w = big ? '3.5rem' : board ? (sm ? '2.05rem' : '2.4rem') : '3rem';
+            const h = big ? '4.4rem' : board ? (sm ? '2.55rem' : '3rem') : '3.8rem';
+            const fs = big ? '2rem' : board ? (sm ? '1.15rem' : '1.35rem') : '1.7rem';
             return (
                 <div onClick={onClick} className={`rummy-tile${isJoker ? ' joker' : ''}`} title={isJoker ? "ג'וקר" : ''}
-                    style={{ width: big ? '3.5rem' : board ? '2.4rem' : '3rem', height: big ? '4.4rem' : board ? '3rem' : '3.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? '2rem' : board ? '1.35rem' : '1.7rem', color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
+                    style={{ width: w, height: h, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
                     {isJoker ? <span className="joker-glyph">🃏</span> : tile.val}
                 </div>
             );
@@ -7979,7 +7982,7 @@
                 const validStyle = (valid && tile) ? { boxShadow: comboGlow, background: 'rgba(52,211,153,0.13)', zIndex: 10 } : {};
                 return (
                     <div key={zone + idx} data-zone={zone} data-slot={idx}
-                        style={{ touchAction: 'none', minHeight: '3.05rem', ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
+                        style={{ touchAction: 'none', minHeight: wide ? '2.65rem' : '3.05rem', ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
                         className={`relative flex items-center justify-center rounded-lg transition-all ${valid && tile ? 'rk-combo-glow' : ''}`}>
                         {/* סמן "כאן תונח" מעל התא — נראה גם כשהאצבע מסתירה את התא עצמו */}
                         {isDrop && <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ bottom: 'calc(100% + 4px)', zIndex: 30 }}><div className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-black shadow-lg animate-bounce">⬇ כאן</div></div>}
@@ -7988,7 +7991,7 @@
                                 onPointerDown={(e) => onTileDown(e, id, zone, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
                                 style={{ touchAction: 'none', opacity: (dragId === id || (groupDrag && groupDrag.includes(id))) ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
                                 className={`rounded-lg ${groupDrag && groupDrag.includes(id) ? 'ring-2 ring-amber-300' : ''} ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
-                                <RamiTile tile={tile} board />
+                                <RamiTile tile={tile} board sm={wide} />
                             </div>
                         )}
                     </div>
