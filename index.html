@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v129';
+        window.__APP_VER = 'v130';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v129';
+        const APP_VER = window.__APP_VER || 'v130';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5782,6 +5782,8 @@
             const [search, setSearch] = useState('');
             const [memFilter, setMemFilter] = useState('all'); // all / agents / managers / banned
             const [balBox, setBalBox] = useState(null);        // מודל הפקדה/משיכה: { mem, dir, amt }
+            const [mergeBox, setMergeBox] = useState(null);    // מודל מיזוג-כפילות: { keep, drops:[...] }
+            const [mergeBusy, setMergeBusy] = useState(false);
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
             const [rakeDraft, setRakeDraft] = useState(clubSettings.rakePct);
@@ -6009,6 +6011,28 @@
                 .filter(u => canManageAny || u.agentUid === user.uid)
                 .filter(u => memFilter === 'all' || (memFilter === 'agents' && u.role === ROLES.AGENT) || (memFilter === 'managers' && u.role === ROLES.MANAGER) || (memFilter === 'banned' && u.status === 'banned'))
                 .filter(u => !search || (u.username||'').toLowerCase().includes(search.toLowerCase()) || (u.email||'').toLowerCase().includes(search.toLowerCase()) || (u.playerId||'').toLowerCase().includes(search.toLowerCase()));
+
+            // זיהוי כפילויות לפי טלפון: אורח שנכנס שוב-ושוב מקבל uid חדש בכל פעם (החיה עם 500+400).
+            // מנרמלים ספרות בלבד, ומקבצים לפי טלפון. שחקן עם ≥2 חשבונות = כפילות למיזוג.
+            const phoneKey = (u) => { const s = String(u.phone || u.playerId || '').replace(/\D/g, ''); return s.length >= 6 ? s : ''; };
+            const phoneGroups = {};
+            (canManageAny ? realPlayers : players).filter(u => !u.isBot).forEach(u => { const k = phoneKey(u); if (!k) return; (phoneGroups[k] = phoneGroups[k] || []).push(u); });
+            const dupsOf = (u) => { const k = phoneKey(u); if (!k) return []; return (phoneGroups[k] || []).filter(o => (o.uid || o.id) !== (u.uid || u.id)); };
+            const openMerge = (u) => { const drops = dupsOf(u); if (!drops.length) return; setMergeBox({ keep: u, drops }); };
+            const doMergeDup = async () => {
+                if (!mergeBox || mergeBusy) return; setMergeBusy(true);
+                const keepUid = mergeBox.keep.uid || mergeBox.keep.id;
+                try {
+                    for (const d of mergeBox.drops) {
+                        const dropUid = d.uid || d.id;
+                        if (!dropUid || dropUid === keepUid) continue;
+                        await window.fb.httpsCallable(window.fb.functions, 'godMergePlayers')({ keepUid, dropUid, clubId: CLUB_ID });
+                    }
+                    showToast('הכפילויות מוזגו לחשבון אחד ✓', 'success');
+                    setMergeBox(null);
+                } catch (e) { showToast(fnErr(e), 'error'); }
+                finally { setMergeBusy(false); }
+            };
 
             const statTiles = [
                 { label: 'היתרה שלך', value: formatMoney(user.balance), icon: 'fa-wallet', color: 'text-white' },
@@ -6297,6 +6321,9 @@
                                             {canManageAny && (
                                                 <button onClick={()=>toggleBan(u)} className={`w-9 h-9 rounded-xl border transition-colors shrink-0 ${u.status === 'banned' ? 'bg-rose-900/60 border-rose-500 text-rose-300 hover:bg-emerald-900 hover:text-emerald-300' : 'bg-slate-800 border-white/10 text-slate-400 hover:bg-rose-900 hover:text-white'}`} title={u.status === 'banned' ? 'שחרר חסימה' : 'חסום שחקן'}><i className="fa-solid fa-ban text-xs"></i></button>
                                             )}
+                                            {canManageAny && dupsOf(u).length > 0 && (
+                                                <button onClick={()=>openMerge(u)} className="w-9 h-9 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 shrink-0 animate-pulse" title={`מזג ${dupsOf(u).length} חשבונות כפולים (אותו טלפון) לחשבון זה`}><i className="fa-solid fa-code-merge text-xs"></i></button>
+                                            )}
                                         </div>
                                     </div>
                                     );
@@ -6304,6 +6331,52 @@
                             </div>
                         </div>
                     </div>
+
+                    {/* מודל מיזוג-כפילות: מאחד חשבונות אורח כפולים (אותו טלפון) לחשבון אחד */}
+                    {mergeBox && (() => {
+                        const keepBal = round2(Number(mergeBox.keep.balance) || 0);
+                        const dropSum = mergeBox.drops.reduce((s, d) => s + (Number(d.balance) || 0), 0);
+                        const total = round2(keepBal + dropSum);
+                        return (
+                            <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl" onClick={()=>!mergeBusy && setMergeBox(null)}>
+                                <div className="glass-panel rounded-3xl p-6 w-full max-w-sm animate-pop-in" onClick={e=>e.stopPropagation()}>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <span className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center shrink-0"><i className="fa-solid fa-code-merge text-amber-400"></i></span>
+                                        <div>
+                                            <div className="font-black text-white text-lg">מיזוג חשבונות כפולים</div>
+                                            <div className="text-[11px] text-slate-400">אותו טלפון · {String(mergeBox.keep.phone || mergeBox.keep.playerId || '')}</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-900/70 rounded-2xl p-3 border border-emerald-500/30 mb-2">
+                                        <div className="text-[10px] text-emerald-300 font-black mb-1">✓ נשאר (חשבון-על)</div>
+                                        <div className="flex items-center gap-2">
+                                            <img src={avatarUrl({ ...mergeBox.keep, uid: mergeBox.keep.id })} className="w-8 h-8 rounded-lg bg-slate-800" />
+                                            <div className="font-bold text-white text-sm flex-1 truncate">{mergeBox.keep.username}</div>
+                                            <div className="text-emerald-300 font-black text-sm" dir="ltr">{formatMoney(keepBal)} ₪</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-900/70 rounded-2xl p-3 border border-rose-500/30 mb-3">
+                                        <div className="text-[10px] text-rose-300 font-black mb-1">✗ יימחקו (יתרתם עוברת אליו)</div>
+                                        {mergeBox.drops.map(d => (
+                                            <div key={d.id} className="flex items-center gap-2 mt-1">
+                                                <img src={avatarUrl({ ...d, uid: d.id })} className="w-7 h-7 rounded-lg bg-slate-800" />
+                                                <div className="font-bold text-slate-300 text-sm flex-1 truncate">{d.username}</div>
+                                                <div className="text-slate-400 font-black text-sm" dir="ltr">{formatMoney(Number(d.balance) || 0)} ₪</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-3 mb-4">
+                                        <div className="text-white font-black text-sm">יתרה מאוחדת</div>
+                                        <div className="text-emerald-300 font-black text-lg" dir="ltr">{formatMoney(total)} ₪</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={()=>!mergeBusy && setMergeBox(null)} className="flex-1 h-11 rounded-xl bg-slate-800 text-slate-300 font-black border border-white/10">ביטול</button>
+                                        <button onClick={doMergeDup} disabled={mergeBusy} className="flex-1 h-11 rounded-xl bg-gradient-to-b from-amber-400 to-amber-600 text-slate-900 font-black disabled:opacity-60">{mergeBusy ? 'ממזג…' : 'מזג עכשיו'}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* מודל הפקדה/משיכה: סכומים מהירים + תצוגה חיה של שתי היתרות */}
                     {balBox && (() => {
@@ -8299,7 +8372,13 @@
             };
 
             const applyTx = async (mutate) => {
-                if (actingRef.current) return; actingRef.current = true;
+                // נעילה עם תפוגה: אם פעולה קודמת "נתקעה" (רשת איטית/ניתוק רגעי) יותר מ-3.5 שנ',
+                // לא חוסמים את השחקן — אחרת הקלקה על משיכת-אבן "נבלעת בשקט" עד שהטרנזקציה
+                // התקועה משתחררת (עד דקה שלמה בחלון-הריטריי של Firestore). הבדיקות הפנימיות
+                // (turnPhase/currentTurn) ממילא מונעות מהלך כפול, אז בטוח לאפשר כניסה חוזרת.
+                const now = Date.now();
+                if (actingRef.current && (now - actingRef.current) < 3500) return;
+                actingRef.current = now; const myLock = now;
                 try {
                     await window.fb.runTransaction(window.fb.db, async (tx) => {
                         const ref = window.fb.doc(window.fb.db, "tables", t.id);
@@ -8309,7 +8388,7 @@
                         if (upd) tx.update(ref, upd);
                     });
                 } catch (e) { showToast(fnErr(e), "error"); }
-                finally { actingRef.current = false; }
+                finally { if (actingRef.current === myLock) actingRef.current = null; }
             };
 
             const reshuffleIfNeeded = (deck, discard) => {

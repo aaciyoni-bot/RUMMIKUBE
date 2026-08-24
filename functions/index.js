@@ -655,6 +655,51 @@ exports.siteOwnerSetup = onCall(async (request) => {
   return {ok: true};
 });
 
+// ── מיזוג כפילות-שחקן (בעלים/GOD): מאחד שני חשבונות של אותו אדם (כניסות-אורח כפולות) ──
+// מעביר את היתרה+הסטטיסטיקה מ-dropUid אל keepUid, מוחק את החשבון הכפול. הכסף נשמר (סכום).
+exports.godMergePlayers = onCall(async (request) => {
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {keepUid, dropUid, clubId} = request.data || {};
+  if (!keepUid || !dropUid || keepUid === dropUid) throw new HttpsError("invalid-argument", "חסרים/שגויים מזהי-שחקן");
+  const cid = clubId || "main";
+  // הרשאה: GOD, בעל-האתר, או בעל-הקלאב
+  let allowed = isGodEmail(email) || SITE_OWNER_EMAILS_SRV.includes(email);
+  if (!allowed) { const c = await db.doc(`clubs/${cid}`).get(); if (c.exists && c.data().ownerUid === uid) allowed = true; }
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה");
+  const out = await db.runTransaction(async (tx) => {
+    const keepMemRef = db.doc(`memberships/${keepUid}_${cid}`);
+    const dropMemRef = db.doc(`memberships/${dropUid}_${cid}`);
+    const keepUserRef = db.doc(`users/${keepUid}`);
+    const dropUserRef = db.doc(`users/${dropUid}`);
+    const [keepMem, dropMem, keepUser, dropUser] = await Promise.all([tx.get(keepMemRef), tx.get(dropMemRef), tx.get(keepUserRef), tx.get(dropUserRef)]);
+    if (!dropUser.exists) throw new HttpsError("not-found", "החשבון הכפול לא קיים");
+    const kM = keepMem.exists ? keepMem.data() : null;
+    const dM = dropMem.exists ? dropMem.data() : null;
+    const dBal = dM ? round2(Number(dM.balance) || 0) : 0;
+    const kBal = kM ? round2(Number(kM.balance) || 0) : 0;
+    const dStats = (dM && dM.stats) || (dropUser.data().stats) || {};
+    const kStats = (kM && kM.stats) || (keepUser.exists ? keepUser.data().stats : {}) || {};
+    const mergedStats = {
+      gamesPlayed: (Number(kStats.gamesPlayed) || 0) + (Number(dStats.gamesPlayed) || 0),
+      gamesWon: (Number(kStats.gamesWon) || 0) + (Number(dStats.gamesWon) || 0),
+      totalProfit: round2((Number(kStats.totalProfit) || 0) + (Number(dStats.totalProfit) || 0)),
+      bestStreak: Math.max(Number(kStats.bestStreak) || 0, Number(dStats.bestStreak) || 0),
+      streak: Number(kStats.streak) || 0,
+    };
+    // כותבים ל-keep: יתרה מאוחדת + סטטיסטיקה
+    if (keepMem.exists) tx.update(keepMemRef, {balance: round2(kBal + dBal), stats: mergedStats});
+    else if (dM) tx.set(keepMemRef, {...dM, uid: keepUid, balance: round2(kBal + dBal), stats: mergedStats});
+    if (keepUser.exists) tx.update(keepUserRef, {balance: round2((Number(keepUser.data().balance) || 0) + (Number(dropUser.data().balance) || 0)), stats: mergedStats});
+    // מוחקים את החשבון הכפול
+    if (dropMem.exists) tx.delete(dropMemRef);
+    tx.delete(dropUserRef);
+    return {keepUid, dropUid, mergedBalance: round2(kBal + dBal)};
+  });
+  return {ok: true, ...out};
+});
+
 // ── איפוס מלא (GOD בלבד): מאפס יתרות + היסטוריה, בעל-האתר מקבל 10,000,000 ──
 // רץ ב-admin SDK (עוקף חוקים), אטומי ובבאצ'ים — כך שהאיפוס תמיד מצליח ומדווח.
 exports.godFullReset = onCall(async (request) => {
