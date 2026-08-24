@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v122';
+        window.__APP_VER = 'v123';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1172,7 +1172,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v122';
+        const APP_VER = window.__APP_VER || 'v123';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -3523,6 +3523,46 @@
         const playerScore = (stats) => {
             const s = stats || {};
             return Math.round((s.gamesWon || 0) * 10 + trophyTotal(s) * 250 + Math.max(0, s.totalProfit || 0) / 100 + (s.gamesPlayed || 0));
+        };
+        // ── רמות שחקן: יהלום צבעוני עם מספר-רמה + פס-התקדמות (גיימיפיקציה) ──
+        // הדרגות לפי נקודות (כמו קודם), אבל עכשיו עם יהלום צבעוני, מספר-רמה ותצוגת-פרופיל.
+        const LEVEL_TIERS = [
+            { min: 0,    key: 'bronze',  name: 'מתחיל',  grad: ['#e8b07a', '#a9611f'], color: '#c77d3a' },
+            { min: 25,   key: 'silver',  name: 'חובב',   grad: ['#f1f5f9', '#8896a8'], color: '#a9b6c6' },
+            { min: 100,  key: 'gold',    name: 'שחקן',   grad: ['#ffe08a', '#d97706'], color: '#f0b000' },
+            { min: 300,  key: 'emerald', name: 'מקצוען', grad: ['#7ff0c0', '#059669'], color: '#10b981' },
+            { min: 800,  key: 'sapphire',name: 'מומחה',  grad: ['#8bd4ff', '#0369c9'], color: '#38bdf8' },
+            { min: 2000, key: 'amethyst',name: 'אלוף',   grad: ['#e0b3ff', '#7c3aed'], color: '#a78bfa' },
+            { min: 5000, key: 'ruby',    name: 'אגדה',   grad: ['#ffd0e0', '#e11d48'], color: '#fb7185' }
+        ];
+        const SITE_OWNER_FLOOR_PTS = 326; // בעל-הקלאב מוצג לפחות כ"מקצוען"
+        const ptsToLevelNum = (pts) => Math.max(1, Math.floor(Math.sqrt(Math.max(0, pts)) / 1.5) + 1);
+        // מחזיר {level, tier, pts, pct(לתגמול הבא), toNext}
+        const playerLevel = (stats, joinedAt, opts) => {
+            const games = (stats || {}).gamesPlayed || 0;
+            const weeks = joinedAt ? Math.floor((Date.now() - joinedAt) / (7 * 86400000)) : 0;
+            let pts = games + weeks * 5 + trophyTotal(stats) * 50;
+            if (opts && opts.owner) pts = Math.max(pts, SITE_OWNER_FLOOR_PTS);
+            let tier = LEVEL_TIERS[0], idx = 0;
+            for (let i = 0; i < LEVEL_TIERS.length; i++) if (pts >= LEVEL_TIERS[i].min) { tier = LEVEL_TIERS[i]; idx = i; }
+            const nextTier = LEVEL_TIERS[idx + 1] || null;
+            const base = tier.min, top = nextTier ? nextTier.min : tier.min + 1;
+            const pct = nextTier ? Math.max(2, Math.min(100, Math.round((pts - base) / (top - base) * 100))) : 100;
+            return { level: ptsToLevelNum(pts), tier, tierIdx: idx, pts, pct, toNext: nextTier ? Math.max(0, top - pts) : 0, nextTier };
+        };
+        const levelByNum = (level) => { let t = LEVEL_TIERS[0]; const guessPts = Math.pow((level - 1) * 1.5, 2); for (const x of LEVEL_TIERS) if (guessPts >= x.min) t = x; return { level, tier: t, pct: 100, toNext: 0, nextTier: null }; };
+        // יהלום צבעוני עם מספר-רמה
+        const LevelGem = ({ level, tier, size = 30, dim }) => {
+            const g = (tier && tier.grad) || ['#e8b07a', '#a9611f'];
+            const id = 'lg-' + ((tier && tier.key) || 'bronze');
+            return (
+                <svg width={size} height={size} viewBox="0 0 40 40" style={{ display: 'block', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.55))', opacity: dim ? 0.85 : 1 }}>
+                    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={g[0]} /><stop offset="1" stopColor={g[1]} /></linearGradient></defs>
+                    <polygon points="20,1.5 38,15 20,38.5 2,15" fill={`url(#${id})`} stroke="rgba(255,255,255,.6)" strokeWidth="1.4" />
+                    <polygon points="20,1.5 38,15 20,19 2,15" fill="rgba(255,255,255,.28)" />
+                    <text x="20" y="25.5" textAnchor="middle" fontSize="15" fontWeight="900" fill="#fff" fontFamily="'Rubik',sans-serif" style={{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,.45)', strokeWidth: '0.8px' }}>{level}</text>
+                </svg>
+            );
         };
         const botsAreActive = () => !(window.__club && window.__club.botsActive === false);
 
@@ -7803,22 +7843,23 @@
             const myHand = (meP && meP.cards) || [];
             // דרגות שחקנים לתצוגה בשולחן: מנוי-קריאה בלבד למ-memberships (בלי נגיעה בכסף)
             const [memRanks, setMemRanks] = useState({});
+            const [profileUid, setProfileUid] = useState(null);
             useEffect(() => {
                 try {
                     const q = window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID));
                     const unsub = window.fb.onSnapshot(q, (s) => {
                         const map = {};
-                        s.docs.forEach(d => { const m = d.data(); const uid = m.uid || d.id.split('_')[0]; if (uid) map[uid] = playerRank(m.stats, m.joinedAt); });
+                        s.docs.forEach(d => { const m = d.data(); const uid = m.uid || d.id.split('_')[0]; if (!uid) return; const owner = (m.role === 'club_owner') || (SITE_OWNER_EMAILS.includes((m.email || '').toLowerCase().trim())); map[uid] = { ...playerLevel(m.stats, m.joinedAt, { owner }), stats: m.stats || {}, owner }; });
                         setMemRanks(map);
                     }, () => {});
                     return () => unsub();
                 } catch (e) {}
             }, []);
-            // דרגה של שחקן: אמיתי → מהסטטיסטיקה; בוט/טוען → דרגה יציבה ואמינה לפי מזהה
-            const rankFor = (uid, p) => {
+            // רמה של שחקן: אמיתי → מהסטטיסטיקה; בוט/טוען → רמה יציבה ואמינה לפי מזהה
+            const lvlFor = (uid, p) => {
                 if (p && !p.isBot && memRanks[uid]) return memRanks[uid];
                 let h = 0; const s = String(uid || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-                return RANK_TIERS[h % 5]; // מתחיל..מומחה (בוטים לא מגיעים לאלוף/אגדה)
+                return levelByNum(1 + (h % 22)); // בוט: רמה יציבה 1..22
             };
             const handKey = myHand.map(x => x && x.id).join(',');
             const part = useMemo(() => bestPartition(myHand), [handKey]);
@@ -8603,7 +8644,7 @@
                                 <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
                                 <p className="text-slate-400 font-bold text-xs mb-3" dir="rtl">דמי כניסה: {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪</p>
                                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
-                                    {uids.map(u => { const rk = rankFor(u, t.players[u]); return <span key={u} className="bg-slate-800/70 border border-white/10 rounded-full px-3 py-1 text-sm font-bold text-white inline-flex items-center gap-1"><span style={{ color: rk.color }} title={`דרגה: ${rk.name}`}>{rk.icon}</span>{t.players[u].username}{u === user.uid && ' (אתה)'}</span>; })}
+                                    {uids.map(u => { const lv = lvlFor(u, t.players[u]); return <span key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className="bg-slate-800/70 border border-white/10 rounded-full pl-1 pr-3 py-0.5 text-sm font-bold text-white inline-flex items-center gap-1.5"><LevelGem level={lv.level} tier={lv.tier} size={22} />{t.players[u].username}{u === user.uid && ' (אתה)'}</span>; })}
                                     {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1 text-sm font-bold text-slate-600">מקום פנוי</span>)}
                                 </div>
                                 {!isSeated
@@ -8726,9 +8767,13 @@
                 const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
                 const oppTbUses = Number(p.tbUses) || 0;
                 const threw = (p.threw || []).slice(-5);
-                return <div key={u} className={`rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
-                    <div className="font-black text-white text-xs whitespace-nowrap max-w-full truncate text-center">{p.username}{p.isBot ? ' 🤖' : ''}</div>
-                    {(() => { const rk = rankFor(u, p); return <div className="flex items-center justify-center gap-0.5 text-[9px] font-black leading-none mt-0.5" style={{ color: rk.color }} title={`דרגה: ${rk.name}`}><span>{rk.icon}</span><span className="truncate max-w-[5.5rem]">{rk.name}</span></div>; })()}
+                const lv = lvlFor(u, p);
+                return <div key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className={`rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                    <div className="flex items-center justify-center gap-1">
+                        <LevelGem level={lv.level} tier={lv.tier} size={22} />
+                        <div className="font-black text-white text-xs whitespace-nowrap max-w-[6rem] truncate">{p.username}{p.isBot ? ' 🤖' : ''}</div>
+                    </div>
+                    <div className="text-center text-[9px] font-black leading-none mt-0.5" style={{ color: lv.tier.color }}>{lv.tier.name}</div>
                     <div className="text-[10px] text-slate-400 font-bold flex items-center justify-center gap-1.5 mt-0.5" dir="ltr">
                         <span>🁢 {cnt}</span>
                         {oppTbUses > 0 && <span className="text-amber-300/80" title="הפעלות בנק-זמן שנותרו">🏦{oppTbUses}</span>}
@@ -8766,7 +8811,7 @@
                 <div className="shrink-0 flex items-center justify-between px-2 py-1 gap-2 relative z-10">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                         <span className="text-[11px] font-black shrink-0" style={{ color: '#4a3418' }}>🎴 המעמד שלי ({myHand.filter(Boolean).length})</span>
-                        {(() => { const rk = rankFor(user.uid, meP); return <span className="text-[10px] font-black shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full" style={{ color: rk.color, background: rk.color + '22' }} title={`הדרגה שלך: ${rk.name}`}>{rk.icon}{rk.name}</span>; })()}
+                        {(() => { const lv = lvlFor(user.uid, meP); return <span onClick={() => setProfileUid(user.uid)} style={{ cursor: 'pointer' }} className="shrink-0 inline-flex items-center gap-1 px-1 py-0.5 rounded-full" title={`הרמה שלך: ${lv.tier.name}`}><LevelGem level={lv.level} tier={lv.tier} size={20} /><span className="text-[10px] font-black" style={{ color: lv.tier.color }}>{lv.tier.name}</span></span>; })()}
                         {recognized.length > 0
                             ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
                             : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
@@ -8932,6 +8977,29 @@
                         </div>
                     , document.body)}
 
+                    {/* כרטיס-פרופיל בלחיצה על שחקן (גם באמצע משחק) — רמה, יהלום, פס-התקדמות וסטטיסטיקה */}
+                    {profileUid && t.players[profileUid] && (() => {
+                        const pp = t.players[profileUid]; const lv = lvlFor(profileUid, pp);
+                        const st = pp.isBot ? { gamesPlayed: Math.round(Math.pow(lv.level * 1.5, 2)), gamesWon: Math.round(Math.pow(lv.level * 1.5, 2) * 0.38), trophies: {} } : ((memRanks[profileUid] && memRanks[profileUid].stats) || {});
+                        return ReactDOM.createPortal(
+                            <div dir="rtl" className="fixed inset-0 z-[340] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setProfileUid(null)}>
+                                <div className="glass-panel rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl" onClick={e => e.stopPropagation()} style={{ borderTop: `3px solid ${lv.tier.color}` }}>
+                                    <div className="flex justify-center mb-1"><LevelGem level={lv.level} tier={lv.tier} size={76} /></div>
+                                    <h3 className="text-lg font-black text-white">{pp.username}{pp.isBot ? ' 🤖' : ''}</h3>
+                                    <div className="inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-full font-black text-sm" style={{ color: lv.tier.color, background: lv.tier.color + '1f', border: '1px solid ' + lv.tier.color + '55' }}>{lv.tier.name} · רמה {lv.level}</div>
+                                    <div className="mt-4">
+                                        <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1"><span>{lv.pts} נק'</span>{lv.nextTier ? <span>עוד {lv.toNext} ל{lv.nextTier.name}</span> : <span>דרגת שיא 💎</span>}</div>
+                                        <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden"><div style={{ width: lv.pct + '%', background: `linear-gradient(90deg, ${lv.tier.grad[0]}, ${lv.tier.grad[1]})` }} className="h-full rounded-full transition-all"></div></div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 mt-4">
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-white">{st.gamesPlayed || 0}</div><div className="text-[9px] text-slate-400 font-bold">משחקים</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-emerald-400">{st.gamesWon || 0}</div><div className="text-[9px] text-slate-400 font-bold">ניצחונות</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-400">{trophyTotal(st)}</div><div className="text-[9px] text-slate-400 font-bold">גביעים</div></div>
+                                    </div>
+                                    <button onClick={() => setProfileUid(null)} className="mt-5 w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-2xl font-black border border-white/10">סגור</button>
+                                </div>
+                            </div>, document.body);
+                    })()}
                     {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
                     {/* חלון אישור פריש מעוצב (במקום confirm הלבן של הדפדפן) */}
                     {askFreshOpen && ReactDOM.createPortal(
