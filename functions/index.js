@@ -700,6 +700,82 @@ exports.godMergePlayers = onCall(async (request) => {
   return {ok: true, ...out};
 });
 
+// ── כניסת-אורח סמכותית לפי טלפון (מבטלת כפילויות מהשורש) ──────────────────────
+// אורח = uid אנונימי חדש בכל פעם שהאחסון בדפדפן נמחק (webview של וואטסאפ, iOS פרטי).
+// לכן במקום להסתמך על ה-uid, מזהים את השחקן לפי הטלפון שהוא מקליד: מאחדים אוטומטית
+// את כל החשבונות עם אותו טלפון אל ה-uid הנוכחי (סוכמים יתרות, שומרים סטטוס-מאושר
+// והסטטיסטיקה הטובה ביותר) ומוחקים את השאר. כך אי-אפשר ליצור כפילות, וזה גם מרפא
+// לבד את הכפילויות הקיימות (עדן/חיה) בכניסה הבאה שלהן. הכסף נשמר (סכום, לא שכפול).
+exports.guestEnter = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {phone, name, clubId} = request.data || {};
+  const cid = clubId || "main";
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 3) throw new HttpsError("invalid-argument", "מספר מזהה לא תקין");
+
+  // אוספים את כל החברויות בקלאב עם אותו טלפון (כולל ה-uid הנוכחי, אם קיים)
+  const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
+  const matches = [];
+  memSnap.forEach((d) => {
+    const m = d.data();
+    if (m.isBot) return;
+    const mp = String(m.phone || m.playerId || "").replace(/\D/g, "");
+    if (mp && mp === digits) matches.push({id: d.id, uid: m.uid || d.id.split("_")[0], m});
+  });
+
+  // בוחרים את חשבון-העל: מאושר קודם, ואז היתרה הגבוהה ביותר
+  const scoreOf = (x) => (x.m.status === "approved" ? 1e15 : 0) + (Number(x.m.balance) || 0);
+  let best = null;
+  for (const x of matches) { if (!best || scoreOf(x) > scoreOf(best)) best = x; }
+
+  // מאחדים יתרה + סטטיסטיקה מכל ההתאמות
+  const sumBal = round2(matches.reduce((s, x) => s + (Number(x.m.balance) || 0), 0));
+  const anyApproved = matches.some((x) => x.m.status === "approved");
+  const mergedStats = matches.reduce((a, x) => {
+    const st = x.m.stats || {};
+    a.gamesPlayed += Number(st.gamesPlayed) || 0;
+    a.gamesWon += Number(st.gamesWon) || 0;
+    a.totalProfit = round2(a.totalProfit + (Number(st.totalProfit) || 0));
+    a.bestStreak = Math.max(a.bestStreak, Number(st.bestStreak) || 0);
+    return a;
+  }, {gamesPlayed: 0, gamesWon: 0, totalProfit: 0, bestStreak: 0, streak: (best && best.m.stats && Number(best.m.stats.streak)) || 0});
+
+  const bestUsername = (best && best.m.username) || name || "אורח";
+  const bestRole = (best && best.m.role) || "player";
+  const bestAgent = best && best.m.agentUid ? {agentUid: best.m.agentUid, agentPct: best.m.agentPct || 0} : {};
+  const status = anyApproved ? "approved" : "pending";
+
+  const newMemRef = db.doc(`memberships/${uid}_${cid}`);
+  const newUserRef = db.doc(`users/${uid}`);
+
+  await db.runTransaction(async (tx) => {
+    // חובה לקרוא לפני שכותבים; קוראים גם את מסמכי-המקור למחיקה
+    const others = matches.filter((x) => x.uid !== uid);
+    const otherUserRefs = others.map((x) => db.doc(`users/${x.uid}`));
+    const otherMemRefs = others.map((x) => db.doc(`memberships/${x.uid}_${cid}`));
+    const [curUser] = await Promise.all([tx.get(newUserRef), ...otherUserRefs.map((r) => tx.get(r)), ...otherMemRefs.map((r) => tx.get(r))]);
+
+    const memDoc = {
+      uid, clubId: cid, username: bestUsername, phone: digits, playerId: digits,
+      role: bestRole, status, balance: sumBal, isBot: false, stats: mergedStats, ...bestAgent,
+    };
+    tx.set(newMemRef, memDoc, {merge: true});
+
+    const cu = curUser.exists ? curUser.data() : {};
+    tx.set(newUserRef, {
+      username: bestUsername, isGuest: true, role: bestRole, status,
+      playerId: digits, phone: digits, balance: sumBal, isBot: false,
+      avatarSeed: cu.avatarSeed || (best && best.m.avatarSeed) || null, stats: mergedStats,
+    }, {merge: true});
+
+    // מוחקים את כל החשבונות הכפולים (uid אחר) — הכסף כבר סוכם לחשבון הנוכחי
+    others.forEach((x) => { tx.delete(db.doc(`memberships/${x.uid}_${cid}`)); tx.delete(db.doc(`users/${x.uid}`)); });
+  });
+
+  return {ok: true, status, balance: sumBal, merged: matches.filter((x) => x.uid !== uid).length};
+});
+
 // ── איפוס מלא (GOD בלבד): מאפס יתרות + היסטוריה, בעל-האתר מקבל 10,000,000 ──
 // רץ ב-admin SDK (עוקף חוקים), אטומי ובבאצ'ים — כך שהאיפוס תמיד מצליח ומדווח.
 exports.godFullReset = onCall(async (request) => {

@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v131';
+        window.__APP_VER = 'v132';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v131';
+        const APP_VER = window.__APP_VER || 'v132';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2581,7 +2581,21 @@
             const fetchOrInitUser = async (user, _retry = 0) => {
                 try {
                     const ref = window.fb.doc(window.fb.db, "users", user.uid);
-                    const snap = await window.fb.getDoc(ref);
+                    let snap = await window.fb.getDoc(ref);
+                    // אורח: זהות סמכותית לפי טלפון. במקום ליצור חשבון חדש בכל uid חדש (שנוצר
+                    // כשהאחסון בדפדפן נמחק) — השרת מאחד/משחזר את החשבון הקיים לפי הטלפון שהוקלד,
+                    // כך שהאורח חוזר תמיד לחשבון (המאושר) שלו ואין כפילויות. רץ פעם אחת בכניסה.
+                    if (user.isAnonymous) {
+                        const gnum = (window.__guestNumber || '').trim();
+                        const gnm = (window.__guestName || '').trim();
+                        if (gnum) {
+                            try {
+                                await window.fb.httpsCallable(window.fb.functions, 'guestEnter')({ phone: gnum, name: gnm, clubId: CLUB_ID });
+                                window.__guestName = ''; window.__guestNumber = '';
+                                snap = await window.fb.getDoc(ref);
+                            } catch (e) { /* נכשל (רשת/פונקציה) — ממשיכים למסלול-היצירה הרגיל */ }
+                        }
+                    }
                     if (snap.exists()) {
                         setDbUser({ uid: user.uid, ...snap.data() });
                     } else {
@@ -3163,7 +3177,12 @@
                 setBusy(true); setLoginErr('');
                 window.__guestName = nm; window.__guestNumber = num;
                 try {
-                    await window.fb.signInAnonymously(window.fb.auth);
+                    // טיים-אאוט: אם הכניסה האנונימית נתקעת (רשת חלשה/webview) — לא משאירים
+                    // את הכפתור מסתובב "שעה"; מציגים שגיאה ברורה ומאפשרים ניסיון חוזר.
+                    await Promise.race([
+                        window.fb.signInAnonymously(window.fb.auth),
+                        new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 15000))
+                    ]);
                 } catch (e) {
                     window.__guestName = ''; window.__guestNumber = '';
                     const code = e && e.code;
