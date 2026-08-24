@@ -1088,7 +1088,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v95';
+        const APP_VER = 'v96';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7831,17 +7831,27 @@
                 if (nons.length === 0) return m;
                 const isGroup = nons.every(x => x.val === nons[0].val); // שלישייה/רביעייה → סדר לפי צבע
                 if (isGroup) return [...m].sort((a, b) => (a.val === '☻' ? 99 : COLOR_ORDER.indexOf(a.color)) - (b.val === '☻' ? 99 : COLOR_ORDER.indexOf(b.color)));
-                // רצף: בונים חלון רציף וממלאים ג'וקרים בחורים
-                const L = m.length, minV = Number(nons[0].val), maxV = Number(nons[nons.length - 1].val);
+                // רצף: "1 גבוה" (12-13-1) — אם יש 1 יחיד והשאר גבוהים כך שאי-אפשר לשבצו בתחתית,
+                // ה-1 נספר כ-14 ומוצג בסוף, אחרי ה-13 (ולא בהתחלה).
+                const ones = nons.filter(x => Number(x.val) === 1);
+                const rest = nons.filter(x => Number(x.val) !== 1);
+                let seq;
+                if (ones.length === 1 && rest.length && (Number(rest[0].val) - 2) > jokers.length) {
+                    seq = [...rest.map(x => ({ tile: x, v: Number(x.val) })), { tile: ones[0], v: 14 }];
+                } else {
+                    seq = nons.map(x => ({ tile: x, v: Number(x.val) }));
+                }
+                seq.sort((a, b) => a.v - b.v);
+                const L = m.length, minV = seq[0].v, maxV = seq[seq.length - 1].v;
                 let start = Math.min(minV, maxV - L + 1); if (start < 1) start = 1;
                 if (start + L - 1 < maxV) start = maxV - L + 1; if (start < 1) start = 1;
-                const nq = [...nons], jq = [...jokers], out = [];
+                const nq = [...seq], jq = [...jokers], out = [];
                 for (let v = start; v < start + L; v++) {
-                    if (nq.length && Number(nq[0].val) === v) out.push(nq.shift());
+                    if (nq.length && nq[0].v === v) out.push(nq.shift().tile);
                     else if (jq.length) out.push(jq.shift());
-                    else if (nq.length) out.push(nq.shift());
+                    else if (nq.length) out.push(nq.shift().tile);
                 }
-                while (nq.length) out.push(nq.shift());
+                while (nq.length) out.push(nq.shift().tile);
                 while (jq.length) out.push(jq.shift());
                 return out;
             };
