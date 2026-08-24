@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v126';
+        window.__APP_VER = 'v127';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v126';
+        const APP_VER = window.__APP_VER || 'v127';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -9042,7 +9042,14 @@
                     {/* כרטיס-פרופיל בלחיצה על שחקן (גם באמצע משחק) — רמה, יהלום, פס-התקדמות וסטטיסטיקה */}
                     {profileUid && t.players[profileUid] && (() => {
                         const pp = t.players[profileUid]; const lv = lvlFor(profileUid, pp);
-                        const st = pp.isBot ? { gamesPlayed: Math.round(Math.pow(lv.level * 1.5, 2)), gamesWon: Math.round(Math.pow(lv.level * 1.5, 2) * 0.38), trophies: {} } : ((memRanks[profileUid] && memRanks[profileUid].stats) || {});
+                        let sd = 0; { const s = String(profileUid || ''); for (let i = 0; i < s.length; i++) sd = (sd * 31 + s.charCodeAt(i)) >>> 0; }
+                        const derive = (level) => { const g = Math.max(1, Math.round(Math.pow(level * 1.5, 2))); const bs = Math.max(2, Math.round(level / 2)); return { gamesPlayed: g, gamesWon: Math.round(g * 0.42), streak: sd % (Math.min(bs, 6) + 1), bestStreak: bs, trophies: {} }; };
+                        const real = (memRanks[profileUid] && memRanks[profileUid].stats) || {};
+                        const isOwnerP = !!(memRanks[profileUid] && memRanks[profileUid].owner);
+                        const st = pp.isBot ? derive(lv.level)
+                            : isOwnerP ? (() => { const d = derive(lv.level); return { gamesPlayed: Math.max(real.gamesPlayed || 0, d.gamesPlayed), gamesWon: Math.max(real.gamesWon || 0, d.gamesWon), streak: real.streak || d.streak, bestStreak: Math.max(real.bestStreak || 0, d.bestStreak), trophies: real.trophies || {} }; })()
+                            : real;
+                        const gGames = st.gamesPlayed || 0, gWins = st.gamesWon || 0, gLoss = Math.max(0, gGames - gWins), gPct = gGames ? Math.round(gWins / gGames * 100) : 0;
                         return ReactDOM.createPortal(
                             <div dir="rtl" className="fixed inset-0 z-[340] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setProfileUid(null)}>
                                 <div className="glass-panel rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl" onClick={e => e.stopPropagation()} style={{ borderTop: `3px solid ${lv.tier.color}` }}>
@@ -9054,9 +9061,14 @@
                                         <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden"><div style={{ width: lv.pct + '%', background: `linear-gradient(90deg, ${lv.tier.grad[0]}, ${lv.tier.grad[1]})` }} className="h-full rounded-full transition-all"></div></div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 mt-4">
-                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-white">{st.gamesPlayed || 0}</div><div className="text-[9px] text-slate-400 font-bold">משחקים</div></div>
-                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-emerald-400">{st.gamesWon || 0}</div><div className="text-[9px] text-slate-400 font-bold">ניצחונות</div></div>
-                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-400">{trophyTotal(st)}</div><div className="text-[9px] text-slate-400 font-bold">גביעים</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-emerald-400">{gWins}</div><div className="text-[9px] text-slate-400 font-bold">ניצחונות</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-rose-400">{gLoss}</div><div className="text-[9px] text-slate-400 font-bold">הפסדים</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-sky-400">{gPct}%</div><div className="text-[9px] text-slate-400 font-bold">אחוז ניצחון</div></div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 mt-2">
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-white">{gGames}</div><div className="text-[9px] text-slate-400 font-bold">משחקים</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-300">🔥 {st.streak || 0}</div><div className="text-[9px] text-slate-400 font-bold">רצף נוכחי</div></div>
+                                        <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-400">🏆 {st.bestStreak || 0}</div><div className="text-[9px] text-slate-400 font-bold">שיא רצף</div></div>
                                     </div>
                                     <button onClick={() => setProfileUid(null)} className="mt-5 w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-2xl font-black border border-white/10">סגור</button>
                                 </div>

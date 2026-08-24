@@ -865,7 +865,9 @@ exports.ramiSettle = onCall(async (request) => {
       const st = d.stats || {gamesPlayed: 0, gamesWon: 0, totalProfit: 0};
       const isW = u === winnerUid;
       const delta = isW ? winnerProfit : -((details[u] && details[u].pay) || 0);
-      tx.update(memRefs[u], {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta)});
+      const streak = isW ? ((Number(st.streak) || 0) + 1) : 0;          // רצף נצחונות נוכחי
+      const bestStreak = Math.max(Number(st.bestStreak) || 0, streak);   // שיא רצף נצחונות
+      tx.update(memRefs[u], {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta), "stats.streak": streak, "stats.bestStreak": bestStreak});
     }
     // בעל הקלאב מממן את הבוטים (כמו בית): מקבל את הרייק (פחות נתחי סוכנים) + הרווח/ההפסד הנקי של הבוטים
     if (ownerRef && ownerData) { const ownerGain = round2((rake - totalCuts) + botDelta); if (ownerGain !== 0 || rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + ownerGain), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)}); }
