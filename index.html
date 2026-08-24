@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v99';
+        const APP_VER = 'v100';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7727,7 +7727,7 @@
                 window.addEventListener('resize', check); window.addEventListener('orientationchange', check);
                 return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {} };
             }, []);
-            const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = 2, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפים עליונים — כאן מסדרים את הקומבינציות
+            const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = wide ? 1 : 2, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפים עליונים — כאן מסדרים את הקומבינציות
             const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 2 : 3, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — כאן נוחתות אבנים חדשות (מקום סידור)
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
@@ -8688,16 +8688,6 @@
                             <div className="relative"><RamiTile tile={tileById[dragId]} />{groupDrag && groupDrag.length > 1 && <span className="absolute -top-2 -right-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center border-2 border-slate-900">×{groupDrag.length}</span>}</div>
                         </div>
                     , document.body)}
-
-                    {/* סרגל פעולות מוצמד לתחתית — רק לשחקן שיושב בשולחן */}
-                    {isSeated
-                        ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
-                            {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>}
-                            <button onClick={doGoOut} disabled={!goOut} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-2xl font-black text-lg shadow-lg">רד וגמור! 🏆</button>
-                        </div>
-                        : <div className="shrink-0 flex px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
-                            <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 rounded-2xl font-black border border-white/10">← יציאה מהצפייה</button>
-                        </div>}
 
                     {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
                     {freshReq && ReactDOM.createPortal(
