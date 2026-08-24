@@ -897,6 +897,20 @@ exports.ramiSettle = onCall(async (request) => {
 
 // ════════ מנוע-בוטים בצד-שרת: שולחני-בוטים שרצים לבד + חדרי-המתנה + סיבוב-בוטים ════════
 const BOT_ROTATE_MS = 6 * 60 * 1000;
+// שמות עבריים אמינים לבוטים (במקום שמות אנגלית אקראיים כמו Lucky_Jim3469)
+const BOT_NAMES_HE = [
+  "יוסי", "דנה", "אבי כהן", "מיכל", "רון לוי", "שירה", "עידו", "נועה", "גיא", "תמר",
+  "אורי", "ליאת", "ניר", "מאיה", "עומר", "הדס", "איתי", "יעל", "דור", "שני",
+  "ליאור", "קרן", "אלון", "ריקי", "משה", "גלית", "חן", "אורן", "סיון", "רועי",
+  "ענת", "טל", "מור", "בר", "עדן", "נטע", "יובל", "שקד", "אמיר", "רותם",
+  "אסף", "הילה", "דניאל", "שירן", "ערן", "מירב", "עמית", "אפרת", "יונתן", "נעמה",
+  "בני", "רחל", "צחי", "אורלי", "דוד", "סמדר", "איציק", "ורד", "חיים", "לימור",
+];
+const pickBotNames = (n, taken) => {
+  const used = new Set(taken || []);
+  const pool = BOT_NAMES_HE.filter((x) => !used.has(x)).sort(() => Math.random() - 0.5);
+  return pool.slice(0, n);
+};
 // בחירת אבן-זריקה זולה (בלי partition): זורקים את הכי "בודדת" ובעלת-ערך גבוה; לא זורקים ג'וקר
 function botPickDiscard(hand) {
   let worst = null; let worstScore = Infinity;
@@ -978,7 +992,9 @@ async function botRotateTx(tableId, allBots) {
     const outUid = botUids[seed % botUids.length]; const inBot = free[seed % free.length];
     const stack = round2(bank[outUid] || Math.max((Number(t.minBuyIn) || 0) * 25, 2500));
     delete players[outUid]; delete bank[outUid];
-    players[inBot.id] = {username: inBot.username || "בוט", cards: [], stack, isBot: true, missed: 0}; bank[inBot.id] = stack;
+    const taken = Object.values(players).map((p) => p.username);
+    const nm = pickBotNames(1, taken)[0] || inBot.username || "בוט";
+    players[inBot.id] = {username: nm, cards: [], stack, isBot: true, missed: 0}; bank[inBot.id] = stack;
     tx.update(tRef, {players, bank, botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: seed + 1});
   });
 }
@@ -999,8 +1015,11 @@ exports.ramiOpenBotTable = onCall(async (request) => {
   if (pool.length < botCount) throw new HttpsError("failed-precondition", "אין מספיק בוטים במאגר");
   const chosen = pool.slice().sort(() => Math.random() - 0.5).slice(0, botCount);
   const botStack = round2(Math.max(buyIn * 25, 2500));
+  const names = pickBotNames(botCount, []);
   const players = {}; const bank = {};
-  chosen.forEach((b) => { players[b.id] = {username: b.username || "בוט", cards: [], stack: botStack, isBot: true, missed: 0}; bank[b.id] = botStack; });
+  chosen.forEach((b, i) => { const nm = names[i] || b.username || "בוט"; players[b.id] = {username: nm, cards: [], stack: botStack, isBot: true, missed: 0}; bank[b.id] = botStack; });
+  // מעדכנים גם את שם-המשתמש של הבוט (כדי שגם בלוח-המובילים יופיע עברית)
+  try { await Promise.all(chosen.map((b, i) => names[i] ? db.doc(`users/${b.id}`).update({username: names[i]}).catch(() => {}) : null)); } catch (e) { /* */ }
   const base = {type: "rami", clubId: "main", maxPlayers, minBuyIn: buyIn, stakes: buyIn, turnSeconds: 40, timeBank: 0, timeBankUses: 0, rakeMode: "pct", rakePct: null, rakeFee: 0, freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now(), botTable: true, botKind: kind, botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: 0, players, bank};
   const doc = kind === "bots" ? {...base, ...ramiDeal(players, bank, 0, 0), bank, botRun: true} : {...base, deck: [], discard: [], phase: "waiting", currentTurn: null, turnPhase: "draw", drawnThisTurn: false};
   const ref = await db.collection("tables").add(doc);
