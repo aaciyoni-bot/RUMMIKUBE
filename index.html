@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v119';
+        window.__APP_VER = 'v120';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1169,7 +1169,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v119';
+        const APP_VER = window.__APP_VER || 'v120';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8436,7 +8436,7 @@
                 const stuckUid = t.currentTurn;
                 const cpW = t.players[stuckUid] || {};
                 const bonusW = (Number(cpW.tbBonusAt) || 0) === startAt ? (Number(cpW.tbBonus) || 0) : 0; // מכבד בנק-זמן
-                const GRACE = 18; // שניות מעבר לזמן-התור לפני שחרור כפוי
+                const GRACE = 5; // שניות מעבר לזמן-התור לפני שחרור כפוי (מכסה הפרשי-שעון בין מכשירים)
                 const deadline = startAt + (turnSecs + bonusW + GRACE) * 1000;
                 const fire = async () => {
                     const key = `${stuckUid}_${startAt}`;
