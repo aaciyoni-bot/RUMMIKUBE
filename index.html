@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v116';
+        window.__APP_VER = 'v117';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1169,7 +1169,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v116';
+        const APP_VER = window.__APP_VER || 'v117';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7795,6 +7795,7 @@
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
             const [timeLeft, setTimeLeft] = useState(TURN_SECONDS);
+            const [askFreshOpen, setAskFreshOpen] = useState(false);
             const sitBusyRef = useRef(false);
             const actingRef = useRef(false);
             const fnErr = (e) => (e && e.message && !/internal|deadline|unavailable/i.test(e.message)) ? e.message : "שגיאה בפעולה, נסה שוב";
@@ -8004,17 +8005,30 @@
                     .sort((a, b) => (COLOR_ORDER.indexOf(a.color)) - (COLOR_ORDER.indexOf(b.color)) || tileValR(a) - tileValR(b)).map(x => x.id);
                 placeLayout(meldIds, loose);
             };
-            // מיון ידני כמו ברמיקוב: מזהה מלדים (רצפים/שלישיות), מפריד כל אחד ברווח, ומדר את הבודדות.
-            const arrangeSorted = (cmp) => {
-                const tiles = handIds.map(id => tileById[id]).filter(Boolean);
-                const melds = botFindMelds(tiles);
-                const used = new Set(melds.flat().map(t => t.id));
-                const meldIds = melds.map(m => orderMeld(m).map(x => x.id));
-                const loose = tiles.filter(t => !used.has(t.id)).sort(cmp).map(x => x.id);
-                placeLayout(meldIds, loose);
+            // מיון ידני כמו ברמיקוב: מסדר את *כל* האבנים (לוח+מגש) לפי הקריטריון,
+            // עם רווח מפריד בכל פעם שהקבוצה מתחלפת — כך שום אבן לא "נשארת למעלה".
+            // 789 = רצפים (לפי צבע, מספרים עוקבים). 777 = שלישיות (לפי מספר, צבעים).
+            const layoutSorted = (cmp, sameGroup) => {
+                const tiles = handIds.map(id => tileById[id]).filter(Boolean).slice().sort(cmp);
+                const board = Array(BOARD_N).fill(null), rack = Array(RACK_N).fill(null);
+                const cap = BOARD_N + RACK_N;
+                let idx = 0;
+                const put = (id) => { if (idx < BOARD_N) board[idx] = id; else if (idx < cap) rack[idx - BOARD_N] = id; else rack.push(id); idx++; };
+                tiles.forEach((t, i) => {
+                    if (i > 0 && !sameGroup(tiles[i - 1], t) && idx < cap) put(null); // רווח בין קבוצות
+                    put(t.id);
+                });
+                setBoardSlots(board); setRackSlots(rack);
             };
-            const sortRuns = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (x.color !== y.color) return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); return Number(x.val) - Number(y.val); });
-            const sortSets = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (Number(x.val) !== Number(y.val)) return Number(x.val) - Number(y.val); return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); });
+            const isJ = (t) => t.val === '☻';
+            const sortRuns = () => layoutSorted(
+                (x, y) => { if (isJ(x)) return 1; if (isJ(y)) return -1; if (x.color !== y.color) return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); return Number(x.val) - Number(y.val); },
+                (a, b) => !isJ(a) && !isJ(b) && a.color === b.color && Number(b.val) === Number(a.val) + 1   // רצף עוקב באותו צבע
+            );
+            const sortSets = () => layoutSorted(
+                (x, y) => { if (isJ(x)) return 1; if (isJ(y)) return -1; if (Number(x.val) !== Number(y.val)) return Number(x.val) - Number(y.val); return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); },
+                (a, b) => !isJ(a) && !isJ(b) && Number(a.val) === Number(b.val)   // אותו מספר = שלישייה
+            );
             // איזה תא נמצא מתחת לאצבע — מחזיר {zone,idx} (board/rack)
             const slotUnder = (px, py) => {
                 if (!gridRef.current) return null;
@@ -8325,9 +8339,10 @@
                 const nm = Math.min(RAMI_FRESH_CAP, (Number(cur.freshMult) || 1) * 2);
                 return { ...ramiDealC(cur.players, cur.bank || {}, nm, cur.timeBank, cur.timeBankUses) };
             };
-            const proposeFresh = () => {
-                // אישור מפורש — "פריש" מחלק לכולם אבנים חדשות לגמרי ומכפיל את המשחק ×2
-                if (!window.confirm('פריש = חלוקה מחדש! כל השחקנים יקבלו אבנים חדשות לגמרי, וסכום המשחק יוכפל ×2.\n\nזה דורש הסכמת כל השחקנים. להציע פריש?')) return;
+            // הכפתור פותח חלון מעוצב (במקום confirm לבן של הדפדפן); האישור מריץ את ההצעה
+            const proposeFresh = () => setAskFreshOpen(true);
+            const doProposeFresh = () => {
+                setAskFreshOpen(false);
                 freshTx(cur => {
                     if (cur.phase !== 'playing' || cur.freshReq) return null;
                     if ((Number(cur.freshMult) || 1) >= RAMI_FRESH_CAP) return null;
@@ -8865,6 +8880,22 @@
                     , document.body)}
 
                     {/* פריש: הצעה הדורשת הסכמת כולם → חלוקה מחדש וכפול ×2 */}
+                    {/* חלון אישור פריש מעוצב (במקום confirm הלבן של הדפדפן) */}
+                    {askFreshOpen && ReactDOM.createPortal(
+                        <div dir="rtl" className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setAskFreshOpen(false)}>
+                            <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border border-amber-400/25" onClick={e => e.stopPropagation()}>
+                                <div className="text-5xl mb-2">🔥</div>
+                                <h3 className="text-xl font-black text-white mb-2">פריש — הכפלת המשחק ×2</h3>
+                                <p className="text-slate-300 text-sm font-bold mb-1">חלוקה מחדש: כל השחקנים מקבלים <span className="text-amber-300">אבנים חדשות לגמרי</span>, וסכום המשחק <span className="text-amber-300">מוכפל ×2</span>.</p>
+                                <p className="text-slate-500 text-xs font-bold mb-1">מ-{formatMoney(round2((Number(t.minBuyIn) || 0) * freshMult))} ₪ ל-<span className="text-amber-300 font-black">{formatMoney(round2((Number(t.minBuyIn) || 0) * Math.min(RAMI_FRESH_CAP, freshMult * 2)))} ₪</span></p>
+                                <p className="text-slate-500 text-[11px] font-bold mb-5">דורש הסכמת כל השחקנים</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setAskFreshOpen(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">ביטול</button>
+                                    <button onClick={doProposeFresh} className="flex-1 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 text-white py-3 rounded-2xl font-black shadow-lg">הצע פריש 🔥</button>
+                                </div>
+                            </div>
+                        </div>
+                    , document.body)}
                     {freshReq && ReactDOM.createPortal(
                         <div dir="rtl" className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
