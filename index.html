@@ -576,6 +576,9 @@
         .rk-sortbtn-tiles > b { -webkit-text-stroke: 0.2px currentColor; }
         .rk-sortbtn-lbl { font-size: 0.56rem; font-weight: 800; color: #6b4f2a; letter-spacing: 0.02em; margin-top: 1px; }
         .rk-sd-r { color: #e01221; } .rk-sd-b { color: #1f7bf5; } .rk-sd-o { color: #ef7d05; } .rk-sd-k { color: #111114; }
+        /* האבן שנמשכה — הדגשה ברורה ויציבה שנשארת עד סוף התור (פופ קצר בהתחלה, ואז יציב) */
+        .rk-drawn-glow { box-shadow: 0 0 0 3px #fbbf24, 0 0 14px 3px rgba(251,191,36,0.75); border-radius: 0.5rem; animation: rkDrawnPop 0.5s ease-out 1; }
+        @keyframes rkDrawnPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
 
         /* המגש כמו במקור: האבנים צמודות זו לזו ונערמות משמאל.
            גודל המשבצת נגזר מגובה השורה (פרופורציית אבן 5:6) — לא מרוחב
@@ -1018,7 +1021,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v123';
+        window.__APP_VER = 'v124';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1172,7 +1175,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v123';
+        const APP_VER = window.__APP_VER || 'v124';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7943,7 +7946,7 @@
                 if (prev !== null && handIds.length === prev.length + 1) {
                     const added = handIds.filter(id => !prev.includes(id));
                     if (added.length === 1) {
-                        setFlashId(added[0]); const tm = setTimeout(() => setFlashId(null), 2200); cleanup = () => clearTimeout(tm);
+                        setFlashId(added[0]); // נשאר מודגש עד סוף התור (נמחק באפקט נפרד כשהתור נגמר)
                         try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
                         setTimeout(() => { try { if (gridRef.current) gridRef.current.scrollTo({ top: gridRef.current.scrollHeight, behavior: 'smooth' }); } catch (_) {} }, 60);
                         if (tileById[added[0]] && tileById[added[0]].val === '☻') {
@@ -7958,6 +7961,11 @@
                 prevIdsRef.current = handIds;
                 return cleanup;
             }, [handKey]);
+            // ההדגשה של האבן שנמשכה נשארת עד שמסיימים את התור (זריקה) — אז התור עובר
+            // וזה כבר לא שלב-הזריקה שלי, ואנחנו מנקים. כך רואים בבירור איזו אבן נמשכה.
+            useEffect(() => {
+                if (!myTurn || (t && t.turnPhase !== 'discard')) setFlashId(null);
+            }, [myTurn, t && t.turnPhase, t && t.turnStartedAt]);
             // זיהוי קומבינציות: בכל שורה, כל רצף-רצוף של אבנים (שמופרד ברווח) נבדק בנפרד.
             // בלוק חוקי (רצף/שלישייה/רביעייה) → כל תאיו מודגשים בירוק. הרווח (תא ריק) הוא המפריד.
             // מעמד עץ אחד: כל שורה (בשני חלקי-המעמד) נבדקת בנפרד — כל רצף-רצוף מופרד ברווח
@@ -8171,7 +8179,7 @@
                             <div data-tid={id}
                                 onPointerDown={(e) => onTileDown(e, id, zone, idx)} onPointerMove={onTileMove} onPointerUp={onTileUp} onPointerCancel={onTileUp}
                                 style={{ touchAction: 'none', width: '100%', height: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: (dragId === id || (groupDrag && groupDrag.includes(id))) ? 0.2 : 1, WebkitUserSelect: 'none', userSelect: 'none' }}
-                                className={`rounded-lg ${groupDrag && groupDrag.includes(id) ? 'ring-2 ring-amber-300' : ''} ${flashId === id ? 'ring-4 ring-amber-400 animate-pulse' : ''}`}>
+                                className={`rounded-lg ${groupDrag && groupDrag.includes(id) ? 'ring-2 ring-amber-300' : ''} ${flashId === id ? 'rk-drawn-glow' : ''}`}>
                                 {/* ההטיה (השענות על המדף) על אלמנט פנימי בלבד — האזור-הלוחץ נשאר שטוח לגרירה תקינה */}
                                 <div style={{ width: '100%', height: '100%', transform: 'perspective(360px) rotateX(7deg)', transformOrigin: '50% 100%', pointerEvents: 'none', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                     <RamiTile tile={tile} board fill />
