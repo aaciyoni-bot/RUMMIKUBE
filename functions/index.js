@@ -900,10 +900,27 @@ exports.ramiNewRound = onCall(async (request) => {
     if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
     if (t.phase !== "showdown") throw new HttpsError("failed-precondition", "אין סיבוב לפתוח");
     assertParticipant(t, uid, email);
+    const buyIn = round2(Number(t.minBuyIn) || 0);
     const bank = t.bank || {};
-    const eligible = {}; const eBank = {};
-    for (const [u, p] of Object.entries(t.players || {})) if ((bank[u] || 0) > 0) { eligible[u] = p; eBank[u] = round2(bank[u]); }
+    const players = t.players || {};
+    // קריאות לפני כתיבות: חברויות השחקנים האנושיים (לצורך רי-באי מהארנק)
+    const memRefs = {}; const memData = {};
+    for (const [u, p] of Object.entries(players)) { if (p.isBot) continue; const r = db.doc(`memberships/${u}_${t.clubId}`); memRefs[u] = r; const s = await tx.get(r); memData[u] = s.exists ? s.data() : null; }
+    // רי-באי אוטומטי: משלימים כל שחקן חוזר לסכום-המשחק. בוט — חינם (פיקטיבי). אנושי —
+    // מהארנק אם יש. כך "סבב חדש" ממשיך עם כולם ולא זורק אף אחד לצפייה בגלל 0 צ'יפים.
+    const eligible = {}; const eBank = {}; const walletDebits = {};
+    for (const [u, p] of Object.entries(players)) {
+      let stack = round2(bank[u] || 0);
+      if (p.isBot) { if (stack < buyIn) stack = round2(Math.max(buyIn * 25, 2500)); eligible[u] = p; eBank[u] = stack; continue; }
+      if (buyIn <= 0 || stack >= buyIn) { eligible[u] = p; eBank[u] = stack; continue; }
+      const wallet = memData[u] ? round2(Number(memData[u].balance) || 0) : 0;
+      const need = round2(buyIn - stack);
+      if (wallet >= need) { walletDebits[u] = need; eligible[u] = p; eBank[u] = buyIn; }
+      else if (stack > 0) { eligible[u] = p; eBank[u] = stack; }
+      // אין צ'יפים ואין ארנק → יוצא מהסבב (צופה)
+    }
     if (Object.keys(eligible).length < 2) throw new HttpsError("failed-precondition", "אין מספיק שחקנים עם צ'יפים");
+    for (const [u, amt] of Object.entries(walletDebits)) { const d = memData[u]; if (d) tx.update(memRefs[u], {balance: round2((Number(d.balance) || 0) - amt)}); }
     tx.update(tRef, {...ramiDeal(eligible, eBank, t.timeBank, t.timeBankUses), bank: eBank});
   });
   return {ok: true};
