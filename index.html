@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v118';
+        window.__APP_VER = 'v119';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1169,7 +1169,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v118';
+        const APP_VER = window.__APP_VER || 'v119';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8424,6 +8424,49 @@
                     else { const drop = part.leftover[0] || [...myHand].filter(Boolean).sort((a, b) => tileValR(b) - tileValR(a))[0]; if (drop) await doDiscard(drop.id); }
                 })();
             }, [myTurn, timeLeft, t && t.turnPhase]);
+
+            // שומר-סף חוצה-לקוחות: אם התור של מישהו "נתקע" הרבה מעבר לזמן (הדפדפן שלו קפא/
+            // התנתק) — כל לקוח יושב אחר משחרר את התור אוטומטית כדי שהמשחק לא ייתקע לאף אחד.
+            // הפעולה מוגנת ע"י turnStartedAt, כך שרק לקוח אחד באמת מבצע (השאר רואים מצב שהשתנה).
+            const stuckRef = useRef(null);
+            useEffect(() => {
+                if (!isSeated || !t || t.phase !== 'playing' || !t.currentTurn) return;
+                const startAt = Number(t.turnStartedAt) || 0;
+                if (!startAt) return;
+                const stuckUid = t.currentTurn;
+                const cpW = t.players[stuckUid] || {};
+                const bonusW = (Number(cpW.tbBonusAt) || 0) === startAt ? (Number(cpW.tbBonus) || 0) : 0; // מכבד בנק-זמן
+                const GRACE = 18; // שניות מעבר לזמן-התור לפני שחרור כפוי
+                const deadline = startAt + (turnSecs + bonusW + GRACE) * 1000;
+                const fire = async () => {
+                    const key = `${stuckUid}_${startAt}`;
+                    if (stuckRef.current === key) return; stuckRef.current = key;
+                    try {
+                        await window.fb.runTransaction(window.fb.db, async (tx) => {
+                            const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                            const snap = await tx.get(ref); if (!snap.exists()) return;
+                            const cur = snap.data();
+                            if (cur.phase !== 'playing' || cur.currentTurn !== stuckUid || (Number(cur.turnStartedAt) || 0) !== startAt) return; // כבר התקדם
+                            const pl = cur.players || {};
+                            let hand = [...(((pl[stuckUid] || {}).cards) || [])].filter(Boolean);
+                            const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
+                            if ((cur.turnPhase || 'draw') === 'draw') { reshuffleIfNeeded(deck, discard); const drawn = deck.pop(); if (drawn) hand.push(drawn); }
+                            let drop = null;
+                            if (hand.length) { drop = hand.slice().sort((a, b) => tileValR(b) - tileValR(a))[0]; hand = hand.filter(x => x.id !== drop.id); if (drop) discard.push(drop); }
+                            const u = Object.keys(pl).sort();
+                            const next = u[(u.indexOf(stuckUid) + 1) % Math.max(1, u.length)];
+                            tx.update(ref, {
+                                [`players.${stuckUid}.cards`]: hand,
+                                [`players.${stuckUid}.missed`]: (Number((pl[stuckUid] || {}).missed) || 0) + 1,
+                                [`players.${stuckUid}.threw`]: [...(((pl[stuckUid] || {}).threw) || []), ...(drop ? [drop] : [])].slice(-6),
+                                deck, discard, currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now()
+                            });
+                        });
+                    } catch (e) {}
+                };
+                const tm = setTimeout(fire, Math.max(400, deadline - Date.now()));
+                return () => clearTimeout(tm);
+            }, [t && t.currentTurn, t && t.turnStartedAt, t && t.phase, isSeated, turnSecs]);
 
             // הוספת בוט ידנית — דרך Cloud Function (כתיבת bank מותרת רק לשרת).
             // כפתור זמין רק לבעל-האתר/GOD. בוטים לא נכנסים אוטומטית.
