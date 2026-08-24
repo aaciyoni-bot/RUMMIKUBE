@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v104';
+        const APP_VER = 'v105';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7280,7 +7280,7 @@
             const myTileCount = rack.filter(t=>t!==null).length;
             const results = tableState.lastResults;
             // ג'וקר זהה למשחק הרמי: דמות 🃏 חגיגית במקום הסמל ☻
-            const JK = ({ v }) => v === '☻' ? <span className="joker-glyph">🃏</span> : <>{v}</>;
+            const JK = ({ v }) => v === '☻' ? <span className="joker-glyph">🤡</span> : <>{v}</>;
             const jcls = (v) => v === '☻' ? ' joker' : '';
 
             return (
@@ -7674,7 +7674,7 @@
             return (
                 <div onClick={onClick} className={`rummy-tile${isJoker ? ' joker' : ''}`} title={isJoker ? "ג'וקר" : ''}
                     style={{ width: w, height: h, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, color: inkOf(tile.color), cursor: onClick ? 'pointer' : 'default', opacity: dim ? 0.45 : 1, flex: 'none' }}>
-                    {isJoker ? <span className="joker-glyph">🃏</span> : tile.val}
+                    {isJoker ? <span className="joker-glyph">🤡</span> : tile.val}
                 </div>
             );
         };
@@ -8533,7 +8533,7 @@
                                 {threw.map((tile, i) => {
                                     // רקע צבעוני מובהק (לא לבן) כדי שאדום≠כתום וכחול≠שחור גם בקטן
                                     const bg = tile.val === '☻' ? '#7c3aed' : ({ '#ef4444': '#e01212', '#f59e0b': '#f59e0b', '#3b82f6': '#1668e3', '#0c1322': '#11151f' }[tile.color] || inkOf(tile.color));
-                                    return <span key={tile.id + i} className="inline-flex items-center justify-center rounded shadow-sm text-white" style={{ width: '1.3rem', height: '1.6rem', background: bg, fontSize: '0.72rem', fontWeight: 900, border: '1px solid rgba(255,255,255,0.35)', opacity: 0.6 + 0.4 * (i / Math.max(1, threw.length - 1)) }}>{tile.val === '☻' ? '🃏' : tile.val}</span>;
+                                    return <span key={tile.id + i} className="inline-flex items-center justify-center rounded shadow-sm text-white" style={{ width: '1.3rem', height: '1.6rem', background: bg, fontSize: '0.72rem', fontWeight: 900, border: '1px solid rgba(255,255,255,0.35)', opacity: 0.6 + 0.4 * (i / Math.max(1, threw.length - 1)) }}>{tile.val === '☻' ? '🤡' : tile.val}</span>;
                                 })}
                             </div>
                         </div>
