@@ -794,23 +794,11 @@ exports.rummyAddBot = onCall(async (request) => {
   return {ok: true, becameFull};
 });
 
-// ── סיום יד רמי: המנצח ירד (יד שלמה מאומתת-שרת); מפסידים משלמים leftover×ערך-נקודה ──
-exports.ramiSettle = onCall(async (request) => {
-  const uid = request.auth && request.auth.uid;
-  const email = request.auth && request.auth.token && request.auth.token.email;
-  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
-  const {tableId, winnerUid} = request.data || {};
-  if (!tableId || !winnerUid) throw new HttpsError("invalid-argument", "חסרים פרטים");
-  const out = await db.runTransaction(async (tx) => {
-    const tRef = db.doc(`tables/${tableId}`);
-    const tSnap = await tx.get(tRef);
-    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
-    const t = tSnap.data();
-    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
-    if (t.phase !== "playing") throw new HttpsError("failed-precondition", "כבר הסתיים");
+// ── ליבת-סליקה משותפת: מקבלת מסמך-שולחן שכבר נקרא + tRef, מסלקת את היד ומחזירה out.
+// משמשת גם את ramiSettle (שחקן שיורד) וגם את botTick (בוט שיורד). הכל בתוך טרנזקציה אחת. ──
+async function settleRamiTx(tx, tRef, t, winnerUid) {
+  {
     if (!t.players || !t.players[winnerUid]) throw new HttpsError("failed-precondition", "המנצח עזב");
-    assertParticipant(t, uid, email);
-    // אימות ירידה: היד של המנצח חייבת להתחלק במלואה לקומבינציות תקינות
     const wCheck = ramiBestPartition((t.players[winnerUid].cards || []).filter(Boolean));
     if (!wCheck.complete) throw new HttpsError("failed-precondition", "היד של המנצח אינה שלמה");
     const clubId = t.clubId;
@@ -873,7 +861,10 @@ exports.ramiSettle = onCall(async (request) => {
     if (ownerRef && ownerData) { const ownerGain = round2((rake - totalCuts) + botDelta); if (ownerGain !== 0 || rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + ownerGain), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)}); }
     for (const [aUid, amt] of Object.entries(agentCuts)) { const ad = agentData[aUid]; if (ad) tx.update(agentRefs[aUid], {balance: round2((Number(ad.balance) || 0) + amt), agentProfits: round2((Number(ad.agentProfits) || 0) + amt)}); }
     return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId, winHand: (players[winnerUid].cards || []).filter(Boolean)};
-  });
+  }
+}
+// רישום תוצאות-יד ל-gameLog/agentLog (מחוץ לטרנזקציה). משותף לשחקן ולבוט.
+async function logRamiSettle(out, winnerUid, tableId) {
   try {
     const rows = [];
     if (!out.winnerIsBot) rows.push({uid: winnerUid, username: out.winnerName, profit: out.winnerProfit, rake: out.rake});
@@ -882,7 +873,155 @@ exports.ramiSettle = onCall(async (request) => {
     if (out.rake > 0) await db.collection("agentLog").add({clubId: out.clubId, agentUid: "club", kind: "club", amount: round2(out.rake), at: Date.now()});
     for (const [aUid, amt] of Object.entries(out.agentCuts)) await db.collection("agentLog").add({agentUid: aUid, clubId: out.clubId, amount: round2(amt), at: Date.now()});
   } catch (e) { /* לוג בלבד */ }
+}
+// ── סיום יד רמי (קריאת שחקן): המנצח ירד; מפסידים משלמים סכום-המשחק×פריש ──
+exports.ramiSettle = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, winnerUid} = request.data || {};
+  if (!tableId || !winnerUid) throw new HttpsError("invalid-argument", "חסרים פרטים");
+  const out = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const tSnap = await tx.get(tRef);
+    if (!tSnap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = tSnap.data();
+    if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+    if (t.phase !== "playing") throw new HttpsError("failed-precondition", "כבר הסתיים");
+    assertParticipant(t, uid, email);
+    return await settleRamiTx(tx, tRef, t, winnerUid);
+  });
+  await logRamiSettle(out, winnerUid, tableId);
   return {ok: true};
+});
+
+// ════════ מנוע-בוטים בצד-שרת: שולחני-בוטים שרצים לבד + חדרי-המתנה + סיבוב-בוטים ════════
+const BOT_ROTATE_MS = 6 * 60 * 1000;
+// בחירת אבן-זריקה זולה (בלי partition): זורקים את הכי "בודדת" ובעלת-ערך גבוה; לא זורקים ג'וקר
+function botPickDiscard(hand) {
+  let worst = null; let worstScore = Infinity;
+  for (const t of hand) {
+    if (t.val === "☻") continue;
+    let conn = 0;
+    for (const o of hand) {
+      if (o === t || o.val === "☻") continue;
+      if (Number(o.val) === Number(t.val) && o.color !== t.color) conn += 3;
+      if (o.color === t.color && Math.abs(Number(o.val) - Number(t.val)) <= 2) conn += 2;
+    }
+    const score = conn * 10 - tileValR(t);
+    if (score < worstScore) { worstScore = score; worst = t; }
+  }
+  return worst || hand[0];
+}
+// יד של 15: אם קיים תא שהסרתו נותנת יד-שלמה — מחזיר את אבן-הזריקה לירידה, אחרת null
+function botGoOutTile(hand15) {
+  const bp = ramiBestPartition(hand15);
+  if (bp.leftoverPoints > 13) return null;
+  for (const t of hand15) { if (ramiBestPartition(hand15.filter((x) => x.id !== t.id)).complete) return t; }
+  return null;
+}
+// מקדם את תור-הבוט הנוכחי ביד אחת: משיכה + (ירידה או זריקה). בטרנזקציה.
+async function botStepTx(tableId) {
+  let settleOut = null; let winnerUid = null;
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) return;
+    const t = snap.data();
+    if (t.type !== "rami" || t.phase !== "playing") return;
+    const cur = t.currentTurn; const p = (t.players || {})[cur];
+    if (!p || !p.isBot) return;
+    const deck = [...(t.deck || [])]; const discard = [...(t.discard || [])];
+    if (!deck.length && discard.length > 1) { const top = discard.pop(); const rest = discard.splice(0, discard.length); for (let i = rest.length - 1; i > 0; i--) { const j = (i * 2654435761 + 12345) % (i + 1); const tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp; } deck.push(...rest); if (top) discard.push(top); }
+    let hand = [...(p.cards || [])].filter(Boolean);
+    const drawn = deck.pop(); if (drawn) hand.push(drawn);
+    const goTile = botGoOutTile(hand);
+    if (goTile) {
+      const final = hand.filter((x) => x.id !== goTile.id); discard.push(goTile);
+      t.players = {...t.players, [cur]: {...p, cards: final}}; t.deck = deck; t.discard = discard;
+      settleOut = await settleRamiTx(tx, tRef, t, cur); winnerUid = cur; return;
+    }
+    const drop = botPickDiscard(hand); const final = hand.filter((x) => x.id !== drop.id); discard.push(drop);
+    const uids = Object.keys(t.players).sort(); const next = uids[(uids.indexOf(cur) + 1) % uids.length];
+    tx.update(tRef, {[`players.${cur}.cards`]: final, [`players.${cur}.missed`]: 0, [`players.${cur}.threw`]: [...((p.threw) || []), drop].slice(-6), deck, discard, currentTurn: next, turnPhase: "draw", drawnThisTurn: false, turnStartedAt: Date.now()});
+  });
+  if (settleOut && winnerUid) { try { await logRamiSettle(settleOut, winnerUid, tableId); } catch (e) { /* */ } }
+}
+// חלוקה מחדש לשולחן-בוטים שהסתיים (המשכיות)
+async function botRedealTx(tableId) {
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) return;
+    const t = snap.data();
+    if (!t.botTable || t.phase !== "showdown") return;
+    const buyIn = round2(Number(t.minBuyIn) || 0);
+    const players = {}; const bank = {};
+    for (const [u, p] of Object.entries(t.players || {})) { if (!p.isBot) continue; let stack = round2((t.bank || {})[u] || 0); if (stack < buyIn) stack = round2(Math.max(buyIn * 25, 2500)); players[u] = {...p, cards: []}; bank[u] = stack; }
+    if (Object.keys(players).length < 2) return;
+    tx.update(tRef, {...ramiDeal(players, bank, 0, 0), bank});
+  });
+}
+// החלפת בוט אחד בשולחן-המתנה (אמינות של "אנשים באים והולכים")
+async function botRotateTx(tableId, allBots) {
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) return;
+    const t = snap.data();
+    if (!t.botTable || t.phase !== "waiting") return;
+    const players = {...(t.players || {})}; const bank = {...(t.bank || {})};
+    const botUids = Object.keys(players).filter((u) => players[u].isBot);
+    const seed = Number(t.botRotateSeed) || 0;
+    const free = allBots.filter((b) => !players[b.id]);
+    if (!botUids.length || !free.length) { tx.update(tRef, {botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: seed + 1}); return; }
+    const outUid = botUids[seed % botUids.length]; const inBot = free[seed % free.length];
+    const stack = round2(bank[outUid] || Math.max((Number(t.minBuyIn) || 0) * 25, 2500));
+    delete players[outUid]; delete bank[outUid];
+    players[inBot.id] = {username: inBot.username || "בוט", cards: [], stack, isBot: true, missed: 0}; bank[inBot.id] = stack;
+    tx.update(tRef, {players, bank, botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: seed + 1});
+  });
+}
+// פתיחת שולחן-בוטים (GOD/בעלים): 'bots'=4 בוטים ורץ לבד · 'full'=3 בוטים ממתין · 'half'=2 בוטים ממתין
+exports.ramiOpenBotTable = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const kind = ((request.data && request.data.kind) || "full");
+  const buyIn = round2(Math.max(1, Number(request.data && request.data.buyIn) || 100));
+  let allowed = BOT_ADMIN_EMAILS.includes(email);
+  if (!allowed) { const c = await db.doc("clubs/main").get(); if (c.exists && c.data().ownerUid === uid) allowed = true; }
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה");
+  const maxPlayers = 4;
+  const botCount = kind === "bots" ? 4 : kind === "half" ? 2 : 3;
+  const botsSnap = await db.collection("users").where("isBot", "==", true).get();
+  const pool = botsSnap.docs.map((d) => ({id: d.id, ...d.data()})).filter((b) => b.id !== "bot_bank");
+  if (pool.length < botCount) throw new HttpsError("failed-precondition", "אין מספיק בוטים במאגר");
+  const chosen = pool.slice().sort(() => Math.random() - 0.5).slice(0, botCount);
+  const botStack = round2(Math.max(buyIn * 25, 2500));
+  const players = {}; const bank = {};
+  chosen.forEach((b) => { players[b.id] = {username: b.username || "בוט", cards: [], stack: botStack, isBot: true, missed: 0}; bank[b.id] = botStack; });
+  const base = {type: "rami", clubId: "main", maxPlayers, minBuyIn: buyIn, stakes: buyIn, turnSeconds: 40, timeBank: 0, timeBankUses: 0, rakeMode: "pct", rakePct: null, rakeFee: 0, freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now(), botTable: true, botKind: kind, botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: 0, players, bank};
+  const doc = kind === "bots" ? {...base, ...ramiDeal(players, bank, 0, 0), bank, botRun: true} : {...base, deck: [], discard: [], phase: "waiting", currentTurn: null, turnPhase: "draw", drawnThisTurn: false};
+  const ref = await db.collection("tables").add(doc);
+  return {ok: true, tableId: ref.id, kind, bots: botCount};
+});
+// טיק-בוטים (נקרא ע"י כל לקוח מחובר, כמו tourTick): מריץ שולחני-בוטים, מסובב בוטים בהמתנה
+exports.botTick = onCall(async (request) => {
+  if (!request.auth || !request.auth.uid) return {ok: false};
+  const now = Date.now();
+  const snap = await db.collection("tables").where("type", "==", "rami").get();
+  const tables = snap.docs.map((d) => ({id: d.id, ...d.data()})).filter((t) => t.botTable);
+  let allBots = null; let acted = 0;
+  for (const t of tables) {
+    try {
+      const hasHuman = Object.values(t.players || {}).some((p) => !p.isBot);
+      if (t.phase === "waiting") { if ((Number(t.botRotateAt) || 0) <= now) { if (!allBots) { const bs = await db.collection("users").where("isBot", "==", true).get(); allBots = bs.docs.map((d) => ({id: d.id, ...d.data()})).filter((b) => b.id !== "bot_bank"); } await botRotateTx(t.id, allBots); acted++; } continue; }
+      if (t.phase === "playing" && !hasHuman) { const p = (t.players || {})[t.currentTurn]; if (p && p.isBot && (now - (Number(t.turnStartedAt) || 0) > 2500)) { await botStepTx(t.id); acted++; } continue; }
+      if (t.phase === "showdown" && !hasHuman) { const endedAt = (t.lastResults && t.lastResults.endedAt) || 0; if (now - endedAt > 4000) { await botRedealTx(t.id); acted++; } }
+    } catch (e) { /* */ }
+  }
+  return {ok: true, acted, tables: tables.length};
 });
 
 // ── סיבוב חדש ברמי: מחלק מחדש רק לשחקנים עם צ'יפים; מאפס פריש ──

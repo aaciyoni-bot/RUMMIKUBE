@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v128';
+        window.__APP_VER = 'v129';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v128';
+        const APP_VER = window.__APP_VER || 'v129';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2919,6 +2919,7 @@
                     try {
                         for (const t of (tablesRef2.current || [])) {
                             if (!t || t.type !== 'rami' || t.tournamentId) continue;
+                            if (t.botTable) continue; // שולחני-בוטים נשארים חיים (רצים לבד / ממתינים לשחקן)
                             if (t.phase !== 'playing' && t.phase !== 'showdown') continue; // 'waiting' = שולחן פתוח לגיטימי
                             const players = t.players || {};
                             const humans = Object.keys(players).filter(u => !u.startsWith('bot_') && !players[u].isBot);
@@ -2960,6 +2961,19 @@
                     try { window.fb.httpsCallable(window.fb.functions, 'tourTick')({ clubId: CLUB_ID }); } catch (e) {}
                 };
                 const iv = setInterval(tick, 10000);
+                return () => clearInterval(iv);
+            }, [fbReady, dbUser?.uid]);
+
+            // מנוע שולחני-בוטים רץ בשרת (botTick) — כל משתמש מחובר "דוחף" אותו כל 5 שניות
+            // כשיש שולחני-בוטים, כך שהם רצים/מסתובבים בלי תלות בבעל-האתר המחובר.
+            useEffect(() => {
+                if (!fbReady || !dbUser?.uid) return;
+                const tick = () => {
+                    const tbls = tablesRef2.current || [];
+                    if (!tbls.some(t => t.botTable)) return;
+                    try { window.fb.httpsCallable(window.fb.functions, 'botTick')({}); } catch (e) {}
+                };
+                const iv = setInterval(tick, 5000);
                 return () => clearInterval(iv);
             }, [fbReady, dbUser?.uid]);
 
@@ -4246,6 +4260,16 @@
             const [rtab, setRtab] = useState('all'); // סינון רשימת שולחנות הרמיקוב לפי גודל
             const [ratab, setRatab] = useState('all'); // סינון שולחנות הרמי לפי גודל
             const [showCreateRami, setShowCreateRami] = useState(false);
+            const [botTblBusy, setBotTblBusy] = useState(false);
+            const openBotTable = async (kind) => {
+                if (botTblBusy) return; setBotTblBusy(true);
+                try {
+                    const bi = Math.max(1, round2(Number(ramiOpts.buyIn) || 100));
+                    await window.fb.httpsCallable(window.fb.functions, 'ramiOpenBotTable')({ kind, buyIn: bi });
+                    showToast(kind === 'bots' ? 'שולחן בוטים נפתח ורץ לבד! 🤖' : kind === 'full' ? 'שולחן מלא — 3 בוטים ממתינים לשחקן רביעי 🤖' : 'שולחן חצי — 2 בוטים ממתינים ל-2 שחקנים 🤖', 'success');
+                } catch (e) { showToast((e && e.message) || 'שגיאה בפתיחת שולחן', 'error'); }
+                finally { setBotTblBusy(false); }
+            };
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
             const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
             // תבניות (טמפלטים) שמורות מקומית לכל קלאב — כמו ב-POKERTEN
@@ -5058,7 +5082,18 @@
                                         </button>
                                     )}
                                 </div>
-                                <p className="text-slate-400 text-xs font-bold mb-5">בונים יד פרטית של 14, מושכים מהקופה או מהזרוק, ויורדים כשכל היד מסודרת.</p>
+                                <p className="text-slate-400 text-xs font-bold mb-3">בונים יד פרטית של 14, מושכים מהקופה או מהזרוק, ויורדים כשכל היד מסודרת.</p>
+
+                                {(isGodUser(user) || isBotAdder(user)) && (
+                                    <div className="mb-5 p-3 rounded-2xl bg-purple-950/25 border border-purple-500/30">
+                                        <div className="text-[11px] font-black text-purple-300 mb-2"><i className="fa-solid fa-robot ml-1"></i> שולחנות בוטים · לפי סכום-המשחק שבחרת למעלה (רק אתה רואה)</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <button onClick={() => openBotTable('bots')} disabled={botTblBusy} className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl bg-purple-700/80 hover:bg-purple-600 disabled:opacity-40 text-white font-black text-xs border border-purple-400/40"><span className="text-lg">🤖</span>שולחן בוטים<span className="text-[9px] font-bold text-purple-200/80">4 בוטים · רץ לבד</span></button>
+                                            <button onClick={() => openBotTable('full')} disabled={botTblBusy} className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-black text-xs border border-white/10"><span className="text-lg">👥</span>שולחן מלא<span className="text-[9px] font-bold text-slate-400">3 בוטים + שחקן</span></button>
+                                            <button onClick={() => openBotTable('half')} disabled={botTblBusy} className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-black text-xs border border-white/10"><span className="text-lg">👤</span>שולחן חצי<span className="text-[9px] font-bold text-slate-400">2 בוטים + 2</span></button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {showCreateRami && (() => {
                                     const buyIn = Math.max(0, round2(Number(ramiOpts.buyIn) || 0));
