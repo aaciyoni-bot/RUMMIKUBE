@@ -1099,7 +1099,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v111';
+        const APP_VER = 'v112';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7990,8 +7990,11 @@
                 if (!dragIdRef.current) return;
                 const x = e.clientX, y = e.clientY;
                 if (!dragMovedRef.current) { const s = dragStartRef.current; if (s && Math.hypot(x - s.x, y - s.y) < 8) return; dragMovedRef.current = true; if (!groupIdsRef.current) { try { clearTimeout(lpTimerRef.current); } catch (_) {} } }
-                if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - 58) + 'px'; }
-                const a = slotUnder(x, y);
+                // מרימים את האבן מעל האצבע — וחשוב: מזהים את תא-היעד במקום שבו האבן נראית (לא במקום האצבע),
+                // אחרת האבן "קופצת חזרה" כי היעד מחושב מתחת לאצבע. אותו הזזה בשני המקומות.
+                const LIFT = 44;
+                if (ghostRef.current) { ghostRef.current.style.left = x + 'px'; ghostRef.current.style.top = (y - LIFT) + 'px'; }
+                const a = slotUnder(x, y - LIFT);
                 if (!sameCell(a, dropSlotRef.current)) { dropSlotRef.current = a; setDropSlot(a); }
             };
             const onTileUp = () => {
@@ -8740,7 +8743,7 @@
 
                     {/* אבן-רפאים שעוקבת אחרי האצבע בזמן גרירה */}
                     {dragId && tileById[dragId] && ReactDOM.createPortal(
-                        <div ref={ghostRef} style={{ position: 'fixed', left: (dragStartRef.current ? dragStartRef.current.x : 0) + 'px', top: (dragStartRef.current ? dragStartRef.current.y - 58 : 0) + 'px', transform: 'translate(-50%,-50%) scale(1.35) rotate(-3deg)', zIndex: 400, pointerEvents: 'none', filter: 'drop-shadow(0 14px 22px rgba(0,0,0,0.7))' }}>
+                        <div ref={ghostRef} style={{ position: 'fixed', left: (dragStartRef.current ? dragStartRef.current.x : 0) + 'px', top: (dragStartRef.current ? dragStartRef.current.y - 44 : 0) + 'px', transform: 'translate(-50%,-50%) scale(1.35) rotate(-3deg)', zIndex: 400, pointerEvents: 'none', filter: 'drop-shadow(0 14px 22px rgba(0,0,0,0.7))' }}>
                             <div className="relative"><RamiTile tile={tileById[dragId]} />{groupDrag && groupDrag.length > 1 && <span className="absolute -top-2 -right-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center border-2 border-slate-900">×{groupDrag.length}</span>}</div>
                         </div>
                     , document.body)}
