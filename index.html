@@ -1001,7 +1001,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v114';
+        window.__APP_VER = 'v115';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1152,7 +1152,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v114';
+        const APP_VER = window.__APP_VER || 'v115';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8843,7 +8843,21 @@
                                 <h3 className="text-xl font-black text-white mb-1">פריש — הכפלת המשחק ×2</h3>
                                 <p className="text-slate-400 text-sm font-bold mb-1"><span className="text-amber-300">{freshReq.byName || 'שחקן'}</span> מציע לשדרג את היד</p>
                                 <p className="text-slate-500 text-xs font-bold mb-4">אם כולם מסכימים — מחלקים מחדש והשווי מוכפל (×{Math.min(RAMI_FRESH_CAP, freshMult * 2)}).</p>
-                                <div className="text-[11px] text-slate-400 font-bold mb-4">אישרו {freshApprovedCount}/{uids.length}</div>
+                                <div className="text-[11px] text-slate-400 font-bold mb-2">אישרו {freshApprovedCount}/{uids.length}</div>
+                                {/* אינדיקציה מי אישר ומי עדיין לא (בוטים מסכימים תמיד) */}
+                                <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                                    {uids.map(u => {
+                                        const p = t.players[u] || {};
+                                        const ok = !!(freshReq.approvals || {})[u] || p.isBot;
+                                        return (
+                                            <span key={u} className={`px-2.5 py-1 rounded-full text-[11px] font-black border flex items-center gap-1 ${ok ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300' : 'bg-amber-500/10 border-amber-400/30 text-amber-300 animate-pulse'}`}>
+                                                <span>{ok ? '✓' : '⏳'}</span>
+                                                <span className="truncate max-w-[7rem]">{p.username || p.name || 'שחקן'}</span>
+                                                {p.isBot && <span className="opacity-70">🤖</span>}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
                                 {iApprovedFresh
                                     ? <div className="text-emerald-400 font-black py-2">אישרת · ממתין לשאר…</div>
                                     : (
