@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v127';
+        window.__APP_VER = 'v128';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v127';
+        const APP_VER = window.__APP_VER || 'v128';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7883,6 +7883,8 @@
             const [memRanks, setMemRanks] = useState({});
             const [profileUid, setProfileUid] = useState(null);
             const [levelUp, setLevelUp] = useState(null);
+            const [godOpen, setGodOpen] = useState(false);
+            const isGod = isGodUser(user);
             const myLvlRef = useRef(null);
             // מזהה עליית-רמה של השחקן עצמו (אחרי שהסטטיסטיקה מתעדכנת) ומפעיל חגיגה
             useEffect(() => {
@@ -8759,41 +8761,33 @@
             // ── מסך תוצאות ──
             if (t.phase === 'showdown') {
                 const lr = t.lastResults || {};
+                const winUid = t.winner;
+                const winCards = ((t.players[winUid] || {}).cards || []).filter(Boolean);
+                const wp = winCards.length ? bestPartition(winCards) : { melds: [], leftover: [] };
+                const wMelds = wp.melds || [];
                 return (
-                    <div className="absolute inset-0 overflow-y-auto aurora-bg p-4 sm:p-8" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}>
-                        <div className="max-w-lg mx-auto">
-                            <div className="glass-panel rounded-3xl p-6 text-center relative overflow-hidden">
-                                <div className="text-4xl mb-2">🏆</div>
-                                <h2 className="text-2xl font-black text-white mb-1">{lr.winnerName} ירד!</h2>
-                                <p className="text-emerald-400 font-black text-lg mb-4" dir="rtl">זכה ב-{formatMoney(lr.winnerProfit || 0)} ₪</p>
-                                {(() => {
-                                    const winUid = t.winner;
-                                    const winCards = ((t.players[winUid] || {}).cards || []).filter(Boolean);
-                                    if (!winUid || winCards.length === 0) return null;
-                                    const wp = bestPartition(winCards);
-                                    const melds = wp.melds || [];
-                                    const left = wp.leftover || [];
-                                    return (
-                                        <div className="mb-5">
-                                            <div className="text-[11px] font-black text-slate-400 mb-1.5 text-right">🔍 היד הזוכה של {lr.winnerName} ({winCards.length} אבנים) — {melds.length} קומבינציות:</div>
-                                            <div className="flex flex-col gap-1.5">
-                                                {melds.map((m, i) => {
-                                                    const nums = m.map(x => x.val).filter(v => v !== '☻');
-                                                    const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
-                                                    const label = isGroup ? (m.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף';
-                                                    return (
-                                                        <div key={i} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-1.5">
-                                                            <span className="text-[9px] font-black text-emerald-300 shrink-0 w-12 text-center">{label}</span>
-                                                            <div className="flex flex-wrap gap-1 justify-center flex-1">{m.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                                {left.length > 0 && <div className="flex flex-wrap gap-1 justify-center bg-rose-500/10 border border-rose-500/30 rounded-xl p-1.5">{left.map(tile => <RamiTile key={tile.id} tile={tile} />)}</div>}
-                                            </div>
+                    <div className="absolute inset-0 flex flex-col aurora-bg">
+                        {/* אזור גלילה: כותרת + הלוח של הזוכה + פירוט */}
+                        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5">
+                            <div className="max-w-lg mx-auto">
+                                <div className="text-center mb-3">
+                                    <div className="text-4xl mb-1">🏆</div>
+                                    <h2 className="text-2xl font-black text-white">{lr.winnerName} ירד!</h2>
+                                    <p className="text-emerald-400 font-black text-lg" dir="rtl">זכה ב-{formatMoney(lr.winnerProfit || 0)} ₪</p>
+                                </div>
+                                {/* הלוח של הזוכה — כמו לוח אמיתי: כל קומבינציה בשורה, על מעמד-עץ */}
+                                {winUid && winCards.length > 0 && (
+                                    <div className="rami-rack-frame rounded-2xl p-3 mb-3 shadow-xl">
+                                        <div className="text-[11px] font-black mb-2 text-center" style={{ color: '#4a3418' }}>🎴 הלוח הזוכה של {lr.winnerName} ({winCards.length} אבנים)</div>
+                                        <div className="flex flex-col gap-1.5" dir="ltr">
+                                            {wMelds.map((m, i) => (
+                                                <div key={i} className="flex gap-0.5 justify-center flex-wrap">{orderMeld(m).map(tile => <RamiTile key={tile.id} tile={tile} board sm />)}</div>
+                                            ))}
                                         </div>
-                                    );
-                                })()}
-                                <div className="space-y-1.5 mb-6 text-right">
+                                    </div>
+                                )}
+                                {/* פירוט הפסדים */}
+                                <div className="space-y-1.5 text-right">
                                     {Object.entries(lr.details || {}).map(([u, d]) => (
                                         <div key={u} className="flex justify-between bg-slate-950/50 rounded-xl px-3 py-2 text-sm font-bold">
                                             <span className="text-slate-300">{d.username}</span>
@@ -8802,11 +8796,12 @@
                                     ))}
                                     {lr.rake > 0 && isGodUser(user) && <div className="flex justify-between px-3 py-1 text-[10px] font-bold text-slate-600"><span>עמלת מועדון (רק אתה רואה)</span><span dir="ltr">{formatMoney(lr.rake)} ₪</span></div>}
                                 </div>
-                                <div className="flex gap-3">
-                                    <button onClick={leaveTable} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-2xl font-black border border-white/10">עזוב</button>
-                                    <button onClick={newRound} className="flex-1 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black shadow-lg">סבב חדש</button>
-                                </div>
                             </div>
+                        </div>
+                        {/* פוטר קבוע — תמיד גלוי, בלי צורך לגלול */}
+                        <div className="shrink-0 flex gap-3 p-3 border-t border-white/10 bg-slate-950/85 backdrop-blur" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+                            <button onClick={leaveTable} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-2xl font-black border border-white/10">עזוב</button>
+                            <button onClick={newRound} className="flex-[2] bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3.5 rounded-2xl font-black text-lg shadow-lg">סבב חדש 🔄</button>
                         </div>
                     </div>
                 );
@@ -8924,6 +8919,7 @@
                     <div className="flex items-center gap-1.5 shrink-0">
                         <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">יציאה ←</button>
                         <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 hover:text-white hover:bg-sky-700 transition-colors flex items-center justify-center font-black text-xs" />
+                        {isGod && <button onClick={() => setGodOpen(o => !o)} title="GOD MODE — רואים את כל הידיים" className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-black transition-all ${godOpen ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-800/80 text-purple-300 border-purple-700/50'}`}><i className="fa-solid fa-eye"></i></button>}
                     </div>
                     <div className="text-[10px] sm:text-[11px] text-slate-400 font-bold text-center truncate">{t.tournamentId
                         ? <span className="text-amber-300 font-black">🏆 {(t.tournament || {}).name || 'טורניר'}{isSeated ? <span className="text-rose-300"> · חיים: ❤️×{myLives}</span> : ''}</span>
@@ -9004,6 +9000,7 @@
                                 {sortControls}
                                 {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
                                 <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
+                                {isGod && <button onClick={() => setGodOpen(o => !o)} className={`w-full py-2 rounded-xl font-black text-sm border transition-all ${godOpen ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-900 text-purple-300 border-purple-700/50'}`}><i className="fa-solid fa-eye ml-1"></i>GOD</button>}
                             </div>
                         </div>
                     ) : (
@@ -9039,6 +9036,23 @@
 
                     {/* חגיגת עליית-רמה */}
                     <LevelUpCelebration info={levelUp} onClose={() => setLevelUp(null)} />
+                    {/* GOD MODE — חשיפת הידיים של כל השחקנים (גלוי רק ל-GOD) */}
+                    {isGod && godOpen && (t.phase === 'playing' || t.phase === 'showdown') && ReactDOM.createPortal(
+                        <div className="fixed inset-0 z-[330] flex items-end sm:items-center justify-center p-3 pointer-events-none" dir="rtl">
+                            <div className="god-panel pointer-events-auto bg-slate-950/96 border border-purple-500/40 rounded-2xl p-4 shadow-2xl max-w-md w-full max-h-[78vh] overflow-y-auto backdrop-blur">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="font-black text-purple-300 text-sm"><i className="fa-solid fa-eye ml-1"></i> GOD MODE — הידיים של כולם</span>
+                                    <button onClick={() => setGodOpen(false)} className="text-slate-500 hover:text-white text-lg"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div className="text-[10px] text-slate-500 mb-2">קופה: {(t.deck || []).length} אבנים בערימה</div>
+                                {Object.entries(t.players || {}).map(([uid, p]) => { const cards = (p.cards || []).filter(Boolean); const bp = bestPartition(cards); return (
+                                    <div key={uid} className="mb-2.5 pb-2 border-b border-white/5 last:border-0">
+                                        <div className="text-xs font-bold text-white mb-1">{p.username}{p.isBot ? ' 🤖' : ''}{uid === t.currentTurn ? ' ⏳' : ''} <span className="text-slate-500 font-normal">({cards.length} אבנים · {bp.leftoverPoints} נק'{bp.complete ? ' · ✅ יד שלמה!' : ''})</span></div>
+                                        <div className="flex flex-wrap gap-0.5" dir="ltr">{cards.map(c => <RamiTile key={c.id} tile={c} board mini />)}</div>
+                                    </div>
+                                ); })}
+                            </div>
+                        </div>, document.body)}
                     {/* כרטיס-פרופיל בלחיצה על שחקן (גם באמצע משחק) — רמה, יהלום, פס-התקדמות וסטטיסטיקה */}
                     {profileUid && t.players[profileUid] && (() => {
                         const pp = t.players[profileUid]; const lv = lvlFor(profileUid, pp);
