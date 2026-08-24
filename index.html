@@ -1091,7 +1091,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = 'v103';
+        const APP_VER = 'v104';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -7895,6 +7895,17 @@
                 setBoardSlots(board);
                 setRackSlots(rack);
             };
+            // מיון ידני כמו ברמיקוב: 789 = לפי צבע-ואז-ערך (רצפים), 777 = לפי ערך-ואז-צבע (שלישיות).
+            const arrangeSorted = (cmp) => {
+                const sorted = handIds.map(id => tileById[id]).filter(Boolean).sort(cmp).map(x => x.id);
+                const board = Array(BOARD_N).fill(null), rack = Array(RACK_N).fill(null);
+                let i = 0;
+                for (; i < sorted.length && i < BOARD_N; i++) board[i] = sorted[i];
+                for (let j = 0; i < sorted.length; i++, j++) { if (j < RACK_N) rack[j] = sorted[i]; else rack.push(sorted[i]); }
+                setBoardSlots(board); setRackSlots(rack);
+            };
+            const sortRuns = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (x.color !== y.color) return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); return Number(x.val) - Number(y.val); });
+            const sortSets = () => arrangeSorted((x, y) => { if (x.val === '☻') return 1; if (y.val === '☻') return -1; if (Number(x.val) !== Number(y.val)) return Number(x.val) - Number(y.val); return COLOR_ORDER.indexOf(x.color) - COLOR_ORDER.indexOf(y.color); });
             // איזה תא נמצא מתחת לאצבע — מחזיר {zone,idx} (board/rack)
             const slotUnder = (px, py) => {
                 if (!gridRef.current) return null;
@@ -8553,7 +8564,11 @@
                             ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
                             : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
                     </div>
-                    {!wide && <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shrink-0 shadow-lg">✨ סדר לי</button>}
+                    {!wide && <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={sortRuns} title="מיון לפי רצפים" className="rk-btn px-2 py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
+                        <button onClick={sortSets} title="מיון לפי שלישיות" className="rk-btn px-2 py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></button>
+                        <button onClick={autoArrange} className="text-[11px] font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-lg px-2.5 py-1 shadow-lg">✨ סדר לי</button>
+                    </div>}
                 </div>
                 <div className="px-2 pb-1 relative z-10">
                     <div className="grid gap-0.5 mx-auto" style={{ gridTemplateColumns: `repeat(${BOARD_COLS}, minmax(0, 1fr))`, maxWidth: wide ? '62rem' : '32rem', direction: 'ltr', rowGap: '0.5rem' }}>
@@ -8654,6 +8669,10 @@
                             <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center rami-side">
                                 {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
                                 <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg">✨ סדר לי</button>
+                                <div className="flex gap-2">
+                                    <button onClick={sortRuns} title="מיון לפי רצפים (צבע)" className="flex-1 rk-btn py-2 rounded-xl text-lg font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
+                                    <button onClick={sortSets} title="מיון לפי שלישיות (ערך)" className="flex-1 rk-btn py-2 rounded-xl text-lg font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></button>
+                                </div>
                                 {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
                                 <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
                             </div>
