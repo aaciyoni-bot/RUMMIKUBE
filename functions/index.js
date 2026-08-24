@@ -655,6 +655,57 @@ exports.siteOwnerSetup = onCall(async (request) => {
   return {ok: true};
 });
 
+// ── איפוס מלא (GOD בלבד): מאפס יתרות + היסטוריה, בעל-האתר מקבל 10,000,000 ──
+// רץ ב-admin SDK (עוקף חוקים), אטומי ובבאצ'ים — כך שהאיפוס תמיד מצליח ומדווח.
+exports.godFullReset = onCall(async (request) => {
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  if (!request.auth || !request.auth.uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  if (!isGodEmail(email)) throw new HttpsError("permission-denied", "GOD בלבד");
+  const OWNER_EMAIL = SITE_OWNER_EMAILS_SRV[0];
+  const uq = await db.collection("users").where("email", "==", OWNER_EMAIL).limit(1).get();
+  const ownerUid = uq.empty ? null : uq.docs[0].id;
+  const ownerName = (!uq.empty && uq.docs[0].data().username) ? uq.docs[0].data().username : "בעל האתר";
+
+  let batch = db.batch(); let n = 0;
+  const flush = async () => { if (n > 0) { await batch.commit(); batch = db.batch(); n = 0; } };
+  const bump = async () => { if (++n >= 400) await flush(); };
+
+  // 1) איפוס יתרות + סטטיסטיקה לכל החברויות (חוץ מהבעלים)
+  let zeroed = 0;
+  const mems = await db.collection("memberships").get();
+  for (const d of mems.docs) {
+    const uid = d.data().uid || d.id.split("_")[0];
+    if (ownerUid && uid === ownerUid) continue;
+    batch.update(d.ref, {balance: 0, clubProfits: 0, agentProfits: 0, stats: {gamesPlayed: 0, gamesWon: 0, totalProfit: 0}});
+    zeroed++; await bump();
+  }
+  await flush();
+  // יתרות לגסי ב-users
+  const usrs = await db.collection("users").get();
+  for (const d of usrs.docs) {
+    if (ownerUid && d.id === ownerUid) continue;
+    batch.update(d.ref, {balance: 0, stats: {gamesPlayed: 0, gamesWon: 0, totalProfit: 0}});
+    await bump();
+  }
+  await flush();
+
+  // 2) בעל-האתר: בעלים מאושר עם 10,000,000
+  if (ownerUid) {
+    await db.doc(`memberships/${ownerUid}_main`).set({uid: ownerUid, clubId: "main", username: ownerName, email: OWNER_EMAIL, role: "club_owner", status: "approved", balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: {gamesPlayed: 0, gamesWon: 0, totalProfit: 0}, joinedAt: Date.now()}, {merge: true});
+    await db.doc("clubs/main").set({name: "RUMMIKUBE", ownerUid, ownerName, rakePct: DEFAULT_RAKE_PCT, ownerSeeded: true}, {merge: true});
+  }
+
+  // 3) מחיקת היסטוריה ומצב-משחקים
+  let deleted = 0;
+  for (const col of ["gameLog", "agentLog", "broadcasts", "tables", "tournaments", "securityAlerts"]) {
+    const s = await db.collection(col).get();
+    let b = db.batch(); let c = 0;
+    for (const d of s.docs) { b.delete(d.ref); deleted++; if (++c >= 400) { await b.commit(); b = db.batch(); c = 0; } }
+    if (c > 0) await b.commit();
+  }
+  return {ok: true, ownerFound: !!ownerUid, zeroed, deleted};
+});
+
 // ── הוספת בוט ידנית (בעל האתר / GOD בלבד) — כתיבת bank מותרת רק לשרת ──
 const BOT_ADMIN_EMAILS = ["liorabrgel1991@gmail.com", "aaci.yoni@gmail.com"];
 exports.ramiAddBot = onCall(async (request) => {

@@ -1018,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v117';
+        window.__APP_VER = 'v118';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1169,7 +1169,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v117';
+        const APP_VER = window.__APP_VER || 'v118';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2805,34 +2805,15 @@
                 if (!window.confirm('אזהרה אחרונה — פעולה בלתי-הפיכה. להמשיך?')) return;
                 resetBusyRef.current = true;
                 changeView('lobby'); // לא נשארים במסך ניהול בזמן שהנתונים נמחקים
-                const F = window.fb, db = window.fb.db;
                 try {
                     showToast('מבצע איפוס…', 'info');
-                    const ownerEmail = SITE_OWNER_EMAILS[0];
-                    const uq = await F.getDocs(F.query(F.collection(db, 'users'), F.where('email', '==', ownerEmail)));
-                    const ownerDoc = uq.docs[0];
-                    if (!ownerDoc) { showToast('בעל-האתר עוד לא נכנס בפעם הראשונה — שיתחבר פעם אחת ואז נריץ', 'error'); resetBusyRef.current = false; return; }
-                    const ownerUid = ownerDoc.id;
-                    // לא מוחקים שחקנים! מאפסים יתרות (שחקנים + בוטים) ל-0 ומאפסים סטטיסטיקה — כל הכסף חוזר לבעל-הקלאב.
-                    const allUsers = await F.getDocs(F.collection(db, 'users'));
-                    for (const d of allUsers.docs) { if (d.id === ownerUid) continue; try { await F.updateDoc(d.ref, { balance: 0, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 } }); } catch (e) {} }
-                    const allMems = await F.getDocs(F.collection(db, 'memberships'));
-                    for (const d of allMems.docs) { const x = d.data(); const uid = x.uid || d.id.split('_')[0]; if (uid === ownerUid) continue; try { await F.updateDoc(d.ref, { balance: 0, clubProfits: 0, agentProfits: 0, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 } }); } catch (e) {} }
-                    // בעל-האתר: חברות מאופסת, בעלים, 10,000,000
-                    await F.setDoc(F.doc(db, 'memberships', ownerUid + '_main'), { uid: ownerUid, clubId: 'main', username: ownerDoc.data().username || 'בעל האתר', email: ownerEmail, role: ROLES.CLUB_OWNER, status: 'approved', balance: 10000000, clubProfits: 0, agentProfits: 0, isBot: false, stats: { gamesPlayed: 0, gamesWon: 0, totalProfit: 0 }, joinedAt: Date.now() }, { merge: true });
-                    // קבוצה יחידה: בעל-האתר הוא הבעלים
-                    await F.setDoc(F.doc(db, 'clubs', 'main'), { name: FIXED_CLUB.name, ownerUid, ownerName: ownerDoc.data().username || 'בעל האתר', rakePct: DEFAULT_RAKE_PCT, ownerSeeded: true }, { merge: true });
-                    // מחיקת כל ההיסטוריה והמצב — סופרים כשלונות כדי לא להסתיר בעיית-הרשאות
-                    let deleted = 0, failed = 0, lastErr = '';
-                    for (const col of ['gameLog', 'agentLog', 'broadcasts', 'tables', 'tournaments', 'securityAlerts']) {
-                        try {
-                            const s = await F.getDocs(F.collection(db, col));
-                            for (const d of s.docs) { try { await F.deleteDoc(d.ref); deleted++; } catch (e) { failed++; lastErr = e.message || String(e); } }
-                        } catch (e) { lastErr = e.message || String(e); }
-                    }
-                    if (failed > 0) showToast(`איפוס חלקי: נמחקו ${deleted}, נכשלו ${failed} (${lastErr})`, 'error');
-                    else showToast('איפוס הושלם — מתחילים מ-0 ✔', 'success');
-                } catch (e) { showToast('שגיאה באיפוס: ' + (e.message || ''), 'error'); }
+                    // האיפוס רץ בשרת (Cloud Function, admin SDK) — עוקף חוקי-הרשאות,
+                    // אטומי, ותמיד מצליח. מאפס יתרות+היסטוריה, בעל-האתר מקבל 10,000,000.
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'godFullReset')({});
+                    const d = (res && res.data) || {};
+                    if (!d.ownerFound) showToast(`אופס: יתרות אופסו (${d.zeroed || 0}), נמחקו ${d.deleted || 0}. בעל-האתר עוד לא נכנס — שיתחבר פעם אחת כדי לקבל 10,000,000`, 'info');
+                    else showToast(`איפוס הושלם ✔ אופסו ${d.zeroed || 0} יתרות, נמחקו ${d.deleted || 0} רשומות. בעל-האתר: 10,000,000`, 'success');
+                } catch (e) { showToast('שגיאה באיפוס: ' + ((e && e.message) || 'נסה שוב'), 'error'); }
                 resetBusyRef.current = false;
             };
 
