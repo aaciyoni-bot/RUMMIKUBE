@@ -559,6 +559,23 @@
         .rk-btn-undo { border-color: rgba(248,113,113,0.85); box-shadow: inset 0 1px 0 rgba(255,200,200,0.3), 0 4px 14px rgba(0,0,0,0.5), 0 0 16px rgba(239,68,68,0.35); }
         /* ספרות הכפתור בצבעי האבנים, כמו במשחק */
         .rk-sort-d1 { color: #ff6b6b; } .rk-sort-d2 { color: #6bb6ff; } .rk-sort-d3 { color: #ffb347; }
+        /* ── כפתורי מיון פרימיום: אריח-שנהב זעיר עם ספרות לרוחב ותווית ── */
+        .rk-sortpair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .rk-sortbtn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+            padding: 0.24rem 0.3rem 0.3rem;
+            border-radius: 0.6rem;
+            background: linear-gradient(180deg, #fffdf6 0%, #f3ead6 55%, #e6d8bd 100%);
+            border: 1px solid rgba(120,90,45,0.5);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(0,0,0,0.32);
+            cursor: pointer; transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
+        }
+        .rk-sortbtn:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 3px 10px rgba(0,0,0,0.4); }
+        .rk-sortbtn:active { transform: scale(0.93); }
+        .rk-sortbtn-tiles { display: inline-flex; gap: 2px; line-height: 1; font-weight: 900; font-family: 'Source Serif 4','Georgia',serif; font-size: 0.98rem; letter-spacing: 0.01em; }
+        .rk-sortbtn-tiles > b { -webkit-text-stroke: 0.2px currentColor; }
+        .rk-sortbtn-lbl { font-size: 0.56rem; font-weight: 800; color: #6b4f2a; letter-spacing: 0.02em; margin-top: 1px; }
+        .rk-sd-r { color: #e01221; } .rk-sd-b { color: #1247d8; } .rk-sd-o { color: #ef7d05; }
 
         /* המגש כמו במקור: האבנים צמודות זו לזו ונערמות משמאל.
            גודל המשבצת נגזר מגובה השורה (פרופורציית אבן 5:6) — לא מרוחב
@@ -1001,7 +1018,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v115';
+        window.__APP_VER = 'v116';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1152,7 +1169,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v115';
+        const APP_VER = window.__APP_VER || 'v116';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -8746,6 +8763,22 @@
                     </div>
                 </div>
             );
+            // אשכול-מיון פרימיום לשימוש חוזר: זוג 789/777 (אריחי-שנהב, ספרות לרוחב + תווית) מעל "סדר לי"
+            const sortControls = (
+                <div className="w-full flex flex-col gap-1.5">
+                    <div className="rk-sortpair w-full">
+                        <button onClick={sortRuns} title="מיון לפי רצף (צבע, מספרים עולים)" className="rk-sortbtn">
+                            <span className="rk-sortbtn-tiles" dir="ltr"><b className="rk-sd-r">7</b><b className="rk-sd-b">8</b><b className="rk-sd-o">9</b></span>
+                            <span className="rk-sortbtn-lbl">רצף</span>
+                        </button>
+                        <button onClick={sortSets} title="מיון לפי שלישייה (אותו מספר בצבעים)" className="rk-sortbtn">
+                            <span className="rk-sortbtn-tiles" dir="ltr"><b className="rk-sd-r">7</b><b className="rk-sd-r">7</b><b className="rk-sd-r">7</b></span>
+                            <span className="rk-sortbtn-lbl">שלישייה</span>
+                        </button>
+                    </div>
+                    <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 hover:bg-emerald-600 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg transition-colors">✨ סדר לי</button>
+                </div>
+            );
             const actionBar = isSeated
                 ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
                     {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>}
@@ -8795,11 +8828,7 @@
                             {/* עמודת פעולות (שמאל) */}
                             <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center rami-side">
                                 {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
-                                <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg">✨ סדר לי</button>
-                                <div className="flex gap-1.5">
-                                    <button onClick={sortRuns} title="מיון לפי רצפים (צבע)" className="flex-1 rk-btn py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
-                                    <button onClick={sortSets} title="מיון לפי שלישיות (ערך)" className="flex-1 rk-btn py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></button>
-                                </div>
+                                {sortControls}
                                 {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
                                 <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
                             </div>
