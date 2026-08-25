@@ -1133,6 +1133,22 @@ async function botRotateTx(tableId, allBots) {
     tx.update(tRef, {players, bank, botRotateAt: Date.now() + BOT_ROTATE_MS, botRotateSeed: seed + 1});
   });
 }
+// חדר-המתנה לשולחן 'full'/'half': כשלא נשאר אף אדם (עזב/סיים), מחזירים ל-'ממתין' במקום
+// שהבוטים ימשיכו לשחק לבד לנצח — אחרת שחקן חדש שנכנס תקוע כצופה (ramiSit דורש 'waiting').
+async function botResetWaitingTx(tableId) {
+  await db.runTransaction(async (tx) => {
+    const ref = db.doc(`tables/${tableId}`);
+    const s = await tx.get(ref); if (!s.exists) return;
+    const t = s.data();
+    if (!t.botTable || t.botKind === "bots") return; // 'bots' = אוטונומי, ממשיך לבד
+    if (t.phase === "waiting") return;
+    const hasHuman = Object.values(t.players || {}).some((p) => !p.isBot);
+    if (hasHuman) return;
+    const players = {}; const bank = {...(t.bank || {})};
+    for (const [u, p] of Object.entries(t.players || {})) { if (p.isBot) players[u] = {...p, cards: [], missed: 0}; else delete bank[u]; }
+    tx.update(ref, {players, bank, phase: "waiting", deck: [], discard: [], currentTurn: null, turnPhase: "draw", drawnThisTurn: false, winner: null, lastResults: null, freshMult: 1, freshReq: null, botRotateAt: Date.now() + BOT_ROTATE_MS});
+  });
+}
 // פתיחת שולחן-בוטים (GOD/בעלים): 'bots'=4 בוטים ורץ לבד · 'full'=3 בוטים ממתין · 'half'=2 בוטים ממתין
 exports.ramiOpenBotTable = onCall(async (request) => {
   const uid = request.auth && request.auth.uid;
@@ -1171,6 +1187,8 @@ exports.botTick = onCall(async (request) => {
     try {
       const hasHuman = Object.values(t.players || {}).some((p) => !p.isBot);
       if (t.phase === "waiting") { if ((Number(t.botRotateAt) || 0) <= now) { if (!allBots) { const bs = await db.collection("users").where("isBot", "==", true).get(); allBots = bs.docs.map((d) => ({id: d.id, ...d.data()})).filter((b) => b.id !== "bot_bank"); } await botRotateTx(t.id, allBots); acted++; } continue; }
+      // שולחן 'full'/'half' שנשאר בלי אף אדם → חוזר ל'ממתין' (שחקן חדש יוכל לשבת ולהתחיל)
+      if (!hasHuman && (t.botKind === "full" || t.botKind === "half")) { await botResetWaitingTx(t.id); acted++; continue; }
       if (t.phase === "playing" && !hasHuman) { const p = (t.players || {})[t.currentTurn]; if (p && p.isBot && (now - (Number(t.turnStartedAt) || 0) > 2500)) { await botStepTx(t.id); acted++; } continue; }
       if (t.phase === "showdown" && !hasHuman) { const endedAt = (t.lastResults && t.lastResults.endedAt) || 0; if (now - endedAt > 4000) { await botRedealTx(t.id); acted++; } }
     } catch (e) { /* */ }

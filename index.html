@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v133';
+        window.__APP_VER = 'v134';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v133';
+        const APP_VER = window.__APP_VER || 'v134';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -6487,14 +6487,14 @@
                                     <div className="mb-4">
                                         <label className="text-slate-400 text-xs font-bold mb-2 block uppercase tracking-widest">אילו משחקים {roleDraft.role === ROLES.MANAGER ? 'ינהל' : 'ישרת'}?</label>
                                         <div className="flex flex-col gap-2">
-                                            {GAMES.map(g => (
-                                                <label key={g.id} className={`flex items-center justify-between bg-slate-900/70 rounded-xl px-4 py-3 border cursor-pointer transition-colors ${roleDraft.managedGames.includes(g.id) ? 'border-emerald-500/60' : 'border-white/5'} ${!g.live ? 'opacity-60' : ''}`}>
+                                            {GAMES.filter(g => g.live).map(g => (
+                                                <label key={g.id} className={`flex items-center justify-between bg-slate-900/70 rounded-xl px-4 py-3 border cursor-pointer transition-colors ${roleDraft.managedGames.includes(g.id) ? 'border-emerald-500/60' : 'border-white/5'}`}>
                                                     <span className="font-bold text-sm text-white">{g.label}</span>
                                                     <input type="checkbox" checked={roleDraft.managedGames.includes(g.id)} onChange={()=>toggleGame(g.id)} className="w-5 h-5 accent-emerald-500 cursor-pointer" />
                                                 </label>
                                             ))}
                                         </div>
-                                        <button onClick={()=>setRoleDraft({...roleDraft, managedGames: GAMES.map(g=>g.id)})} className="text-xs text-emerald-400 font-bold mt-2 underline">סמן הכל</button>
+                                        <button onClick={()=>setRoleDraft({...roleDraft, managedGames: GAMES.filter(g=>g.live).map(g=>g.id)})} className="text-xs text-emerald-400 font-bold mt-2 underline">סמן הכל</button>
                                     </div>
                                 )}
 
