@@ -9,6 +9,7 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
+const {getAuth} = require("firebase-admin/auth");
 
 initializeApp();
 const db = getFirestore();
@@ -737,6 +738,66 @@ exports.godDeletePlayer = onCall(async (request) => {
   batch.delete(db.doc(`users/${targetUid}`));
   await batch.commit();
   return {ok: true, deleted: targetUid};
+});
+
+// ── כניסת-אורח דטרמיניסטית: הטלפון = החשבון (uid קבוע guest_<טלפון>) ──────────
+// מנפיק custom-token לפי הטלפון, כך שאותו טלפון תמיד מתחבר לאותו uid — אפס
+// כפילויות, בלי תלות בכניסה אנונימית (שאולי כבויה/נתקעת) ובלי תלות באחסון-הדפדפן.
+// לא דורש התחברות מוקדמת (האורח עוד לא מחובר). מאחד גם חשבונות-אורח ישנים לפי טלפון.
+exports.guestToken = onCall(async (request) => {
+  const {phone, name, clubId} = request.data || {};
+  const cid = clubId || "main";
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 5) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
+  const uid = "guest_" + digits;
+  const newMemRef = db.doc(`memberships/${uid}_${cid}`);
+  const newUserRef = db.doc(`users/${uid}`);
+
+  // חשבונות-אורח ישנים (בלי email) עם אותו טלפון, תחת uid אחר — נאחד אליהם
+  const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
+  const others = [];
+  memSnap.forEach((d) => {
+    const m = d.data();
+    if (m.isBot || m.email) return;
+    const mp = String(m.phone || m.playerId || "").replace(/\D/g, "");
+    const mu = m.uid || d.id.split("_")[0];
+    if (mp === digits && mu !== uid) others.push(mu);
+  });
+
+  await db.runTransaction(async (tx) => {
+    const memRefs = [newMemRef, ...others.map((u) => db.doc(`memberships/${u}_${cid}`))];
+    const userRefs = [newUserRef, ...others.map((u) => db.doc(`users/${u}`))];
+    const memSnaps = await Promise.all(memRefs.map((r) => tx.get(r)));
+    const userSnaps = await Promise.all(userRefs.map((r) => tx.get(r)));
+
+    const found = [];
+    memSnaps.forEach((s) => { if (s.exists) { const m = s.data(); if (!m.isBot && !m.email) found.push(m); } });
+    const sumBal = round2(found.reduce((a, m) => a + (Number(m.balance) || 0), 0));
+    const anyApproved = found.some((m) => m.status === "approved");
+    const scoreOf = (m) => (m.status === "approved" ? 1e15 : 0) + (Number(m.balance) || 0);
+    let best = null; for (const m of found) { if (!best || scoreOf(m) > scoreOf(best)) best = m; }
+    const stats = found.reduce((a, m) => {
+      const st = m.stats || {};
+      a.gamesPlayed += Number(st.gamesPlayed) || 0;
+      a.gamesWon += Number(st.gamesWon) || 0;
+      a.totalProfit = round2(a.totalProfit + (Number(st.totalProfit) || 0));
+      a.bestStreak = Math.max(a.bestStreak, Number(st.bestStreak) || 0);
+      return a;
+    }, {gamesPlayed: 0, gamesWon: 0, totalProfit: 0, bestStreak: 0, streak: (best && best.stats && Number(best.stats.streak)) || 0});
+    const uname = (best && best.username) || name || "אורח";
+    const role = (best && best.role) || "player";
+    const status = anyApproved ? "approved" : "pending";
+    const agent = best && best.agentUid ? {agentUid: best.agentUid, agentPct: best.agentPct || 0} : {};
+
+    tx.set(newMemRef, {uid, clubId: cid, username: uname, phone: digits, playerId: digits, role, status, balance: sumBal, isBot: false, stats, ...agent}, {merge: true});
+    const cu = userSnaps[0].exists ? userSnaps[0].data() : {};
+    tx.set(newUserRef, {username: uname, isGuest: true, role, status, playerId: digits, phone: digits, balance: sumBal, isBot: false, avatarSeed: cu.avatarSeed || (best && best.avatarSeed) || null, stats}, {merge: true});
+
+    others.forEach((u, i) => { if (memSnaps[i + 1].exists) tx.delete(memRefs[i + 1]); if (userSnaps[i + 1].exists) tx.delete(userRefs[i + 1]); });
+  });
+
+  const token = await getAuth().createCustomToken(uid, {guest: true, phone: digits});
+  return {ok: true, token, uid};
 });
 
 // ── כניסת-אורח סמכותית לפי טלפון (מבטלת כפילויות מהשורש) ──────────────────────
