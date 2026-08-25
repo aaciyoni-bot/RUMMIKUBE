@@ -711,6 +711,34 @@ exports.godMergePlayers = onCall(async (request) => {
   return {ok: true, ...out};
 });
 
+// ── מחיקת שחקן (בעלים/GOD): מוחק לצמיתות את החברות + מסמך-המשתמש ──────────────
+// שימושי לניקוי חשבונות-בדיקה/כפילויות. לא מוחק בעל-קלאב/אדמין (אלא GOD).
+exports.godDeletePlayer = onCall(async (request) => {
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {targetUid, clubId} = request.data || {};
+  if (!targetUid) throw new HttpsError("invalid-argument", "חסר שחקן");
+  const cid = clubId || "main";
+  let allowed = isGodEmail(email) || SITE_OWNER_EMAILS_SRV.includes(email);
+  if (!allowed) { const c = await db.doc(`clubs/${cid}`).get(); if (c.exists && c.data().ownerUid === uid) allowed = true; }
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה");
+  if (targetUid === uid) throw new HttpsError("failed-precondition", "אי-אפשר למחוק את עצמך");
+  const memSnap = await db.doc(`memberships/${targetUid}_${cid}`).get();
+  if (memSnap.exists) {
+    const m = memSnap.data();
+    if (m.isBot) throw new HttpsError("failed-precondition", "בוט — מחיקה דרך ניהול-בוטים");
+    if (["club_owner", "super_admin"].includes(m.role) && !isGodEmail(email)) {
+      throw new HttpsError("permission-denied", "אי-אפשר למחוק בעל-קלאב/אדמין");
+    }
+  }
+  const batch = db.batch();
+  batch.delete(db.doc(`memberships/${targetUid}_${cid}`));
+  batch.delete(db.doc(`users/${targetUid}`));
+  await batch.commit();
+  return {ok: true, deleted: targetUid};
+});
+
 // ── כניסת-אורח סמכותית לפי טלפון (מבטלת כפילויות מהשורש) ──────────────────────
 // אורח = uid אנונימי חדש בכל פעם שהאחסון בדפדפן נמחק (webview של וואטסאפ, iOS פרטי).
 // לכן במקום להסתמך על ה-uid, מזהים את השחקן לפי הטלפון שהוא מקליד: מאחדים אוטומטית

@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v134';
+        window.__APP_VER = 'v135';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v134';
+        const APP_VER = window.__APP_VER || 'v135';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5877,6 +5877,16 @@
                 try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", u.id), { status: 'rejected', rejectedAt: Date.now() }); showToast("הבקשה נדחתה", "info"); }
                 catch(e) { showToast("שגיאה בדחייה", "error"); }
             };
+            // מחיקת שחקן לצמיתות (בעלים/GOD) — מוחק חברות + מסמך-משתמש דרך Cloud Function.
+            const deletePlayer = async (u) => {
+                const bal = Number(u.balance) || 0;
+                if (!window.confirm(`למחוק לצמיתות את ${u.username}?${bal > 0.009 ? `\n\n⚠️ יש לו יתרה של ${formatMoney(bal)} ₪ — היא תימחק!` : ''}\n\nהחשבון יוסר לגמרי. פעולה בלתי-הפיכה.`)) return;
+                try {
+                    const targetUid = u.uid || String(u.id || '').split('_')[0];
+                    await window.fb.httpsCallable(window.fb.functions, 'godDeletePlayer')({ targetUid, clubId: CLUB_ID });
+                    showToast(`${u.username} נמחק`, 'success');
+                } catch (e) { showToast(fnErr(e), 'error'); }
+            };
 
             // פתיחת מודל הפקדה/משיכה במקום window.prompt - עם תצוגה חיה של שתי היתרות
             const adjustBalance = (target, isDeposit) => setBalBox({ mem: target, dir: isDeposit ? 'in' : 'out', amt: '' });
@@ -6348,6 +6358,9 @@
                                             )}
                                             {canManageAny && dupsOf(u).length > 0 && (
                                                 <button onClick={()=>openMerge(u)} className="w-9 h-9 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 shrink-0 animate-pulse" title={`מזג ${dupsOf(u).length} חשבונות כפולים (אותו טלפון) לחשבון זה`}><i className="fa-solid fa-code-merge text-xs"></i></button>
+                                            )}
+                                            {isOwner && u.role !== ROLES.CLUB_OWNER && u.role !== ROLES.SUPER_ADMIN && (
+                                                <button onClick={()=>deletePlayer(u)} className="w-9 h-9 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-600 hover:text-white shrink-0" title="מחק שחקן לצמיתות"><i className="fa-solid fa-trash text-xs"></i></button>
                                             )}
                                         </div>
                                     </div>
