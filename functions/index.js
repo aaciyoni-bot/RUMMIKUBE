@@ -745,11 +745,20 @@ exports.godDeletePlayer = onCall(async (request) => {
 // כפילויות, בלי תלות בכניסה אנונימית (שאולי כבויה/נתקעת) ובלי תלות באחסון-הדפדפן.
 // לא דורש התחברות מוקדמת (האורח עוד לא מחובר). מאחד גם חשבונות-אורח ישנים לפי טלפון.
 exports.guestToken = onCall(async (request) => {
-  const {phone, name, clubId} = request.data || {};
+  const {phone, name, clubId, agentCode} = request.data || {};
   const cid = clubId || "main";
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length < 5) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
   const uid = "guest_" + digits;
+  // שיוך-סוכן מקישור-הזמנה (?agent=CODE): מאתרים את חברות-הסוכן לפי הקוד
+  let agentLink = null;
+  const codeUp = String(agentCode || "").trim().toUpperCase();
+  if (codeUp) {
+    try {
+      const aq = await db.collection("memberships").where("clubId", "==", cid).where("agentCode", "==", codeUp).limit(1).get();
+      if (!aq.empty) { const ad = aq.docs[0].data(); agentLink = {agentUid: ad.uid || aq.docs[0].id.split("_")[0], agentPct: Number(ad.agentSharePct) || 50}; }
+    } catch (e) { /* */ }
+  }
   const newMemRef = db.doc(`memberships/${uid}_${cid}`);
   const newUserRef = db.doc(`users/${uid}`);
 
@@ -787,7 +796,8 @@ exports.guestToken = onCall(async (request) => {
     const uname = (best && best.username) || name || "אורח";
     const role = (best && best.role) || "player";
     const status = anyApproved ? "approved" : "pending";
-    const agent = best && best.agentUid ? {agentUid: best.agentUid, agentPct: best.agentPct || 0} : {};
+    // אם לחשבון כבר יש סוכן — שומרים אותו; אחרת מחילים את השיוך מקישור-ההזמנה (אם יש)
+    const agent = best && best.agentUid ? {agentUid: best.agentUid, agentPct: best.agentPct || 0} : (agentLink || {});
 
     tx.set(newMemRef, {uid, clubId: cid, username: uname, phone: digits, playerId: digits, role, status, balance: sumBal, isBot: false, stats, ...agent}, {merge: true});
     const cu = userSnaps[0].exists ? userSnaps[0].data() : {};

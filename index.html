@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v136';
+        window.__APP_VER = 'v137';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v136';
+        const APP_VER = window.__APP_VER || 'v137';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -2785,7 +2785,11 @@
                     const snap = await window.fb.getDoc(ref);
                     if (snap.exists()) { if (!silent) showToast(snap.data().status === 'approved' ? "אתה כבר מאושר" : "בקשתך כבר ממתינה לאישור", "info"); return; }
                     let extra = {};
-                    const code = new URLSearchParams(window.location.search).get('agent');
+                    // קוד-הסוכן מגיע מהקישור (?agent=). נקרא קודם מ-localStorage (נשמר בטעינה
+                    // ושורד רענון/התחברות-גוגל שמנקים את ה-URL), ורק אז מה-URL הנוכחי.
+                    let code = null;
+                    try { const r = JSON.parse(localStorage.getItem('agentRef') || 'null'); if (r && r.code) code = r.code; } catch (e) {}
+                    if (!code) code = new URLSearchParams(window.location.search).get('agent');
                     if (code) {
                         try {
                             const aq = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID), window.fb.where("agentCode", "==", code.trim().toUpperCase())));
@@ -3184,7 +3188,10 @@
                     // שיטה עיקרית: הטלפון = החשבון. השרת מנפיק custom-token לפי הטלפון (uid קבוע
                     // guest_<טלפון>) ואנחנו נכנסים איתו. אותו טלפון = תמיד אותו חשבון, בלי תלות
                     // בכניסה אנונימית (שאולי כבויה) ובלי כפילויות. אין צורך ב-guestEnter אחר-כך.
-                    const res = await withTimeout(window.fb.httpsCallable(window.fb.functions, 'guestToken')({ phone: num, name: nm, clubId: CLUB_ID }), 15000);
+                    let agentCode = null;
+                    try { const r = JSON.parse(localStorage.getItem('agentRef') || 'null'); if (r && r.code) agentCode = r.code; } catch (e) {}
+                    if (!agentCode) agentCode = new URLSearchParams(window.location.search).get('agent');
+                    const res = await withTimeout(window.fb.httpsCallable(window.fb.functions, 'guestToken')({ phone: num, name: nm, clubId: CLUB_ID, agentCode: agentCode || '' }), 15000);
                     const token = res && res.data && res.data.token;
                     if (!token) throw { code: 'no-token' };
                     window.__guestName = ''; window.__guestNumber = ''; // guestToken כבר יצר/אחד את החשבון
