@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v137';
+        window.__APP_VER = 'v138';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v137';
+        const APP_VER = window.__APP_VER || 'v138';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -5822,6 +5822,17 @@
             const [memFilter, setMemFilter] = useState('all'); // all / agents / managers / banned
             const [balBox, setBalBox] = useState(null);        // מודל הפקדה/משיכה: { mem, dir, amt }
             const [mergeBox, setMergeBox] = useState(null);    // מודל מיזוג-כפילות: { keep, drops:[...] }
+            const [clubStats, setClubStats] = useState(null);  // דוח רייק-אמיתי + בוטים-מול-אנושיים
+            const [clubStatsBusy, setClubStatsBusy] = useState(false);
+            const loadClubStats = async (apply) => {
+                if (clubStatsBusy) return; setClubStatsBusy(true);
+                try {
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'godClubStats')({ clubId: CLUB_ID, apply: !!apply });
+                    setClubStats(res.data || null);
+                    if (apply) showToast('מונה-הרווח עודכן לרייק האמיתי ✓', 'success');
+                } catch (e) { showToast(fnErr(e), 'error'); }
+                finally { setClubStatsBusy(false); }
+            };
             const [mergeBusy, setMergeBusy] = useState(false);
             const [roleEditUser, setRoleEditUser] = useState(null);
             const [roleDraft, setRoleDraft] = useState({ role: ROLES.PLAYER, managedGames: [] });
@@ -6128,6 +6139,35 @@
                             ))}
                         </div>
 
+                        {/* דוח רייק-אמיתי + בוטים-מול-אנושיים — בעלים/GOD */}
+                        {(isOwner || isGodUser(user)) && (
+                            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 mb-6">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <div className="font-black text-amber-200 text-sm flex items-center gap-2"><i className="fa-solid fa-chart-pie"></i> רייק אמיתי (בלי בוטים)</div>
+                                    <button onClick={() => loadClubStats(false)} disabled={clubStatsBusy} className="text-xs font-black bg-amber-600/80 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-xl">{clubStatsBusy ? 'מחשב…' : 'חשב עכשיו'}</button>
+                                </div>
+                                {clubStats && (
+                                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5">
+                                            <div className="text-[10px] text-slate-400 font-bold mb-1">רייק אמיתי (ממשחקי-אדם)</div>
+                                            <div className="text-emerald-300 font-black text-lg" dir="ltr">{formatMoney(clubStats.realRake || 0)} ₪</div>
+                                            <div className="text-[9px] text-slate-500 font-bold mt-0.5">{clubStats.ratedGames || 0} משחקים</div>
+                                        </div>
+                                        <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5">
+                                            <div className="text-[10px] text-slate-400 font-bold mb-1">בוטים מול אנושיים</div>
+                                            <div className={`font-black text-lg ${(clubStats.botVsHuman || 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`} dir="ltr">{(clubStats.botVsHuman || 0) > 0 ? '+' : ''}{formatMoney(clubStats.botVsHuman || 0)} ₪</div>
+                                            <div className="text-[9px] text-slate-500 font-bold mt-0.5">{(clubStats.botVsHuman || 0) >= 0 ? 'הבית הרוויח מהשחקנים' : 'הבית שילם לשחקנים'}</div>
+                                        </div>
+                                        <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5">
+                                            <div className="text-[10px] text-slate-400 font-bold mb-1">מונה-רווח שמור (מנופח)</div>
+                                            <div className="text-slate-300 font-black text-lg" dir="ltr">{formatMoney(clubStats.clubProfitsStored || 0)} ₪</div>
+                                            {Math.abs((clubStats.clubProfitsStored || 0) - (clubStats.realRake || 0)) > 1 && <button onClick={() => loadClubStats(true)} disabled={clubStatsBusy} className="text-[10px] font-black text-amber-300 underline mt-1">קבע לרייק האמיתי</button>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* בקרת שלמות — GOD בלבד (התראה על צ'יפים שנוצרו מחוץ למערכת) */}
                         {isGodUser(user) && <IntegrityMonitor user={user} />}
 
@@ -6341,7 +6381,11 @@
                             </div>
                             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
                                 {players.map(u => {
-                                    const net = (u.stats && u.stats.totalProfit) || 0;
+                                    // תוצאה מאוחדת: מסכם את כל החשבונות של אותו טלפון, כדי שתראה
+                                    // מספר אחד ברור (רווח/הפסד) גם כשהשחקן פוצל לכמה חשבונות-אורח.
+                                    const dups = dupsOf(u);
+                                    const net = round2(((u.stats && u.stats.totalProfit) || 0) + dups.reduce((s, d) => s + ((d.stats && d.stats.totalProfit) || 0), 0));
+                                    const consBal = round2((u.balance || 0) + dups.reduce((s, d) => s + (d.balance || 0), 0));
                                     return (
                                     <div key={u.id} className="bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
                                         {/* שורה עליונה: זהות + יתרה (תמיד גלויה, מיושרת) */}
@@ -6356,8 +6400,9 @@
                                                 <div className="text-[10px] text-slate-500 truncate" dir="ltr">📱 {u.phone || u.playerId || ''}{u.agentUid ? ` · 🤝 ${agentName(u.agentUid)} ${u.agentPct || 0}%` : ''}</div>
                                             </div>
                                             <div className="text-left shrink-0">
-                                                <div className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(u.balance || 0)} ₪</div>
-                                                {net !== 0 && <div className={`text-[10px] font-black leading-none mt-0.5 ${net > 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr" title="רווח/הפסד מצטבר">{net > 0 ? '▲ +' : '▼ '}{formatMoney(Math.abs(net))}</div>}
+                                                <div className="text-emerald-300 font-black text-base leading-none" dir="ltr">{formatMoney(consBal)} ₪</div>
+                                                <div className={`text-[10px] font-black leading-none mt-1 ${net > 0 ? 'text-emerald-400' : net < 0 ? 'text-rose-400' : 'text-slate-500'}`} dir="rtl" title="תוצאת משחקים מאוחדת (רווח/הפסד)">תוצאה: {net > 0 ? 'הרוויח ' : net < 0 ? 'הפסיד ' : '±'}{formatMoney(Math.abs(net))} ₪</div>
+                                                {dups.length > 0 && <div className="text-[9px] text-amber-400 font-bold leading-none mt-0.5" dir="rtl">🔗 מאוחד · {dups.length + 1} חשבונות</div>}
                                             </div>
                                         </div>
                                         {/* שורה תחתונה: פעולות ברוחב מלא, בלי חפיפה */}

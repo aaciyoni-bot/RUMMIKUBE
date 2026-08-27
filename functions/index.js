@@ -289,9 +289,18 @@ exports.rummySettle = onCall(async (request) => {
       const upd = {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta)};
       tx.update(memRefs[u], upd);
     }
+    // תוצאת "בוטים מול אנושיים": נספרת רק במשחק מעורב (יש גם בוט וגם אדם), לא בוט-נגד-בוט.
+    // botDelta חיובי = הבוטים (הבית) הרוויחו מהשחקנים; שלילי = הבית שילם לשחקנים.
+    const hasHuman = Object.keys(players).some((u) => !players[u].isBot);
+    const hasBot = Object.keys(players).some((u) => players[u].isBot);
+    const botVsHumanDelta = (hasHuman && hasBot) ? botDelta : 0;
     // רייק לבעלים (בניכוי נתחי הסוכנים), ונתחי-סוכן
     if (ownerRef && ownerData) {
-      tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + rake - totalCuts), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)});
+      tx.update(ownerRef, {
+        balance: round2((Number(ownerData.balance) || 0) + rake - totalCuts),
+        clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake),
+        botVsHumanNet: round2((Number(ownerData.botVsHumanNet) || 0) + botVsHumanDelta),
+      });
     }
     for (const [aUid, amt] of Object.entries(agentCuts)) {
       const ad = agentData[aUid];
@@ -743,6 +752,37 @@ exports.godDeletePlayer = onCall(async (request) => {
   batch.delete(db.doc(`users/${targetUid}`));
   await batch.commit();
   return {ok: true, deleted: targetUid};
+});
+
+// ── דוח מועדון (בעלים/GOD): רייק אמיתי (בלי בוטים) + תוצאת בוטים-מול-אנושיים ──
+// הרייק האמיתי מחושב מיומן-המשחקים (gameLog) — שם נרשמים רק משחקים עם מנצח אנושי,
+// אז משחקי-בוטים-בלבד לא נספרים כלל. apply:true מתקן את מונה-רווח-המועדון לערך האמיתי.
+exports.godClubStats = onCall(async (request) => {
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {clubId, apply} = request.data || {};
+  const cid = clubId || "main";
+  const cSnap = await db.doc(`clubs/${cid}`).get();
+  const ownerUid = cSnap.exists ? cSnap.data().ownerUid : null;
+  let allowed = isGodEmail(email) || SITE_OWNER_EMAILS_SRV.includes(email) || (ownerUid && ownerUid === uid);
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה");
+  // רייק אמיתי: סכום ה-rake מיומן-המשחקים (רק משחקי-אדם נרשמים שם)
+  const glSnap = await db.collection("gameLog").where("clubId", "==", cid).get();
+  let realRake = 0; let ratedGames = 0;
+  glSnap.forEach((d) => { const r = Number(d.data().rake) || 0; if (r > 0) { realRake = round2(realRake + r); ratedGames++; } });
+  // תוצאת בוטים-מול-אנושיים + מונה-הרווח הנוכחי (מחברות-הבעלים)
+  let botVsHuman = 0; let clubProfits = 0;
+  if (ownerUid) {
+    const om = await db.doc(`memberships/${ownerUid}_${cid}`).get();
+    if (om.exists) { botVsHuman = round2(Number(om.data().botVsHumanNet) || 0); clubProfits = round2(Number(om.data().clubProfits) || 0); }
+  }
+  // תיקון אופציונלי: מקבע את מונה-הרווח לערך האמיתי (מסיר את הניפוח מהבוטים)
+  if (apply && ownerUid) {
+    await db.doc(`memberships/${ownerUid}_${cid}`).update({clubProfits: realRake});
+    clubProfits = realRake;
+  }
+  return {ok: true, realRake, ratedGames, botVsHuman, clubProfitsStored: clubProfits, applied: !!apply};
 });
 
 // ── כניסת-אורח דטרמיניסטית: הטלפון = החשבון (uid קבוע guest_<טלפון>) ──────────
