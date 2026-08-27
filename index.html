@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v139';
+        window.__APP_VER = 'v140';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v139';
+        const APP_VER = window.__APP_VER || 'v140';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -4175,6 +4175,7 @@
                                 </div>
                             )}
                         </div>
+                        <a href="/backoffice.html" target="_blank" rel="noopener" className="block text-center bg-gradient-to-b from-cyan-500 to-cyan-700 hover:from-cyan-400 text-white py-3.5 rounded-2xl font-black shadow-lg mb-4 no-underline"><i className="fa-solid fa-file-invoice-dollar ml-2"></i>פירוט חשבון · אתר ההתחשבנות</a>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             {tiles.map((t, i) => (
                                 <div key={i} className="stat-tile p-5 rounded-2xl text-center">
@@ -9324,7 +9325,8 @@
                                         <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-300">🔥 {st.streak || 0}</div><div className="text-[9px] text-slate-400 font-bold">רצף נוכחי</div></div>
                                         <div className="bg-slate-900/60 rounded-xl py-2"><div className="text-base font-black text-amber-400">🏆 {st.bestStreak || 0}</div><div className="text-[9px] text-slate-400 font-bold">שיא רצף</div></div>
                                     </div>
-                                    <button onClick={() => setProfileUid(null)} className="mt-5 w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-2xl font-black border border-white/10">סגור</button>
+                                    {profileUid === user.uid && !pp.isBot && <a href="/backoffice.html" target="_blank" rel="noopener" className="mt-4 block w-full bg-gradient-to-b from-cyan-500 to-cyan-700 hover:from-cyan-400 text-white py-2.5 rounded-2xl font-black shadow-lg no-underline">📊 פירוט חשבון · התחשבנות</a>}
+                                    <button onClick={() => setProfileUid(null)} className="mt-3 w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-2xl font-black border border-white/10">סגור</button>
                                 </div>
                             </div>, document.body);
                     })()}
