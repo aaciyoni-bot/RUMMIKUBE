@@ -250,7 +250,12 @@ exports.rummySettle = onCall(async (request) => {
       totalPot = round2(totalPot + pay);
       details[u] = {username: p.username, penalty, pay};
     }
-    const rake = round2(totalPot * rakeFrac);
+    // רייק נגבה רק מהפסדים של שחקנים אמיתיים (כסף אמיתי). הפסדי-בוטים פיקטיביים —
+    // אינם מייצרים רייק/רווח-מועדון, אחרת שולחני-בוטים אוטונומיים מנפחים את clubProfits
+    // באלפי ידיים (לכן הופיע "רווח" של 15k שלא היה אמיתי).
+    let realPot = 0;
+    for (const [u, d] of Object.entries(details)) { if (players[u] && !players[u].isBot) realPot = round2(realPot + d.pay); }
+    const rake = round2(realPot * rakeFrac);
     const winnerProfit = round2(totalPot - rake);
     bank[winnerUid] = round2((bank[winnerUid] || 0) + winnerProfit);
     players[winnerUid].stack = bank[winnerUid];
