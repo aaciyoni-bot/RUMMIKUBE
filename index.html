@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v138';
+        window.__APP_VER = 'v139';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1186,7 +1186,7 @@
         const FIRST_MELD_MIN = 30;
         // חותמת גרסה גלויה (מוצגת במסך הקלאבים) - לעדכן יחד עם גרסת ה-SW,
         // כדי שאפשר יהיה לדעת בשנייה אם מכשיר מציג גרסה ישנה מהמטמון.
-        const APP_VER = window.__APP_VER || 'v138';
+        const APP_VER = window.__APP_VER || 'v139';
 
         /* שמות בוטים אנושיים - אותה שיטה כמו ב-POKERTEN: תמהיל של שמות
            מלאים בעברית ובאנגלית, כינויי משחק, ושם+מספר. בלי כפילויות
@@ -1445,11 +1445,11 @@
         const cycleStartIL = (weeksBack) => {
             const now = new Date();
             const il = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
-            const back = (il.getDay() + 6) % 7; // ימים אחורה עד יום שני
-            const monday = new Date(il);
-            monday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
-            monday.setHours(0, 1, 0, 0);
-            return monday.getTime() + (now.getTime() - il.getTime());
+            const back = (il.getDay() + 5) % 7; // ימים אחורה עד יום שלישי (מחזור שלישי→שלישי)
+            const tuesday = new Date(il);
+            tuesday.setDate(il.getDate() - back - 7 * (weeksBack || 0));
+            tuesday.setHours(0, 1, 0, 0);
+            return tuesday.getTime() + (now.getTime() - il.getTime());
         };
         const genAgentCode = () => 'AG' + Math.random().toString(36).slice(2, 6).toUpperCase();
 
@@ -5512,13 +5512,15 @@
                 if (!data) return null;
                 const inWk = (r) => (r.at || 0) >= from && (r.at || 0) < to;
                 const logs = data.logs.filter(inWk);
-                // מקור האמת לרייק ברוטו: שורות agentLog עם kind:'club' - נכתבות
-                // על כל זיכוי רייק. שדה rake ב-gameLog הוא פירוט פר-שחקן בלבד.
-                const grossRake = round2(data.agentRows.filter(r => inWk(r) && r.kind === 'club').reduce((s, r) => s + (Number(r.amount) || 0), 0));
-                const cutRows = data.agentRows.filter(r => inWk(r) && r.kind !== 'club');
-                const totalCuts = round2(cutRows.reduce((s, r) => s + (Number(r.amount) || 0), 0));
+                const ownerUid = clubSettings?.ownerUid || (data.mems.find(m => [ROLES.CLUB_OWNER, ROLES.SUPER_ADMIN].includes(m.role)) || {}).uid || '';
                 const byUid = {};
                 logs.forEach(l => { if (!l.uid) return; byUid[l.uid] = byUid[l.uid] || { result: 0, rake: 0, n: 0 }; const b = byUid[l.uid]; b.result = round2(b.result + (Number(l.profit) || 0)); b.rake = round2(b.rake + (Number(l.rake) || 0)); b.n++; });
+                // רייק אמיתי מרכזי: סכום הרייק של השחקנים ממשחקי-אדם בלבד (gameLog; בוטים אינם
+                // נרשמים שם), *בלי* בעל-הקלאב — הוא חשוף לרייק שלו דרך השורה שלו, אך אינו נכלל
+                // בסיכום המרכזי. (בעבר חושב מ-agentLog שכלל גם בוטים → ניפוח ל-~16k.)
+                const grossRake = round2(Object.entries(byUid).reduce((s, [uid, b]) => s + (uid === ownerUid ? 0 : (b.rake || 0)), 0));
+                const cutRows = data.agentRows.filter(r => inWk(r) && r.kind !== 'club');
+                const totalCuts = round2(cutRows.reduce((s, r) => s + (Number(r.amount) || 0), 0));
                 // סוכן רואה רק את השחקנים המשויכים אליו (ואת עצמו) - לא את כל הקלאב.
                 const mems = data.mems.filter(m => !m.isBot && m.status === 'approved' && (canManage || m.agentUid === user.uid || m.uid === user.uid));
                 const players = mems.map(m => ({ ...m, wkResult: (byUid[m.uid] || {}).result || 0, wkRake: (byUid[m.uid] || {}).rake || 0, wkGames: (byUid[m.uid] || {}).n || 0 }))
@@ -5530,7 +5532,7 @@
                     return { ...a, kids, cutPaid };
                 }).filter(a => !user.role || canManage || a.uid === user.uid);
                 return { grossRake, totalCuts, ownerNet: round2(grossRake - totalCuts), players, agents };
-            }, [data, from, to, q, sortBy, canManage, user.uid]);
+            }, [data, from, to, q, sortBy, canManage, user.uid, clubSettings]);
 
             const applyFix = async () => {
                 if (!editFor) return;
