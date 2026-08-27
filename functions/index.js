@@ -1111,7 +1111,12 @@ async function settleRamiTx(tx, tRef, t, winnerUid) {
       totalPot = round2(totalPot + pay);
       details[u] = {username: p.username, pay};
     }
-    const rake = round2(totalPot * rakeFrac);
+    // רייק נגבה רק מהפסדים של שחקנים אמיתיים (כסף אמיתי). הפסדי-בוטים פיקטיביים —
+    // לא מייצרים רייק/רווח-מועדון (אחרת שולחני-בוטים אוטונומיים מנפחים את clubProfits
+    // באלפי ידיים; לכן הופיע "רווח" של 15k שלא היה). כשבוט משחק נגד אדם — רק הרייק של האדם.
+    let realPot = 0;
+    for (const [u, p] of Object.entries(players)) { if (u !== winnerUid && !p.isBot) realPot = round2(realPot + ((details[u] && details[u].pay) || 0)); }
+    const rake = round2(realPot * rakeFrac);
     const winnerProfit = round2(totalPot - rake);
     bank[winnerUid] = round2((bank[winnerUid] || 0) + winnerProfit);
     players[winnerUid].stack = bank[winnerUid];
@@ -1137,8 +1142,21 @@ async function settleRamiTx(tx, tRef, t, winnerUid) {
       const bestStreak = Math.max(Number(st.bestStreak) || 0, streak);   // שיא רצף נצחונות
       tx.update(memRefs[u], {"stats.gamesPlayed": (st.gamesPlayed || 0) + 1, "stats.gamesWon": (st.gamesWon || 0) + (isW ? 1 : 0), "stats.totalProfit": round2((st.totalProfit || 0) + delta), "stats.streak": streak, "stats.bestStreak": bestStreak});
     }
-    // בעל הקלאב מממן את הבוטים (כמו בית): מקבל את הרייק (פחות נתחי סוכנים) + הרווח/ההפסד הנקי של הבוטים
-    if (ownerRef && ownerData) { const ownerGain = round2((rake - totalCuts) + botDelta); if (ownerGain !== 0 || rake > 0) tx.update(ownerRef, {balance: round2((Number(ownerData.balance) || 0) + ownerGain), clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake)}); }
+    // בעל הקלאב מממן את הבוטים (כמו בית): מקבל את הרייק (פחות נתחי סוכנים) + הרווח/ההפסד הנקי של הבוטים.
+    // תוצאת "בוטים מול אנושיים" נספרת רק במשחק מעורב (יש גם בוט וגם אדם), לא בוט-נגד-בוט.
+    const hasHumanR = Object.keys(players).some((u) => !players[u].isBot);
+    const hasBotR = Object.keys(players).some((u) => players[u].isBot);
+    const botVsHumanDeltaR = (hasHumanR && hasBotR) ? botDelta : 0;
+    if (ownerRef && ownerData) {
+      const ownerGain = round2((rake - totalCuts) + botDelta);
+      if (ownerGain !== 0 || rake > 0 || botVsHumanDeltaR !== 0) {
+        tx.update(ownerRef, {
+          balance: round2((Number(ownerData.balance) || 0) + ownerGain),
+          clubProfits: round2((Number(ownerData.clubProfits) || 0) + rake),
+          botVsHumanNet: round2((Number(ownerData.botVsHumanNet) || 0) + botVsHumanDeltaR),
+        });
+      }
+    }
     for (const [aUid, amt] of Object.entries(agentCuts)) { const ad = agentData[aUid]; if (ad) tx.update(agentRefs[aUid], {balance: round2((Number(ad.balance) || 0) + amt), agentProfits: round2((Number(ad.agentProfits) || 0) + amt)}); }
     return {rake, winnerProfit, details, agentCuts, winnerName: players[winnerUid].username, winnerIsBot: !!players[winnerUid].isBot, clubId, winHand: (players[winnerUid].cards || []).filter(Boolean)};
   }
