@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v142';
+        window.__APP_VER = 'v143';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3174,8 +3174,11 @@
             const [busy, setBusy] = React.useState(false);
             const [loginErr, setLoginErr] = React.useState('');
             const [guestMode, setGuestMode] = React.useState(false);
-            const [gName, setGName] = React.useState('');
-            const [gNum, setGNum] = React.useState('');
+            // "זכור אותי": ממלא מראש את השם והטלפון מהכניסה הקודמת (מקומי במכשיר),
+            // כדי שכניסה חוזרת תהיה הקשה-אחת גם אם ה-session של הדפדפן לא נשמר
+            // (וואטסאפ-webview / iOS-ITP מנקים אחסון). אין כאן זהות — רק נוחות-מילוי.
+            const [gName, setGName] = React.useState(() => { try { return localStorage.getItem('rk_guest_name') || ''; } catch (e) { return ''; } });
+            const [gNum, setGNum] = React.useState(() => { try { return localStorage.getItem('rk_guest_phone') || ''; } catch (e) { return ''; } });
             const doGuestLogin = async () => {
                 if (busy) return;
                 const nm = gName.trim(), num = gNum.trim();
@@ -3196,6 +3199,8 @@
                     if (!token) throw { code: 'no-token' };
                     window.__guestName = ''; window.__guestNumber = ''; // guestToken כבר יצר/אחד את החשבון
                     await withTimeout(window.fb.signInWithCustomToken(window.fb.auth, token), 15000);
+                    // זכור לכניסה הבאה (נוחות-מילוי בלבד)
+                    try { localStorage.setItem('rk_guest_name', nm); localStorage.setItem('rk_guest_phone', num); } catch (e) {}
                 } catch (e) {
                     const code = e && e.code;
                     // נפילה-לאחור: אם השרת/הטוקן נכשל — מנסים כניסה אנונימית (השיטה הישנה),

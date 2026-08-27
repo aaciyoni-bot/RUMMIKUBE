@@ -20,6 +20,16 @@ const DEFAULT_PRIZES = [5, 10, 20, 30, 50, 75, 100, 200];
 const SCR_COOLDOWN_MS = 7 * 24 * 3600 * 1000;        // גירוד שבועי
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
+// נרמול-טלפון קנוני (ישראל): מאחד וריאנטים לאותה זהות כדי למנוע חשבונות כפולים.
+//   0526643742 / 526643742 / 972526643742 / +972-52-664-3742 → כולם "0526643742".
+const canonPhone = (s) => {
+  let d = String(s || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("972") && d.length >= 11) d = "0" + d.slice(3); // קידומת-מדינה → 0 מוביל
+  else if (d.length === 9 && d[0] === "5") d = "0" + d;            // נייד ישראלי בלי 0 מוביל
+  return d;
+};
+
 // ── הרשאות בצד השרת (זהה ללקוח) ──────────────────────────────────────
 const GOD_EMAILS = ["aaci.yoni@gmail.com", "info.bagso@gmail.com"];
 const STAFF_ROLES = ["super_admin", "club_owner", "manager"];
@@ -792,7 +802,7 @@ exports.godClubStats = onCall(async (request) => {
 exports.guestToken = onCall(async (request) => {
   const {phone, name, clubId, agentCode} = request.data || {};
   const cid = clubId || "main";
-  const digits = String(phone || "").replace(/\D/g, "");
+  const digits = canonPhone(phone);
   if (digits.length < 5) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
   const uid = "guest_" + digits;
   // שיוך-סוכן מקישור-הזמנה (?agent=CODE): מאתרים את חברות-הסוכן לפי הקוד
@@ -813,7 +823,7 @@ exports.guestToken = onCall(async (request) => {
   memSnap.forEach((d) => {
     const m = d.data();
     if (m.isBot || m.email) return;
-    const mp = String(m.phone || m.playerId || "").replace(/\D/g, "");
+    const mp = canonPhone(m.phone || m.playerId || "");
     const mu = m.uid || d.id.split("_")[0];
     if (mp === digits && mu !== uid) others.push(mu);
   });
@@ -870,7 +880,7 @@ exports.guestEnter = onCall(async (request) => {
   if (prov !== "anonymous") throw new HttpsError("permission-denied", "כניסת-אורח בלבד");
   const {phone, name, clubId} = request.data || {};
   const cid = clubId || "main";
-  const digits = String(phone || "").replace(/\D/g, "");
+  const digits = canonPhone(phone);
   if (digits.length < 3) throw new HttpsError("invalid-argument", "מספר מזהה לא תקין");
 
   // מגלים מועמדים: חברויות-אורח (בלי email) עם אותו טלפון. חשבון רשום (עם email/גוגל)
@@ -880,7 +890,7 @@ exports.guestEnter = onCall(async (request) => {
   memSnap.forEach((d) => {
     const m = d.data();
     if (m.isBot || m.email) return;
-    const mp = String(m.phone || m.playerId || "").replace(/\D/g, "");
+    const mp = canonPhone(m.phone || m.playerId || "");
     if (mp && mp === digits) candUids.add(m.uid || d.id.split("_")[0]);
   });
 
