@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v140';
+        window.__APP_VER = 'v141';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8871,24 +8871,62 @@
                                 if (cur.currentTurn !== cu || cur.phase !== 'playing') return null;
                                 const hand = ((cur.players[cu] || {}).cards || []).filter(Boolean);
                                 const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
-                                const evalH = (h) => { let best = Infinity, drop = null, complete = false; for (let i = 0; i < h.length; i++) { const rest = h.slice(0, i).concat(h.slice(i + 1)); const p = bestPartition(rest); if (p.complete) { return { best: 0, drop: h[i], complete: true }; } if (p.leftoverPoints < best) { best = p.leftoverPoints; drop = h[i]; } } return { best, drop, complete }; };
+                                /* ── מוח-הבוט: חכם מאוד, אך הוגן ──
+                                   משתמש אך ורק במידע גלוי: היד של עצמו, ערימת-הזריקה,
+                                   וזריקות-היריבים (players[*].threw). אינו מציץ באבנים
+                                   הסמויות של יריבים ואינו מציץ בסדר-החפיסה. */
+                                const jVal = (t) => (t && t.val === '☻');
+                                const tKey = (t) => t && !jVal(t) ? `${t.val}.${t.color}` : null;
+                                // כמה עותקים של אבן כבר גלויים לכולם (זריקות של כולם)
+                                const seenPublic = {};
+                                for (const d of (cur.discard || [])) { const k = tKey(d); if (k) seenPublic[k] = (seenPublic[k] || 0) + 1; }
+                                for (const [u, p] of Object.entries(cur.players || {})) { if (u === cu) continue; for (const d of ((p && p.threw) || [])) { const k = tKey(d); if (k) seenPublic[k] = (seenPublic[k] || 0) + 1; } }
+                                // "פוטנציאל": בונוס לאבני-שארית שקרובות להשלים סדרה — כדי שהבוט
+                                // יבנה קדימה במקום לזרוק אבן שעוד תשרת אותו.
+                                const potential = (leftover) => {
+                                    let bonus = 0; const L = (leftover || []).filter(t => t && !jVal(t));
+                                    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+                                        const a = L[i], b = L[j];
+                                        if (a.val === b.val && a.color !== b.color) bonus += 4;            // חצי-קבוצה
+                                        else if (a.color === b.color) { const d = Math.abs(Number(a.val) - Number(b.val)); if (d === 1) bonus += 5; else if (d === 2) bonus += 3; }
+                                    }
+                                    return bonus;
+                                };
+                                const scoreHand = (h) => { const p = bestPartition(h); return { raw: p.leftoverPoints, score: p.leftoverPoints - potential(p.leftover), complete: p.complete }; };
+                                // סיכון-זריקה: כמה מסוכן למסור אבן ליריב (מידע גלוי בלבד).
+                                //   גבוה = מסוכן. ג'וקר לעולם לא נזרק סתם. אבן שעותקהּ כבר
+                                //   גלוי = קרה/בטוחה. ברירת-מחדל ניטרלית.
+                                const dangerOf = (tile) => {
+                                    if (!tile) return 0;
+                                    if (jVal(tile)) return 999;
+                                    const k = tKey(tile), seen = seenPublic[k] || 0;
+                                    let dg = seen >= 1 ? -4 : 2;                 // קר = בטוח לזרוק
+                                    // אבן-קצה (1/13) פחות שימושית ליריב מאשר אבן-אמצע
+                                    const v = Number(tile.val); if (v === 1 || v === 13) dg -= 1;
+                                    return dg;
+                                };
                                 const top = discard[discard.length - 1];
-                                const optA = top ? evalH([...hand, top]) : null;
-                                let deckTile = deck.length ? deck[deck.length - 1] : null;
-                                const optB = deckTile ? evalH([...hand, deckTile]) : null;
-                                let source;
-                                if (optA && optA.complete) source = 'discard';
-                                else if (optB && optB.complete) source = 'deck';
-                                else if (optA && (!optB || optA.best <= optB.best - 1)) source = 'discard';
-                                else source = 'deck';
+                                // ── החלטת-משיכה (ללא הצצה לחפיסה) ──
+                                const base = scoreHand(hand);
+                                const wDisc = top ? scoreHand([...hand, top]) : null;
+                                // מושכים מהזריקה רק אם היא משלימה יד או משפרת משמעותית —
+                                // אחרת מושכים מהחפיסה בעיוור, כדי לא לחשוף ליריבים מה בונים.
+                                let source = (wDisc && (wDisc.complete || wDisc.score <= base.score - 3)) ? 'discard' : 'deck';
                                 let newHand;
                                 if (source === 'discard') { discard.pop(); newHand = [...hand, top]; }
-                                else { reshuffleIfNeeded(deck, discard); deckTile = deck.pop(); newHand = [...hand, deckTile]; }
-                                const ev = evalH(newHand);
-                                const di = newHand.findIndex(x => x.id === (ev.drop || newHand[0]).id);
-                                const finalHand = newHand.slice(0, di).concat(newHand.slice(di + 1));
-                                const dropTile = newHand[di];
-                                if (ev.complete) {
+                                else { reshuffleIfNeeded(deck, discard); const dt = deck.pop(); newHand = [...hand, dt]; }
+                                // ── בחירת-זריקה: מזעור ניקוד-יד, ואז שובר-שוויון הגנתי ──
+                                let goOut = false, finalHand = null, dropTile = null, bestSc = Infinity;
+                                for (let i = 0; i < newHand.length; i++) {
+                                    const rest = newHand.slice(0, i).concat(newHand.slice(i + 1));
+                                    const s = scoreHand(rest);
+                                    if (s.complete) { goOut = true; dropTile = newHand[i]; finalHand = rest; break; }
+                                    // ניקוד סופי: יד-נמוכה טובה + זריקה בטוחה + העדפה לזרוק אבן-גבוהה
+                                    const fin = s.score + dangerOf(newHand[i]) - (jVal(newHand[i]) ? 0 : Number(newHand[i].val) * 0.03);
+                                    if (fin < bestSc) { bestSc = fin; dropTile = newHand[i]; finalHand = rest; }
+                                }
+                                if (!finalHand) { finalHand = newHand.slice(1); dropTile = newHand[0]; }
+                                if (goOut) {
                                     if (cur.tournamentId) {
                                         const cur2 = { ...cur, players: { ...cur.players, [cu]: { ...cur.players[cu], cards: finalHand } } };
                                         const { upd, eliminatedUid } = ramiTourResolve(cur2, cu);
