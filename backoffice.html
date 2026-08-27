@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CLUBCULATION · התחשבנות קלאבים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0e17; --panel:#111827; --panel2:#0f1623; --line:rgba(255,255,255,.07);
+    --ink:#f1f5f9; --muted:#94a3b8; --faint:#64748b;
+    --brand:#22d3ee; --brand-d:#0891b2;
+    --pos:#34d399; --neg:#f87171; --warn:#fbbf24; --gold:#f0b000; --chip:#1e293b;
+    font-family:'Rubik',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:radial-gradient(140% 100% at 50% -10%,#12203a 0%,#0a0e17 55%);color:var(--ink);min-height:100%;-webkit-font-smoothing:antialiased}
+  #root{min-height:100vh}
+  button{font-family:inherit;cursor:pointer}
+  input,select{font-family:inherit}
+  .tnum{font-variant-numeric:tabular-nums}
+  ::-webkit-scrollbar{height:8px;width:8px}
+  ::-webkit-scrollbar-thumb{background:#243044;border-radius:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ═══ רישום-דיירים (Tenants): כל קלאב → פרויקט-Firebase שלו + מזהה-קלאב + מיתוג ═══
+     נתיב CLUBCULATION.COM/<slug> קובע את הדייר. שורש → דף-נחיתה.
+     כל דייר עצמאי לגמרי (Firebase נפרד). כדי להוסיף קלאב — מוסיפים כאן רשומה. -->
+<script>
+  window.__TENANTS = {
+    rummikube: {
+      name: "RUMMIKUBE",
+      clubId: "main",
+      brand: "#22d3ee",
+      godEmails: ["aaci.yoni@gmail.com","info.bagso@gmail.com"],
+      ownerEmails: ["liorabrgel1991@gmail.com"],
+      firebase: {
+        apiKey: "AIzaSyBldyf-FW8DI2DX90tM9XIDCEij5riiYOk",
+        authDomain: "rummikube-5c138.firebaseapp.com",
+        projectId: "rummikube-5c138"
+      }
+    }
+    // pokerten: { name:"POKERTEN", clubId:"main", brand:"#f59e0b", godEmails:[...], ownerEmails:[...], firebase:{...} }
+  };
+  // זיהוי הדייר: נתיב ראשון → ?club= → ברירת-מחדל (אם דייר יחיד). שורש ידוע → נחיתה.
+  (function(){
+    var T = window.__TENANTS, keys = Object.keys(T);
+    var seg = (location.pathname.split('/').filter(Boolean)[0]||'').toLowerCase();
+    var qp = (new URLSearchParams(location.search).get('club')||'').toLowerCase();
+    var slug = T[seg] ? seg : (T[qp] ? qp : (keys.length===1 ? keys[0] : ''));
+    window.__TENANT_SLUG = slug;
+    window.__TENANT = slug ? T[slug] : null;
+  })();
+</script>
+
+<script type="module">
+  const T = window.__TENANT;
+  if (T) {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    const { getAuth, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+    const { getFirestore, collection, doc, getDoc, getDocs, query, where } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const app = initializeApp(T.firebase);
+    const auth = getAuth(app);
+    try { setPersistence(auth, indexedDBLocalPersistence).catch(()=>setPersistence(auth, browserLocalPersistence).catch(()=>{})); } catch(e){}
+    window.fb = { auth, db: getFirestore(app), googleProvider: new GoogleAuthProvider(), signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, collection, doc, getDoc, getDocs, query, where };
+  }
+  window.dispatchEvent(new Event('fb-ready'));
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+const T = window.__TENANT;
+const TENANT_SLUG = window.__TENANT_SLUG;
+const ROLES = { SUPER_ADMIN:'super_admin', CLUB_OWNER:'club_owner', MANAGER:'manager', AGENT:'agent', PLAYER:'player' };
+
+const round2 = (n)=>Math.round((Number(n)||0)*100)/100;
+const money = (n)=>{ const v=round2(n); return (v<0?'-':'')+Math.abs(v).toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+const col = (n)=> n>0.009?'var(--pos)':n<-0.009?'var(--neg)':'var(--muted)';
+
+function cycleStartIL(weeksBack){
+  const now = new Date();
+  const il = new Date(now.toLocaleString('en-US',{timeZone:'Asia/Jerusalem'}));
+  const back = (il.getDay() + 5) % 7; // ימים אחורה עד יום שלישי → מחזור שלישי→שלישי
+  const tue = new Date(il);
+  tue.setDate(il.getDate() - back - 7*(weeksBack||0));
+  tue.setHours(0,1,0,0);
+  return tue.getTime() + (now.getTime() - il.getTime());
+}
+function cycleLabel(weeksBack){
+  const s = cycleStartIL(weeksBack);
+  const e = weeksBack===0 ? Date.now() : cycleStartIL(weeksBack-1);
+  const f = (t)=> new Date(t).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
+  return `${f(s)} — ${f(e-1)}` + (weeksBack===0 ? ' (נוכחי)' : '');
+}
+function Spinner(){ return <span style={{display:'inline-block',width:16,height:16,border:'2px solid rgba(255,255,255,.25)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin .7s linear infinite'}}/>; }
+function Center({children}){ return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--muted)',fontWeight:700}}>{children}</div>; }
+
+// ═══ שורש ללא-דייר → דף-נחיתה ═══
+function Landing(){
+  const tenants = Object.entries(window.__TENANTS||{});
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{textAlign:'center',maxWidth:460}}>
+        <div style={{fontWeight:900,letterSpacing:'.2em',color:'var(--brand)',fontSize:14}}>CLUBCULATION</div>
+        <h1 style={{fontSize:30,fontWeight:900,margin:'10px 0 6px'}}>מערכת התחשבנות לקלאבים</h1>
+        <p style={{color:'var(--muted)',fontWeight:600,marginBottom:22}}>בחר קלאב, או פתח את הקישור הישיר של הקלאב שלך.</p>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+          {tenants.map(([slug,t])=>(
+            <a key={slug} href={'/'+slug} style={{textDecoration:'none',background:'var(--panel)',border:'1px solid var(--line)',borderRadius:16,padding:'14px 22px',fontWeight:900,color:'var(--ink)'}}>{t.name} ←</a>
+          ))}
+          {tenants.length===0 && <div style={{color:'var(--faint)',fontWeight:700}}>לא הוגדרו קלאבים עדיין.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  if(!T) return <Landing/>;
+  const [ready,setReady] = useState(!!window.fb);
+  const [authUser,setAuthUser] = useState(undefined);
+  const [err,setErr] = useState('');
+  useEffect(()=>{ if(window.fb){setReady(true);return;} const h=()=>setReady(true); window.addEventListener('fb-ready',h); return ()=>window.removeEventListener('fb-ready',h); },[]);
+  useEffect(()=>{
+    if(!ready||!window.fb) return;
+    try{ window.fb.getRedirectResult(window.fb.auth).catch(()=>{}); }catch(e){}
+    const un = window.fb.onAuthStateChanged(window.fb.auth,(u)=>setAuthUser(u||null));
+    return ()=>un();
+  },[ready]);
+  const login = async ()=>{ setErr('');
+    try{ await window.fb.signInWithPopup(window.fb.auth, window.fb.googleProvider); }
+    catch(e){ try{ await window.fb.signInWithRedirect(window.fb.auth, window.fb.googleProvider); }catch(e2){ setErr('ההתחברות נכשלה. פתח בדפדפן רגיל ונסה שוב.'); } }
+  };
+  if(!ready||authUser===undefined) return <Center><Spinner/> <span style={{marginRight:8}}>טוען…</span></Center>;
+  if(!authUser) return <Login onLogin={login} err={err}/>;
+  return <Board authUser={authUser} onLogout={()=>window.fb.signOut(window.fb.auth)} />;
+}
+
+function Login({onLogin,err}){
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:380,background:'var(--panel)',border:'1px solid var(--line)',borderRadius:24,padding:'34px 26px',textAlign:'center',boxShadow:'0 30px 70px rgba(0,0,0,.5)'}}>
+        <div style={{fontWeight:900,letterSpacing:'.18em',color:'var(--brand)',fontSize:13}}>CLUBCULATION</div>
+        <h1 style={{fontSize:23,fontWeight:900,margin:'8px 0 2px'}}>{T.name} · התחשבנות</h1>
+        <p style={{color:'var(--muted)',fontSize:13,fontWeight:600,marginBottom:22}}>בעלי-קלאב · סוכנים · שחקנים</p>
+        <button onClick={onLogin} style={{width:'100%',padding:'13px',borderRadius:14,border:0,background:'linear-gradient(180deg,#22d3ee,#0891b2)',color:'#04121a',fontWeight:900,fontSize:15}}>התחבר עם Google</button>
+        {err && <div style={{color:'var(--neg)',fontSize:12,fontWeight:700,marginTop:12}}>{err}</div>}
+        <p style={{color:'var(--faint)',fontSize:11,fontWeight:600,marginTop:18}}>שחקנים/סוכנים ללא Google — כניסה עם שם-משתמש וסיסמה שבעל-הקלאב מנפיק (בקרוב).</p>
+      </div>
+    </div>
+  );
+}
+
+function Board({authUser,onLogout}){
+  const email = (authUser.email||'').toLowerCase();
+  const isGod = (T.godEmails||[]).includes(email);
+  const [mems,setMems]=useState(null),[logs,setLogs]=useState(null),[club,setClub]=useState(null);
+  const [wk,setWk]=useState(0),[q,setQ]=useState(''),[sortBy,setSortBy]=useState('result'),[drill,setDrill]=useState(null),[loadErr,setLoadErr]=useState('');
+
+  useEffect(()=>{ (async()=>{
+    try{
+      const [ms,ls,cs] = await Promise.all([
+        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db,'memberships'), window.fb.where('clubId','==',T.clubId))),
+        window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db,'gameLog'), window.fb.where('clubId','==',T.clubId))),
+        window.fb.getDoc(window.fb.doc(window.fb.db,'clubs',T.clubId)),
+      ]);
+      setMems(ms.docs.map(d=>({id:d.id,...d.data()}))); setLogs(ls.docs.map(d=>d.data())); setClub(cs.exists()?cs.data():{});
+    }catch(e){ setLoadErr('אין הרשאה לקרוא את נתוני-ההתחשבנות, או שגיאת-רשת. ודא שאתה מחובר כבעל-קלאב/סוכן/שחקן מאושר.'); setMems([]);setLogs([]);setClub({}); }
+  })(); },[]);
+
+  const ownerUid = club?.ownerUid || (mems||[]).find(m=>[ROLES.CLUB_OWNER,ROLES.SUPER_ADMIN].includes(m.role))?.uid || '';
+  const myMem = (mems||[]).find(m=>m.uid===authUser.uid);
+  const role = (isGod || authUser.uid===ownerUid || (T.ownerEmails||[]).includes(email) || [ROLES.CLUB_OWNER,ROLES.SUPER_ADMIN,ROLES.MANAGER].includes(myMem?.role)) ? 'owner'
+             : myMem?.role===ROLES.AGENT ? 'agent' : 'player';
+  const from = cycleStartIL(wk), to = wk===0 ? Date.now() : cycleStartIL(wk-1);
+
+  const view = useMemo(()=>{
+    if(!mems||!logs) return null;
+    const inWk=(r)=>(r.at||0)>=from&&(r.at||0)<to;
+    const byUid={};
+    logs.filter(inWk).forEach(l=>{ if(!l.uid) return; const b=byUid[l.uid]||(byUid[l.uid]={result:0,rake:0,n:0,rows:[]}); b.result=round2(b.result+(Number(l.profit)||0)); b.rake=round2(b.rake+(Number(l.rake)||0)); if(l.game&&l.game!=='adjust')b.n++; b.rows.push(l); });
+    const real = mems.filter(m=>!m.isBot && m.uid!=='bot_bank' && m.status==='approved');
+    const nameOf=(uid)=>(real.find(m=>m.uid===uid)||{}).username||'—';
+    let scope = real;
+    if(role==='agent') scope = real.filter(m=>m.agentUid===authUser.uid||m.uid===authUser.uid);
+    if(role==='player') scope = real.filter(m=>m.uid===authUser.uid);
+    const players = scope.map(m=>{ const b=byUid[m.uid]||{result:0,rake:0,n:0}; return {...m,wkResult:b.result,wkRake:b.rake,wkGames:b.n}; })
+      .filter(p=>!q||(p.username||'').toLowerCase().includes(q.toLowerCase())||String(p.phone||p.playerId||'').includes(q));
+    players.sort((a,b)=> sortBy==='balance'?(b.balance||0)-(a.balance||0):sortBy==='rake'?b.wkRake-a.wkRake:sortBy==='games'?b.wkGames-a.wkGames:b.wkResult-a.wkResult);
+    const realRake = round2(real.reduce((s,m)=>s+(m.uid===ownerUid?0:((byUid[m.uid]||{}).rake||0)),0));
+    const agentList = real.filter(m=>m.role===ROLES.AGENT && (role==='owner'||m.uid===authUser.uid));
+    const agents = agentList.map(a=>{
+      const kids = real.filter(m=>m.agentUid===a.uid).map(m=>{const b=byUid[m.uid]||{};return {...m,wkResult:b.result||0,wkRake:b.rake||0,wkGames:b.n||0};});
+      const kidsResult=round2(kids.reduce((s,k)=>s+k.wkResult,0));
+      const agentCut=round2(kids.reduce((s,k)=>s+(k.wkRake*(Number(k.agentPct)||0)/100),0));
+      return {...a,kids,kidsResult,agentCut,settle:round2(kidsResult+agentCut)};
+    });
+    const totalAgentCut=round2(agents.reduce((s,a)=>s+a.agentCut,0));
+    const ownerKids = real.filter(m=>!m.agentUid && m.uid!==ownerUid);
+    const ownerKidsResult=round2(ownerKids.reduce((s,k)=>s+((byUid[k.uid]||{}).result||0),0));
+    const ownerRakeKept=round2(realRake-totalAgentCut);
+    return {players,agents,realRake,totalAgentCut,ownerRakeKept,ownerKidsResult,byUid,nameOf};
+  },[mems,logs,from,to,q,sortBy,role,authUser.uid,ownerUid]);
+
+  const exportCSV=()=>{ if(!view)return;
+    const head=['שחקן','טלפון','סוכן','משחקים',(role==='player'?null:'רייק'),'תוצאה','יתרה'].filter(Boolean);
+    const lines=[head.join(',')];
+    view.players.forEach(p=>{ const r=[p.username||'',p.phone||p.playerId||'',view.nameOf(p.agentUid)||'',p.wkGames,(role==='player'?null:round2(p.wkRake)),round2(p.wkResult),round2(p.balance||0)].filter(x=>x!==null); lines.push(r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')); });
+    const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${TENANT_SLUG}-settlement.csv`; a.click();
+  };
+
+  return (
+    <div style={{minHeight:'100vh'}}>
+      <div style={{position:'sticky',top:0,zIndex:20,background:'rgba(10,14,23,.86)',backdropFilter:'blur(10px)',borderBottom:'1px solid var(--line)'}}>
+        <div style={{maxWidth:1120,margin:'0 auto',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div style={{fontWeight:900,letterSpacing:'.1em',fontSize:15}}><span style={{color:'var(--brand)'}}>CLUBCULATION</span> <span style={{color:'var(--faint)',fontWeight:700,fontSize:11}}>· {T.name}</span></div>
+          <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <select value={wk} onChange={e=>setWk(Number(e.target.value))} style={sel}>{Array.from({length:16}).map((_,i)=><option key={i} value={i}>{cycleLabel(i)}</option>)}</select>
+            <span style={{fontSize:12,fontWeight:800,color:'var(--muted)',background:'var(--chip)',padding:'6px 10px',borderRadius:10}}>{role==='owner'?'👑 בעל-קלאב':role==='agent'?'🤝 סוכן':'🎮 שחקן'}</span>
+            <button onClick={onLogout} style={{background:'var(--chip)',border:'1px solid var(--line)',color:'var(--muted)',borderRadius:10,padding:'6px 12px',fontWeight:800,fontSize:12}}>יציאה</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{maxWidth:1120,margin:'0 auto',padding:'18px 16px 60px'}}>
+        {loadErr && <div style={{background:'rgba(248,113,113,.1)',border:'1px solid rgba(248,113,113,.3)',color:'#fecaca',borderRadius:16,padding:16,fontWeight:700}}>{loadErr}</div>}
+        {!view && !loadErr && <Center><Spinner/> <span style={{marginRight:8}}>טוען נתונים…</span></Center>}
+
+        {view && <>
+          {role!=='player' && (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:18}}>
+              <Card label={role==='owner'?'רייק אמיתי (בלי בעלים)':'רייק השחקנים שלי'} val={money(role==='owner'?view.realRake:view.players.reduce((s,p)=>s+p.wkRake,0))} tone="brand"/>
+              {role==='owner' && <Card label="נתחי-סוכנים" val={money(view.totalAgentCut)} tone="warn"/>}
+              {role==='owner' && <Card label="רייק שנשאר לבעלים" val={money(view.ownerRakeKept)} tone="gold"/>}
+              <Card label="משחקים במחזור" val={view.players.reduce((s,p)=>s+p.wkGames,0).toLocaleString('he-IL')} tone="muted"/>
+            </div>
+          )}
+
+          {role!=='player' && view.agents.length>0 && (
+            <Section title={role==='owner'?'התחשבנות סוכנים':'ההתחשבנות שלי'}>
+              <div style={{overflowX:'auto'}}><table style={tbl}>
+                <thead><tr><th style={th}>סוכן</th><th style={th}>שחקנים</th><th style={thN}>תוצאת שחקניו</th><th style={thN}>נתח-רייק</th><th style={thN}>להתחשבנות</th></tr></thead>
+                <tbody>{view.agents.map(a=>(
+                  <tr key={a.uid} style={{borderTop:'1px solid var(--line)'}}>
+                    <td style={td}><b>{a.username}</b></td><td style={td}>{a.kids.length}</td>
+                    <td style={tdN}><span className="tnum" style={{color:col(a.kidsResult)}}>{money(a.kidsResult)}</span></td>
+                    <td style={tdN}><span className="tnum" style={{color:'var(--warn)'}}>{money(a.agentCut)}</span></td>
+                    <td style={tdN}><SettleCell v={a.settle}/></td>
+                  </tr>))}</tbody>
+              </table></div>
+              <p style={{color:'var(--faint)',fontSize:11,fontWeight:600,marginTop:8}}>חיובי = הקלאב משלם לסוכן · שלילי = הסוכן מעביר לקלאב. (תוצאת-שחקניו + נתח-הרייק שלו)</p>
+            </Section>
+          )}
+
+          {role==='owner' && (
+            <Section title="התחשבנות בעל-הקלאב (שחקנים ישירים + רייק)">
+              <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
+                <KV k="תוצאת שחקנים ישירים" v={<span style={{color:col(view.ownerKidsResult)}}>{money(view.ownerKidsResult)}</span>}/>
+                <KV k="רייק שנשאר לבעלים" v={<span style={{color:'var(--gold)'}}>{money(view.ownerRakeKept)}</span>}/>
+                <KV k={'סה"כ לבעלים'} v={<SettleCell v={round2(view.ownerKidsResult+view.ownerRakeKept)}/>}/>
+              </div>
+            </Section>
+          )}
+
+          <Section title={role==='player'?'התוצאות שלי':'שחקנים'} right={
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              {role!=='player' && <input value={q} onChange={e=>setQ(e.target.value)} placeholder="חיפוש…" style={{background:'var(--chip)',border:'1px solid var(--line)',borderRadius:10,color:'var(--ink)',padding:'7px 12px',fontSize:13,fontWeight:600,width:150}}/>}
+              <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={sel2}><option value="result">תוצאה</option>{role!=='player'&&<option value="rake">רייק</option>}<option value="games">משחקים</option><option value="balance">יתרה</option></select>
+              <button onClick={exportCSV} style={{background:'var(--chip)',border:'1px solid var(--line)',borderRadius:10,color:'var(--brand)',padding:'7px 12px',fontWeight:800,fontSize:12}}>↓ CSV</button>
+            </div>
+          }>
+            <div style={{overflowX:'auto'}}><table style={tbl}>
+              <thead><tr><th style={th}>שחקן</th>{role==='owner'&&<th style={th}>סוכן</th>}<th style={thN}>משחקים</th>{role!=='player'&&<th style={thN}>רייק</th>}<th style={thN}>תוצאה</th><th style={thN}>יתרה</th></tr></thead>
+              <tbody>
+                {view.players.map(p=>(
+                  <tr key={p.id} onClick={()=>setDrill(p.uid)} style={{borderTop:'1px solid var(--line)',cursor:'pointer'}}>
+                    <td style={td}><div style={{fontWeight:800}}>{p.username}</div><div style={{fontSize:11,color:'var(--faint)',direction:'ltr',textAlign:'right'}}>{p.phone||p.playerId||''}</div></td>
+                    {role==='owner'&&<td style={{...td,color:'var(--muted)',fontSize:12}}>{p.agentUid?view.nameOf(p.agentUid):(p.uid===ownerUid?'—':'ישיר')}</td>}
+                    <td style={tdN}>{p.wkGames}</td>
+                    {role!=='player'&&<td style={tdN}><span className="tnum" style={{color:'var(--warn)'}}>{money(p.wkRake)}</span></td>}
+                    <td style={tdN}><span className="tnum" style={{color:col(p.wkResult),fontWeight:800}}>{money(p.wkResult)}</span></td>
+                    <td style={tdN}><span className="tnum" style={{color:'var(--muted)'}}>{money(p.balance||0)}</span></td>
+                  </tr>))}
+                {view.players.length===0 && <tr><td colSpan={6} style={{...td,textAlign:'center',color:'var(--faint)',padding:24}}>אין נתונים במחזור זה</td></tr>}
+              </tbody>
+            </table></div>
+          </Section>
+        </>}
+      </div>
+
+      {drill && view && <DrillModal rows={(view.byUid[drill]||{}).rows||[]} name={(view.players.find(p=>p.uid===drill)||{}).username||''} hideRake={role==='player'} onClose={()=>setDrill(null)}/>}
+    </div>
+  );
+}
+
+function DrillModal({rows,name,hideRake,onClose}){
+  const games=rows.filter(r=>r.game!=='adjust').slice().sort((a,b)=>(b.at||0)-(a.at||0));
+  const adjusts=rows.filter(r=>r.game==='adjust');
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:50,background:'rgba(3,7,15,.8)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:640,maxHeight:'86vh',background:'var(--panel)',border:'1px solid var(--line)',borderTopLeftRadius:22,borderTopRightRadius:22,display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'16px 18px',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',gap:10}}>
+          <div style={{fontWeight:900,fontSize:16}}>פירוט משחקים · {name}</div>
+          <button onClick={onClose} style={{marginInlineStart:'auto',background:'var(--chip)',border:'1px solid var(--line)',color:'var(--muted)',borderRadius:10,padding:'6px 12px',fontWeight:800}}>סגור</button>
+        </div>
+        <div style={{overflowY:'auto',padding:'8px 12px 20px'}}>
+          {games.length===0 && <div style={{color:'var(--faint)',textAlign:'center',padding:24,fontWeight:700}}>אין משחקים במחזור זה</div>}
+          {games.map((g,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 8px',borderTop:i?'1px solid var(--line)':0}}>
+              <div style={{fontSize:12,color:'var(--faint)',minWidth:104}}>{new Date(g.at||0).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+              <div style={{fontSize:12,color:'var(--muted)',flex:1}}>{g.game==='rummikub'?'רמיקוב':g.game==='rami'?'רמי':g.game||'משחק'}</div>
+              {!hideRake && <div className="tnum" style={{fontSize:12,color:'var(--warn)',minWidth:70,textAlign:'left'}}>רייק {money(g.rake||0)}</div>}
+              <div className="tnum" style={{fontWeight:800,color:col(g.profit||0),minWidth:82,textAlign:'left'}}>{(g.profit||0)>0?'+':''}{money(g.profit||0)}</div>
+            </div>))}
+          {adjusts.length>0 && <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed var(--line)'}}>
+            <div style={{fontSize:11,color:'var(--faint)',fontWeight:800,marginBottom:4}}>תיקונים/הפקדות</div>
+            {adjusts.map((g,i)=><div key={i} style={{display:'flex',gap:10,fontSize:12,padding:'4px 8px'}}><span style={{color:'var(--faint)'}}>{new Date(g.at||0).toLocaleDateString('he-IL')}</span><span style={{flex:1,color:'var(--muted)'}}>{g.note||'תיקון'}</span><span className="tnum" style={{color:col(g.profit||0)}}>{(g.profit||0)>0?'+':''}{money(g.profit||0)}</span></div>)}
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const sel={background:'var(--chip)',color:'var(--ink)',border:'1px solid var(--line)',borderRadius:12,padding:'8px 12px',fontWeight:800,fontSize:13};
+const sel2={background:'var(--chip)',color:'var(--ink)',border:'1px solid var(--line)',borderRadius:10,padding:'7px 10px',fontWeight:800,fontSize:12};
+const tbl={width:'100%',borderCollapse:'collapse',fontSize:13.5};
+const th={textAlign:'right',padding:'10px',color:'var(--faint)',fontWeight:800,fontSize:11,letterSpacing:'.04em',whiteSpace:'nowrap'};
+const thN={...th,textAlign:'left'};
+const td={padding:'11px 10px',verticalAlign:'middle'};
+const tdN={...td,textAlign:'left',whiteSpace:'nowrap'};
+
+function Card({label,val,tone}){ const c=tone==='brand'?'var(--brand)':tone==='warn'?'var(--warn)':tone==='gold'?'var(--gold)':'var(--ink)';
+  return <div style={{background:'var(--panel)',border:'1px solid var(--line)',borderRadius:16,padding:'14px 16px'}}><div style={{fontSize:11,color:'var(--faint)',fontWeight:800,marginBottom:6}}>{label}</div><div className="tnum" style={{fontSize:22,fontWeight:900,color:c}}>{val}</div></div>; }
+function Section({title,right,children}){ return <div style={{background:'var(--panel)',border:'1px solid var(--line)',borderRadius:18,padding:'14px 14px 12px',marginBottom:16}}><div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8,flexWrap:'wrap'}}><h2 style={{fontSize:15,fontWeight:900}}>{title}</h2><div style={{marginInlineStart:'auto'}}>{right}</div></div>{children}</div>; }
+function KV({k,v}){ return <div><div style={{fontSize:11,color:'var(--faint)',fontWeight:800}}>{k}</div><div className="tnum" style={{fontSize:20,fontWeight:900}}>{v}</div></div>; }
+function SettleCell({v}){ const pos=v>0.009,neg=v<-0.009; return <span className="tnum" style={{fontWeight:900,color:pos?'var(--pos)':neg?'var(--neg)':'var(--muted)'}}>{money(v)} <span style={{fontSize:10,fontWeight:800,opacity:.8}}>{pos?'הקלאב משלם':neg?'מעביר לקלאב':''}</span></span>; }
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
