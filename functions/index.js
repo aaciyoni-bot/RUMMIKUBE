@@ -29,6 +29,8 @@ const canonPhone = (s) => {
   else if (d.length === 9 && d[0] === "5") d = "0" + d;            // נייד ישראלי בלי 0 מוביל
   return d;
 };
+// נרמול-שם להשוואה: רווחים מיותרים מוסרים, אותיות אחידות
+const canonName = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 // ── הרשאות בצד השרת (זהה ללקוח) ──────────────────────────────────────
 const GOD_EMAILS = ["aaci.yoni@gmail.com", "info.bagso@gmail.com"];
@@ -168,17 +170,19 @@ exports.rummyBuyIn = onCall(async (request) => {
     const memSnap = await tx.get(memRef);
     if (!memSnap.exists) throw new HttpsError("failed-precondition", "אינך חבר בקלאב הזה");
     const m = memSnap.data();
-    // הגנה: אותו אדם (טלפון קנוני) לא יתפוס שני מושבים באותו שולחן, גם עם שני חשבונות
+    // הגנה מפני ריבוי-חשבונות באותו שולחן: אותו אדם — לפי טלפון קנוני או לפי שם — לא יתפוס שני מושבים
     const myPhone = canonPhone(m.phone || m.playerId || "");
-    if (myPhone) {
-      const seatedUids = Object.keys(t.players || {});
-      const seatedMems = await Promise.all(seatedUids.map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
+    const myName = canonName(m.username || "");
+    {
+      const seatedMems = await Promise.all(Object.keys(t.players || {}).map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
       for (const s of seatedMems) {
         if (!s.exists) continue;
         const sm = s.data();
         if (sm.isBot) continue;
-        if (canonPhone(sm.phone || sm.playerId || "") === myPhone) {
-          throw new HttpsError("failed-precondition", "אתה כבר יושב בשולחן זה עם חשבון אחר");
+        const samePhone = myPhone && canonPhone(sm.phone || sm.playerId || "") === myPhone;
+        const sameName = myName && canonName(sm.username || "") === myName;
+        if (samePhone || sameName) {
+          throw new HttpsError("failed-precondition", "שחקן עם אותו טלפון או שם כבר יושב בשולחן זה");
         }
       }
     }
@@ -660,18 +664,21 @@ exports.ramiSit = onCall(async (request) => {
     const memSnap = await tx.get(memRef);
     if (!memSnap.exists) throw new HttpsError("failed-precondition", "אינך חבר בקלאב הזה");
     const m = memSnap.data();
-    // הגנה: אותו אדם (טלפון קנוני) לא יכול לתפוס שני מושבים באותו שולחן, גם אם
-    // יש לו שני חשבונות. כל הקריאות כאן קורות לפני הכתיבות (סדר קריאה-לפני-כתיבה).
+    // הגנה מפני ריבוי-חשבונות באותו שולחן: אותו אדם — לפי טלפון קנוני או לפי שם —
+    // לא יכול לתפוס שני מושבים. מגן על היריב ההגון מפני שני מושבים של אותו שחקן.
+    // כל הקריאות כאן קורות לפני הכתיבות (סדר קריאה-לפני-כתיבה).
     const myPhone = canonPhone(m.phone || m.playerId || "");
-    if (myPhone) {
-      const seatedUids = Object.keys(t.players || {});
-      const seatedMems = await Promise.all(seatedUids.map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
+    const myName = canonName(m.username || "");
+    {
+      const seatedMems = await Promise.all(Object.keys(t.players || {}).map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
       for (const s of seatedMems) {
         if (!s.exists) continue;
         const sm = s.data();
         if (sm.isBot) continue;
-        if (canonPhone(sm.phone || sm.playerId || "") === myPhone) {
-          throw new HttpsError("failed-precondition", "אתה כבר יושב בשולחן זה עם חשבון אחר");
+        const samePhone = myPhone && canonPhone(sm.phone || sm.playerId || "") === myPhone;
+        const sameName = myName && canonName(sm.username || "") === myName;
+        if (samePhone || sameName) {
+          throw new HttpsError("failed-precondition", "שחקן עם אותו טלפון או שם כבר יושב בשולחן זה");
         }
       }
     }
