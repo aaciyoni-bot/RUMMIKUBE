@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v146';
+        window.__APP_VER = 'v147';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8548,8 +8548,10 @@
                 if (!tile) return null;
                 const cards = [...((cur.players[user.uid] || {}).cards || []), tile];
                 const upd = { [`players.${user.uid}.cards`]: cards, deck, discard, turnPhase: 'discard', drawnThisTurn: true };
-                // רישום "לקיחה מהזריקה" — מידע גלוי לכולם, משמש למודל-היריב של הבוטים
+                // רישום גלוי למודל-היריב: "לקיחה מהזריקה" מול "סירוב" (משיכה מהחפיסה כשהייתה
+                // אבן בזריקה) — שניהם מידע שכל שחקן ליד השולחן רואה.
                 if (!fromDeck) upd[`players.${user.uid}.picked`] = [...(((cur.players[user.uid] || {}).picked) || []), tile].slice(-8);
+                else { const preTop = (cur.discard || [])[(cur.discard || []).length - 1]; if (preTop) upd[`players.${user.uid}.passed`] = [...(((cur.players[user.uid] || {}).passed) || []), preTop].slice(-8); }
                 return upd;
             });
 
@@ -8949,6 +8951,12 @@
                                         bumpSet(Number(t.val), t.color, base * recency);
                                     });
                                 }
+                                // (2ב) מודל-סירובים: יריב שסירב לקחת אבן מהזריקה (משך מהחפיסה) — פחות
+                                //   רוצה את הזהות הזו. מקררים אותה → בטוח יותר למסור אבן כזו.
+                                for (const [u, p] of Object.entries(cur.players || {})) {
+                                    if (u === cu || !p) continue;
+                                    for (const t of (p.passed || [])) { if (jVal(t)) continue; const k = `${t.val}.${t.color}`; if (hot[k]) hot[k] = Math.max(0, hot[k] - 3); }
+                                }
                                 // (3) ערך-יד: נקודות-שארית פחות פוטנציאל-השלמה מבוסס-הסתברות
                                 const potential = (leftover) => {
                                     let bonus = 0; const L = (leftover || []).filter(t => t && !jVal(t));
@@ -8983,9 +8991,9 @@
                                 const base = scoreHand(hand);
                                 const wDisc = top ? scoreHand([...hand, top]) : null;
                                 let source = (wDisc && (wDisc.complete || wDisc.score <= base.score - 2.5)) ? 'discard' : 'deck';
-                                let newHand, pickedTile = null;
+                                let newHand, pickedTile = null, passedTile = null;
                                 if (source === 'discard') { discard.pop(); pickedTile = top; newHand = [...hand, top]; }
-                                else { reshuffleIfNeeded(deck, discard); const dt = deck.pop(); newHand = [...hand, dt]; }
+                                else { if (top) passedTile = top; reshuffleIfNeeded(deck, discard); const dt = deck.pop(); newHand = [...hand, dt]; }
                                 // ── בחירת-זריקה: מזעור ערך-יד + הגנה ──
                                 let goOut = false, finalHand = null, dropTile = null, bestSc = Infinity;
                                 for (let i = 0; i < newHand.length; i++) {
@@ -9010,6 +9018,7 @@
                                 const next = u[(u.indexOf(cu) + 1) % u.length];
                                 const botUpd = { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], [`players.${cu}.threw`]: [...(((cur.players[cu] || {}).threw) || []), dropTile].slice(-6), currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
                                 if (source === 'discard' && pickedTile) botUpd[`players.${cu}.picked`] = [...(((cur.players[cu] || {}).picked) || []), pickedTile].slice(-8);
+                                else if (passedTile) botUpd[`players.${cu}.passed`] = [...(((cur.players[cu] || {}).passed) || []), passedTile].slice(-8);
                                 tx.update(ref, botUpd);
                                 return null;
                             });
