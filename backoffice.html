@@ -246,7 +246,14 @@ function Board({authUser,onLogout}){
     const ownerKids = real.filter(m=>!m.agentUid && m.uid!==ownerUid);
     const ownerKidsResult=round2(ownerKids.reduce((s,k)=>s+((byUid[k.uid]||{}).result||0),0));
     const ownerRakeKept=round2(realRake-totalAgentCut);
-    return {players,agents,realRake,totalAgentCut,ownerRakeKept,ownerKidsResult,byUid,nameOf};
+    // תוצאת כל השחקנים (בני-אדם) במחזור. חיובי = השחקנים ניצחו את הבית (הבוטים).
+    const allPlayersResult=round2(real.filter(m=>m.uid!==ownerUid).reduce((s,m)=>s+((byUid[m.uid]||{}).result||0),0));
+    // נטו בעל-הקלאב = מינוס תוצאת-השחקנים פחות נתחי-הסוכנים. הרייק כבר מקוזז בתוך המספר
+    //   (תוצאות השחקנים הן *אחרי* רייק): כשאדם מנצח בוט, הבית מימן זאת; הרייק חוזר לבעלים.
+    const ownerNet=round2(-allPlayersResult - totalAgentCut);
+    // ברוטו ששולם לשחקנים ע"י הבוטים (לפני שהרייק חזר): להצגה בלבד.
+    const botGrossToPlayers=round2(allPlayersResult + realRake);
+    return {players,agents,realRake,totalAgentCut,ownerRakeKept,ownerKidsResult,allPlayersResult,ownerNet,botGrossToPlayers,byUid,nameOf};
   },[mems,logs,from,to,q,sortBy,role,authUser.uid,ownerUid]);
 
   const exportCSV=()=>{ if(!view)return;
@@ -301,12 +308,15 @@ function Board({authUser,onLogout}){
           )}
 
           {role==='owner' && (
-            <Section title="התחשבנות בעל-הקלאב (שחקנים ישירים + רייק)">
+            <Section title="נטו בעל-הקלאב (הבית מול השחקנים)">
               <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
-                <KV k="תוצאת שחקנים ישירים" v={<span style={{color:col(view.ownerKidsResult)}}>{money(view.ownerKidsResult)}</span>}/>
-                <KV k="רייק שנשאר לבעלים" v={<span style={{color:'var(--gold)'}}>{money(view.ownerRakeKept)}</span>}/>
-                <KV k={'סה"כ לבעלים'} v={<SettleCell v={round2(view.ownerKidsResult+view.ownerRakeKept)}/>}/>
+                <KV k="תוצאת כל השחקנים" v={<span style={{color:col(view.allPlayersResult)}}>{view.allPlayersResult>0?'+':''}{money(view.allPlayersResult)}</span>}/>
+                <KV k="רייק שגבית (כלול)" v={<span style={{color:'var(--gold)'}}>{money(view.ownerRakeKept)}</span>}/>
+                <KV k="נטו בעל-הקלאב" v={<span className="tnum" style={{fontWeight:900,fontSize:20,color:col(view.ownerNet)}}>{money(view.ownerNet)} <span style={{fontSize:10,fontWeight:800,opacity:.85}}>{view.ownerNet>0.009?'רווח':view.ownerNet<-0.009?'הפסד — הבית מימן':''}</span></span>}/>
               </div>
+              <p style={{color:'var(--faint)',fontSize:11,fontWeight:600,marginTop:10,lineHeight:1.6}}>
+                חיובי בתוצאת-השחקנים = השחקנים ניצחו את הבית (הבוטים), ובעל-הקלאב מימן זאת. הבוטים שילמו לשחקנים ברוטו {money(view.botGrossToPlayers)} ₪, מתוכם {money(view.realRake)} ₪ חזרו כרייק — ולכן הנטו לבעלים הוא {money(view.ownerNet)} ₪. (תוצאות-השחקנים כבר אחרי רייק.)
+              </p>
             </Section>
           )}
 
