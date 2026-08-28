@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v145';
+        window.__APP_VER = 'v146';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8930,18 +8930,25 @@
                                 const unseenPool = Math.max(1, 106 - hand.length - (cur.discard || []).length);
                                 // הסתברות שעותק של זהות k עדיין ניתן-למשיכה (2 עותקים לכל זהות)
                                 const availProb = (k) => { if (!k) return 0; const left = Math.max(0, 2 - (gone[k] || 0)); return Math.min(1, (left / unseenPool) * 10); };
-                                // (2) מודל-יריב: "אבנים חמות" שמסוכן למסור, מלקיחות-מהזריקה
+                                // (2) מודל-יריב מסתגל: לומד תוך-כדי-המשחק את קצב-הבנייה של כל יריב.
+                                //   יריב שלוקח הרבה מהזריקה = בונה מהר = קרוב לגמור → האבנים שהוא
+                                //   רוצה מסוכנות יותר. "לומד את השחקן" בתוך היד, ממידע גלוי בלבד.
+                                const prog = Math.min(1, ((cur.discard || []).length) / 55);   // התקדמות-משחק כללית
                                 const hot = {}; const bump = (v, c, w) => { if (v >= 1 && v <= 13) hot[`${v}.${c}`] = (hot[`${v}.${c}`] || 0) + w; };
+                                const bumpSet = (v, c, w) => { for (const cc of COLORS) if (cc !== c) bump(v, cc, 3 * w); bump(v - 1, c, 4 * w); bump(v + 1, c, 4 * w); bump(v - 2, c, 2 * w); bump(v + 2, c, 2 * w); bump(v, c, 2 * w); };
+                                let threat = 0;
                                 for (const [u, p] of Object.entries(cur.players || {})) {
                                     if (u === cu || !p) continue;
-                                    for (const t of (p.picked || [])) { if (jVal(t)) continue; const v = Number(t.val), c = t.color;
-                                        for (const cc of COLORS) if (cc !== c) bump(v, cc, 3);        // קבוצה (אותו ערך)
-                                        bump(v - 1, c, 4); bump(v + 1, c, 4); bump(v - 2, c, 2); bump(v + 2, c, 2); // רצף
-                                        bump(v, c, 2);                                                // העותק השני
-                                    }
+                                    const picks = (p.picked || []);
+                                    // קרבה-לניצחון של היריב (0..1): כמה לקח מהזריקה + התקדמות-המשחק
+                                    const closeness = Math.min(1, 0.16 * picks.length + prog * 0.6);
+                                    threat = Math.max(threat, closeness);
+                                    const base = 0.5 + closeness * 1.2;                        // יריב קרוב → אבניו חמות יותר
+                                    picks.forEach((t, i) => { if (jVal(t)) return;
+                                        const recency = (i >= picks.length - 3) ? 1.6 : 1;     // 3 הלקיחות האחרונות — דגש
+                                        bumpSet(Number(t.val), t.color, base * recency);
+                                    });
                                 }
-                                // התקדמות-משחק (יותר זריקות = שלב מאוחר = יריבים קרובים יותר לגמור)
-                                const threat = Math.min(1, ((cur.discard || []).length) / 45);
                                 // (3) ערך-יד: נקודות-שארית פחות פוטנציאל-השלמה מבוסס-הסתברות
                                 const potential = (leftover) => {
                                     let bonus = 0; const L = (leftover || []).filter(t => t && !jVal(t));
@@ -8966,7 +8973,8 @@
                                     if (jVal(tile)) return 9999;
                                     const k = idKey(tile);
                                     let dg = (hot[k] || 0) * (0.5 + threat);                          // חם ליריב × קרבתם לגמור
-                                    if ((2 - (gone[k] || 0)) <= 0) dg -= 3;                           // העותק השני כבר גלוי → בטוחה
+                                    if ((2 - (gone[k] || 0)) <= 0) dg -= 4;                           // העותק השני כבר גלוי → בטוחה לחלוטין
+                                    else if (threat > 0.55) dg += 6 * threat;                         // סוף-משחק: הימנע מכל אבן לא-מתה (הגנה מקסימלית)
                                     const v = Number(tile.val); if (v === 1 || v === 13) dg -= 1;     // אבן-קצה פחות שימושית ליריב
                                     return dg;
                                 };
