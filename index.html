@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v143';
+        window.__APP_VER = 'v144';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -9008,7 +9008,7 @@
                 return (
                     <div className="absolute inset-0 overflow-y-auto aurora-bg p-3 sm:p-6">
                         <div className="max-w-lg mx-auto">
-                            <button onClick={onLeave} className="text-slate-400 hover:text-white font-bold text-sm mb-2"><i className="fa-solid fa-arrow-right ml-1"></i> חזרה ללובי</button>
+                            <button onClick={isSeated ? leaveTable : onLeave} className="text-slate-400 hover:text-white font-bold text-sm mb-2"><i className="fa-solid fa-arrow-right ml-1"></i> {isSeated ? 'עזוב שולחן (החזר מלא)' : 'חזרה ללובי'}</button>
                             <div className="glass-panel rounded-3xl p-4 sm:p-6 text-center">
                                 <div className="text-3xl mb-1">🃏</div>
                                 <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
@@ -9019,7 +9019,8 @@
                                 </div>
                                 {!isSeated
                                     ? <button onClick={handleSit} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 text-white py-3 rounded-2xl font-black text-lg shadow-lg">התיישב בשולחן ({formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪)</button>
-                                    : <div className="text-emerald-400 font-black py-2">אתה בפנים · ממתין לשחקנים…</div>}
+                                    : <><div className="text-emerald-400 font-black py-2">אתה בפנים · ממתין לשחקנים…</div>
+                                        <button onClick={leaveTable} className="w-full mt-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-2xl font-black border border-white/10">עזוב שולחן וקבל החזר מלא ←</button></>}
                                 {(isBotAdder(user) || isGodUser(user)) && uids.length < (Number(t.maxPlayers) || 4) && (
                                     <button onClick={handleAddBot} className="w-full mt-2 bg-purple-600/80 hover:bg-purple-500 text-white py-2.5 rounded-2xl font-black border border-purple-400/30">➕ הוסף בוט</button>
                                 )}
