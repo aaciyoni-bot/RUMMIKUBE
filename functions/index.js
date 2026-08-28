@@ -168,6 +168,20 @@ exports.rummyBuyIn = onCall(async (request) => {
     const memSnap = await tx.get(memRef);
     if (!memSnap.exists) throw new HttpsError("failed-precondition", "אינך חבר בקלאב הזה");
     const m = memSnap.data();
+    // הגנה: אותו אדם (טלפון קנוני) לא יתפוס שני מושבים באותו שולחן, גם עם שני חשבונות
+    const myPhone = canonPhone(m.phone || m.playerId || "");
+    if (myPhone) {
+      const seatedUids = Object.keys(t.players || {});
+      const seatedMems = await Promise.all(seatedUids.map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
+      for (const s of seatedMems) {
+        if (!s.exists) continue;
+        const sm = s.data();
+        if (sm.isBot) continue;
+        if (canonPhone(sm.phone || sm.playerId || "") === myPhone) {
+          throw new HttpsError("failed-precondition", "אתה כבר יושב בשולחן זה עם חשבון אחר");
+        }
+      }
+    }
     const bal = Number(m.balance) || 0;
     const buyIn = round2(Number(t.minBuyIn) || 0);
     if (bal < buyIn) throw new HttpsError("failed-precondition", "אין לך מספיק יתרה לכניסה");
@@ -646,6 +660,21 @@ exports.ramiSit = onCall(async (request) => {
     const memSnap = await tx.get(memRef);
     if (!memSnap.exists) throw new HttpsError("failed-precondition", "אינך חבר בקלאב הזה");
     const m = memSnap.data();
+    // הגנה: אותו אדם (טלפון קנוני) לא יכול לתפוס שני מושבים באותו שולחן, גם אם
+    // יש לו שני חשבונות. כל הקריאות כאן קורות לפני הכתיבות (סדר קריאה-לפני-כתיבה).
+    const myPhone = canonPhone(m.phone || m.playerId || "");
+    if (myPhone) {
+      const seatedUids = Object.keys(t.players || {});
+      const seatedMems = await Promise.all(seatedUids.map((su) => tx.get(db.doc(`memberships/${su}_${t.clubId}`))));
+      for (const s of seatedMems) {
+        if (!s.exists) continue;
+        const sm = s.data();
+        if (sm.isBot) continue;
+        if (canonPhone(sm.phone || sm.playerId || "") === myPhone) {
+          throw new HttpsError("failed-precondition", "אתה כבר יושב בשולחן זה עם חשבון אחר");
+        }
+      }
+    }
     const bal = Number(m.balance) || 0;
     const buyIn = round2(Number(t.minBuyIn) || 0);
     const fee = t.rakeMode === "flat" ? round2(Number(t.rakeFee) || 0) : 0;
