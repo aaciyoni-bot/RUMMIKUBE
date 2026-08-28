@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v144';
+        window.__APP_VER = 'v145';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -5830,6 +5830,7 @@
             const [memFilter, setMemFilter] = useState('all'); // all / agents / managers / banned
             const [balBox, setBalBox] = useState(null);        // מודל הפקדה/משיכה: { mem, dir, amt }
             const [mergeBox, setMergeBox] = useState(null);    // מודל מיזוג-כפילות: { keep, drops:[...] }
+            const [mergeAllBusy, setMergeAllBusy] = useState(false);
             const [clubStats, setClubStats] = useState(null);  // דוח רייק-אמיתי + בוטים-מול-אנושיים
             const [clubStatsBusy, setClubStatsBusy] = useState(false);
             const loadClubStats = async (apply) => {
@@ -6082,7 +6083,13 @@
 
             // זיהוי כפילויות לפי טלפון: אורח שנכנס שוב-ושוב מקבל uid חדש בכל פעם (החיה עם 500+400).
             // מנרמלים ספרות בלבד, ומקבצים לפי טלפון. שחקן עם ≥2 חשבונות = כפילות למיזוג.
-            const phoneKey = (u) => { const s = String(u.phone || u.playerId || '').replace(/\D/g, ''); return s.length >= 6 ? s : ''; };
+            const phoneKey = (u) => {
+                let d = String(u.phone || u.playerId || '').replace(/\D/g, '');
+                if (!d) return '';
+                if (d.startsWith('972') && d.length >= 11) d = '0' + d.slice(3);      // קידומת-מדינה → 0
+                else if (d.length === 9 && d[0] === '5') d = '0' + d;                 // נייד בלי 0 מוביל
+                return d.length >= 6 ? d : '';
+            };
             const phoneGroups = {};
             (canManageAny ? realPlayers : players).filter(u => !u.isBot).forEach(u => { const k = phoneKey(u); if (!k) return; (phoneGroups[k] = phoneGroups[k] || []).push(u); });
             const dupsOf = (u) => { const k = phoneKey(u); if (!k) return []; return (phoneGroups[k] || []).filter(o => (o.uid || o.id) !== (u.uid || u.id)); };
@@ -6100,6 +6107,31 @@
                     setMergeBox(null);
                 } catch (e) { showToast(fnErr(e), 'error'); }
                 finally { setMergeBusy(false); }
+            };
+            // מיזוג-אצווה: מאחד את כל הקבוצות עם אותו טלפון בבת-אחת (יתרות+סטטיסטיקה מסוכמות).
+            const doMergeAllDups = async () => {
+                if (mergeAllBusy) return;
+                const groups = Object.values(phoneGroups).filter(g => g.length >= 2);
+                if (!groups.length) { showToast('לא נמצאו כפילויות טלפון', 'success'); return; }
+                const totalDrops = groups.reduce((s, g) => s + (g.length - 1), 0);
+                if (!window.confirm(`נמצאו ${groups.length} קבוצות של אותו טלפון · ${totalDrops} חשבונות ימוזגו לחשבון אחד לכל טלפון (היתרות והסטטיסטיקה יסוכמו). להמשיך?`)) return;
+                setMergeAllBusy(true);
+                let ok = 0, fail = 0;
+                try {
+                    for (const g of groups) {
+                        const score = (u) => (u.status === 'approved' ? 1e15 : 0) + (Number(u.balance) || 0);
+                        let keep = g[0]; for (const u of g) if (score(u) > score(keep)) keep = u;
+                        const det = g.find(u => (u.uid || u.id) === `guest_${phoneKey(u)}`); if (det) keep = det;
+                        const keepUid = keep.uid || keep.id;
+                        for (const u of g) {
+                            const dropUid = u.uid || u.id;
+                            if (!dropUid || dropUid === keepUid) continue;
+                            try { await window.fb.httpsCallable(window.fb.functions, 'godMergePlayers')({ keepUid, dropUid, clubId: CLUB_ID }); ok++; }
+                            catch (e) { fail++; }
+                        }
+                    }
+                    showToast(`מוזגו ${ok} חשבונות${fail ? ` · ${fail} נכשלו` : ''} ✓`, fail ? 'error' : 'success');
+                } finally { setMergeAllBusy(false); }
             };
 
             const statTiles = [
@@ -6130,6 +6162,9 @@
                                         <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
                                         <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת</span>
                                         <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
+                                        {(() => { const dg = Object.values(phoneGroups).filter(g => g.length >= 2).length; return dg > 0 ? (
+                                            <button onClick={doMergeAllDups} disabled={mergeAllBusy} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 disabled:opacity-60 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-lg"><i className="fa-solid fa-object-group ml-2"></i>{mergeAllBusy ? 'ממזג…' : `מזג ${dg} כפילויות טלפון`}</button>
+                                        ) : null; })()}
                                     </div>
                                 )}
                             </div>
