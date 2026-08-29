@@ -933,7 +933,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
@@ -947,7 +947,7 @@
         // התחברות מתמשכת: שהמשתמש יישאר מחובר בין ביקורים ולא יצטרך אישור מגוגל כל פעם.
         // מנסים IndexedDB (עמיד יותר ב-iOS/PWA) ונופלים ל-localStorage.
         try { setPersistence(auth, indexedDBLocalPersistence).catch(() => { setPersistence(auth, browserLocalPersistence).catch(() => {}); }); } catch (e) {}
-        window.fb = { auth, db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
+        window.fb = { auth, db: getFirestore(app), functions: getFunctions(app), httpsCallable, googleProvider: new GoogleAuthProvider(), signInWithPopup, signInWithRedirect, getRedirectResult, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, updateDoc, addDoc, deleteDoc, runTransaction };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v156';
+        window.__APP_VER = 'v157';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3190,6 +3190,46 @@
             // (וואטסאפ-webview / iOS-ITP מנקים אחסון). אין כאן זהות — רק נוחות-מילוי.
             const [gName, setGName] = React.useState(() => { try { return localStorage.getItem('rk_guest_name') || ''; } catch (e) { return ''; } });
             const [gNum, setGNum] = React.useState(() => { try { return localStorage.getItem('rk_guest_phone') || ''; } catch (e) { return ''; } });
+            // ── אימות-טלפון (SMS) — הכניסה הראשית: מספר מאומת = זהות יציבה, בלי כפילויות ──
+            const [otpStep, setOtpStep] = React.useState(false);
+            const [otpCode, setOtpCode] = React.useState('');
+            const confirmRef = React.useRef(null);
+            const recaptchaRef = React.useRef(null);
+            const toE164IL = (s) => { let d = String(s || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('972')) return '+' + d; if (d[0] === '0') return '+972' + d.slice(1); return '+972' + d; };
+            const sendOtp = async () => {
+                if (busy) return;
+                const nm = gName.trim(), num = gNum.trim();
+                if (nm.length < 2) { setLoginErr('הזן שם (לפחות 2 תווים)'); return; }
+                const e164 = toE164IL(num);
+                if (e164.replace(/\D/g, '').length < 11) { setLoginErr('הזן מספר-טלפון ישראלי תקין (למשל 0521234567)'); return; }
+                setBusy(true); setLoginErr('');
+                try {
+                    if (!recaptchaRef.current) recaptchaRef.current = new window.fb.RecaptchaVerifier(window.fb.auth, 'recaptcha-container', { size: 'invisible' });
+                    const conf = await window.fb.signInWithPhoneNumber(window.fb.auth, e164, recaptchaRef.current);
+                    confirmRef.current = conf; setOtpStep(true); setOtpCode('');
+                    // מילוי-אוטומטי של הקוד (WebOTP — בעיקר אנדרואיד-כרום)
+                    try { if ('OTPCredential' in window) { navigator.credentials.get({ otp: { transport: ['sms'] } }).then(o => { if (o && o.code) setOtpCode(String(o.code).replace(/\D/g, '').slice(0, 6)); }).catch(() => {}); } } catch (e) {}
+                } catch (e) {
+                    const c = (e && e.code) || '';
+                    setLoginErr(/too-many-requests/.test(c) ? 'יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.' : 'שליחת הקוד נכשלה. בדוק את המספר והחיבור ונסה שוב.');
+                    try { if (recaptchaRef.current) { recaptchaRef.current.clear(); recaptchaRef.current = null; } } catch (e2) {}
+                } finally { setBusy(false); }
+            };
+            const verifyOtp = async () => {
+                if (busy || !confirmRef.current) return;
+                const code = otpCode.trim();
+                if (code.length < 6) { setLoginErr('הזן את הקוד בן 6 הספרות'); return; }
+                setBusy(true); setLoginErr('');
+                window.__guestName = gName.trim(); window.__guestNumber = gNum.trim().replace(/\D/g, '');
+                try {
+                    await confirmRef.current.confirm(code);
+                    try { localStorage.setItem('rk_guest_name', gName.trim()); localStorage.setItem('rk_guest_phone', gNum.trim()); } catch (e) {}
+                    // fetchOrInitUser (ב-onAuthStateChanged) ייצור/יטען את החשבון לפי הטלפון המאומת.
+                } catch (e) {
+                    window.__guestName = ''; window.__guestNumber = '';
+                    setLoginErr('הקוד שגוי או שפג-תוקפו. בדוק ונסה שוב.');
+                } finally { setBusy(false); }
+            };
             const doGuestLogin = async () => {
                 if (busy) return;
                 const nm = gName.trim(), num = gNum.trim();
@@ -3274,7 +3314,15 @@
                                     <input value={gName} onChange={e => setGName(e.target.value)} placeholder="השם שלך" maxLength={20} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
                                     <input value={gNum} onChange={e => setGNum(e.target.value.replace(/[^0-9]/g, ''))} placeholder="המספר שלך (טלפון / מס' שחקן)" inputMode="numeric" maxLength={20} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" dir="ltr" />
                                     <p className="text-slate-500 text-[11px] font-bold leading-relaxed">בעל הקלאב יאשר אותך לפי השם והמספר. את המספר לא ניתן לשנות אחר-כך.</p>
-                                    <button onClick={doGuestLogin} disabled={busy} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'נכנס…' : 'המשך כאורח ←'}</button>
+                                    {!otpStep ? (<>
+                                        <button onClick={sendOtp} disabled={busy} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'שולח…' : '📲 קבל קוד ב-SMS'}</button>
+                                        <button onClick={doGuestLogin} disabled={busy} className="w-full mt-2 text-slate-500 hover:text-slate-300 text-xs font-bold">כניסה מהירה בלי אימות ←</button>
+                                    </>) : (<>
+                                        <input value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} autoComplete="one-time-code" inputMode="numeric" maxLength={6} placeholder="קוד מה-SMS" className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.4em] outline-none focus:border-emerald-500" dir="ltr" />
+                                        <button onClick={verifyOtp} disabled={busy || otpCode.length < 6} className="w-full mt-2 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'מאמת…' : 'אמת והיכנס ←'}</button>
+                                        <button onClick={() => { setOtpStep(false); setOtpCode(''); setLoginErr(''); }} disabled={busy} className="w-full mt-2 text-slate-500 hover:text-slate-300 text-xs font-bold">← החלף מספר / שלח קוד שוב</button>
+                                    </>)}
+                                    <div id="recaptcha-container"></div>
                                     <button onClick={() => setGuestMode(false)} className="text-slate-500 hover:text-white underline text-xs font-bold">חזרה</button>
                                 </div>
                             )}
