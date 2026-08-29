@@ -328,21 +328,29 @@ function Board({authUser,onLogout}){
               <button onClick={exportCSV} style={{background:'var(--chip)',border:'1px solid var(--line)',borderRadius:10,color:'var(--brand)',padding:'7px 12px',fontWeight:800,fontSize:12}}>↓ CSV</button>
             </div>
           }>
-            <div style={{overflowX:'auto'}}><table style={tbl}>
-              <thead><tr><th style={th}>שחקן</th>{role==='owner'&&<th style={th}>סוכן</th>}<th style={thN}>משחקים</th>{role!=='player'&&<th style={thN}>רייק</th>}<th style={thN}>תוצאה</th><th style={thN}>יתרה</th></tr></thead>
-              <tbody>
-                {view.players.map(p=>(
-                  <tr key={p.id} onClick={()=>setDrill(p.uid)} style={{borderTop:'1px solid var(--line)',cursor:'pointer'}}>
-                    <td style={td}><div style={{fontWeight:800}}>{p.username}</div><div style={{fontSize:11,color:'var(--faint)',direction:'ltr',textAlign:'right'}}>{p.phone||p.playerId||''}</div></td>
-                    {role==='owner'&&<td style={{...td,color:'var(--muted)',fontSize:12}}>{p.agentUid?view.nameOf(p.agentUid):(p.uid===ownerUid?'—':'ישיר')}</td>}
-                    <td style={tdN}>{p.wkGames}</td>
-                    {role!=='player'&&<td style={tdN}><span className="tnum" style={{color:'var(--warn)'}}>{money(p.wkRake)}</span></td>}
-                    <td style={tdN}><span className="tnum" style={{color:col(p.wkResult),fontWeight:800}}>{money(p.wkResult)}</span></td>
-                    <td style={tdN}><span className="tnum" style={{color:'var(--muted)'}}>{money(p.balance||0)}</span></td>
-                  </tr>))}
-                {view.players.length===0 && <tr><td colSpan={6} style={{...td,textAlign:'center',color:'var(--faint)',padding:24}}>אין נתונים במחזור זה</td></tr>}
-              </tbody>
-            </table></div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {view.players.map(p=>(
+                <div key={p.id} onClick={()=>setDrill(p.uid)} style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:14,padding:'12px 14px',cursor:'pointer',display:'flex',flexDirection:'column',gap:8}}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontWeight:800,fontSize:15,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.username||'(ללא שם)'}</div>
+                      <div style={{fontSize:11,color:'var(--faint)',direction:'ltr',textAlign:'right'}}>{p.phone||p.playerId||''}</div>
+                    </div>
+                    <div style={{textAlign:'left'}}>
+                      <div className="tnum" style={{fontWeight:900,fontSize:17,color:col(p.wkResult)}}>{p.wkResult>0?'+':''}{money(p.wkResult)}</div>
+                      <div style={{fontSize:10,color:'var(--faint)',fontWeight:700}}>{p.wkResult>0.009?'הרוויח':p.wkResult<-0.009?'הפסיד':'ללא שינוי'}</div>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+                    <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>🎮 {p.wkGames} משחקים</span>
+                    {role!=='player' && <span style={{fontSize:11,fontWeight:700,color:'var(--warn)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>רייק {money(p.wkRake)}</span>}
+                    <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>יתרה {money(p.balance||0)}</span>
+                    {role==='owner' && <span style={{fontSize:11,fontWeight:700,color:'var(--faint)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>{p.agentUid?('סוכן: '+view.nameOf(p.agentUid)):(p.uid===ownerUid?'בעלים':'ישיר')}</span>}
+                    <span style={{marginInlineStart:'auto',fontSize:11,fontWeight:800,color:'var(--brand)'}}>פירוט משחקים ←</span>
+                  </div>
+                </div>))}
+              {view.players.length===0 && <div style={{textAlign:'center',color:'var(--faint)',padding:24,fontWeight:700}}>אין נתונים במחזור זה</div>}
+            </div>
           </Section>
         </>}
       </div>
