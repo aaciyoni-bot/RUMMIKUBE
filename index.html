@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v149';
+        window.__APP_VER = 'v150';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8957,24 +8957,36 @@
                                     if (u === cu || !p) continue;
                                     for (const t of (p.passed || [])) { if (jVal(t)) continue; const k = `${t.val}.${t.color}`; if (hot[k]) hot[k] = Math.max(0, hot[k] - 3); }
                                 }
-                                // (3) ערך-יד: נקודות-שארית פחות פוטנציאל-השלמה מבוסס-הסתברות
-                                const potential = (leftover) => {
-                                    let bonus = 0; const L = (leftover || []).filter(t => t && !jVal(t));
-                                    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-                                        const a = L[i], b = L[j], va = Number(a.val), vb = Number(b.val);
-                                        if (va === vb && a.color !== b.color) {                       // חצי-קבוצה
-                                            let pc = 0; for (const cc of COLORS) if (cc !== a.color && cc !== b.color) pc = Math.max(pc, availProb(`${va}.${cc}`));
-                                            bonus += (tileValR(a)) * pc;
-                                        } else if (a.color === b.color) { const d = Math.abs(va - vb);
-                                            if (d === 1) { const lo = Math.min(va, vb), hi = Math.max(va, vb);
-                                                const p = Math.max(availProb(`${lo - 1}.${a.color}`), availProb(`${hi + 1}.${a.color}`));
-                                                bonus += (tileValR(a) + tileValR(b)) * 0.5 * p;
-                                            } else if (d === 2) { bonus += (tileValR(a) + tileValR(b)) * 0.4 * availProb(`${(va + vb) / 2}.${a.color}`); }
+                                // (3) מרחק-לירידה: כמה אבנים-טובות עוד חסרות כדי לסגור את היד.
+                                //   התשלום קבוע (מי שלא יורד משלם אותו דבר) — אז המטרה היחידה היא
+                                //   *לרדת ראשון*, לא לצבור מעט נקודות. זוג חצי-מלד (צריך אבן אחת)
+                                //   קרוב; אבן בודדת רחוקה; והכל משוקלל בהסתברות-זמינות (ספירת-אבנים).
+                                const completionDist = (leftover) => {
+                                    const L = (leftover || []).filter(t => t && !jVal(t));
+                                    const jok = (leftover || []).filter(t => t && jVal(t)).length;
+                                    const used = new Array(L.length).fill(false);
+                                    let dist = 0;
+                                    for (let i = 0; i < L.length; i++) {
+                                        if (used[i]) continue;
+                                        let bestJ = -1, bestProb = -1;
+                                        for (let j = i + 1; j < L.length; j++) {
+                                            if (used[j]) continue;
+                                            const a = L[i], b = L[j], va = Number(a.val), vb = Number(b.val);
+                                            let prob = null;
+                                            if (va === vb && a.color !== b.color) { for (const cc of COLORS) if (cc !== a.color && cc !== b.color) prob = Math.max(prob || 0, availProb(`${va}.${cc}`)); }
+                                            else if (a.color === b.color) { const d = Math.abs(va - vb);
+                                                if (d === 1) { const lo = Math.min(va, vb), hi = Math.max(va, vb); prob = Math.max(availProb(`${lo - 1}.${a.color}`), availProb(`${hi + 1}.${a.color}`)); }
+                                                else if (d === 2) prob = availProb(`${(va + vb) / 2}.${a.color}`);
+                                            }
+                                            if (prob != null && prob > bestProb) { bestProb = prob; bestJ = j; }
                                         }
+                                        if (bestJ >= 0) { used[i] = used[bestJ] = true; dist += 1 + (1 - Math.max(0, bestProb)) * 1.2; }  // חצי-מלד ≈ אבן אחת (+ עונש אם לא זמינה)
                                     }
-                                    return bonus;
+                                    let singles = 0; for (let i = 0; i < L.length; i++) if (!used[i]) singles++;
+                                    dist += singles * 2;                          // אבן בודדת = רחוקה (~2 אבנים)
+                                    return Math.max(0, dist - jok * 1.5);         // ג'וקר בשארית מקרב מאוד
                                 };
-                                const scoreHand = (h) => { const p = bestPartition(h); return { score: p.leftoverPoints - potential(p.leftover), complete: p.complete }; };
+                                const scoreHand = (h) => { const p = bestPartition(h); return { score: completionDist(p.leftover), complete: p.complete }; };
                                 // (4) סיכון-זריקה — שובר-שוויון קטן וחסום בלבד. המטרה הראשית של הבוט
                                 //   היא *לרדת מהר* (מזעור השארית שלו); ההגנה רק בוחרת בין זריקות
                                 //   כמעט-שוות-ערך. לכן היא חסומה לטווח קטן ולעולם לא גוברת על בניית-היד.
@@ -8983,9 +8995,9 @@
                                     if (jVal(tile)) return 40;                                        // כמעט אף פעם לא לזרוק ג'וקר
                                     const k = idKey(tile);
                                     if ((2 - (gone[k] || 0)) <= 0) return -1.5;                       // אבן מתה בוודאות → מעט מועדפת לזריקה
-                                    let dg = (hot[k] || 0) * (0.35 + 0.5 * threat);                   // חם ליריב × קרבתם לגמור
-                                    dg = Math.min(3.5, dg);                                           // תקרה: הגנה = שובר-שוויון, לא גוברת על מהירות-הירידה
-                                    const v = Number(tile.val); if (v === 1 || v === 13) dg -= 0.5;   // אבן-קצה פחות שימושית ליריב
+                                    let dg = (hot[k] || 0) * (0.2 + 0.35 * threat);                   // חם ליריב × קרבתם לגמור
+                                    dg = Math.min(1.5, dg);                                           // תקרה נמוכה: הגנה = שובר-שוויון בלבד, לא גוברת על מהירות-הירידה
+                                    const v = Number(tile.val); if (v === 1 || v === 13) dg -= 0.4;   // אבן-קצה פחות שימושית ליריב
                                     return dg;
                                 };
                                 // ── בחירת-הזריקה הטובה ביותר מיד של 15 (ומה זורקים) ──
@@ -8996,7 +9008,7 @@
                                         const rest = cards15.slice(0, i).concat(cards15.slice(i + 1));
                                         const s = scoreHand(rest);
                                         if (s.complete) return { fin: -1, drop: cards15[i], rest, complete: true, raw: 0 };
-                                        const fin = s.score + dangerOf(cards15[i]) - (jVal(cards15[i]) ? 0 : Number(cards15[i].val) * 0.02);
+                                        const fin = s.score + dangerOf(cards15[i]);
                                         if (fin < best.fin) best = { fin, drop: cards15[i], rest, complete: false, raw: s.score };
                                     }
                                     return best;
