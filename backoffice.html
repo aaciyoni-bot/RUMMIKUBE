@@ -272,7 +272,8 @@ function Board({authUser,onLogout}){
           <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
             <select value={wk} onChange={e=>setWk(Number(e.target.value))} style={sel}>{Array.from({length:16}).map((_,i)=><option key={i} value={i}>{cycleLabel(i)}</option>)}</select>
             <span style={{fontSize:12,fontWeight:800,color:'var(--muted)',background:'var(--chip)',padding:'6px 10px',borderRadius:10}}>{role==='owner'?'👑 בעל-קלאב':role==='agent'?'🤝 סוכן':'🎮 שחקן'}</span>
-            <button onClick={onLogout} style={{background:'var(--chip)',border:'1px solid var(--line)',color:'var(--muted)',borderRadius:10,padding:'6px 12px',fontWeight:800,fontSize:12}}>יציאה</button>
+            <button onClick={()=>{ window.location.href = T.appUrl || '/'; }} style={{background:'linear-gradient(180deg,#22d3ee,#0891b2)',border:0,color:'#04121a',borderRadius:10,padding:'6px 14px',fontWeight:900,fontSize:12}}>← חזרה לקלאב</button>
+            <button onClick={onLogout} style={{background:'var(--chip)',border:'1px solid var(--line)',color:'var(--muted)',borderRadius:10,padding:'6px 12px',fontWeight:800,fontSize:12}}>התנתק</button>
           </div>
         </div>
       </div>
