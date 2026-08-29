@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v151';
+        window.__APP_VER = 'v152';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3214,6 +3214,13 @@
                     try { localStorage.setItem('rk_guest_name', nm); localStorage.setItem('rk_guest_phone', num); } catch (e) {}
                 } catch (e) {
                     const code = e && e.code;
+                    // חסימה קבועה: אם השרת סירב כי הטלפון חסום — *לא* נופלים לכניסה אנונימית
+                    // (אחרת חסום היה נכנס מהדלת האחורית). מציגים הודעה ועוצרים.
+                    if (code === 'functions/permission-denied' || /חסום/.test((e && e.message) || '')) {
+                        window.__guestName = ''; window.__guestNumber = '';
+                        setLoginErr((e && e.message && /חסום/.test(e.message)) ? e.message : 'החשבון חסום בקלאב זה. פנה לבעל המועדון.');
+                        return;
+                    }
                     // נפילה-לאחור: אם השרת/הטוקן נכשל — מנסים כניסה אנונימית (השיטה הישנה),
                     // כדי שלא נחמיר את המצב. הטלפון נשאר ב-window כדי ש-fetchOrInitUser יזהה.
                     window.__guestName = nm; window.__guestNumber = num;
@@ -5953,11 +5960,13 @@
             // חסימה/שחרור: חבר חסום לא עובר את מסך הכניסה, ונשאר גלוי כאן לשחרור
             const toggleBan = async (mem) => {
                 const banned = mem.status === 'banned';
-                if (!banned && !window.confirm(`לחסום את ${mem.username}? הוא לא יוכל להיכנס לקלאב עד שחרור.`)) return;
+                const ph = mem.phone || mem.playerId || '';
+                if (!banned && !window.confirm(`לחסום את ${mem.username}${ph ? ` (טלפון ${ph})` : ''}?\n\nהחסימה קבועה לפי מספר-הטלפון — הוא לא יוכל להיכנס שוב, גם אם יירשם מחדש כאורח או ימחק וייצור חשבון חדש.`)) return;
                 try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, "memberships", mem.id), { status: banned ? 'approved' : 'banned', bannedAt: banned ? null : Date.now(), bannedBy: banned ? null : user.username });
-                    showToast(banned ? `${mem.username} שוחרר מחסימה` : `${mem.username} נחסם`, "info");
-                } catch(e) { showToast("שגיאה", "error"); }
+                    // חסימה קבועה לפי טלפון (שרת): נשמרת ב-clubBans ונאכפת ב-guestToken.
+                    await window.fb.httpsCallable(window.fb.functions, 'godSetPhoneBan')({ clubId: CLUB_ID, phone: ph, targetUid: mem.uid || String(mem.id || '').split('_')[0], banned: !banned });
+                    showToast(banned ? `${mem.username} שוחרר מחסימה` : `${mem.username} נחסם לצמיתות (לפי טלפון)`, "info");
+                } catch(e) { showToast(fnErr(e), "error"); }
             };
 
             const saveClubSettings = async () => {

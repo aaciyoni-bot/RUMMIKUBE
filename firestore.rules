@@ -151,6 +151,9 @@ service cloud.firestore {
     // ─────────── securityAlerts (התראות הונאה) — GOD בלבד ───────────
     match /securityAlerts/{id} { allow read, create, delete: if isGod(); allow update: if false; }
 
+    // ─────────── חסימות-טלפון: נכתב רק דרך Cloud Function (admin עוקף חוקים) ───────────
+    match /clubBans/{id} { allow read: if signedIn(); allow write: if false; }
+
     // ─────────── admin config: אין גישת לקוח ───────────
     match /admin/{doc=**} { allow read, write: if false; }
 

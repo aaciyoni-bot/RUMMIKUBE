@@ -800,6 +800,34 @@ exports.godDeletePlayer = onCall(async (request) => {
   return {ok: true, deleted: targetUid};
 });
 
+// ── חסימת-טלפון קבועה (בעלים/GOD): חוסמת מספר-טלפון מלהיכנס לקלאב — נשמר ב-clubBans
+//   ונבדק ב-guestToken, כך שהחסימה שורדת גם מחיקה וגם רישום-מחדש כאורח. banned:false משחרר.
+exports.godSetPhoneBan = onCall(async (request) => {
+  const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {clubId, phone, targetUid, banned} = request.data || {};
+  const cid = clubId || "main";
+  let allowed = isGodEmail(email) || SITE_OWNER_EMAILS_SRV.includes(email);
+  if (!allowed) { const c = await db.doc(`clubs/${cid}`).get(); if (c.exists && c.data().ownerUid === uid) allowed = true; }
+  if (!allowed) throw new HttpsError("permission-denied", "אין הרשאה");
+  let digits = canonPhone(phone);
+  if (!digits && targetUid) { const ms = await db.doc(`memberships/${targetUid}_${cid}`).get(); if (ms.exists) digits = canonPhone(ms.data().phone || ms.data().playerId || ""); }
+  if (!digits || digits.length < 6) throw new HttpsError("invalid-argument", "אין מספר-טלפון תקין לחסימה");
+  const banRef = db.doc(`clubBans/${cid}__${digits}`);
+  if (banned === false) { await banRef.delete(); } else { await banRef.set({clubId: cid, phone: digits, at: Date.now(), by: email}); }
+  // מסמנים את כל החברויות עם אותו טלפון קנוני (banned/approved), למעט חשבונות עם email
+  const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
+  const batch = db.batch(); let n = 0;
+  memSnap.forEach((d) => {
+    const m = d.data();
+    if (m.isBot || m.email) return;
+    if (canonPhone(m.phone || m.playerId || "") === digits) { batch.update(d.ref, {status: banned === false ? "approved" : "banned", bannedAt: banned === false ? null : Date.now()}); n++; }
+  });
+  if (n) await batch.commit();
+  return {ok: true, phone: digits, banned: banned !== false, affected: n};
+});
+
 // ── דוח מועדון (בעלים/GOD): רייק אמיתי (בלי בוטים) + תוצאת בוטים-מול-אנושיים ──
 // הרייק האמיתי מחושב מיומן-המשחקים (gameLog) — שם נרשמים רק משחקים עם מנצח אנושי,
 // אז משחקי-בוטים-בלבד לא נספרים כלל. apply:true מתקן את מונה-רווח-המועדון לערך האמיתי.
@@ -840,6 +868,9 @@ exports.guestToken = onCall(async (request) => {
   const cid = clubId || "main";
   const digits = canonPhone(phone);
   if (digits.length < 5) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
+  // חסימת-טלפון קבועה: אם המספר ברשימת-החסומים של הקלאב — לא מנפיקים טוקן.
+  const banChk = await db.doc(`clubBans/${cid}__${digits}`).get();
+  if (banChk.exists) throw new HttpsError("permission-denied", "החשבון חסום בקלאב זה. פנה לבעל המועדון.");
   const uid = "guest_" + digits;
   // שיוך-סוכן מקישור-הזמנה (?agent=CODE): מאתרים את חברות-הסוכן לפי הקוד
   let agentLink = null;
