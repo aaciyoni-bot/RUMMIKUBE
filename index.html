@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v148';
+        window.__APP_VER = 'v149';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8988,24 +8988,37 @@
                                     const v = Number(tile.val); if (v === 1 || v === 13) dg -= 0.5;   // אבן-קצה פחות שימושית ליריב
                                     return dg;
                                 };
+                                // ── בחירת-הזריקה הטובה ביותר מיד של 15 (ומה זורקים) ──
+                                //   מזעור השארית של הבוט (מהירות-ירידה) הוא ראשי; ההגנה שובר-שוויון קטן.
+                                const bestAfter = (cards15) => {
+                                    let best = { fin: Infinity, drop: null, rest: null, complete: false, raw: Infinity };
+                                    for (let i = 0; i < cards15.length; i++) {
+                                        const rest = cards15.slice(0, i).concat(cards15.slice(i + 1));
+                                        const s = scoreHand(rest);
+                                        if (s.complete) return { fin: -1, drop: cards15[i], rest, complete: true, raw: 0 };
+                                        const fin = s.score + dangerOf(cards15[i]) - (jVal(cards15[i]) ? 0 : Number(cards15[i].val) * 0.02);
+                                        if (fin < best.fin) best = { fin, drop: cards15[i], rest, complete: false, raw: s.score };
+                                    }
+                                    return best;
+                                };
                                 const top = discard[discard.length - 1];
-                                // ── החלטת-משיכה (ללא הצצה לחפיסה) ──
                                 const base = scoreHand(hand);
-                                const wDisc = top ? scoreHand([...hand, top]) : null;
-                                let source = (wDisc && (wDisc.complete || wDisc.score <= base.score - 2.5)) ? 'discard' : 'deck';
-                                let newHand, pickedTile = null, passedTile = null;
-                                if (source === 'discard') { discard.pop(); pickedTile = top; newHand = [...hand, top]; }
-                                else { if (top) passedTile = top; reshuffleIfNeeded(deck, discard); const dt = deck.pop(); newHand = [...hand, dt]; }
-                                // ── בחירת-זריקה: מזעור ערך-יד + הגנה ──
-                                let goOut = false, finalHand = null, dropTile = null, bestSc = Infinity;
-                                for (let i = 0; i < newHand.length; i++) {
-                                    const rest = newHand.slice(0, i).concat(newHand.slice(i + 1));
-                                    const s = scoreHand(rest);
-                                    if (s.complete) { goOut = true; dropTile = newHand[i]; finalHand = rest; break; }
-                                    const fin = s.score + dangerOf(newHand[i]) - (jVal(newHand[i]) ? 0 : Number(newHand[i].val) * 0.02);
-                                    if (fin < bestSc) { bestSc = fin; dropTile = newHand[i]; finalHand = rest; }
+                                // ── החלטת-משיכה: משווים את היד ה-14 הטובה-ביותר אחרי לקיחה-מהזריקה
+                                //   מול המצב הנוכחי. מושכים מהזריקה כשהיא משלימה או משפרת ממש; אחרת
+                                //   מהחפיסה בעיוור (הצצה = לא הוגן, ומדליף מידע). ── ללא הצצה לחפיסה.
+                                const takeB = top ? bestAfter([...hand, top]) : null;
+                                let newHand, pickedTile = null, passedTile = null, chosen;
+                                if (takeB && (takeB.complete || takeB.raw < base.score - 0.5)) {
+                                    discard.pop(); pickedTile = top; newHand = [...hand, top]; chosen = takeB;
+                                } else {
+                                    if (top) passedTile = top;
+                                    reshuffleIfNeeded(deck, discard); const dt = deck.pop(); newHand = [...hand, dt];
+                                    chosen = bestAfter(newHand);
                                 }
-                                if (!finalHand) { finalHand = newHand.slice(1); dropTile = newHand[0]; }
+                                const source = pickedTile ? 'discard' : 'deck';
+                                const goOut = chosen.complete;
+                                const dropTile = chosen.drop || newHand[0];
+                                const finalHand = chosen.rest || newHand.slice(1);
                                 if (goOut) {
                                     if (cur.tournamentId) {
                                         const cur2 = { ...cur, players: { ...cur.players, [cu]: { ...cur.players[cu], cards: finalHand } } };
