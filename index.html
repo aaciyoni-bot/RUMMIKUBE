@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v152';
+        window.__APP_VER = 'v153';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -5932,11 +5932,11 @@
             // מחיקת שחקן לצמיתות (בעלים/GOD) — מוחק חברות + מסמך-משתמש דרך Cloud Function.
             const deletePlayer = async (u) => {
                 const bal = Number(u.balance) || 0;
-                if (!window.confirm(`למחוק לצמיתות את ${u.username}?${bal > 0.009 ? `\n\n⚠️ יש לו יתרה של ${formatMoney(bal)} ₪ — היא תימחק!` : ''}\n\nהחשבון יוסר לגמרי. פעולה בלתי-הפיכה.`)) return;
+                if (!window.confirm(`למחוק לצמיתות את ${u.username}?${bal > 0.009 ? `\n\n⚠️ יש לו יתרה של ${formatMoney(bal)} ₪ — היא תימחק!` : ''}\n\nהחשבון + כל היסטוריית-המשחקים שלו יוסרו לגמרי ("כאילו לא היה"). פעולה בלתי-הפיכה.`)) return;
                 try {
                     const targetUid = u.uid || String(u.id || '').split('_')[0];
-                    await window.fb.httpsCallable(window.fb.functions, 'godDeletePlayer')({ targetUid, clubId: CLUB_ID });
-                    showToast(`${u.username} נמחק`, 'success');
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'godDeletePlayer')({ targetUid, clubId: CLUB_ID, purgeHistory: true });
+                    showToast(`${u.username} נמחק${res?.data?.purged ? ` · ${res.data.purged} משחקים נמחקו` : ''}`, 'success');
                 } catch (e) { showToast(fnErr(e), 'error'); }
             };
 

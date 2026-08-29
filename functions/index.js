@@ -778,7 +778,7 @@ exports.godDeletePlayer = onCall(async (request) => {
   const email = ((request.auth && request.auth.token && request.auth.token.email) || "").toLowerCase().trim();
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
-  const {targetUid, clubId} = request.data || {};
+  const {targetUid, clubId, purgeHistory} = request.data || {};
   if (!targetUid) throw new HttpsError("invalid-argument", "חסר שחקן");
   const cid = clubId || "main";
   let allowed = isGodEmail(email) || SITE_OWNER_EMAILS_SRV.includes(email);
@@ -793,11 +793,32 @@ exports.godDeletePlayer = onCall(async (request) => {
       throw new HttpsError("permission-denied", "אי-אפשר למחוק בעל-קלאב/אדמין");
     }
   }
+  // מחיקת כל היסטוריית-המשחקים (gameLog) — "כאילו לא היה קיים". אוסף את כל ה-uid
+  //   של אותו אדם לפי טלפון קנוני (כולל כפילויות), ומוחק את שורותיהם באצווה.
+  let purged = 0;
+  if (purgeHistory) {
+    const phone = memSnap.exists ? canonPhone(memSnap.data().phone || memSnap.data().playerId || "") : "";
+    const uids = new Set([targetUid]);
+    if (phone) {
+      const all = await db.collection("memberships").where("clubId", "==", cid).get();
+      all.forEach((d) => { const m = d.data(); if (m.isBot || m.email) return; if (canonPhone(m.phone || m.playerId || "") === phone) uids.add(m.uid || d.id.split("_")[0]); });
+    }
+    for (const u of uids) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const gl = await db.collection("gameLog").where("uid", "==", u).limit(400).get();
+        if (gl.empty) break;
+        const gb = db.batch(); gl.forEach((dd) => gb.delete(dd.ref)); await gb.commit();
+        purged += gl.size;
+        if (gl.size < 400) break;
+      }
+    }
+  }
   const batch = db.batch();
   batch.delete(db.doc(`memberships/${targetUid}_${cid}`));
   batch.delete(db.doc(`users/${targetUid}`));
   await batch.commit();
-  return {ok: true, deleted: targetUid};
+  return {ok: true, deleted: targetUid, purged};
 });
 
 // ── חסימת-טלפון קבועה (בעלים/GOD): חוסמת מספר-טלפון מלהיכנס לקלאב — נשמר ב-clubBans
