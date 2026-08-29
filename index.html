@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v155';
+        window.__APP_VER = 'v156';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -9045,6 +9045,35 @@
                                     }
                                     return best;
                                 };
+                                // ── חיפוש-קדימה (סימולציה) עם מגבלת-זמן קשיחה ──
+                                //   מעריך לכל זריקה את תוחלת-מספר-התורים עד ירידה, ע"י דגימת משיכות
+                                //   אקראיות מהמאגר-הלא-נראה (ספירת-אבנים — הוגן, בלי הצצה). זהו שכלול
+                                //   best-effort של המהלך-המיידי, בכפוף לתקציב-זמן — אחרת נשארים עם המיידי.
+                                const unseenBag = [];
+                                for (let v = 1; v <= 13; v++) for (const c of COLORS) { const r = 2 - (gone[`${v}.${c}`] || 0); for (let k = 0; k < r; k++) unseenBag.push({ val: v, color: c }); }
+                                { let js = 0; for (const t of hand) if (jVal(t)) js++; for (const d of (cur.discard || [])) if (d && jVal(d)) js++; for (let k = 0; k < Math.max(0, 2 - js); k++) unseenBag.push({ val: '☻', color: '#ef4444' }); }
+                                const simStep = (cards15) => {
+                                    const p0 = bestPartition(cards15); const leftover = p0.leftover || [];
+                                    if (!leftover.length) return { complete: false, rest: cards15.slice(1) };
+                                    let best = { dist: Infinity, rest: null };
+                                    for (const L of leftover) { const rest = cards15.filter(x => x !== L); const pr = bestPartition(rest); if (pr.complete) return { complete: true, rest }; const d = completionDist(pr.leftover); if (d < best.dist) best = { dist: d, rest }; }
+                                    return { complete: false, rest: best.rest || cards15.filter(x => x !== leftover[0]) };
+                                };
+                                const ROLL_R = 4, ROLL_D = 2;
+                                const rollout = (hand14) => {
+                                    if (unseenBag.length < 2) return completionDist(bestPartition(hand14).leftover);
+                                    let total = 0;
+                                    for (let s = 0; s < ROLL_R; s++) { let h = hand14, turns = ROLL_D + 1; for (let d = 1; d <= ROLL_D; d++) { const t = unseenBag[(Math.random() * unseenBag.length) | 0]; const st = simStep([...h, t]); if (st.complete) { turns = d; break; } h = st.rest; } total += turns; }
+                                    return total / ROLL_R;
+                                };
+                                const refineDiscard = (cards15, budgetMs) => {
+                                    const t0 = Date.now(); const cands = [];
+                                    for (let i = 0; i < cards15.length; i++) { const rest = cards15.slice(0, i).concat(cards15.slice(i + 1)); const p = bestPartition(rest); if (p.complete) return { complete: true, drop: cards15[i], rest }; cands.push({ drop: cards15[i], rest, dist: completionDist(p.leftover) }); }
+                                    cands.sort((a, b) => a.dist - b.dist);
+                                    let best = null, bestV = Infinity;
+                                    for (let i = 0; i < Math.min(3, cands.length); i++) { if (Date.now() - t0 > budgetMs) break; const c = cands[i]; const v = rollout(c.rest) + dangerOf(c.drop) * 0.6; if (v < bestV) { bestV = v; best = { complete: false, drop: c.drop, rest: c.rest }; } }
+                                    return best;
+                                };
                                 const top = discard[discard.length - 1];
                                 const base = scoreHand(hand);
                                 // ── החלטת-משיכה: משווים את היד ה-14 הטובה-ביותר אחרי לקיחה-מהזריקה
@@ -9060,9 +9089,11 @@
                                     chosen = bestAfter(newHand);
                                 }
                                 const source = pickedTile ? 'discard' : 'deck';
-                                const goOut = chosen.complete;
-                                const dropTile = chosen.drop || newHand[0];
-                                const finalHand = chosen.rest || newHand.slice(1);
+                                let goOut = chosen.complete;
+                                let dropTile = chosen.drop || newHand[0];
+                                let finalHand = chosen.rest || newHand.slice(1);
+                                // שכלול-בסימולציה (best-effort, לא מעכב): רק אם אין ירידה מיידית ויש תקציב-זמן.
+                                if (!goOut) { const ref = refineDiscard(newHand, 220); if (ref && ref.drop) { goOut = ref.complete; dropTile = ref.drop; finalHand = ref.rest; } }
                                 if (goOut) {
                                     if (cur.tournamentId) {
                                         const cur2 = { ...cur, players: { ...cur.players, [cu]: { ...cur.players[cu], cards: finalHand } } };
