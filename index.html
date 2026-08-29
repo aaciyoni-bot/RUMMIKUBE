@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v150';
+        window.__APP_VER = 'v151';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -2784,6 +2784,17 @@
                     const ref = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${CLUB_ID}`);
                     const snap = await window.fb.getDoc(ref);
                     if (snap.exists()) { if (!silent) showToast(snap.data().status === 'approved' ? "אתה כבר מאושר" : "בקשתך כבר ממתינה לאישור", "info"); return; }
+                    // מניעת-כפילות בכניסה-לקלאב: אם כבר קיים חשבון (uid אחר) עם אותו טלפון קנוני,
+                    // לא יוצרים בקשה/חשבון נוסף — מפנים לחשבון הקיים. (המשלים ל-guestToken הדטרמיניסטי.)
+                    const canonP = (s) => { let d = String(s || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('972') && d.length >= 11) d = '0' + d.slice(3); else if (d.length === 9 && d[0] === '5') d = '0' + d; return d.length >= 6 ? d : ''; };
+                    const myPhone = canonP(dbUser.phone || dbUser.playerId || '');
+                    if (myPhone) {
+                        try {
+                            const all = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID)));
+                            const dup = all.docs.find(d => { const m = d.data(); return !m.isBot && !m.email && (m.uid || d.id.split('_')[0]) !== dbUser.uid && canonP(m.phone || m.playerId || '') === myPhone; });
+                            if (dup) { if (!silent) showToast("כבר קיים חשבון עם מספר הטלפון הזה בקלאב — היכנס אליו", "info"); return; }
+                        } catch (e) {}
+                    }
                     let extra = {};
                     // קוד-הסוכן מגיע מהקישור (?agent=). נקרא קודם מ-localStorage (נשמר בטעינה
                     // ושורד רענון/התחברות-גוגל שמנקים את ה-URL), ורק אז מה-URL הנוכחי.
