@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v160';
+        window.__APP_VER = 'v161';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3098,7 +3098,7 @@
                         </div>
                     )}
 
-                    {clubMsg && !inTable && currentView !== 'clubs' && (
+                    {clubMsg && !inTable && !['clubs', 'auth', 'pending'].includes(currentView) && (
                         <div className="shrink-0 bg-gradient-to-l from-amber-600/25 via-amber-500/10 to-transparent border-b border-amber-500/30 px-4 py-2.5 flex items-start gap-3 z-30">
                             <div className="text-2xl shrink-0 mt-0.5">📣</div>
                             <div className="flex-1 min-w-0">
