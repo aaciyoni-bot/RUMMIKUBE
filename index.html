@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v159';
+        window.__APP_VER = 'v160';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3614,7 +3614,7 @@
                     : rejected ? <>בקשת ההצטרפות שלך{clubName ? <span className="text-emerald-400"> ל"{clubName}"</span> : ''} נדחתה.</>
                     : <>ממתין לאישור בעל הקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''}...</>}
                 </div>
-                {onBack && <button onClick={onBack} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-sm font-bold px-6 py-2.5 rounded-xl">🏛️ חזרה לרשימת הקלאבים</button>}
+                {onBack && !NO_CLUBS && <button onClick={onBack} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white text-sm font-bold px-6 py-2.5 rounded-xl">🏛️ חזרה לרשימת הקלאבים</button>}
                 <button onClick={()=>window.fb.signOut(window.fb.auth)} className="text-sm text-slate-500 underline font-normal">התנתק</button>
             </div>;
         }
