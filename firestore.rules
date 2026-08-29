@@ -86,6 +86,8 @@ service cloud.firestore {
         || ( same('role') && same('status') && same('uid') && same('clubId')
              && same('agentUid') && same('agentPct') && same('agentSharePct')
              && same('agentCode') && same('clubProfits') && same('agentProfits')
+             // מונע איפוס-עצמי של קֶצֶב-הבונוס (ניצול לריקון קופת-הבעלים)
+             && same('lastBonusAt') && same('lastScratchAt') && same('bonusPaid')
              && ( same('balance')
                   || ( id == uid() + '_' + resource.data.clubId
                        && request.resource.data.get('balance', 0) <= resource.data.get('balance', 0) ) ) )
