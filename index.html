@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v153';
+        window.__APP_VER = 'v154';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -6153,6 +6153,15 @@
                     showToast(`מוזגו ${ok} חשבונות${fail ? ` · ${fail} נכשלו` : ''} ✓`, fail ? 'error' : 'success');
                 } finally { setMergeAllBusy(false); }
             };
+            // חסימת מספר-טלפון ישירות (גם בלי חשבון קיים — למשל אחרי שמחקת שחקן)
+            const blockPhoneDirect = async () => {
+                const ph = window.prompt('הזן מספר-טלפון לחסימה קבועה.\nהשחקן לא יוכל להיכנס עם המספר הזה — גם אם יירשם מחדש כאורח:');
+                if (!ph || !ph.trim()) return;
+                try {
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'godSetPhoneBan')({ clubId: CLUB_ID, phone: ph.trim(), banned: true });
+                    showToast(`הטלפון ${res?.data?.phone || ph.trim()} נחסם לצמיתות ✓`, 'success');
+                } catch (e) { showToast(fnErr(e), 'error'); }
+            };
 
             const statTiles = [
                 { label: 'היתרה שלך', value: formatMoney(user.balance), icon: 'fa-wallet', color: 'text-white' },
@@ -6182,6 +6191,7 @@
                                         <button onClick={handleToggleBots} className="bg-gradient-to-b from-slate-600 to-slate-800 hover:from-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg">{clubSettings?.botsActive !== false ? '⛔ השבת בוטים' : '✅ הפעל בוטים'}</button>
                                         <span className="text-purple-300 text-xs font-black bg-purple-500/10 border border-purple-500/40 px-3 py-2 rounded-xl self-center">🤖 {botsList.length} בוטים במערכת</span>
                                         <button onClick={handleDeleteBots} className="bg-slate-800/80 hover:bg-rose-900/80 border border-white/10 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold"><i className="fa-solid fa-trash"></i></button>
+                                        <button onClick={blockPhoneDirect} className="bg-gradient-to-b from-rose-600 to-rose-800 hover:from-rose-500 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-lg"><i className="fa-solid fa-ban ml-2"></i>חסום טלפון</button>
                                         {(() => { const dg = Object.values(phoneGroups).filter(g => g.length >= 2).length; return dg > 0 ? (
                                             <button onClick={doMergeAllDups} disabled={mergeAllBusy} className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 disabled:opacity-60 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-lg"><i className="fa-solid fa-object-group ml-2"></i>{mergeAllBusy ? 'ממזג…' : `מזג ${dg} כפילויות טלפון`}</button>
                                         ) : null; })()}
