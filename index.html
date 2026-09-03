@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v164';
+        window.__APP_VER = 'v165';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3918,6 +3918,9 @@
             const confirmRef = React.useRef(null);
             const recaptchaRef = React.useRef(null);
             const toE164IL = (s) => { let d = String(s || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('972')) return '+' + d; if (d[0] === '0') return '+972' + d.slice(1); return '+972' + d; };
+            // מקור הקוד: 'own' = ספק-SMS משלנו (otpSend/otpVerify בשרת, מוגדר ב-admin/sms),
+            // 'firebase' = ה-SMS של Firebase (ברירת-מחדל כשאין ספק מוגדר). הזהות זהה בשניהם.
+            const otpModeRef = React.useRef('firebase');
             const sendOtp = async () => {
                 if (busy) return;
                 const nm = gName.trim(), num = gNum.trim();
@@ -3926,9 +3929,22 @@
                 if (e164.replace(/\D/g, '').length < 11) { setLoginErr('הזן מספר-טלפון ישראלי תקין (למשל 0521234567)'); return; }
                 setBusy(true); setLoginErr('');
                 try {
-                    if (!recaptchaRef.current) recaptchaRef.current = new window.fb.RecaptchaVerifier(window.fb.auth, 'recaptcha-container', { size: 'invisible' });
-                    const conf = await window.fb.signInWithPhoneNumber(window.fb.auth, e164, recaptchaRef.current);
-                    confirmRef.current = conf; setOtpStep(true); setOtpCode('');
+                    let own = false;
+                    try {
+                        const r = await window.fb.httpsCallable(window.fb.functions, 'otpSend')({ phone: num });
+                        if (r && r.data && r.data.ok) own = true;
+                        else if (!(r && r.data && r.data.fallback)) throw new Error('otpSend');
+                    } catch (e) {
+                        const msg = (e && e.message) || '';
+                        if (/יותר מדי|נכשלה/.test(msg)) { setLoginErr(msg); return; }
+                        own = false; // אין ספק מוגדר / שגיאה אחרת → ה-SMS של Firebase
+                    }
+                    otpModeRef.current = own ? 'own' : 'firebase';
+                    if (!own) {
+                        if (!recaptchaRef.current) recaptchaRef.current = new window.fb.RecaptchaVerifier(window.fb.auth, 'recaptcha-container', { size: 'invisible' });
+                        confirmRef.current = await window.fb.signInWithPhoneNumber(window.fb.auth, e164, recaptchaRef.current);
+                    }
+                    setOtpStep(true); setOtpCode('');
                     // מילוי-אוטומטי של הקוד (WebOTP — בעיקר אנדרואיד-כרום)
                     try { if ('OTPCredential' in window) { navigator.credentials.get({ otp: { transport: ['sms'] } }).then(o => { if (o && o.code) setOtpCode(String(o.code).replace(/\D/g, '').slice(0, 6)); }).catch(() => {}); } } catch (e) {}
                 } catch (e) {
@@ -3938,18 +3954,27 @@
                 } finally { setBusy(false); }
             };
             const verifyOtp = async () => {
-                if (busy || !confirmRef.current) return;
+                if (busy) return;
                 const code = otpCode.trim();
                 if (code.length < 6) { setLoginErr('הזן את הקוד בן 6 הספרות'); return; }
+                if (otpModeRef.current === 'firebase' && !confirmRef.current) return;
                 setBusy(true); setLoginErr('');
                 window.__guestName = gName.trim(); window.__guestNumber = gNum.trim().replace(/\D/g, '');
                 try {
-                    await confirmRef.current.confirm(code);
+                    if (otpModeRef.current === 'own') {
+                        const r = await window.fb.httpsCallable(window.fb.functions, 'otpVerify')({ phone: gNum.trim(), code, clubId: CLUB_ID });
+                        const token = r && r.data && r.data.token;
+                        if (!token) throw new Error('no-token');
+                        await window.fb.signInWithCustomToken(window.fb.auth, token);
+                    } else {
+                        await confirmRef.current.confirm(code);
+                    }
                     try { localStorage.setItem('rk_guest_name', gName.trim()); localStorage.setItem('rk_guest_phone', gNum.trim()); } catch (e) {}
                     // fetchOrInitUser (ב-onAuthStateChanged) ייצור/יטען את החשבון לפי הטלפון המאומת.
                 } catch (e) {
                     window.__guestName = ''; window.__guestNumber = '';
-                    setLoginErr('הקוד שגוי או שפג-תוקפו. בדוק ונסה שוב.');
+                    const msg = (e && e.message) || '';
+                    setLoginErr(/חסום|פג תוקף|יותר מדי|לא נשלח/.test(msg) ? msg : 'הקוד שגוי או שפג-תוקפו. בדוק ונסה שוב.');
                 } finally { setBusy(false); }
             };
             // כניסת-אורח (טוקן לפי טלפון בלי SMS / אנונימי) הוסרה: Google או טלפון מאומת ב-SMS בלבד.

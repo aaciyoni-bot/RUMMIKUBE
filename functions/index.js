@@ -884,6 +884,94 @@ exports.godClubStats = onCall(async (request) => {
 // מנפיק custom-token לפי הטלפון, כך שאותו טלפון תמיד מתחבר לאותו uid — אפס
 // כפילויות, בלי תלות בכניסה אנונימית (שאולי כבויה/נתקעת) ובלי תלות באחסון-הדפדפן.
 // לא דורש התחברות מוקדמת (האורח עוד לא מחובר). מאחד גם חשבונות-אורח ישנים לפי טלפון.
+// ═══════════ אימות-טלפון עם ספק-SMS משלנו (במקום ה-SMS של Firebase) ═══════════
+// Firebase שלח אבל המפעיל לא מסר. כאן השרת מייצר קוד, שולח דרך ספק שנבחר בקונסולה
+// (מסמך admin/sms — סגור ללקוח), ומאמת. הזהות נשארת "משתמש Firebase עם phoneNumber":
+// אותו מספר = אותו uid כמו בכניסת-הטלפון של Firebase, בלי כפילויות.
+//   admin/sms = { provider: "twilio", sid, token, from }
+//             | { provider: "http", url, method?, headers?: {…}, body: {…} }   ← תבנית: {{to}} {{text}} {{toDigits}}
+//             | { provider: "off" } / חסר  → הלקוח נופל ל-SMS של Firebase
+const OTP_TTL_MS = 5 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
+const OTP_SEND_MAX = 3;
+const nodeCrypto = require("crypto");
+const otpHash = (phone, code, salt) => nodeCrypto.createHmac("sha256", salt).update(phone + ":" + code).digest("hex");
+async function smsConfig() {
+  const s = await db.doc("admin/sms").get();
+  const c = s.exists ? (s.data() || {}) : {};
+  return c.provider && c.provider !== "off" ? c : null;
+}
+async function sendSmsVia(cfg, toE164, text) {
+  if (cfg.provider === "twilio") {
+    const auth = Buffer.from(`${cfg.sid}:${cfg.token}`).toString("base64");
+    const body = new URLSearchParams({To: toE164, From: cfg.from, Body: text});
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${cfg.sid}/Messages.json`, {method: "POST", headers: {"Authorization": "Basic " + auth, "Content-Type": "application/x-www-form-urlencoded"}, body});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error("twilio " + r.status + " " + (j.message || ""));
+    return j.sid || "ok";
+  }
+  if (cfg.provider === "http") {
+    const fill = (v) => typeof v === "string" ? v.replace(/\{\{to\}\}/g, toE164).replace(/\{\{toDigits\}\}/g, toE164.replace(/\D/g, "")).replace(/\{\{text\}\}/g, text) : v;
+    const walk = (o) => Array.isArray(o) ? o.map(walk) : (o && typeof o === "object") ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, walk(v)])) : fill(o);
+    const headers = Object.assign({"Content-Type": "application/json"}, walk(cfg.headers || {}));
+    const r = await fetch(fill(cfg.url), {method: cfg.method || "POST", headers, body: JSON.stringify(walk(cfg.body || {}))});
+    if (!r.ok) throw new Error("sms http " + r.status + " " + (await r.text().catch(() => "")).slice(0, 200));
+    return "ok";
+  }
+  throw new Error("unknown sms provider");
+}
+exports.otpSend = onCall(async (request) => {
+  const {phone} = request.data || {};
+  const digits = canonPhone(phone);
+  if (digits.length < 9) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
+  const cfg = await smsConfig();
+  if (!cfg) return {fallback: true};
+  const e164 = "+972" + digits.replace(/^0/, "");
+  const ref = db.doc(`otp/${digits}`);
+  const now = Date.now();
+  const code = String(nodeCrypto.randomInt(0, 1000000)).padStart(6, "0");
+  const salt = nodeCrypto.randomBytes(16).toString("hex");
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const d = s.exists ? s.data() : {};
+    const sends = (d.sends || []).filter((t) => now - t < OTP_SEND_WINDOW_MS);
+    if (sends.length >= OTP_SEND_MAX) throw new HttpsError("resource-exhausted", "יותר מדי בקשות. נסה שוב בעוד כמה דקות.");
+    tx.set(ref, {hash: otpHash(digits, code, salt), salt, exp: now + OTP_TTL_MS, attempts: 0, sends: [...sends, now], ip: (request.rawRequest && request.rawRequest.ip) || ""});
+  });
+  // הפורמט בשורה האחרונה מאפשר מילוי-אוטומטי (WebOTP) בדפדפן
+  const text = `קוד הכניסה שלך ל-RUMMIKUBE: ${code}\n\n@rummikube.com #${code}`;
+  try { await sendSmsVia(cfg, e164, text); } catch (e) { console.error("otpSend provider failed", e && e.message); throw new HttpsError("unavailable", "שליחת ה-SMS נכשלה אצל הספק. נסה שוב."); }
+  return {ok: true};
+});
+exports.otpVerify = onCall(async (request) => {
+  const {phone, code} = request.data || {};
+  const digits = canonPhone(phone);
+  const c = String(code || "").replace(/\D/g, "");
+  if (digits.length < 9 || c.length !== 6) throw new HttpsError("invalid-argument", "קוד לא תקין");
+  const ref = db.doc(`otp/${digits}`);
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) throw new HttpsError("failed-precondition", "לא נשלח קוד למספר הזה. בקש קוד חדש.");
+    const d = s.data();
+    if (Date.now() > d.exp) throw new HttpsError("deadline-exceeded", "פג תוקף הקוד. בקש קוד חדש.");
+    if ((d.attempts || 0) >= OTP_MAX_ATTEMPTS) throw new HttpsError("resource-exhausted", "יותר מדי ניסיונות. בקש קוד חדש.");
+    if (otpHash(digits, c, d.salt) !== d.hash) { tx.update(ref, {attempts: (d.attempts || 0) + 1}); throw new HttpsError("permission-denied", "הקוד שגוי."); }
+    tx.delete(ref);
+  });
+  // חסימת-טלפון קבועה (אותה רשימה שאוכפת הכניסה)
+  const cid = (request.data && request.data.clubId) || "main";
+  const ban = await db.doc(`clubBans/${cid}__${digits}`).get();
+  if (ban.exists) throw new HttpsError("permission-denied", "החשבון חסום בקלאב זה. פנה לבעל המועדון.");
+  // אותה זהות כמו כניסת-הטלפון של Firebase: משתמש Auth עם phoneNumber
+  const e164 = "+972" + digits.replace(/^0/, "");
+  let user = null;
+  try { user = await getAuth().getUserByPhoneNumber(e164); } catch (e) { user = null; }
+  if (!user) user = await getAuth().createUser({phoneNumber: e164});
+  const token = await getAuth().createCustomToken(user.uid, {phone: digits});
+  return {token};
+});
+
 exports.guestToken = onCall(async (request) => {
   // DISABLED: this issued a sign-in for any phone number WITHOUT SMS verification
   // (anyone could enter a friend's number and play on their balance). Entry is
