@@ -885,6 +885,11 @@ exports.godClubStats = onCall(async (request) => {
 // כפילויות, בלי תלות בכניסה אנונימית (שאולי כבויה/נתקעת) ובלי תלות באחסון-הדפדפן.
 // לא דורש התחברות מוקדמת (האורח עוד לא מחובר). מאחד גם חשבונות-אורח ישנים לפי טלפון.
 exports.guestToken = onCall(async (request) => {
+  // DISABLED: this issued a sign-in for any phone number WITHOUT SMS verification
+  // (anyone could enter a friend's number and play on their balance). Entry is
+  // Google or SMS-verified phone only. Kept as a stub so old clients get a clear error.
+  throw new HttpsError("failed-precondition", "כניסת אורח בוטלה. היכנס עם גוגל או עם אימות טלפון ב-SMS.");
+  // eslint-disable-next-line no-unreachable
   const {phone, name, clubId, agentCode} = request.data || {};
   const cid = clubId || "main";
   const digits = canonPhone(phone);

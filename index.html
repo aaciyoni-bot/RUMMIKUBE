@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v163';
+        window.__APP_VER = 'v164';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3952,53 +3952,7 @@
                     setLoginErr('הקוד שגוי או שפג-תוקפו. בדוק ונסה שוב.');
                 } finally { setBusy(false); }
             };
-            const doGuestLogin = async () => {
-                if (busy) return;
-                const nm = gName.trim(), num = gNum.trim();
-                if (nm.length < 2) { setLoginErr('הזן שם (לפחות 2 תווים)'); return; }
-                if (num.length < 3) { setLoginErr('הזן מספר מזהה (טלפון/מספר שחקן)'); return; }
-                setBusy(true); setLoginErr('');
-                window.__guestName = nm; window.__guestNumber = num;
-                const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), ms))]);
-                try {
-                    // שיטה עיקרית: הטלפון = החשבון. השרת מנפיק custom-token לפי הטלפון (uid קבוע
-                    // guest_<טלפון>) ואנחנו נכנסים איתו. אותו טלפון = תמיד אותו חשבון, בלי תלות
-                    // בכניסה אנונימית (שאולי כבויה) ובלי כפילויות. אין צורך ב-guestEnter אחר-כך.
-                    let agentCode = null;
-                    try { const r = JSON.parse(localStorage.getItem('agentRef') || 'null'); if (r && r.code) agentCode = r.code; } catch (e) {}
-                    if (!agentCode) agentCode = new URLSearchParams(window.location.search).get('agent');
-                    const res = await withTimeout(window.fb.httpsCallable(window.fb.functions, 'guestToken')({ phone: num, name: nm, clubId: CLUB_ID, agentCode: agentCode || '' }), 15000);
-                    const token = res && res.data && res.data.token;
-                    if (!token) throw { code: 'no-token' };
-                    window.__guestName = ''; window.__guestNumber = ''; // guestToken כבר יצר/אחד את החשבון
-                    await withTimeout(window.fb.signInWithCustomToken(window.fb.auth, token), 15000);
-                    // זכור לכניסה הבאה (נוחות-מילוי בלבד)
-                    try { localStorage.setItem('rk_guest_name', nm); localStorage.setItem('rk_guest_phone', num); } catch (e) {}
-                } catch (e) {
-                    const code = e && e.code;
-                    // חסימה קבועה: אם השרת סירב כי הטלפון חסום — *לא* נופלים לכניסה אנונימית
-                    // (אחרת חסום היה נכנס מהדלת האחורית). מציגים הודעה ועוצרים.
-                    if (code === 'functions/permission-denied' || /חסום/.test((e && e.message) || '')) {
-                        window.__guestName = ''; window.__guestNumber = '';
-                        setLoginErr((e && e.message && /חסום/.test(e.message)) ? e.message : 'החשבון חסום בקלאב זה. פנה לבעל המועדון.');
-                        return;
-                    }
-                    // נפילה-לאחור: אם השרת/הטוקן נכשל — מנסים כניסה אנונימית (השיטה הישנה),
-                    // כדי שלא נחמיר את המצב. הטלפון נשאר ב-window כדי ש-fetchOrInitUser יזהה.
-                    window.__guestName = nm; window.__guestNumber = num;
-                    try {
-                        await withTimeout(window.fb.signInAnonymously(window.fb.auth), 15000);
-                    } catch (e2) {
-                        const c2 = e2 && e2.code;
-                        if (c2 !== 'timeout') { window.__guestName = ''; window.__guestNumber = ''; }
-                        if (c2 === 'auth/operation-not-allowed' || c2 === 'auth/admin-restricted-operation') {
-                            setLoginErr('כניסת אורח אינה מופעלת. הפעל "Anonymous" ב-Firebase → Authentication, או התחבר עם גוגל.');
-                        } else {
-                            setLoginErr('כניסת אורח נכשלה' + (code ? ' (' + code + ')' : '') + '. בדוק אינטרנט ונסה שוב, או התחבר עם גוגל.');
-                        }
-                    }
-                } finally { setBusy(false); }
-            };
+            // כניסת-אורח (טוקן לפי טלפון בלי SMS / אנונימי) הוסרה: Google או טלפון מאומת ב-SMS בלבד.
             // האם אנחנו בתוך דפדפן מוטמע (וואטסאפ/פייסבוק/אינסטגרם) - גוגל חוסם OAuth שם
             const inApp = React.useMemo(() => /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|; wv\)|MicroMessenger/i.test(navigator.userAgent || ''), []);
             const doLogin = async () => {
