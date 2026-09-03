@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v165';
+        window.__APP_VER = 'v166';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -4007,8 +4007,9 @@
                         <button onClick={doLogin} disabled={busy} className="w-full bg-white hover:bg-slate-100 disabled:opacity-70 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             {busy ? <><i className="fa-solid fa-circle-notch animate-spin text-slate-500 text-xl"></i> מתחבר…</> : <><i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים</>}
                         </button>
-                        <div className="my-3 flex items-center gap-3 text-slate-500 text-xs font-bold"><div className="flex-1 h-px bg-white/10"></div>או<div className="flex-1 h-px bg-white/10"></div></div>
-                        {!guestMode
+                        {/* כניסה עם טלפון (SMS) מוסתרת זמנית — גוגל בלבד. להחזרה: false → true */}
+                        {false && <div className="my-3 flex items-center gap-3 text-slate-500 text-xs font-bold"><div className="flex-1 h-px bg-white/10"></div>או<div className="flex-1 h-px bg-white/10"></div></div>}
+                        {false && (!guestMode
                             ? <button onClick={() => { setGuestMode(true); setLoginErr(''); }} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3.5 rounded-2xl border border-white/10">📲 כניסה עם טלפון</button>
                             : (
                                 <div className="space-y-2 text-right">
@@ -4025,7 +4026,7 @@
                                     <div id="recaptcha-container"></div>
                                     <button onClick={() => setGuestMode(false)} className="text-slate-500 hover:text-white underline text-xs font-bold">חזרה</button>
                                 </div>
-                            )}
+                            ))}
                         {loginErr && <p className="text-rose-300 text-xs font-bold mt-3">{loginErr}</p>}
                         <div className="mt-4 flex justify-center"><InstallButton className="bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-4 py-2.5 rounded-xl font-black text-xs flex items-center gap-1.5" /></div>
                         {inApp && <p className="text-amber-300/90 text-[11px] font-bold mt-4 leading-relaxed">פתחת דרך אפליקציה (וואטסאפ/פייסבוק)? לחץ על ⋮ ובחר "פתח בדפדפן" כדי להתחבר.</p>}
