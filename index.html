@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v167';
+        window.__APP_VER = 'v168';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -6719,6 +6719,15 @@
                 } catch (e) { showToast(fnErr(e), 'error'); }
             };
 
+            // איפוס קוד-אישי לשחקן ששכח (בעלים/צוות). מוחק את ה-PIN; השחקן קובע קוד חדש בכניסה הבאה.
+            const resetPin = async (u) => {
+                if (!window.confirm(`לאפס את הקוד האישי של ${u.username}?\n\nהוא יבחר קוד חדש בכניסה הבאה עם הטלפון שלו. היתרה וההיסטוריה נשמרות.`)) return;
+                try {
+                    const targetUid = u.uid || String(u.id || '').split('_')[0];
+                    await window.fb.httpsCallable(window.fb.functions, 'pinReset')({ targetUid, phone: u.phone || u.playerId || '', clubId: CLUB_ID });
+                    showToast(`הקוד של ${u.username} אופס — שיכנס עם הטלפון ויבחר קוד חדש`, 'success');
+                } catch (e) { showToast(fnErr(e), 'error'); }
+            };
             // פתיחת מודל הפקדה/משיכה במקום window.prompt - עם תצוגה חיה של שתי היתרות
             const adjustBalance = (target, isDeposit) => setBalBox({ mem: target, dir: isDeposit ? 'in' : 'out', amt: '' });
             const applyBalance = async () => {
@@ -7269,6 +7278,9 @@
                                             )}
                                             {canManageAny && dupsOf(u).length > 0 && (
                                                 <button onClick={()=>openMerge(u)} className="w-9 h-9 rounded-xl border border-amber-500/50 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 shrink-0 animate-pulse" title={`מזג ${dupsOf(u).length} חשבונות כפולים (אותו טלפון) לחשבון זה`}><i className="fa-solid fa-code-merge text-xs"></i></button>
+                                            )}
+                                            {canManageAny && !u.isBot && !u.email && (
+                                                <button onClick={()=>resetPin(u)} className="w-9 h-9 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-600 hover:text-white shrink-0" title="אפס קוד אישי (לשחקן ששכח)"><i className="fa-solid fa-key text-xs"></i></button>
                                             )}
                                             {isOwner && u.role !== ROLES.CLUB_OWNER && u.role !== ROLES.SUPER_ADMIN && (
                                                 <button onClick={()=>deletePlayer(u)} className="w-9 h-9 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-600 hover:text-white shrink-0" title="מחק שחקן לצמיתות"><i className="fa-solid fa-trash text-xs"></i></button>

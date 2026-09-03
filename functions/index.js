@@ -1034,6 +1034,25 @@ async function provisionPhoneAccount(cid, digits, name, agentCode) {
   return uid;
 }
 
+// איפוס קוד-אישי לשחקן (בעלים/צוות/GOD בלבד). מוחק את מסמך ה-PIN כך שהשחקן
+// יקבע קוד חדש בכניסה הבאה. שחקן רגיל / חיצוני לא יכול לקרוא לזה — השרת דוחה.
+exports.pinReset = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {phone, targetUid, clubId} = request.data || {};
+  const cid = clubId || "main";
+  let allowed = isGodEmail(email);
+  if (!allowed) { const c = await db.doc(`clubs/${cid}`).get(); if (c.exists && c.data().ownerUid === uid) allowed = true; }
+  if (!allowed) { const mem = (await db.doc(`memberships/${uid}_${cid}`).get()).data(); try { assertStaff(mem, email); allowed = true; } catch (e) { /* */ } }
+  if (!allowed) throw new HttpsError("permission-denied", "פעולה זו מותרת לבעל המועדון בלבד");
+  const digits = canonPhone(phone);
+  const puid = targetUid || (digits ? "guest_" + digits : null);
+  if (!puid) throw new HttpsError("invalid-argument", "חסר שחקן לאיפוס");
+  await db.doc(`pins/${puid}`).delete().catch(() => {});
+  return {ok: true};
+});
+
 exports.pinAuth = onCall(async (request) => {
   const {phone, name, pin, clubId, agentCode} = request.data || {};
   const cid = clubId || "main";
