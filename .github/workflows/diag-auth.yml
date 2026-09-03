@@ -1,0 +1,49 @@
+name: Diagnose Phone Auth config
+
+# Manual, read-only diagnostic: prints the project's Identity Platform / Firebase
+# Auth configuration (phone sign-in enabled?, SMS region policy, test numbers,
+# authorized domains) so SMS-delivery problems can be diagnosed from facts.
+# Uses the same FIREBASE_TOKEN secret as the deploys; the token never leaves CI.
+# Test-number verification codes are masked in the output.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read auth config
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$FIREBASE_TOKEN" ]; then echo "FIREBASE_TOKEN secret is missing"; exit 1; fi
+          # firebase-tools CI tokens are OAuth refresh tokens for the (public) firebase-tools client
+          AT=$(curl -s -X POST https://oauth2.googleapis.com/token \
+            -d client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com \
+            -d client_secret=j9iVZfS8kkCEFUPaAeJV0sAi \
+            -d grant_type=refresh_token \
+            -d refresh_token="$FIREBASE_TOKEN" | jq -r .access_token)
+          if [ -z "$AT" ] || [ "$AT" = "null" ]; then echo "could not mint an access token from FIREBASE_TOKEN"; exit 1; fi
+          echo "== Identity Toolkit admin config (rummikube-5c138) =="
+          curl -s -H "Authorization: Bearer $AT" \
+            https://identitytoolkit.googleapis.com/admin/v2/projects/rummikube-5c138/config \
+            | jq '{
+                phone_signin: .signIn.phoneNumber,
+                email_signin: .signIn.email,
+                anonymous: .signIn.anonymous,
+                sms_region_config: .smsRegionConfig,
+                authorized_domains: .authorizedDomains,
+                quota: .quota,
+                mfa: .mfa.state,
+                client: .client,
+                notification_default_locale: .notification.defaultLocale
+              }
+              | .phone_signin.testPhoneNumbers |= (if . then with_entries(.value = "******") else . end)'
+          echo "== Google Cloud project billing (is the project on Blaze?) =="
+          curl -s -H "Authorization: Bearer $AT" \
+            https://cloudbilling.googleapis.com/v1/projects/rummikube-5c138/billingInfo | jq '{billingEnabled, billingAccountName}'
+          echo "== Identity Toolkit API enabled? =="
+          curl -s -H "Authorization: Bearer $AT" \
+            "https://serviceusage.googleapis.com/v1/projects/rummikube-5c138/services/identitytoolkit.googleapis.com" | jq '{name, state}'
