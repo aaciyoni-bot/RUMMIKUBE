@@ -1306,6 +1306,8 @@ const pickBotNames = (n, taken) => {
   const pool = BOT_NICKS_HE.filter((x) => !usedBase.has(x)).sort(() => Math.random() - 0.5);
   return pool.slice(0, n).map((base) => (Math.random() < 0.5 ? base + (2 + Math.floor(Math.random() * 97)) : base));
 };
+// מוח-הבוט המשותף (ramiBrain.js) — אותו מוח שרץ אצל המנהיג בלקוח. botPickDiscard נשאר רק כגיבוי.
+const RAMI_BRAIN = require("./ramiBrain").create({});
 // בחירת אבן-זריקה זולה (בלי partition): זורקים את הכי "בודדת" ובעלת-ערך גבוה; לא זורקים ג'וקר
 function botPickDiscard(hand) {
   let worst = null; let worstScore = Infinity;
@@ -1343,16 +1345,33 @@ async function botStepTx(tableId) {
     const deck = [...(t.deck || [])]; const discard = [...(t.discard || [])];
     if (!deck.length && discard.length > 1) { const top = discard.pop(); const rest = discard.splice(0, discard.length); for (let i = rest.length - 1; i > 0; i--) { const j = (i * 2654435761 + 12345) % (i + 1); const tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp; } deck.push(...rest); if (top) discard.push(top); }
     let hand = [...(p.cards || [])].filter(Boolean);
-    const drawn = deck.pop(); if (drawn) hand.push(drawn);
-    const goTile = botGoOutTile(hand);
+    // Bot brain v2 (ramiBrain.js — the same brain the client driver runs). Bots see
+    // the hands by default (botsPeek:false on the table switches them to public
+    // information only).
+    const peek = t.botsPeek !== false ? Object.fromEntries(Object.entries(t.players || {}).filter(([u]) => u !== cur).map(([u, q]) => [u, (q.cards || []).filter(Boolean)])) : null;
+    const ctx = {hand, discard, players: t.players, me: cur, budgetMs: 350, peek};
+    let drawn = null; let pickedTile = null; let passedTile = null;
+    const top = discard[discard.length - 1];
+    let take = "deck";
+    try { take = top ? RAMI_BRAIN.decideDraw(ctx).take : "deck"; } catch (e) { take = "deck"; }
+    if (take === "discard" && top) { drawn = discard.pop(); pickedTile = drawn; } else { drawn = deck.pop(); if (top) passedTile = top; }
+    if (drawn) hand.push(drawn);
+    let goTile = botGoOutTile(hand); let drop = null; let final = null;
+    if (!goTile) {
+      try { const d = RAMI_BRAIN.decideDiscard(ctx, hand); if (d && d.goOut) goTile = d.drop; else drop = d && d.drop; } catch (e) { drop = null; }
+      if (!drop && !goTile) drop = botPickDiscard(hand);
+    }
     if (goTile) {
-      const final = hand.filter((x) => x.id !== goTile.id); discard.push(goTile);
+      final = hand.filter((x) => x.id !== goTile.id); discard.push(goTile);
       t.players = {...t.players, [cur]: {...p, cards: final}}; t.deck = deck; t.discard = discard;
       settleOut = await settleRamiTx(tx, tRef, t, cur); winnerUid = cur; return;
     }
-    const drop = botPickDiscard(hand); const final = hand.filter((x) => x.id !== drop.id); discard.push(drop);
+    final = hand.filter((x) => x.id !== drop.id); discard.push(drop);
     const uids = Object.keys(t.players).sort(); const next = uids[(uids.indexOf(cur) + 1) % uids.length];
-    tx.update(tRef, {[`players.${cur}.cards`]: final, [`players.${cur}.missed`]: 0, [`players.${cur}.threw`]: [...((p.threw) || []), drop].slice(-6), deck, discard, currentTurn: next, turnPhase: "draw", drawnThisTurn: false, turnStartedAt: Date.now()});
+    const upd = {[`players.${cur}.cards`]: final, [`players.${cur}.missed`]: 0, [`players.${cur}.threw`]: [...((p.threw) || []), drop].slice(-6), deck, discard, currentTurn: next, turnPhase: "draw", drawnThisTurn: false, turnStartedAt: Date.now()};
+    if (pickedTile) upd[`players.${cur}.picked`] = [...((p.picked) || []), pickedTile].slice(-8);
+    else if (passedTile) upd[`players.${cur}.passed`] = [...((p.passed) || []), passedTile].slice(-8);
+    tx.update(tRef, upd);
   });
   if (settleOut && winnerUid) { try { await logRamiSettle(settleOut, winnerUid, tableId); } catch (e) { /* */ } }
 }
