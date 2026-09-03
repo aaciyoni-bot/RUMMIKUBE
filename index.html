@@ -1032,7 +1032,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v166';
+        window.__APP_VER = 'v167';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -3907,6 +3907,9 @@
             const [busy, setBusy] = React.useState(false);
             const [loginErr, setLoginErr] = React.useState('');
             const [guestMode, setGuestMode] = React.useState(false);
+            const [gPin, setGPin] = React.useState('');
+            // "ברוך שובך": אם המכשיר זוכר שם+טלפון מכניסה קודמת — נבקש רק את הקוד (שדה אחד).
+            const [pinOnly, setPinOnly] = React.useState(() => { try { return !!(localStorage.getItem('rk_guest_name') && localStorage.getItem('rk_guest_phone')); } catch (e) { return false; } });
             // "זכור אותי": ממלא מראש את השם והטלפון מהכניסה הקודמת (מקומי במכשיר),
             // כדי שכניסה חוזרת תהיה הקשה-אחת גם אם ה-session של הדפדפן לא נשמר
             // (וואטסאפ-webview / iOS-ITP מנקים אחסון). אין כאן זהות — רק נוחות-מילוי.
@@ -3918,6 +3921,30 @@
             const confirmRef = React.useRef(null);
             const recaptchaRef = React.useRef(null);
             const toE164IL = (s) => { let d = String(s || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('972')) return '+' + d; if (d[0] === '0') return '+972' + d.slice(1); return '+972' + d; };
+            // כניסה עם שם + קוד אישי (PIN) — בלי SMS. השרת (pinAuth) מאמת את הקוד
+            // ומנפיק custom-token עם zהות דטרמיניסטית לפי טלפון (uid=guest_<טלפון>).
+            const doPinLogin = async () => {
+                if (busy) return;
+                const nm = gName.trim(), num = gNum.trim().replace(/\D/g, ''), pin = gPin.trim();
+                if (nm.length < 2) { setLoginErr('הזן שם (לפחות 2 תווים)'); return; }
+                if (num.length < 9) { setLoginErr('הזן מספר-טלפון תקין (למשל 0521234567)'); return; }
+                if (pin.length < 4 || pin.length > 6) { setLoginErr('בחר קוד אישי בן 4-6 ספרות'); return; }
+                setBusy(true); setLoginErr('');
+                try {
+                    let agentCode = null;
+                    try { const r = JSON.parse(localStorage.getItem('agentRef') || 'null'); if (r && r.code) agentCode = r.code; } catch (e) {}
+                    if (!agentCode) agentCode = new URLSearchParams(window.location.search).get('agent');
+                    const res = await window.fb.httpsCallable(window.fb.functions, 'pinAuth')({ phone: num, name: nm, pin, clubId: CLUB_ID, agentCode: agentCode || '' });
+                    const token = res && res.data && res.data.token;
+                    if (!token) throw new Error('no-token');
+                    try { localStorage.setItem('rk_guest_name', nm); localStorage.setItem('rk_guest_phone', num); } catch (e) {}
+                    await window.fb.signInWithCustomToken(window.fb.auth, token);
+                    // fetchOrInitUser (ב-onAuthStateChanged) יטען את החשבון לפי ה-uid מהטוקן.
+                } catch (e) {
+                    const msg = (e && e.message) || '';
+                    setLoginErr(/חסום|קוד שגוי|יותר מדי|4-6|תקין/.test(msg) ? msg : 'הכניסה נכשלה. בדוק את הפרטים ונסה שוב.');
+                } finally { setBusy(false); }
+            };
             // מקור הקוד: 'own' = ספק-SMS משלנו (otpSend/otpVerify בשרת, מוגדר ב-admin/sms),
             // 'firebase' = ה-SMS של Firebase (ברירת-מחדל כשאין ספק מוגדר). הזהות זהה בשניהם.
             const otpModeRef = React.useRef('firebase');
@@ -4007,26 +4034,29 @@
                         <button onClick={doLogin} disabled={busy} className="w-full bg-white hover:bg-slate-100 disabled:opacity-70 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             {busy ? <><i className="fa-solid fa-circle-notch animate-spin text-slate-500 text-xl"></i> מתחבר…</> : <><i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים</>}
                         </button>
-                        {/* כניסה עם טלפון (SMS) מוסתרת זמנית — גוגל בלבד. להחזרה: false → true */}
-                        {false && <div className="my-3 flex items-center gap-3 text-slate-500 text-xs font-bold"><div className="flex-1 h-px bg-white/10"></div>או<div className="flex-1 h-px bg-white/10"></div></div>}
-                        {false && (!guestMode
-                            ? <button onClick={() => { setGuestMode(true); setLoginErr(''); }} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3.5 rounded-2xl border border-white/10">📲 כניסה עם טלפון</button>
-                            : (
+                        <div className="my-3 flex items-center gap-3 text-slate-500 text-xs font-bold"><div className="flex-1 h-px bg-white/10"></div>או<div className="flex-1 h-px bg-white/10"></div></div>
+                        {!guestMode
+                            ? <button onClick={() => { setGuestMode(true); setLoginErr(''); }} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3.5 rounded-2xl border border-white/10">🔑 כניסה עם שם וקוד אישי</button>
+                            : (pinOnly ? (
+                                <div className="space-y-2 text-right">
+                                    <p className="text-emerald-300 font-black text-sm">ברוך שובך{gName ? `, ${gName}` : ''} 👋</p>
+                                    <p className="text-slate-500 text-[11px] font-bold leading-relaxed">הזן את הקוד האישי שלך כדי להיכנס.</p>
+                                    <input value={gPin} onChange={e => setGPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} autoFocus placeholder="קוד אישי" className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.4em] outline-none focus:border-emerald-500" dir="ltr" />
+                                    <button onClick={doPinLogin} disabled={busy || gPin.length < 4} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'רגע…' : 'היכנס ←'}</button>
+                                    <button onClick={() => { setPinOnly(false); setGPin(''); setLoginErr(''); }} className="text-slate-500 hover:text-white underline text-xs font-bold">לא אתה? כניסה עם פרטים אחרים</button>
+                                    <button onClick={() => { setGuestMode(false); setGPin(''); setLoginErr(''); }} className="block w-full text-slate-600 hover:text-slate-400 text-xs font-bold pt-1">חזרה</button>
+                                </div>
+                            ) : (
                                 <div className="space-y-2 text-right">
                                     <input value={gName} onChange={e => setGName(e.target.value)} placeholder="השם שלך" maxLength={20} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" />
-                                    <input value={gNum} onChange={e => setGNum(e.target.value.replace(/[^0-9]/g, ''))} placeholder="המספר שלך (טלפון / מס' שחקן)" inputMode="numeric" maxLength={20} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" dir="ltr" />
-                                    <p className="text-slate-500 text-[11px] font-bold leading-relaxed">בעל הקלאב יאשר אותך לפי השם והמספר. את המספר לא ניתן לשנות אחר-כך.</p>
-                                    {!otpStep ? (<>
-                                        <button onClick={sendOtp} disabled={busy} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'שולח…' : '📲 קבל קוד ב-SMS'}</button>
-                                    </>) : (<>
-                                        <input value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} autoComplete="one-time-code" inputMode="numeric" maxLength={6} placeholder="קוד מה-SMS" className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.4em] outline-none focus:border-emerald-500" dir="ltr" />
-                                        <button onClick={verifyOtp} disabled={busy || otpCode.length < 6} className="w-full mt-2 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'מאמת…' : 'אמת והיכנס ←'}</button>
-                                        <button onClick={() => { setOtpStep(false); setOtpCode(''); setLoginErr(''); }} disabled={busy} className="w-full mt-2 text-slate-500 hover:text-slate-300 text-xs font-bold">← החלף מספר / שלח קוד שוב</button>
-                                    </>)}
-                                    <div id="recaptcha-container"></div>
-                                    <button onClick={() => setGuestMode(false)} className="text-slate-500 hover:text-white underline text-xs font-bold">חזרה</button>
+                                    <input value={gNum} onChange={e => setGNum(e.target.value.replace(/[^0-9]/g, ''))} placeholder="הטלפון שלך" inputMode="numeric" maxLength={15} className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-emerald-500/60" dir="ltr" />
+                                    <input value={gPin} onChange={e => setGPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="קוד אישי (4-6 ספרות)" className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-4 py-3 text-white font-black text-center tracking-[0.3em] outline-none focus:border-emerald-500" dir="ltr" />
+                                    <p className="text-slate-500 text-[11px] font-bold leading-relaxed">בכניסה הראשונה הקוד שתבחר נשמר — בפעמים הבאות תיכנס עם אותו קוד. בעל הקלאב יאשר אותך פעם אחת.</p>
+                                    <button onClick={doPinLogin} disabled={busy} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-60 text-white font-black py-3 rounded-2xl shadow-lg">{busy ? 'רגע…' : 'היכנס / הירשם ←'}</button>
+                                    <button onClick={() => { setGuestMode(false); setGPin(''); setLoginErr(''); }} className="text-slate-500 hover:text-white underline text-xs font-bold">חזרה</button>
                                 </div>
                             ))}
+                        {false && <div id="recaptcha-container"></div>}
                         {loginErr && <p className="text-rose-300 text-xs font-bold mt-3">{loginErr}</p>}
                         <div className="mt-4 flex justify-center"><InstallButton className="bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-4 py-2.5 rounded-xl font-black text-xs flex items-center gap-1.5" /></div>
                         {inApp && <p className="text-amber-300/90 text-[11px] font-bold mt-4 leading-relaxed">פתחת דרך אפליקציה (וואטסאפ/פייסבוק)? לחץ על ⋮ ובחר "פתח בדפדפן" כדי להתחבר.</p>}

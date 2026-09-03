@@ -156,6 +156,10 @@ service cloud.firestore {
     // ─────────── חסימות-טלפון: נכתב רק דרך Cloud Function (admin עוקף חוקים) ───────────
     match /clubBans/{id} { allow read: if signedIn(); allow write: if false; }
 
+    // ─────────── קודי-כניסה (PIN) וקודי-SMS: שרת בלבד, לעולם לא מהלקוח ───────────
+    match /pins/{id} { allow read, write: if false; }
+    match /otp/{id}  { allow read, write: if false; }
+
     // ─────────── admin config: אין גישת לקוח ───────────
     match /admin/{doc=**} { allow read, write: if false; }
 

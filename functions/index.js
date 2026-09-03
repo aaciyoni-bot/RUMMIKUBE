@@ -972,6 +972,111 @@ exports.otpVerify = onCall(async (request) => {
   return {token};
 });
 
+// ═══════════ כניסה עם שם + קוד אישי (PIN) — בלי SMS, בלי גוגל ═══════════
+// השחקן בוחר שם, טלפון וקוד אישי (4-6 ספרות). הזהות דטרמיניסטית לפי טלפון
+// (uid = guest_<טלפון>), כך שההתחשבנות/מניעת-כפילויות/חסימות ממשיכות לעבוד.
+// הקוד הוא הסוד: אי-אפשר להיכנס לחשבון של אחר בלי הקוד שלו (זה סוגר את החור
+// של כניסת-אורח-לפי-טלפון-בלבד). הקוד נשמר מגובב (HMAC + salt) במסמך שרת-בלבד.
+const PIN_MAX_ATTEMPTS = 6;
+const PIN_LOCK_MS = 10 * 60 * 1000;
+const pinHash = (uid, pin, salt) => nodeCrypto.createHmac("sha256", salt).update(uid + ":" + pin).digest("hex");
+
+// מקצה/מאחד את חשבון-הטלפון (אותה לוגיקה דטרמיניסטית של guestToken). מחזיר uid.
+async function provisionPhoneAccount(cid, digits, name, agentCode) {
+  const uid = "guest_" + digits;
+  let agentLink = null;
+  const codeUp = String(agentCode || "").trim().toUpperCase();
+  if (codeUp) {
+    try {
+      const aq = await db.collection("memberships").where("clubId", "==", cid).where("agentCode", "==", codeUp).limit(1).get();
+      if (!aq.empty) { const ad = aq.docs[0].data(); agentLink = {agentUid: ad.uid || aq.docs[0].id.split("_")[0], agentPct: Number(ad.agentSharePct) || 50}; }
+    } catch (e) { /* */ }
+  }
+  const newMemRef = db.doc(`memberships/${uid}_${cid}`);
+  const newUserRef = db.doc(`users/${uid}`);
+  const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
+  const others = [];
+  memSnap.forEach((d) => {
+    const m = d.data();
+    if (m.isBot || m.email) return;
+    const mp = canonPhone(m.phone || m.playerId || "");
+    const mu = m.uid || d.id.split("_")[0];
+    if (mp === digits && mu !== uid) others.push(mu);
+  });
+  await db.runTransaction(async (tx) => {
+    const memRefs = [newMemRef, ...others.map((u) => db.doc(`memberships/${u}_${cid}`))];
+    const userRefs = [newUserRef, ...others.map((u) => db.doc(`users/${u}`))];
+    const memSnaps = await Promise.all(memRefs.map((r) => tx.get(r)));
+    const userSnaps = await Promise.all(userRefs.map((r) => tx.get(r)));
+    const found = [];
+    memSnaps.forEach((s) => { if (s.exists) { const m = s.data(); if (!m.isBot && !m.email) found.push(m); } });
+    const sumBal = round2(found.reduce((a, m) => a + (Number(m.balance) || 0), 0));
+    const anyApproved = found.some((m) => m.status === "approved");
+    const scoreOf = (m) => (m.status === "approved" ? 1e15 : 0) + (Number(m.balance) || 0);
+    let best = null; for (const m of found) { if (!best || scoreOf(m) > scoreOf(best)) best = m; }
+    const stats = found.reduce((a, m) => {
+      const st = m.stats || {};
+      a.gamesPlayed += Number(st.gamesPlayed) || 0;
+      a.gamesWon += Number(st.gamesWon) || 0;
+      a.totalProfit = round2(a.totalProfit + (Number(st.totalProfit) || 0));
+      a.bestStreak = Math.max(a.bestStreak, Number(st.bestStreak) || 0);
+      return a;
+    }, {gamesPlayed: 0, gamesWon: 0, totalProfit: 0, bestStreak: 0, streak: (best && best.stats && Number(best.stats.streak)) || 0});
+    const uname = (best && best.username) || name || "שחקן";
+    const role = (best && best.role) || "player";
+    const status = anyApproved ? "approved" : "pending";
+    const agent = best && best.agentUid ? {agentUid: best.agentUid, agentPct: best.agentPct || 0} : (agentLink || {});
+    tx.set(newMemRef, {uid, clubId: cid, username: uname, phone: digits, playerId: digits, role, status, balance: sumBal, isBot: false, stats, ...agent}, {merge: true});
+    const cu = userSnaps[0].exists ? userSnaps[0].data() : {};
+    tx.set(newUserRef, {username: uname, isGuest: true, role, status, playerId: digits, phone: digits, balance: sumBal, isBot: false, avatarSeed: cu.avatarSeed || (best && best.avatarSeed) || null, stats}, {merge: true});
+    others.forEach((u, i) => { if (memSnaps[i + 1].exists) tx.delete(memRefs[i + 1]); if (userSnaps[i + 1].exists) tx.delete(userRefs[i + 1]); });
+  });
+  return uid;
+}
+
+exports.pinAuth = onCall(async (request) => {
+  const {phone, name, pin, clubId, agentCode} = request.data || {};
+  const cid = clubId || "main";
+  const digits = canonPhone(phone);
+  const p = String(pin || "").replace(/\D/g, "");
+  if (digits.length < 9) throw new HttpsError("invalid-argument", "מספר טלפון לא תקין");
+  if (p.length < 4 || p.length > 6) throw new HttpsError("invalid-argument", "הקוד חייב להיות 4-6 ספרות");
+  const ban = await db.doc(`clubBans/${cid}__${digits}`).get();
+  if (ban.exists) throw new HttpsError("permission-denied", "החשבון חסום בקלאב זה. פנה לבעל המועדון.");
+  const uid = "guest_" + digits;
+  const pinRef = db.doc(`pins/${uid}`);
+  let firstTime = false;
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(pinRef);
+    const now = Date.now();
+    if (s.exists) {
+      const d = s.data();
+      if (d.lockUntil && now < d.lockUntil) throw new HttpsError("resource-exhausted", "יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.");
+      if (pinHash(uid, p, d.salt) !== d.hash) {
+        const attempts = (d.attempts || 0) + 1;
+        tx.update(pinRef, attempts >= PIN_MAX_ATTEMPTS ? {attempts: 0, lockUntil: now + PIN_LOCK_MS} : {attempts});
+        throw new HttpsError("permission-denied", "קוד שגוי.");
+      }
+      if (d.attempts) tx.update(pinRef, {attempts: 0, lockUntil: 0});
+    } else {
+      const salt = nodeCrypto.randomBytes(16).toString("hex");
+      tx.set(pinRef, {hash: pinHash(uid, p, salt), salt, attempts: 0, lockUntil: 0, createdAt: now});
+      firstTime = true;
+    }
+  });
+  // קוד נקבע בפעם הראשונה על חשבון שכבר קיים עם יתרה — מתריעים לבעלים (ניצול-אפשרי).
+  if (firstTime) {
+    try {
+      const ex = await db.doc(`memberships/${uid}_${cid}`).get();
+      const bal = ex.exists ? (Number(ex.data().balance) || 0) : 0;
+      if (bal > 0) await db.collection("securityAlerts").add({clubId: cid, uid, username: (ex.data() && ex.data().username) || name || "", kind: "pin_set", note: "קוד אישי נקבע לראשונה על חשבון עם יתרה", before: bal, after: bal, delta: 0, at: Date.now()});
+    } catch (e) { /* alert בלבד */ }
+  }
+  await provisionPhoneAccount(cid, digits, name, agentCode);
+  const token = await getAuth().createCustomToken(uid, {guest: true, phone: digits});
+  return {ok: true, token, uid, firstTime};
+});
+
 exports.guestToken = onCall(async (request) => {
   // DISABLED: this issued a sign-in for any phone number WITHOUT SMS verification
   // (anyone could enter a friend's number and play on their balance). Entry is
