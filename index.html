@@ -187,6 +187,11 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        /* ברק-זהב מתגלגל על כפתורי CTA ראשיים (קזינו מודרני נקי) — מאופק, לא לולאה אינסופית מציקה */
+        .cta-sheen { position: relative; overflow: hidden; }
+        .cta-sheen::after { content: ''; position: absolute; top: 0; left: -150%; width: 60%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,0.45), transparent); transform: skewX(-18deg); animation: ctaSheen 5.5s ease-in-out infinite; pointer-events: none; }
+        @keyframes ctaSheen { 0%, 22% { left: -150%; } 42%, 100% { left: 160%; } }
+        @media (prefers-reduced-motion: reduce) { .cta-sheen::after { animation: none; display: none; } }
         @keyframes popIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
         .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         @keyframes flashRed { 0%, 100% { box-shadow: 0 0 0 2px rgba(220,38,38,0.45), 0 0 14px rgba(220,38,38,0.25); } 50% { box-shadow: 0 0 0 2px rgba(248,113,113,0.95), 0 0 26px rgba(220,38,38,0.6); } }
@@ -1032,7 +1037,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v169';
+        window.__APP_VER = 'v170';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -2771,12 +2776,45 @@
             return false;
         };
 
-        const Coin = ({ amount, className="" }) => (
+        // ── שכבת-פוליש משותפת (קזינו מודרני נקי) ──
+        // reduced-motion: מכבדים; אז בלי גלגול-מספרים ובלי רטט.
+        const RK_REDUCED = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+        // רטט עדין בפעולות חגיגיות (נייד בלבד, מכבד reduced-motion)
+        const haptic = (pat = 12) => { try { if (!RK_REDUCED && navigator.vibrate) navigator.vibrate(pat); } catch (e) {} };
+        // גלגול-מספר: כל שינוי-ערך עולה בהדרגה (ease-out) במקום לקפוץ. הופעה ראשונה — בלי אנימציה.
+        const useCountUp = (value, ms = 520) => {
+            const to = Number(value) || 0;
+            const [disp, setDisp] = React.useState(to);
+            const fromRef = React.useRef(to);
+            const rafRef = React.useRef(0);
+            React.useEffect(() => {
+                const from = fromRef.current;
+                if (from === to) return;
+                if (RK_REDUCED || Math.abs(to - from) < 0.01) { fromRef.current = to; setDisp(to); return; }
+                const t0 = performance.now();
+                cancelAnimationFrame(rafRef.current);
+                const tick = (now) => {
+                    const p = Math.min(1, (now - t0) / ms);
+                    const e = 1 - Math.pow(1 - p, 3);
+                    setDisp(Math.round((from + (to - from) * e) * 100) / 100);
+                    if (p < 1) rafRef.current = requestAnimationFrame(tick);
+                    else { fromRef.current = to; setDisp(to); }
+                };
+                rafRef.current = requestAnimationFrame(tick);
+                return () => cancelAnimationFrame(rafRef.current);
+            }, [to]);
+            return disp;
+        };
+        const Coin = ({ amount, className="", animate=true }) => {
+            const live = useCountUp(Number(amount) || 0);
+            const shown = animate ? live : (Number(amount) || 0);
+            return (
             <span className={`inline-flex items-center gap-1 font-bold ${className}`}>
                 <i className="fa-solid fa-coins text-gold-400 drop-shadow-[0_0_5px_rgba(245,200,96,0.5)]"></i>
-                {formatMoney(amount)}
+                {formatMoney(shown)}
             </span>
-        );
+            );
+        };
 
         /* ===== צ'אט שולחן משותף: בועות, מתנות והשתקות - לכל המשחקים ===== */
         const QUICK_EMOJIS = ['😀','😂','😡','😭','👍','🔥','🎉','🤡','😱','🙏'];
@@ -4031,7 +4069,7 @@
                         </div>
                         <h2 className="logo-shine text-4xl font-black mb-1 tracking-widest text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 via-teal-300 to-emerald-400">RUMMIKUBE</h2>
                         <p className="text-emerald-400 mb-10 font-bold tracking-[0.35em] uppercase text-xs">Rummikube Clubs · {APP_VER.toUpperCase()}</p>
-                        <button onClick={doLogin} disabled={busy} className="w-full bg-white hover:bg-slate-100 disabled:opacity-70 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
+                        <button onClick={doLogin} disabled={busy} className="cta-sheen w-full bg-white hover:bg-slate-100 disabled:opacity-70 transition-transform hover:scale-[1.02] text-slate-900 font-black py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3">
                             {busy ? <><i className="fa-solid fa-circle-notch animate-spin text-slate-500 text-xl"></i> מתחבר…</> : <><i className="fa-brands fa-google text-blue-500 text-xl"></i> התחברות לחברים</>}
                         </button>
                         <div className="my-3 flex items-center gap-3 text-slate-500 text-xs font-bold"><div className="flex-1 h-px bg-white/10"></div>או<div className="flex-1 h-px bg-white/10"></div></div>
@@ -8490,7 +8528,7 @@
             const prevRSnd = useRef({ phase: '', chatLen: 0, turn: '' });
             useEffect(() => {
                 if (!tableState) return;
-                if (tableState.phase === 'showdown' && prevRSnd.current.phase !== 'showdown') playSnd('win');
+                if (tableState.phase === 'showdown' && prevRSnd.current.phase !== 'showdown') { playSnd('win'); haptic([0, 55, 60, 55]); }
                 // חלוקה חדשה: האבנים נופלות למגש בזו אחר זו + רשרוש
                 if (tableState.phase === 'playing' && prevRSnd.current.phase && prevRSnd.current.phase !== 'playing') {
                     playSnd('deal');
@@ -9380,7 +9418,7 @@
                 if (top) discard.push(top);
             };
 
-            const doDraw = (fromDeck) => applyTx(cur => {
+            const doDraw = (fromDeck) => { haptic(12); return applyTx(cur => {
                 if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'draw') return null;
                 const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
                 let tile;
@@ -9394,7 +9432,7 @@
                 if (!fromDeck) upd[`players.${user.uid}.picked`] = [...(((cur.players[user.uid] || {}).picked) || []), tile].slice(-8);
                 else { const preTop = (cur.discard || [])[(cur.discard || []).length - 1]; if (preTop) upd[`players.${user.uid}.passed`] = [...(((cur.players[user.uid] || {}).passed) || []), preTop].slice(-8); }
                 return upd;
-            });
+            }); };
 
             const doDiscard = (tileId) => applyTx(cur => {
                 if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'discard') return null;
