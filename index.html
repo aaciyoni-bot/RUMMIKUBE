@@ -469,6 +469,10 @@
         }
         .tbl-row:hover { border-color: rgba(45,212,191,0.35); transform: translateY(-1px); background: linear-gradient(180deg, #16294a, #0c1a30); }
         .tbl-row:active { transform: scale(0.985); }
+        /* כניסה מדורגת עדינה לרשימות (opacity בלבד — לא נוגע ב-transform של hover/active) */
+        @keyframes rkRise { from { opacity: 0; } to { opacity: 1; } }
+        .rk-rise { animation: rkRise 0.4s ease-out both; }
+        @media (prefers-reduced-motion: reduce) { .rk-rise { animation: none; } }
         .tbl-spine {
             align-self: stretch; width: 26px; flex: none; display: flex; align-items: center; justify-content: center;
             font-size: 8.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
@@ -1037,7 +1041,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v170';
+        window.__APP_VER = 'v171';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -5915,14 +5919,14 @@
                                         </div>
                                     )}
                                     <div className="tbl-list">
-                                        {shown.map(t => {
+                                        {shown.map((t, ri) => {
                                             const seated = Object.keys(t.players || {}).length;
                                             const cap = Number(t.maxPlayers) || 4;
                                             const mine = t.players && t.players[user.uid];
                                             const playing = t.phase === 'playing';
                                             const col = sizeColor[cap] || '#2dd4bf';
                                             return (
-                                                <div key={t.docId} className="tbl-row" style={{ '--spineC': col }} onClick={() => onJoinRummy(t)}>
+                                                <div key={t.docId} className="tbl-row rk-rise" style={{ '--spineC': col, animationDelay: Math.min(ri, 8) * 45 + 'ms' }} onClick={() => onJoinRummy(t)}>
                                                     <div className="tbl-spine">רמי</div>
                                                     <div className="tbl-seats">
                                                         <svg className="tbl-ring" viewBox="0 0 44 44">
@@ -6078,7 +6082,7 @@
                                         </div>
                                     )}
                                     <div className="tbl-list">
-                                        {shown.map(t => {
+                                        {shown.map((t, ri) => {
                                             const seated = Object.keys(t.players || {}).length;
                                             const cap = Number(t.maxPlayers) || 4;
                                             const mine = t.players && t.players[user.uid];
@@ -6086,7 +6090,7 @@
                                             const col = sizeColor[cap] || '#2dd4bf';
                                             const rakeTxt = t.rakeMode === 'flat' ? `+ ${formatMoney(t.rakeFee)} עמלה` : `עמלה ${t.rakePct != null ? t.rakePct : (clubSettings?.rakePct ?? DEFAULT_RAKE_PCT)}%`;
                                             return (
-                                                <div key={t.docId} className="tbl-row" style={{ '--spineC': col }} onClick={() => onJoinRami(t)}>
+                                                <div key={t.docId} className="tbl-row rk-rise" style={{ '--spineC': col, animationDelay: Math.min(ri, 8) * 45 + 'ms' }} onClick={() => onJoinRami(t)}>
                                                     <div className="tbl-spine">רמי</div>
                                                     <div className="tbl-seats">
                                                         <svg className="tbl-ring" viewBox="0 0 44 44">
