@@ -166,7 +166,10 @@
                 linear-gradient(150deg, rgba(22,31,51,0.9), rgba(10,15,30,0.95));
             border: 1px solid rgba(103,232,249,0.12);
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+            transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease, border-color 0.18s ease;
         }
+        .stat-tile:hover { transform: translateY(-2px); border-color: rgba(103,232,249,0.28); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 22px rgba(0,0,0,0.35); }
+        @media (prefers-reduced-motion: reduce) { .stat-tile { transition: none; } .stat-tile:hover { transform: none; } }
 
         .pill-tab {
             border: 1px solid rgba(255,255,255,0.06);
@@ -1041,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v171';
+        window.__APP_VER = 'v172';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -7033,7 +7036,7 @@
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             {statTiles.map((t, i) => (
-                                <div key={i} className="stat-tile p-5 rounded-2xl">
+                                <div key={i} className="stat-tile rk-rise p-5 rounded-2xl" style={{ animationDelay: i * 55 + 'ms' }}>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-slate-400 text-[11px] font-bold">{t.label}</span>
                                         <i className={`fa-solid ${t.icon} ${t.color} opacity-60`}></i>
@@ -7284,14 +7287,14 @@
                                 ))}
                             </div>
                             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
-                                {players.map(u => {
+                                {players.map((u, pi) => {
                                     // תוצאה מאוחדת: מסכם את כל החשבונות של אותו טלפון, כדי שתראה
                                     // מספר אחד ברור (רווח/הפסד) גם כשהשחקן פוצל לכמה חשבונות-אורח.
                                     const dups = dupsOf(u);
                                     const net = round2(((u.stats && u.stats.totalProfit) || 0) + dups.reduce((s, d) => s + ((d.stats && d.stats.totalProfit) || 0), 0));
                                     const consBal = round2((u.balance || 0) + dups.reduce((s, d) => s + (d.balance || 0), 0));
                                     return (
-                                    <div key={u.id} className="bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors">
+                                    <div key={u.id} className="rk-rise bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors" style={{ animationDelay: Math.min(pi, 12) * 35 + 'ms' }}>
                                         {/* שורה עליונה: זהות + יתרה (תמיד גלויה, מיושרת) */}
                                         <div className="flex items-center gap-3">
                                             <img src={avatarUrl({ ...u, uid: u.id })} onClick={() => !u.isBot && setPlayerFile(u)} className="w-11 h-11 rounded-xl bg-slate-800 shrink-0 cursor-pointer" />
