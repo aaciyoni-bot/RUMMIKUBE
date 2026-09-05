@@ -243,6 +243,17 @@ exports.rummySettle = onCall(async (request) => {
       const spareBoardJokers = Math.max(0, boardJokers - rackJokersPlacedById);
       if (nonJokerUnplaced > 0 || jokerUnplaced > spareBoardJokers) throw new HttpsError("failed-precondition", "המנצח לא ירד — היד אינה מונחת על הלוח");
     }
+    // אנטי-רמאות (שימור-אבנים): הקלפים והלוח נכתבים מהלקוח. חפיסה חוקית = 2 עותקים לכל
+    // (ערך,צבע) + 2 ג'וקרים בלבד. סופרים הכול (ידי כל השחקנים + הלוח המוגש + הקופה): עודף
+    // עותקים = מישהו המציא אבנים → חוסמים. עודף בלבד (לא חוסר) — אין חסימת-שווא של ניצחון אמיתי.
+    {
+      const cnt = new Map();
+      const bump = (tl) => { if (!tl || tl.val == null) return; const k = tl.val === "☻" ? "J" : `${tl.val}.${tl.color}`; cnt.set(k, (cnt.get(k) || 0) + 1); };
+      for (const p of Object.values(t.players || {})) for (const tl of ((p && p.cards) || [])) bump(tl);
+      for (const g of (board || [])) for (const tl of ((g && g.tiles) || [])) bump(tl);
+      for (const tl of (t.deck || [])) bump(tl);
+      for (const [, n] of cnt) { if (n > 2) throw new HttpsError("failed-precondition", "אבני-המשחק אינן תקינות (עודף עותקים) — הסיום נחסם"); }
+    }
     const clubId = t.clubId;
     const stakes = Number(t.stakes) || 0.1;
     const bank = {...(t.bank || {})};
@@ -1424,6 +1435,19 @@ async function settleRamiTx(tx, tRef, t, winnerUid) {
     if (!t.players || !t.players[winnerUid]) throw new HttpsError("failed-precondition", "המנצח עזב");
     const wCheck = ramiBestPartition((t.players[winnerUid].cards || []).filter(Boolean));
     if (!wCheck.complete) throw new HttpsError("failed-precondition", "היד של המנצח אינה שלמה");
+    // אנטי-רמאות (שימור-אבנים): הקלפים נכתבים מהלקוח, כך ששחקן מפסיד יכול לזייף לעצמו יד
+    // שלמה ולקרוא ל-ramiSettle. חפיסת רמי חוקית = 2 עותקים לכל (ערך,צבע) + 2 ג'וקרים בלבד.
+    // סופרים את כל האבנים (ידי כל השחקנים + קופה + ערמת-השלכה): אם קיים "עודף" — יותר משני
+    // עותקים של אבן כלשהי, או יותר מ-2 ג'וקרים — מישהו המציא אבנים. חוסמים את הסיום.
+    // בודקים *עודף בלבד* (לא חוסר): מצב חוקי לעולם לא חורג מ-2, אז אין חסימת-שווא של ניצחון אמיתי.
+    {
+      const cnt = new Map();
+      const bump = (tl) => { if (!tl || tl.val == null) return; const k = tl.val === "☻" ? "J" : `${tl.val}.${tl.color}`; cnt.set(k, (cnt.get(k) || 0) + 1); };
+      for (const p of Object.values(t.players || {})) for (const tl of ((p && p.cards) || [])) bump(tl);
+      for (const tl of (t.deck || [])) bump(tl);
+      for (const tl of (t.discard || [])) bump(tl);
+      for (const [k, n] of cnt) { if (n > 2) throw new HttpsError("failed-precondition", "אבני-המשחק אינן תקינות (עודף עותקים) — הסיום נחסם"); }
+    }
     const clubId = t.clubId;
     // מודל הכסף: הפסד קבוע. מי שלא ירד מפסיד את סכום השולחן (=הכניסה), כפול פריש.
     const stake = round2(Number(t.minBuyIn) || 0);
