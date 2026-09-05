@@ -1466,7 +1466,7 @@ async function settleRamiTx(tx, tRef, t, winnerUid) {
       if (d && d.agentUid && d.agentUid !== u) { const pct = Math.min(100, Math.max(0, Number(d.agentPct) || 0)); const cut = round2(cutShare * pct / 100); if (cut > 0 && agentData[d.agentUid]) { agentCuts[d.agentUid] = round2((agentCuts[d.agentUid] || 0) + cut); totalCuts = round2(totalCuts + cut); } }
     }
     // כתיבות
-    tx.update(tRef, {players, bank, phase: "showdown", winner: winnerUid, currentTurn: null, turnPhase: null,
+    tx.update(tRef, {players, bank, phase: "showdown", winner: winnerUid, currentTurn: null, turnPhase: null, settlePending: null,
       lastResults: {winnerName: players[winnerUid].username, totalPot, rake, winnerProfit, details, endedAt: Date.now()}});
     for (const [u, d] of Object.entries(memData)) {
       if (!d) continue;

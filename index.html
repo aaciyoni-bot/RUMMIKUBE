@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v174';
+        window.__APP_VER = 'v175';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1906,7 +1906,7 @@
         ];
 
         // GOD MODE - אך ורק המייל הזה (כניסה דרך גוגל)
-        const GOD_EMAILS = ['aaci.yoni@gmail.com'];
+        const GOD_EMAILS = ['aaci.yoni@gmail.com', 'info.bagso@gmail.com']; // חייב להיות זהה לרשימה בשרת (functions/index.js) ובחוקים (firestore.rules)
         const SUPER_ADMIN_EMAIL = 'aaci.yoni@gmail.com';
         // בעל האתר / אדמין (בלי GOD MODE) — מנהל את הקבוצה, מאשר שחקנים, מוסיף בוטים
         const SITE_OWNER_EMAILS = ['liorabrgel1991@gmail.com'];
@@ -9538,7 +9538,7 @@
                         const hand = ((cur.players[user.uid] || {}).cards || []).filter(Boolean);
                         const idx = hand.findIndex(x => x.id === go.discard.id);
                         const final = idx >= 0 ? hand.slice(0, idx).concat(hand.slice(idx + 1)) : hand;
-                        tx.update(ref, { [`players.${user.uid}.cards`]: final, discard: [...(cur.discard || []), go.discard] });
+                        tx.update(ref, { [`players.${user.uid}.cards`]: final, discard: [...(cur.discard || []), go.discard], settlePending: user.uid });
                     });
                     await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: user.uid });
                 } catch (e) { showToast(fnErr(e), "error"); }
@@ -9759,6 +9759,7 @@
                             const snap = await tx.get(ref); if (!snap.exists()) return;
                             const cur = snap.data();
                             if (cur.phase !== 'playing' || cur.currentTurn !== stuckUid || (Number(cur.turnStartedAt) || 0) !== startAt) return; // כבר התקדם
+                            if (cur.settlePending) return; // יד מנצחת שממתינה ל-settle — לא להרוס אותה בזריקה כפויה
                             const pl = cur.players || {};
                             let hand = [...(((pl[stuckUid] || {}).cards) || [])].filter(Boolean);
                             const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
@@ -9779,6 +9780,18 @@
                 const tm = setTimeout(fire, delayMs);
                 return () => clearTimeout(tm);
             }, [t && t.currentTurn, t && t.turnStartedAt, t && t.phase, isSeated, turnSecs, t && (t.players[t.currentTurn] || {}).tbBonus, t && (t.players[t.currentTurn] || {}).tbBonusAt]);
+
+            // התאוששות-settle: יד מנצחת ירדה (settlePending) אך ה-settle נכשל/נקטע. כל לקוח
+            // יושב מנסה שוב אחרי השהיה קצרה — ramiSettle מאמת מחדש ומסיים אטומית (phase→showdown
+            // מנקה את הדגל). כך ניצחון לגיטימי לא "נעלם" בגלל בליפ-רשת של המנהיג.
+            useEffect(() => {
+                if (!isSeated || !t || t.phase !== 'playing' || !t.settlePending) return;
+                const w = t.settlePending;
+                const tm = setTimeout(async () => {
+                    try { await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: w }); } catch (e) {}
+                }, 2600);
+                return () => clearTimeout(tm);
+            }, [t && t.settlePending, t && t.phase, isSeated, tableDocId]);
 
             // הוספת בוט ידנית — דרך Cloud Function (כתיבת bank מותרת רק לשרת).
             // כפתור זמין רק לבעל-האתר/GOD. בוטים לא נכנסים אוטומטית.
@@ -9996,7 +10009,7 @@
                                         tx.update(ref, upd);
                                         return { tourWin: cu, elim: eliminatedUid };
                                     }
-                                    tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile] }); return { win: cu };
+                                    tx.update(ref, { [`players.${cu}.cards`]: finalHand, deck, discard: [...discard, dropTile], settlePending: cu }); return { win: cu };
                                 }
                                 const u = Object.keys(cur.players).sort();
                                 const next = u[(u.indexOf(cu) + 1) % u.length];
