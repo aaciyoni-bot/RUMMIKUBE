@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v175';
+        window.__APP_VER = 'v176';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -7674,12 +7674,20 @@
 
             useEffect(() => { dragDataRef.current = dragData; }, [dragData]);
 
-            /* ---------- מוח הבוטים (רץ רק בדפדפן של הסופר-אדמין) ---------- */
+            /* ---------- מוח הבוטים ----------
+               מהלכי-הבוטים במשחק חי רצים אצל "המנהיג": השחקן-האנושי עם ה-uid הקטן ביותר
+               בשולחן (או GOD/מוסיף-בוטים אם אין אנושי). כך גם אם הסופר-אדמין סוגר את
+               הטאב, הבוטים ממשיכים לזוז ולא נתקע המשחק. הצטרפות-בוטים אוטומטית (בשלב
+               ההמתנה) עדיין דורשת הרשאת-כתיבה ל-bank (=כסף), ולכן רצה רק אצל GOD/מוסיף-בוטים. */
+            const rkSeatedHumans = tableState ? Object.keys(tableState.players || {}).filter(u => tableState.players[u] && !tableState.players[u].isBot).sort() : [];
+            const rkCanBank = isGodUser(user) || isBotAdder(user);
+            const rkIsBotDriver = !!(tableState && (user.uid === rkSeatedHumans[0] || (rkCanBank && rkSeatedHumans.length === 0)));
             useEffect(() => {
-                if (user.role !== ROLES.SUPER_ADMIN || !tableState || tableState.phase === 'showdown') return;
+                if (!rkIsBotDriver || !tableState || tableState.phase === 'showdown') return;
                 ensureBotBank(); // קופת הבוטים קיימת לפני שהם משחקים על כסף
 
                 if (tableState.phase === 'waiting') {
+                    if (!rkCanBank) return; // הצטרפות-בוט = כתיבת bank; מותר רק ל-GOD/מוסיף-בוטים
                     const joinInterval = setInterval(async () => {
                         try {
                             const tblRef = window.fb.doc(window.fb.db, "tables", tableDocId);
@@ -7823,7 +7831,7 @@
                         return () => clearTimeout(botTimer);
                     }
                 }
-            }, [tableState?.phase, tableState?.currentTurn, user.role, tableDocId]);
+            }, [tableState?.phase, tableState?.currentTurn, rkIsBotDriver, tableDocId]);
 
             /* ---------- טיימר + צליל ---------- */
             useEffect(() => {

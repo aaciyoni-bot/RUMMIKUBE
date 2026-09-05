@@ -232,8 +232,16 @@ exports.rummySettle = onCall(async (request) => {
       const wRack = (((t.players[winnerUid] || {}).cards) || []).filter(Boolean);
       const placedIds = new Set();
       for (const g of (board || [])) for (const tl of ((g && g.tiles) || [])) if (tl && tl.id != null) placedIds.add(tl.id);
-      const notPlaced = wRack.filter((tl) => tl && tl.id != null && !placedIds.has(tl.id)).length;
-      if (notPlaced >= 3) throw new HttpsError("failed-precondition", "המנצח לא ירד — היד אינה מונחת על הלוח");
+      const notPlacedTiles = wRack.filter((tl) => tl && tl.id != null && !placedIds.has(tl.id));
+      // ירידה חוקית = 0 אבנים ביד. אבן-רגילה שלא על הלוח → פסול (סוגר ניצול שבו מנצח יורד
+      // עם עד 2 אבנים). מותרים רק ג'וקרים שקיבלו מזהה-חדש, ועד למספר הג'וקרים ה"פנויים" שבאמת
+      // מונחים על הלוח — כך אי-אפשר לזייף "ג'וקר חסר" כדי לרדת עם אבן אמיתית ביד.
+      const nonJokerUnplaced = notPlacedTiles.filter((tl) => tl.val !== "☻").length;
+      const jokerUnplaced = notPlacedTiles.length - nonJokerUnplaced;
+      let boardJokers = 0; for (const g of (board || [])) for (const tl of ((g && g.tiles) || [])) if (tl && tl.val === "☻") boardJokers++;
+      const rackJokersPlacedById = wRack.filter((tl) => tl.val === "☻" && placedIds.has(tl.id)).length;
+      const spareBoardJokers = Math.max(0, boardJokers - rackJokersPlacedById);
+      if (nonJokerUnplaced > 0 || jokerUnplaced > spareBoardJokers) throw new HttpsError("failed-precondition", "המנצח לא ירד — היד אינה מונחת על הלוח");
     }
     const clubId = t.clubId;
     const stakes = Number(t.stakes) || 0.1;
