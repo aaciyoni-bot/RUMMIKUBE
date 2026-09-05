@@ -95,10 +95,13 @@
       var v = Number(a.val), c = a.color;
       var sameVal = [], seen = {}; seen[c] = 1;
       for (i = 1; i < arr.length; i++) { var t = arr[i]; if (!isJ(t) && Number(t.val) === v && !seen[t.color]) { sameVal.push(i); seen[t.color] = 1; } }
-      for (var k = 0; k <= sameVal.length; k++) for (var j = 0; j <= J; j++) {
-        var size = 1 + k + j; if (size < 3 || size > 4) continue;
-        var idx = [0].concat(sameVal.slice(0, k), jokerIdx.slice(0, j));
-        if (validateGroup(idx.map(function (q) { return arr[q]; }))) out.push(idx);
+      for (var mask = 0; mask < (1 << sameVal.length); mask++) {
+        var sub = []; for (var b = 0; b < sameVal.length; b++) if (mask & (1 << b)) sub.push(sameVal[b]);
+        for (var j = 0; j <= J; j++) {
+          var size = 1 + sub.length + j; if (size < 3 || size > 4) continue;
+          var idx = [0].concat(sub, jokerIdx.slice(0, j));
+          if (validateGroup(idx.map(function (q) { return arr[q]; }))) out.push(idx);
+        }
       }
       var byVal = {};
       for (i = 1; i < arr.length; i++) { var t2 = arr[i]; if (!isJ(t2) && t2.color === c) { var vv = Number(t2.val); if (byVal[vv] == null) byVal[vv] = i; } }

@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v172';
+        window.__APP_VER = 'v173';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1216,10 +1216,13 @@
       var v = Number(a.val), c = a.color;
       var sameVal = [], seen = {}; seen[c] = 1;
       for (i = 1; i < arr.length; i++) { var t = arr[i]; if (!isJ(t) && Number(t.val) === v && !seen[t.color]) { sameVal.push(i); seen[t.color] = 1; } }
-      for (var k = 0; k <= sameVal.length; k++) for (var j = 0; j <= J; j++) {
-        var size = 1 + k + j; if (size < 3 || size > 4) continue;
-        var idx = [0].concat(sameVal.slice(0, k), jokerIdx.slice(0, j));
-        if (validateGroup(idx.map(function (q) { return arr[q]; }))) out.push(idx);
+      for (var mask = 0; mask < (1 << sameVal.length); mask++) {
+        var sub = []; for (var b = 0; b < sameVal.length; b++) if (mask & (1 << b)) sub.push(sameVal[b]);
+        for (var j = 0; j <= J; j++) {
+          var size = 1 + sub.length + j; if (size < 3 || size > 4) continue;
+          var idx = [0].concat(sub, jokerIdx.slice(0, j));
+          if (validateGroup(idx.map(function (q) { return arr[q]; }))) out.push(idx);
+        }
       }
       var byVal = {};
       for (i = 1; i < arr.length; i++) { var t2 = arr[i]; if (!isJ(t2) && t2.color === c) { var vv = Number(t2.val); if (byVal[vv] == null) byVal[vv] = i; } }
@@ -2490,7 +2493,7 @@
                 const v = Number(a.val), c = a.color;
                 const sameVal = [], seen = new Set([c]);
                 for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== '☻' && Number(t.val) === v && !seen.has(t.color)) { sameVal.push(i); seen.add(t.color); } }
-                for (let k = 0; k <= sameVal.length; k++) for (let j = 0; j <= J; j++) { const size = 1 + k + j; if (size < 3 || size > 4) continue; const idx = [0, ...sameVal.slice(0, k), ...jokerIdx.slice(0, j)]; if (validateGroup(idx.map(i => arr[i]))) out.push(idx); }
+                for (let mask = 0; mask < (1 << sameVal.length); mask++) { const sub = []; for (let b = 0; b < sameVal.length; b++) if (mask & (1 << b)) sub.push(sameVal[b]); for (let j = 0; j <= J; j++) { const size = 1 + sub.length + j; if (size < 3 || size > 4) continue; const idx = [0, ...sub, ...jokerIdx.slice(0, j)]; if (validateGroup(idx.map(i => arr[i]))) out.push(idx); } }
                 const byVal = new Map();
                 for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== '☻' && t.color === c) { const vv = Number(t.val); if (!byVal.has(vv)) byVal.set(vv, i); } }
                 for (let lo = 1; lo <= v; lo++) for (let hi = v; hi <= 13; hi++) { const len = hi - lo + 1; if (len < 3 || len > 13) continue; let missing = 0; const idx = [0]; for (let val = lo; val <= hi; val++) { if (val === v) continue; if (byVal.has(val)) idx.push(byVal.get(val)); else missing++; } if (missing > J) continue; for (let j = 0; j < missing; j++) idx.push(jokerIdx[j]); const meld = idx.map(i => arr[i]); if (meld.length >= 3 && validateGroup(meld)) out.push(idx.slice()); }
@@ -2514,7 +2517,16 @@
         /* גמר מיד של 15: האם קיימת אבן-זריקה אחת שמשאירה 14 שלמות? */
         const findGoOut = (hand) => {
             const tiles = (hand || []).filter(Boolean);
-            for (let i = 0; i < tiles.length; i++) { const rest = tiles.slice(0, i).concat(tiles.slice(i + 1)); if (bestPartition(rest).complete) return { discard: tiles[i], melds: bestPartition(rest).melds }; }
+            // אבן-זריקה אחת שמשאירה 14 שלמות. קריאה אחת ל-bestPartition לכל אבן (לא שתיים) —
+            // מפחית לחצי את העומס בכל תזוזת-אבן. אבנים כפולות זהות: בודקים פעם אחת בלבד.
+            const seen = new Set();
+            for (let i = 0; i < tiles.length; i++) {
+                const key = tiles[i].val === '☻' ? 'J' : `${tiles[i].val}.${tiles[i].color}`;
+                if (seen.has(key)) continue; seen.add(key);
+                const rest = tiles.slice(0, i).concat(tiles.slice(i + 1));
+                const bp = bestPartition(rest);
+                if (bp.complete) return { discard: tiles[i], melds: bp.melds };
+            }
             return null;
         };
 

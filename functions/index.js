@@ -568,10 +568,13 @@ function ramiBestPartition(hand) {
     const v = Number(a.val); const c = a.color;
     const sameVal = []; const seen = new Set([c]);
     for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== "☻" && Number(t.val) === v && !seen.has(t.color)) { sameVal.push(i); seen.add(t.color); } }
-    for (let k = 0; k <= sameVal.length; k++) for (let j = 0; j <= J; j++) {
-      const size = 1 + k + j; if (size < 3 || size > 4) continue;
-      const idx = [0, ...sameVal.slice(0, k), ...jokerIdx.slice(0, j)];
-      if (validateGroup(idx.map((i) => arr[i]))) out.push(idx);
+    for (let mask = 0; mask < (1 << sameVal.length); mask++) {
+      const sub = []; for (let b = 0; b < sameVal.length; b++) if (mask & (1 << b)) sub.push(sameVal[b]);
+      for (let j = 0; j <= J; j++) {
+        const size = 1 + sub.length + j; if (size < 3 || size > 4) continue;
+        const idx = [0, ...sub, ...jokerIdx.slice(0, j)];
+        if (validateGroup(idx.map((i) => arr[i]))) out.push(idx);
+      }
     }
     const byVal = new Map();
     for (let i = 1; i < arr.length; i++) { const t = arr[i]; if (t.val !== "☻" && t.color === c) { const vv = Number(t.val); if (!byVal.has(vv)) byVal.set(vv, i); } }
