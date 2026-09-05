@@ -840,13 +840,18 @@ exports.godSetPhoneBan = onCall(async (request) => {
   if (!digits || digits.length < 6) throw new HttpsError("invalid-argument", "אין מספר-טלפון תקין לחסימה");
   const banRef = db.doc(`clubBans/${cid}__${digits}`);
   if (banned === false) { await banRef.delete(); } else { await banRef.set({clubId: cid, phone: digits, at: Date.now(), by: email}); }
-  // מסמנים את כל החברויות עם אותו טלפון קנוני (banned/approved), למעט חשבונות עם email
+  // מסמנים את כל החברויות עם אותו טלפון קנוני — כולל חשבונות גוגל (email)! חסימה שלא נגעה
+  // בחשבונות-גוגל הייתה חסרת-משמעות למסלול-הכניסה הראשי. ביטול-חסימה מחזיר ל-'pending'
+  // (לא 'approved' אוטומטית — שההחלטה תחזור לבעלים), ולבוטים לא נוגעים.
   const memSnap = await db.collection("memberships").where("clubId", "==", cid).get();
   const batch = db.batch(); let n = 0;
+  const targetU = targetUid || null;
   memSnap.forEach((d) => {
     const m = d.data();
-    if (m.isBot || m.email) return;
-    if (canonPhone(m.phone || m.playerId || "") === digits) { batch.update(d.ref, {status: banned === false ? "approved" : "banned", bannedAt: banned === false ? null : Date.now()}); n++; }
+    if (m.isBot) return;
+    const mu = m.uid || d.id.split("_")[0];
+    const match = canonPhone(m.phone || m.playerId || "") === digits || (targetU && mu === targetU);
+    if (match) { batch.update(d.ref, {status: banned === false ? "pending" : "banned", bannedAt: banned === false ? null : Date.now()}); n++; }
   });
   if (n) await batch.commit();
   return {ok: true, phone: digits, banned: banned !== false, affected: n};
@@ -1086,17 +1091,29 @@ exports.pinAuth = onCall(async (request) => {
       firstTime = true;
     }
   });
-  // קוד נקבע בפעם הראשונה על חשבון שכבר קיים עם יתרה — מתריעים לבעלים (ניצול-אפשרי).
+  // קביעת-קוד-ראשון על חשבון קיים בעל-ערך (יתרה>0 או מאושר) = וקטור השתלטות: מישהו
+  // שיודע טלפון של אחר "תופס" את חשבונו. לכן במקרה כזה מקפיאים ל-'pending' (דורש אישור
+  // בעלים מחדש — כמו שחקן חדש) ומתריעים; חשבון pending לא יכול לשחק/לפדות. שחקן אמיתי
+  // פשוט מבקש מהבעלים לאשר; תוקף נחסם. חשבון ריק/חדש — ממשיך כרגיל בלי חיכוך.
+  let frozen = false;
   if (firstTime) {
     try {
       const ex = await db.doc(`memberships/${uid}_${cid}`).get();
-      const bal = ex.exists ? (Number(ex.data().balance) || 0) : 0;
-      if (bal > 0) await db.collection("securityAlerts").add({clubId: cid, uid, username: (ex.data() && ex.data().username) || name || "", kind: "pin_set", note: "קוד אישי נקבע לראשונה על חשבון עם יתרה", before: bal, after: bal, delta: 0, at: Date.now()});
+      const exd = ex.exists ? ex.data() : null;
+      const bal = exd ? (Number(exd.balance) || 0) : 0;
+      const valuable = bal > 0 || (exd && exd.status === "approved");
+      if (valuable) {
+        frozen = true;
+        await db.collection("securityAlerts").add({clubId: cid, uid, username: (exd && exd.username) || name || "", kind: "pin_claim", note: "קוד אישי נקבע לראשונה על חשבון קיים בעל-ערך — הוקפא לאישור", before: bal, after: bal, delta: 0, at: Date.now()});
+      }
     } catch (e) { /* alert בלבד */ }
   }
   await provisionPhoneAccount(cid, digits, name, agentCode);
+  if (frozen) {
+    try { await db.doc(`memberships/${uid}_${cid}`).update({status: "pending"}); await db.doc(`users/${uid}`).update({status: "pending"}); } catch (e) { /* */ }
+  }
   const token = await getAuth().createCustomToken(uid, {guest: true, phone: digits});
-  return {ok: true, token, uid, firstTime};
+  return {ok: true, token, uid, firstTime, frozen};
 });
 
 exports.guestToken = onCall(async (request) => {

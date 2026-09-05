@@ -82,7 +82,11 @@ service cloud.firestore {
       // אסור להגדיל את היתרה של עצמו (מניעת המצאת כסף), ואסור לגעת ביתרת אחר
       // (מניעת גניבה). כל תנועת כסף אמיתית עוברת דרך Cloud Functions (עוקפות חוקים).
       allow update: if signedIn() && (
-        isStaffOf(resource.data.clubId)
+        isGod()
+        // צוות (super_admin/club_owner/manager) מנהל חברויות של *אחרים* בלבד. עריכה-עצמית
+        // עוברת דרך הענף הנעול למטה — כדי שמנהל לא יקדם את עצמו ל-super_admin/בעלים
+        // ולא ימציא לעצמו יתרה (הסלמת-הרשאות + המצאת-כסף). כסף אמיתי עובר רק דרך Cloud Functions.
+        || ( isStaffOf(resource.data.clubId) && id != uid() + '_' + resource.data.clubId )
         || ( same('role') && same('status') && same('uid') && same('clubId')
              && same('agentUid') && same('agentPct') && same('agentSharePct')
              && same('agentCode') && same('clubProfits') && same('agentProfits')
