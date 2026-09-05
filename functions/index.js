@@ -1560,6 +1560,101 @@ exports.ramiSettle = onCall(async (request) => {
   return {ok: true};
 });
 
+// ════════ מנוע-רמי אֶפֶס-אֵמון (server-authoritative) — מהלכי-אדם דרך השרת ════════
+// שלוש קריאות מחליפות את הכתיבה-הישירה מהלקוח: השרת הוא מקור-האמת לקלפים/קופה/תור.
+// עובד רק על שולחן עם srvAuth===true (דגל-הצטרפות); שולחנות קיימים לא מושפעים. הלוגיקה
+// זהה למנוע שנבדק ב-ramiEngine.test.js (אלפי משחקים: שימור-אבנים, אי-קיפאון, ירידה-חוקית).
+function buildEngineState(t) {
+  return {players: t.players || {}, deck: [...(t.deck || [])], discard: [...(t.discard || [])],
+    currentTurn: t.currentTurn, turnPhase: t.turnPhase, drawnThisTurn: !!t.drawnThisTurn, phase: t.phase, winner: t.winner || null};
+}
+function requireSrvAuth(t) {
+  if (t.type !== "rami") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+  if (!t.srvAuth) throw new HttpsError("failed-precondition", "השולחן אינו במצב שרת-מלא");
+  if (t.phase !== "playing") throw new HttpsError("failed-precondition", "המשחק לא פעיל");
+}
+function mapEngineErr(e) {
+  if (e && e.code && e instanceof RAMI_ENGINE.EngineError) return new HttpsError("failed-precondition", e.message || e.code);
+  return e;
+}
+const histPush = (arr, tile, cap) => [...((arr) || []), tile].slice(-cap);
+
+exports.ramiDrawSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, source} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר מזהה-שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    requireSrvAuth(t);
+    assertParticipant(t, uid, email);
+    const p = (t.players || {})[uid];
+    if (!p) throw new HttpsError("permission-denied", "אינך בשולחן");
+    const top = (t.discard || [])[(t.discard || []).length - 1];
+    const st = buildEngineState(t);
+    try { RAMI_ENGINE.applyDraw(st, uid, source === "discard" ? "discard" : "deck"); } catch (e) { throw mapEngineErr(e); }
+    const upd = {[`players.${uid}.cards`]: st.players[uid].cards, deck: st.deck, discard: st.discard,
+      turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, [`players.${uid}.missed`]: 0};
+    if (source === "discard") upd[`players.${uid}.picked`] = histPush(p.picked, top, 8);
+    else if (top) upd[`players.${uid}.passed`] = histPush(p.passed, top, 8);
+    tx.update(tRef, upd);
+  });
+  return {ok: true};
+});
+
+exports.ramiDiscardSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, tileId} = request.data || {};
+  if (!tableId || tileId == null) throw new HttpsError("invalid-argument", "חסרים פרטים");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    requireSrvAuth(t);
+    assertParticipant(t, uid, email);
+    const p = (t.players || {})[uid];
+    if (!p) throw new HttpsError("permission-denied", "אינך בשולחן");
+    const tile = (p.cards || []).find((x) => x && x.id === tileId);
+    const st = buildEngineState(t);
+    try { RAMI_ENGINE.applyDiscard(st, uid, tileId); } catch (e) { throw mapEngineErr(e); }
+    tx.update(tRef, {[`players.${uid}.cards`]: st.players[uid].cards, discard: st.discard,
+      [`players.${uid}.threw`]: histPush(p.threw, tile, 6), currentTurn: st.currentTurn,
+      turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, turnStartedAt: Date.now()});
+  });
+  return {ok: true};
+});
+
+exports.ramiGoOutSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, tileId} = request.data || {};
+  if (!tableId || tileId == null) throw new HttpsError("invalid-argument", "חסרים פרטים");
+  const out = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    requireSrvAuth(t);
+    assertParticipant(t, uid, email);
+    const st = buildEngineState(t);
+    try { RAMI_ENGINE.applyGoOut(st, uid, tileId); } catch (e) { throw mapEngineErr(e); }
+    // המנוע כבר וידא ירידה-חוקית והזיז את האבן להשלכה. settleRamiTx מבצע את הכסף
+    // (עונשין/רייק/סוכנים) + בדיקת-השלמות + שימור-אבנים שלו, וכותב showdown.
+    const t2 = {...t, players: st.players, deck: st.deck, discard: st.discard};
+    return await settleRamiTx(tx, tRef, t2, uid);
+  });
+  await logRamiSettle(out, uid, tableId);
+  return {ok: true};
+});
+
 // ════════ מנוע-בוטים בצד-שרת: שולחני-בוטים שרצים לבד + חדרי-המתנה + סיבוב-בוטים ════════
 const BOT_ROTATE_MS = 6 * 60 * 1000;
 // כינויים עבריים במילה אחת לבוטים (בלי שמות פרטיים) — לפעמים עם מספר אחרי
@@ -1577,6 +1672,7 @@ const pickBotNames = (n, taken) => {
 };
 // מוח-הבוט המשותף (ramiBrain.js) — אותו מוח שרץ אצל המנהיג בלקוח. botPickDiscard נשאר רק כגיבוי.
 const RAMI_BRAIN = require("./ramiBrain").create({});
+const RAMI_ENGINE = require("./ramiEngine");
 // בחירת אבן-זריקה זולה (בלי partition): זורקים את הכי "בודדת" ובעלת-ערך גבוה; לא זורקים ג'וקר
 function botPickDiscard(hand) {
   let worst = null; let worstScore = Infinity;
