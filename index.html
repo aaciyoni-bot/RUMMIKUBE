@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v173';
+        window.__APP_VER = 'v174';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -10014,13 +10014,19 @@
                 }
             }, [t && t.phase, t && t.currentTurn, tableDocId, isBotDriver]);
 
-            // המנהיג מאשר פריש עבור הבוטים (בוטים תמיד מסכימים) — אחד בכל פעם
+            // המנהיג מגיב לפריש עבור הבוטים — אחד בכל פעם. בוט חכם *לא* מסכים לחלוקה-מחדש
+            // כשיש לו יד טובה (הוא קרוב לרדת): פריש מאפס את היתרון שלו ומכפיל ×2. עם יד
+            // חלשה — הוא כן מסכים (התחלה חדשה עוזרת לו). דחייה אחת מבטלת את הפריש (בהסכמת כולם).
             useEffect(() => {
                 if (!isBotDriver || !t || t.phase !== 'playing' || !t.freshReq) return;
                 const seated = Object.keys(t.players || {});
                 const pendingBot = seated.find(u => t.players[u].isBot && !(t.freshReq.approvals || {})[u]);
                 if (!pendingBot) return;
-                const tm = setTimeout(() => respondFresh(true, pendingBot), 800);
+                const hand = ((t.players[pendingBot] || {}).cards || []).filter(Boolean);
+                const bp = bestPartition(hand);
+                // יד טובה = כבר סגורה, או מעט נקודות-שארית, או ≥2 קבוצות מסודרות → מסרב.
+                const goodHand = bp.complete || bp.leftoverPoints <= 30 || (bp.melds || []).length >= 2;
+                const tm = setTimeout(() => respondFresh(!goodHand, pendingBot), 800);
                 return () => clearTimeout(tm);
             }, [t && t.freshReq, t && t.phase, isBotDriver]);
 
