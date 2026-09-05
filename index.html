@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v183';
+        window.__APP_VER = 'v184';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -7802,7 +7802,7 @@
                            ויודע "להשאיל" אבן מהלוח להשלמת קומבינציה. */
                         const skill = botSkillOf(currentUid);
                         const baseThink = 3500 + (1 - skill) * 3000 + Math.random() * 2000;
-                        const botTimer = setTimeout(async () => {
+                        const runBot = async () => {
                             try {
                                 const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
                                 const tblSnap = await window.fb.getDoc(tblRef);
@@ -7903,7 +7903,16 @@
                                 }
                                 await window.fb.updateDoc(tblRef, { deck: newDeck, [`players.${currentUid}.cards`]: newRack, [`players.${currentUid}.missed`]: 0, currentTurn: nextTurn, turnStartedAt: Date.now(), turnSnapBoard: currentTbl.board || [], turnSnapRack: [...((currentTbl.players[nextTurn] || {}).cards || [])] });
                             } catch(e) {}
-                        }, baseThink);
+                        };
+                        if (srvAuth) {
+                            // מצב שרת-מלא: פועם עד שהתור מתקדם — כשל-רשת נקודתי לא מקפיא את תור-הבוט.
+                            let busy = false;
+                            const step = async () => { if (busy) return; busy = true; try { await runBot(); } finally { busy = false; } };
+                            const firstTm = setTimeout(step, baseThink);
+                            const iv = setInterval(step, 3000);
+                            return () => { clearTimeout(firstTm); clearInterval(iv); };
+                        }
+                        const botTimer = setTimeout(runBot, baseThink);
                         return () => clearTimeout(botTimer);
                     }
                 }
@@ -10016,12 +10025,16 @@
                     // חשיבה מהירה: עם 3 בוטים ברצף, 2.5–5 שנ' לכל אחד = עד 15 שנ' המתנה בין
                     // תורים ומרגיש כמו קיפאון. 1.1–2.3 שנ' שומר על תחושת-חיים בלי לעכב את השחקן.
                     const think = 1100 + Math.random() * 1200;
+                    if (srvAuth) {
+                        // מצב שרת-מלא: מהלך-הבוט רץ בשרת (botStepTx). פועם עד שהתור מתקדם —
+                        // כך כשל-רשת/קר-סטארט נקודתי לא מקפיא את תור-הבוט (ניסיון חוזר כל 2.6 שנ').
+                        let busy = false;
+                        const step = async () => { if (busy) return; busy = true; try { await callFn('ramiBotStepSrv', { tableId: t.id }); } catch (e) {} finally { busy = false; } };
+                        const firstTm = setTimeout(step, think);
+                        const iv = setInterval(step, 2600);
+                        return () => { clearTimeout(firstTm); clearInterval(iv); };
+                    }
                     const tm = setTimeout(async () => {
-                        if (srvAuth) {
-                            // מצב שרת-מלא: מהלך-הבוט רץ בשרת (botStepTx) — כתיבת-קלפים חסומה ללקוח.
-                            try { await callFn('ramiBotStepSrv', { tableId: t.id }); } catch (e) {}
-                            return;
-                        }
                         try {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
                             const res = await window.fb.runTransaction(window.fb.db, async (tx) => {

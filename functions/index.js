@@ -686,7 +686,9 @@ exports.rummyForceMoveSrv = onCall(async (request) => {
     const startAt = Number(t.turnStartedAt) || 0;
     const turnSecs = Number(t.turnSeconds) || 60;
     const GRACE = 6;
-    if (!startAt || (Date.now() - startAt) < (turnSecs + GRACE) * 1000) return;
+    // תור-בוט תקוע משוחרר מהר (12 שנ') כדי שכשל-רשת של המנהיג לא יקפיא; תור-אדם מלא.
+    const thresholdMs = p.isBot ? 12000 : (turnSecs + GRACE) * 1000;
+    if (!startAt || (Date.now() - startAt) < thresholdMs) return;
     const oldRack = await rummyReadRack(tx, tableId, t, stuck);
     const deck = [...(t.deck || [])];
     const tile = deck.length ? deck.pop() : null;
@@ -1882,8 +1884,10 @@ exports.ramiForceMoveSrv = onCall(async (request) => {
     const cp = (t.players || {})[t.currentTurn] || {};
     const bonus = (Number(cp.tbBonusAt) || 0) === startAt ? (Number(cp.tbBonus) || 0) : 0;
     const GRACE = 5;
-    // שעון-שרת: לא מזיזים לפני שבאמת עברו turnSecs+bonus+grace מאז תחילת-התור.
-    if (!startAt || (Date.now() - startAt) < (turnSecs + bonus + GRACE) * 1000) return;
+    // שעון-שרת: לא מזיזים לפני הזמן. תור-בוט תקוע משוחרר מהר (12 שנ') כדי שכשל-רשת נקודתי
+    // של המנהיג לא יקפיא את המשחק; תור-אדם מכבד את זמן-התור המלא + בונוס + חסד.
+    const thresholdMs = cp.isBot ? 12000 : (turnSecs + bonus + GRACE) * 1000;
+    if (!startAt || (Date.now() - startAt) < thresholdMs) return;
     const stuck = t.currentTurn;
     // יד השחקן התקוע מגיעה מ-priv (אנוש) או מהציבורי (בוט). קריאה לפני כתיבה.
     const stuckCards = cp.isBot ? (cp.cards || []).filter(Boolean) : (await readHands(tx, tableId, {[stuck]: cp}))[stuck];
