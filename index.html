@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v176';
+        window.__APP_VER = 'v177';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -1873,6 +1873,24 @@
         let CLUB_ID = 'main'; // הקלאב הפעיל - מוחלף בכניסה לקלאב
         window.__club = { id: 'main', ownerUid: '', name: 'הקלאב הראשי' };
         const setActiveClub = (club) => { CLUB_ID = club.id; window.__club = { id: club.id, ownerUid: club.ownerUid || '', name: club.name || club.id, botsActive: true }; };
+        // נרמול-טלפון זהה לשרת (functions/index.js canonPhone) — לשימוש בזיהוי ובבדיקת-חסימה.
+        const canonPhoneCli = (s) => {
+            let d = String(s || '').replace(/\D/g, '');
+            if (!d) return '';
+            if (d.startsWith('972') && d.length >= 11) d = '0' + d.slice(3);
+            else if (d.length === 9 && d[0] === '5') d = '0' + d;
+            return d;
+        };
+        // בדיקת חסימת-טלפון בצד-לקוח (clubBans קריא לכל מחובר). אכיפה אמיתית של כסף היא בשרת,
+        // אבל זה חוסם כניסה במסלול גוגל גם כשה-uid חדש (חשבון-עוקף) שטרם נחסם לפי uid.
+        const isPhoneBanned = async (phone, cid) => {
+            const digits = canonPhoneCli(phone);
+            if (!digits || digits.length < 6) return false;
+            try {
+                const snap = await window.fb.getDoc(window.fb.doc(window.fb.db, "clubBans", `${cid || CLUB_ID}__${digits}`));
+                return snap.exists() && snap.data().banned !== false;
+            } catch (e) { return false; }
+        };
         // חשבון החברות: הכסף, התפקיד והסטטיסטיקות של שחקן בקלאב מסוים
         const memId = (uid, cid) => `${uid}_${cid || CLUB_ID}`;
         const memDoc = (uid, cid) => window.fb.doc(window.fb.db, "memberships", memId(uid, cid));
@@ -3567,6 +3585,12 @@
                     // לא יוצרים בקשה/חשבון נוסף — מפנים לחשבון הקיים. (המשלים ל-guestToken הדטרמיניסטי.)
                     const canonP = (s) => { let d = String(s || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('972') && d.length >= 11) d = '0' + d.slice(3); else if (d.length === 9 && d[0] === '5') d = '0' + d; return d.length >= 6 ? d : ''; };
                     const myPhone = canonP(dbUser.phone || dbUser.playerId || '');
+                    // חסימת-טלפון: מספר חסום לא יוצר בקשה חדשה (חשבון-עוקף עם uid חדש). נכתבת
+                    // חברות במצב 'banned' כדי שמסך-החסימה יופיע, במקום להישאר "ממתין" לנצח.
+                    if (myPhone && await isPhoneBanned(myPhone, CLUB_ID)) {
+                        try { await window.fb.setDoc(ref, { ...newMembership(dbUser.uid, dbUser), clubId: CLUB_ID, status: 'banned' }, { merge: true }); } catch (e) {}
+                        if (!silent) showToast("הגישה שלך לקלאב הזה נחסמה", "error"); return;
+                    }
                     if (myPhone) {
                         try {
                             const all = await window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db, "memberships"), window.fb.where("clubId", "==", CLUB_ID)));
@@ -3614,6 +3638,14 @@
                 const ph = phoneVal.replace(/[^0-9]/g, '');
                 if (ph.length < 6) { showToast('הזן מספר טלפון תקין', 'error'); return; }
                 try {
+                    // חסימת-טלפון: אם המספר חסום בקלאב — לא נותנים להיכנס דרך חשבון-גוגל חדש
+                    // (חשבון-עוקף). מסמנים את החברות כ-banned ומראים את הודעת-החסימה.
+                    if (await isPhoneBanned(ph, CLUB_ID)) {
+                        try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", dbUser.uid), { phone: ph }); } catch (e) {}
+                        const mRef2 = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${CLUB_ID}`);
+                        try { const ms2 = await window.fb.getDoc(mRef2); if (ms2.exists()) await window.fb.updateDoc(mRef2, { phone: ph, status: 'banned' }); } catch (e) {}
+                        setPhoneVal(''); showToast('הגישה שלך לקלאב הזה נחסמה', 'error'); return;
+                    }
                     await window.fb.updateDoc(window.fb.doc(window.fb.db, "users", dbUser.uid), { phone: ph });
                     const mRef = window.fb.doc(window.fb.db, "memberships", `${dbUser.uid}_${CLUB_ID}`);
                     try { const ms = await window.fb.getDoc(mRef); if (ms.exists()) await window.fb.updateDoc(mRef, { phone: ph }); } catch (e) {}
