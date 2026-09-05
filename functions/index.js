@@ -131,6 +131,27 @@ function validateGroup(group) {
   return isSet() || isRun();
 }
 const rackPenalty = (cards) => (cards || []).filter((c) => c).reduce((s, c) => s + (c.val === "☻" ? 30 : Number(c.val)), 0);
+const RUMMY_ENGINE = require("./rummyEngine");
+const RUMMY_FIRST_MELD_MIN = 30;
+// ניקוד-קבוצה לרמיקוב (זהה ללקוח) — לבדיקת הורדה-ראשונה ≥30 בשרת.
+function groupPointsSrv(tiles) {
+  const jokers = tiles.filter((t) => t.val === "☻").length;
+  const regulars = tiles.filter((t) => t.val !== "☻");
+  if (regulars.length === 0) return 30 * jokers;
+  const isSet = tiles.length <= 4 && regulars.every((t) => t.val === regulars[0].val) && new Set(regulars.map((t) => t.color)).size === regulars.length;
+  if (isSet) return Number(regulars[0].val) * tiles.length;
+  const sorted = [...regulars].sort((a, b) => Number(a.val) - Number(b.val));
+  let sum = sorted.reduce((s, t) => s + Number(t.val), 0);
+  let j = jokers;
+  for (let i = 0; i < sorted.length - 1 && j > 0; i++) {
+    const gap = Number(sorted[i + 1].val) - Number(sorted[i].val) - 1;
+    for (let g = 1; g <= gap && j > 0; g++) { sum += Number(sorted[i].val) + g; j--; }
+  }
+  let hi = Number(sorted[sorted.length - 1].val); let lo = Number(sorted[0].val);
+  while (j > 0 && hi < 13) { hi++; sum += hi; j--; }
+  while (j > 0 && lo > 1) { lo--; sum += lo; j--; }
+  return sum;
+}
 // חלוקת סבב: מקבל את מפת השחקנים (שומר bank/stack), מחזיר שדות שולחן חדשים
 function dealFields(players, bank) {
   const d = generateDeck();
@@ -193,7 +214,7 @@ exports.rummyBuyIn = onCall(async (request) => {
     const bank = {...(t.bank || {}), [uid]: buyIn};
     tx.update(memRef, {balance: round2(bal - buyIn)});
     if (Object.keys(players).length === max) {
-      tx.update(tRef, {...dealFields(players, bank), bank});
+      tx.update(tRef, {...dealSplit(tx, tableId, dealFields(players, bank), t.srvAuth), bank});
       return true;
     }
     tx.update(tRef, {players, bank});
@@ -224,6 +245,9 @@ exports.rummySettle = onCall(async (request) => {
     if (t.phase !== "playing") throw new HttpsError("failed-precondition", "כבר הסתיים");
     if (!t.players || !t.players[winnerUid]) throw new HttpsError("failed-precondition", "המנצח עזב");
     assertParticipant(t, uid, email);
+    // srvAuth: המגשים הפרטיים שמורים ב-priv. משחזרים את כולם (קריאה לפני כתיבה) כדי
+    // שכל הבדיקות והעונשין יראו את המגשים האמיתיים ולא מסמך-ציבורי ריק.
+    if (t.srvAuth) { const hands = await readHands(tx, tableId, t.players); for (const [u, c] of Object.entries(hands)) if (t.players[u]) t.players[u].cards = c; }
     // אנטי-רמאות: מנצח חייב באמת "לרדת" — כל אבני-היד השמורות בשרת שלו חייבות להיות
     // מונחות על הלוח שהוגש. אחרת שחקן מפסיד יכול לקרוא ל-rummySettle עם winnerUid=עצמו
     // ולוח-דמה קטן, בעודו מחזיק יד מלאה, ולגזול את הקופה. יד לגיטימית: 0 חסרות.
@@ -549,7 +573,130 @@ exports.rummyNewRound = onCall(async (request) => {
     const eligible = {}; const eBank = {};
     for (const [u, p] of Object.entries(t.players || {})) if ((bank[u] || 0) > 0) { eligible[u] = p; eBank[u] = round2(bank[u]); }
     if (Object.keys(eligible).length < 2) throw new HttpsError("failed-precondition", "אין מספיק שחקנים עם צ'יפים");
-    tx.update(tRef, {...dealFields(eligible, eBank), bank: eBank});
+    tx.update(tRef, {...dealSplit(tx, tableId, dealFields(eligible, eBank), t.srvAuth), bank: eBank});
+  });
+  return {ok: true};
+});
+
+// ════════ רמיקוב פתוח — מנוע-שרת אֶפֶס-אֵמון (srvAuth) ════════
+// המגשים פרטיים (priv), הלוח ציבורי. מהלכי-אדם/בוט עוברים דרך callables שמאמתים כל
+// מהלך (שימור-אבנים, קבוצות חוקיות, הורדה-ראשונה) — כתיבה-ישירה חסומה בחוקים.
+function rummyRequireSrv(t) {
+  if (t.type !== "rummikub") throw new HttpsError("failed-precondition", "שולחן לא נתמך");
+  if (!t.srvAuth) throw new HttpsError("failed-precondition", "השולחן אינו במצב שרת-מלא");
+  if (t.phase !== "playing") throw new HttpsError("failed-precondition", "המשחק לא פעיל");
+}
+// מי "השחקן הפועל": אם תור-בוט — כל משתתף (המנהיג) מפעיל אותו; אחרת רק בעל-התור.
+function rummyActor(t, uid, email) {
+  const cur = t.currentTurn;
+  const cp = (t.players || {})[cur];
+  if (!cp) throw new HttpsError("failed-precondition", "אין תור פעיל");
+  if (cp.isBot) { assertParticipant(t, uid, email); return cur; }
+  if (cur !== uid) throw new HttpsError("failed-precondition", "לא תורך");
+  return cur;
+}
+async function rummyReadRack(tx, tableId, t, actor) {
+  const p = t.players[actor];
+  return p.isBot ? (p.cards || []) : (await readHands(tx, tableId, {[actor]: p}))[actor];
+}
+
+// ── הגשת מהלך: לוח-חדש + מגש-חדש. השרת מאמת ומחייב. ──
+exports.rummyMoveSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId, newBoard, newRack} = request.data || {};
+  if (!tableId || !Array.isArray(newBoard) || !Array.isArray(newRack)) throw new HttpsError("invalid-argument", "חסרים פרטים");
+  const out = await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    rummyRequireSrv(t);
+    const actor = rummyActor(t, uid, email);
+    const p = t.players[actor];
+    const oldRack = await rummyReadRack(tx, tableId, t, actor);
+    // כל קבוצה על הלוח החדש חוקית
+    for (const g of newBoard) { if (!g || !Array.isArray(g.tiles) || !validateGroup(g.tiles)) throw new HttpsError("failed-precondition", "הלוח לא תקין"); }
+    // אימות שימור/חוקיות-מהלך (מול הלוח הנוכחי = לוח-תחילת-התור ב-srvAuth)
+    const v = RUMMY_ENGINE.validateMove(t.board || [], oldRack, newBoard, newRack, {hasDropped: !!p.hasDropped, firstMeldMin: RUMMY_FIRST_MELD_MIN, groupPoints: groupPointsSrv});
+    if (!v.ok) throw new HttpsError("failed-precondition", v.error || "מהלך לא חוקי");
+    const active = (newRack || []).filter(Boolean).length;
+    const won = active === 0;
+    const upd = {board: newBoard, ...writeHand(tx, tableId, actor, newRack, p.isBot),
+      [`players.${actor}.hasDropped`]: true, [`players.${actor}.missed`]: 0};
+    if (won) {
+      // מהלך-מנצח: משאירים phase=playing ו-currentTurn=המנצח; ההתחשבנות דרך rummySettle.
+      tx.update(tRef, upd);
+    } else {
+      const uids = Object.keys(t.players).sort();
+      const next = uids[(uids.indexOf(actor) + 1) % uids.length];
+      tx.update(tRef, {...upd, currentTurn: next, turnStartedAt: Date.now(), turnSnapBoard: newBoard, turnSnapRack: []});
+    }
+    return {won, winner: actor};
+  });
+  return {ok: true, ...out};
+});
+
+// ── משיכת אבן: השחקן הפועל מושך מהקופה ומעביר תור. ──
+exports.rummyDrawSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    rummyRequireSrv(t);
+    const actor = rummyActor(t, uid, email);
+    const p = t.players[actor];
+    const oldRack = await rummyReadRack(tx, tableId, t, actor);
+    const deck = [...(t.deck || [])];
+    const tile = deck.length ? deck.pop() : null;
+    const rack = [...oldRack];
+    if (tile) { const empty = rack.findIndex((x) => x === null); if (empty !== -1) rack[empty] = tile; else rack.push(tile); }
+    const uids = Object.keys(t.players).sort();
+    const next = uids[(uids.indexOf(actor) + 1) % uids.length];
+    tx.update(tRef, {deck, ...writeHand(tx, tableId, actor, rack, p.isBot), [`players.${actor}.missed`]: 0,
+      currentTurn: next, turnStartedAt: Date.now(), turnSnapBoard: t.board || [], turnSnapRack: []});
+  });
+  return {ok: true};
+});
+
+// ── שומר-מפני-קיפאון: כל יושב קורא כשתור פג; השרת מוודא תפוגה (שעון-שרת) ומושך בכפייה. ──
+exports.rummyForceMoveSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) return;
+    const t = snap.data();
+    if (t.type !== "rummikub" || !t.srvAuth || t.phase !== "playing" || !t.currentTurn) return;
+    assertParticipant(t, uid, email);
+    const stuck = t.currentTurn;
+    const p = t.players[stuck];
+    if (!p) return;
+    const startAt = Number(t.turnStartedAt) || 0;
+    const turnSecs = Number(t.turnSeconds) || 60;
+    const GRACE = 6;
+    if (!startAt || (Date.now() - startAt) < (turnSecs + GRACE) * 1000) return;
+    const oldRack = await rummyReadRack(tx, tableId, t, stuck);
+    const deck = [...(t.deck || [])];
+    const tile = deck.length ? deck.pop() : null;
+    const rack = [...oldRack];
+    if (tile) { const empty = rack.findIndex((x) => x === null); if (empty !== -1) rack[empty] = tile; else rack.push(tile); }
+    const uids = Object.keys(t.players).sort();
+    const next = uids[(uids.indexOf(stuck) + 1) % uids.length];
+    tx.update(tRef, {deck, ...writeHand(tx, tableId, stuck, rack, p.isBot),
+      [`players.${stuck}.missed`]: (Number(p.missed) || 0) + 1,
+      currentTurn: next, turnStartedAt: Date.now(), turnSnapBoard: t.board || [], turnSnapRack: []});
   });
   return {ok: true};
 });
@@ -1420,7 +1567,7 @@ exports.rummyAddBot = onCall(async (request) => {
     const buyIn = round2(Number(t.minBuyIn) || 0);
     const players = {...(t.players || {}), [bot.id]: {username: botName, cards: [], hasDropped: false, missed: 0, stack: buyIn, isBot: true}};
     const bank = {...(t.bank || {}), [bot.id]: buyIn};
-    if (Object.keys(players).length === max) { tx.update(tRef0, {...dealFields(players, bank), bank}); return true; }
+    if (Object.keys(players).length === max) { tx.update(tRef0, {...dealSplit(tx, tableId, dealFields(players, bank), t.srvAuth), bank}); return true; }
     tx.update(tRef0, {players, bank});
     return false;
   });
@@ -1592,9 +1739,12 @@ function dealSplit(tx, tableId, dealt, srvAuth) {
     if (p.isBot) { pub.players[u] = p; }
     else {
       tx.set(privRef(tableId, u), {cards: (p.cards || [])});
-      pub.players[u] = {...p, cards: [], handCount: (p.cards || []).length};
+      // handCount = מספר האבנים בפועל (מגש-רמיקוב מרופד ב-null עד 28; רמי — 14 בלי null)
+      pub.players[u] = {...p, cards: [], handCount: (p.cards || []).filter(Boolean).length};
     }
   }
+  // turnSnapRack ברמיקוב = המגש של השחקן הראשון — לא לחשוף אותו במסמך הציבורי.
+  if ("turnSnapRack" in pub) pub.turnSnapRack = [];
   return pub;
 }
 // קורא את כל הידיים (אנוש מ-priv, בוט מהציבורי). כל הקריאות חייבות לקרות לפני כתיבות.
@@ -1610,7 +1760,7 @@ async function readHands(tx, tableId, players) {
 function writeHand(tx, tableId, uid, cards, isBot) {
   if (isBot) return {[`players.${uid}.cards`]: cards};
   tx.set(privRef(tableId, uid), {cards});
-  return {[`players.${uid}.handCount`]: cards.length};
+  return {[`players.${uid}.handCount`]: (cards || []).filter(Boolean).length};
 }
 // בונה t עם ידיים משוחזרות (hydrate) לצורך settle/מוח-בוט; ידי-אנוש מגיעות מ-priv.
 function hydratePlayers(players, hands) {

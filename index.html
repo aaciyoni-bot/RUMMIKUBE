@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v180';
+        window.__APP_VER = 'v181';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -2345,7 +2345,8 @@
                 if (t.type === 'rummikub') {
                     await window.fb.addDoc(col, {
                         type: 'rummikub', clubId: CLUB_ID, maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes,
-                        players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, chat: [], createdAt: Date.now()
+                        players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, chat: [], createdAt: Date.now(),
+                        srvAuth: t.srvAuth !== false
                     });
                 } else if (t.type === 'rami') {
                     await window.fb.addDoc(col, ramiTableDoc({ maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes, rakeMode: t.rakeMode, rakePct: t.rakePct, rakeFee: t.rakeFee, turnSeconds: t.turnSeconds, timeBank: t.timeBank, timeBankUses: t.timeBankUses, srvAuth: t.srvAuth }));
@@ -5392,7 +5393,8 @@
                 await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), {
                     type: 'rummikub', clubId: CLUB_ID, maxPlayers: Number(newTableOptions.maxPlayers) || 4,
                     minBuyIn: buyIn, stakes,
-                    players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, createdAt: Date.now()
+                    players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, createdAt: Date.now(),
+                    srvAuth: true
                 });
                 setShowCreateRummy(false); showToast("שולחן רמיקוב נפתח!", "success");
             };
@@ -7632,6 +7634,24 @@
             const me = tableState?.players?.[user.uid];
             const hasDropped = !!me?.hasDropped;
             const rakeFrac = ((clubSettings?.rakePct ?? DEFAULT_RAKE_PCT) / 100);
+            // מצב שרת-מלא (אֶפֶס-אֵמון) לרמיקוב: המגש פרטי (priv), הלוח ציבורי; מהלכים דרך callables.
+            const srvAuth = !!(tableState && tableState.srvAuth);
+            const callFn = (name, data) => window.fb.httpsCallable(window.fb.functions, name)(data);
+            const [privHand, setPrivHand] = useState(null);
+            useEffect(() => {
+                if (!tableDocId || !tableState || !tableState.srvAuth) { setPrivHand(null); return; }
+                const ref = window.fb.doc(window.fb.db, "tables", tableDocId, "priv", user.uid);
+                const unsub = window.fb.onSnapshot(ref, d => setPrivHand(d.exists() ? ((d.data().cards) || []) : []), () => {});
+                return () => unsub();
+            }, [tableDocId, user.uid, tableState && tableState.srvAuth]);
+            // רנטגן-GOD: קורא את כל המגשים הפרטיים לפיקוח (מורשה בחוקים ל-GOD).
+            const [godHands, setGodHands] = useState({});
+            useEffect(() => {
+                if (!isGod || !godOpen || !tableDocId || !(tableState && tableState.srvAuth)) { setGodHands({}); return; }
+                const col = window.fb.collection(window.fb.db, "tables", tableDocId, "priv");
+                const unsub = window.fb.onSnapshot(col, s => { const m = {}; s.forEach(d => { m[d.id] = (d.data().cards) || []; }); setGodHands(m); }, () => {});
+                return () => unsub();
+            }, [isGod, godOpen, tableDocId, tableState && tableState.srvAuth]);
 
             const startIdsSet = useMemo(() => new Set(startTurnBoard.map(g => g.id)), [startTurnBoard]);
             // האבנים שהיו במגש שלי בתחילת התור — רק אותן מותר להחזיר מהלוח למגש.
@@ -7800,7 +7820,8 @@
                                     const placedIds = new Set(solved.placed.map(t => t.id));
                                     const solvedRack = rack.map(t => (t && placedIds.has(t.id)) ? null : t);
                                     const solvedBoard = solved.groups.map(g => newBoardGroup(autoSortRun([...g])));
-                                    if (solvedRack.filter(Boolean).length === 0) { await settleWin(currentUid, solvedBoard); return; }
+                                    if (solvedRack.filter(Boolean).length === 0) { if (srvAuth) await callFn('rummyMoveSrv', { tableId: tableState.id, newBoard: solvedBoard, newRack: solvedRack }); await settleWin(currentUid, solvedBoard); return; }
+                                    if (srvAuth) { await callFn('rummyMoveSrv', { tableId: tableState.id, newBoard: solvedBoard, newRack: solvedRack }); return; }
                                     await window.fb.updateDoc(tblRef, {
                                         board: solvedBoard,
                                         [`players.${currentUid}.cards`]: solvedRack,
@@ -7842,9 +7863,11 @@
                                     // רשת ביטחון: הלוח כולו חייב להיות חוקי אחרי המהלך
                                     if (newBoard.every(g => validateGroup(g.tiles))) {
                                         if (newRack.filter(Boolean).length === 0) {
+                                            if (srvAuth) await callFn('rummyMoveSrv', { tableId: tableState.id, newBoard, newRack });
                                             await settleWin(currentUid, newBoard); // הבוט סיים - זכה
                                             return;
                                         }
+                                        if (srvAuth) { await callFn('rummyMoveSrv', { tableId: tableState.id, newBoard, newRack }); return; }
                                         await window.fb.updateDoc(tblRef, {
                                             board: newBoard,
                                             [`players.${currentUid}.cards`]: newRack,
@@ -7858,6 +7881,7 @@
                                 }
 
                                 // אין מהלך - משיכה מהקופה והעברת תור
+                                if (srvAuth) { await callFn('rummyDrawSrv', { tableId: tableState.id }); return; }
                                 const newDeck = [...(currentTbl.deck || [])];
                                 const tile = newDeck.length > 0 ? newDeck.pop() : null;
                                 const newRack = [...rack];
@@ -7927,6 +7951,8 @@
                     if (!live || live.phase !== 'playing' || !live.turnStartedAt) return;
                     if (Date.now() - live.turnStartedAt < (TURN_SECONDS + 8) * 1000) return;
                     if (live.currentTurn === user.uid) return; // התור שלי מטופל בטיימר הרגיל
+                    // מצב שרת-מלא: השחרור הכפוי עובר בשרת (בודק תפוגה בשעון-שרת). בוטים מטופלים ע"י המנהיג.
+                    if (srvAuth) { if (live.players?.[live.currentTurn]?.isBot) return; try { await callFn('rummyForceMoveSrv', { tableId: live.id }); } catch (e) {} return; }
                     // החמצה שנייה ברצף - השחקן הנעדר מוסר מהמשחק
                     if ((live.players?.[live.currentTurn]?.missed || 0) >= 1) { kickAbsent(live.currentTurn); return; }
                     try {
@@ -7978,7 +8004,10 @@
                 if (!dragDataRef.current) {
                     const rawBoard = tableState.board || [];
                     setBoard(rawBoard);
-                    const dbCards = tableState.players?.[user.uid]?.cards || [];
+                    // srvAuth: המגש שלי מגיע מ-priv (פרטי). בסיום-יד השרת חושף במסמך הציבורי.
+                    const dbCards = srvAuth
+                        ? ((tableState.players?.[user.uid]?.cards || []).length ? tableState.players[user.uid].cards : (privHand || []))
+                        : (tableState.players?.[user.uid]?.cards || []);
                     const fullRack = [...dbCards];
                     while(fullRack.length < 28) fullRack.push(null);
                     setRack(fullRack);
@@ -8009,7 +8038,7 @@
                         }
                     }
                 }
-            }, [tableState, user.uid]);
+            }, [tableState, user.uid, privHand]);
 
             const isBoardValid = useMemo(() => {
                 if (board.length === 0) return true;
@@ -8201,7 +8230,8 @@
                         }
                     }
 
-                    if (tableState?.id && isMyTurn) {
+                    if (tableState?.id && isMyTurn && !srvAuth) {
+                        // srvAuth: הסידור נשאר מקומי עד ה"סיום תור" (rummyMoveSrv). אין כתיבה מיָדִית.
                         try {
                             await window.fb.runTransaction(window.fb.db, async (t) => {
                                 const ref = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -8223,8 +8253,8 @@
                     } else if (tableState?.id && currentDrag.source === 'rack' && (!actualTarget || actualTarget === 'rack' || actualTarget?.startsWith('rack-slot-'))) {
                         // סידור המגש מחוץ לתור: חייב להישמר מיד לשרת - אחרת
                         // הסנאפשוט הבא (מהלך של יריב, טיימר) דורס את הסידור.
-                        // כתיבת הקלפים של עצמך מותרת בכל עת, כמו בכפתורי המיון.
-                        try { window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}.cards`]: newRack }); } catch(err) {}
+                        // srvAuth: המגש פרטי ומקומי; הסידור נשמר בין סנאפשוטים בזיכרון, בלי כתיבה.
+                        if (!srvAuth) { try { window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}.cards`]: newRack }); } catch(err) {} }
                     }
                 };
 
@@ -8291,6 +8321,8 @@
             /* ---------- מיון וסידור ---------- */
             const syncRack = (newRack) => {
                 setRack(newRack);
+                // srvAuth: המגש פרטי — סידור מקומי בלבד, בלי כתיבה לשרת.
+                if (srvAuth) return;
                 try { window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { [`players.${user.uid}.cards`]: newRack }); } catch(e){}
             };
 
@@ -8348,6 +8380,8 @@
                 if (tableState?.currentTurn !== user.uid) return;
                 setBoard(startTurnBoard);
                 setRack(startTurnRack);
+                // srvAuth: לא בוצעה שום כתיבה מיָדִית בתור, אז "בטל" הוא איפוס-מקומי בלבד.
+                if (srvAuth) return;
                 try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: startTurnBoard, [`players.${user.uid}.cards`]: startTurnRack }); } catch(e){}
             };
 
@@ -8387,6 +8421,12 @@
                     await kickAbsent(user.uid);
                     showToast("הוסרת מהמשחק - שני תורות ללא פעולה", "error");
                     onLeave();
+                    return;
+                }
+                if (srvAuth) {
+                    // מצב שרת-מלא: המשיכה עוברת בשרת (מגש פרטי). התור עובר.
+                    try { await callFn('rummyDrawSrv', { tableId: tableState.id }); if (!isTimeout) showToast((tableState.deck || []).length === 0 ? "הקופה ריקה - התור עובר" : "🀄 משכת אבן — התור עובר", "info"); }
+                    catch (e) { showToast(fnErr(e), "error"); }
                     return;
                 }
                 const snapRack = [...startTurnRack];
@@ -8524,6 +8564,17 @@
                     const newGroups = board.filter(g => !startIdsSet.has(g.id));
                     const dropValue = newGroups.reduce((s, g) => s + groupPoints(g.tiles), 0);
                     if (dropValue < FIRST_MELD_MIN) { flashError(`יש צורך ב-${FIRST_MELD_MIN} נקודות לפחות להורדה ראשונה (הורדת רק ${dropValue}).`); return; }
+                }
+
+                if (srvAuth) {
+                    // מצב שרת-מלא: השרת מאמת את המהלך (שימור-אבנים, קבוצות, הורדה-ראשונה) ומחייב.
+                    // הלוח כבר מוצג מקומית, אז אין תחושת-השהיה. מנצח → קודם מחייבים ואז מסדרים כסף.
+                    try {
+                        await callFn('rummyMoveSrv', { tableId: tableState.id, newBoard: board, newRack: rack });
+                        if (activeRackCount === 0) await endGame(board);
+                        else playSnd('check');
+                    } catch (e) { showToast(fnErr(e), "error"); }
+                    return;
                 }
 
                 if (activeRackCount === 0) { await endGame(board); return; }
@@ -8699,7 +8750,7 @@
                         <button onClick={handleLeave} className="px-3 py-1 bg-slate-800 rounded-lg text-slate-400 font-bold border border-slate-700 text-xs hover:bg-rose-900 hover:text-white transition-colors shrink-0">יציאה</button>
                         <div className="flex-1 min-h-0 min-w-0 w-auto sm:w-full flex flex-row sm:flex-col items-center justify-start sm:justify-evenly gap-1.5 sm:gap-0 overflow-x-auto sm:overflow-visible">
                         {(isPlaying || isShowdown) && Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
-                            const tileCount = pData.cards ? pData.cards.filter(c => c !== null).length : 0;
+                            const tileCount = (srvAuth && !pData.isBot) ? (Number(pData.handCount) || 0) : (pData.cards ? pData.cards.filter(c => c !== null).length : 0);
                             const isTurn = tableState.currentTurn === uid;
                             return (
                                 <div key={uid} className={`flex flex-col items-center transition-all shrink-0 w-auto min-w-[62px] sm:w-full relative ${isTurn ? '' : 'opacity-60'}`}>
@@ -8847,16 +8898,19 @@
                                 <button onClick={()=>setGodOpen(false)} className="text-slate-500 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
                             </div>
                             <div className="text-[10px] text-slate-500 mb-2">קופה: {(tableState.deck||[]).length} אבנים</div>
-                            {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, p]) => (
+                            {Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, p]) => {
+                                const xcards = ((srvAuth && !p.isBot) ? (godHands[uid] || []) : (p.cards || [])).filter(c => c);
+                                return (
                                 <div key={uid} className="mb-3">
-                                    <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({(p.cards||[]).filter(c=>c).length} אבנים · {rackPenalty(p.cards)} נק')</span></div>
+                                    <div className="text-xs font-bold text-white mb-1">{p.username} <span className="text-slate-500">({xcards.length} אבנים · {rackPenalty(xcards)} נק')</span></div>
                                     <div className="flex flex-wrap gap-1" dir="ltr">
-                                        {(p.cards||[]).filter(c=>c).map(t => (
+                                        {xcards.map(t => (
                                             <div key={t.id} className={`rummy-tile w-6 h-9 flex items-center justify-center text-xs${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>
                                         ))}
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 

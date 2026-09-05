@@ -139,7 +139,7 @@ service cloud.firestore {
              && !('bank' in request.resource.data.diff(resource.data).affectedKeys())
              && ( resource.data.get('srvAuth', false) != true
                   || !request.resource.data.diff(resource.data).affectedKeys()
-                       .hasAny(['players','deck','discard','currentTurn','turnPhase','drawnThisTurn','phase','winner','settlePending','freshMult','srvAuth']) ) );
+                       .hasAny(['players','deck','discard','board','currentTurn','turnPhase','drawnThisTurn','turnStartedAt','turnSnapBoard','turnSnapRack','phase','winner','settlePending','freshMult','srvAuth']) ) );
       // מחיקה: צוות/GOD (ניקוי שולחנות, ניהול טורנירים) או שולחן ללא כסף. כך אי-אפשר
       // למחוק שולחן חי שיש בו סטאקים (=השמדת צ'יפים של שחקנים) מבלי להיות צוות.
       allow delete: if isGod()
