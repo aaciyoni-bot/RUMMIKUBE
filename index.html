@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v178';
+        window.__APP_VER = 'v179';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -9067,6 +9067,16 @@
                 return () => unsub();
             }, [tableDocId]);
 
+            // מצב שרת-מלא: היד הפרטית שלי נשמרת ב-priv/{uid} (קריא רק לי). נרשמים אליו ומציגים
+            // אותו כיד שלי. יריב לא יכול לקרוא את המסמך הזה — כך הקלפים באמת מוסתרים.
+            const [privHand, setPrivHand] = useState(null);
+            useEffect(() => {
+                if (!tableDocId || !tableState || !tableState.srvAuth) { setPrivHand(null); return; }
+                const ref = window.fb.doc(window.fb.db, "tables", tableDocId, "priv", user.uid);
+                const unsub = window.fb.onSnapshot(ref, d => { setPrivHand(d.exists() ? ((d.data().cards) || []) : []); }, () => {});
+                return () => unsub();
+            }, [tableDocId, user.uid, tableState && tableState.srvAuth]);
+
             const t = tableState;
             const meP = t && t.players && t.players[user.uid];
             const isSeated = !!meP;
@@ -9078,13 +9088,23 @@
             const turnSecs = (t && Number(t.turnSeconds)) || TURN_SECONDS;
             const myTb = (meP && Number(meP.tb)) || 0;          // שניות שמתווספות בכל הפעלה
             const myTbUses = (meP && Number(meP.tbUses)) || 0;  // הפעלות בנק-זמן שנותרו
-            const myHand = (meP && meP.cards) || [];
+            // במצב שרת-מלא היד שלי מגיעה מ-priv (פרטי); אחרת מהמסמך הציבורי כרגיל.
+            const myHand = srvAuth ? (privHand || []) : ((meP && meP.cards) || []);
             // דרגות שחקנים לתצוגה בשולחן: מנוי-קריאה בלבד למ-memberships (בלי נגיעה בכסף)
             const [memRanks, setMemRanks] = useState({});
             const [profileUid, setProfileUid] = useState(null);
             const [levelUp, setLevelUp] = useState(null);
             const [godOpen, setGodOpen] = useState(false);
             const isGod = isGodUser(user);
+            // רנטגן-GOD למצב שרת-מלא: הידיים הפרטיות שמורות ב-priv. GOD מורשה לקרוא את כולן
+            // (חוקי-אבטחה), אז כשפאנל-ה-GOD פתוח נרשמים לתת-האוסף priv ומציגים את הידיים האמת.
+            const [godHands, setGodHands] = useState({});
+            useEffect(() => {
+                if (!isGod || !godOpen || !tableDocId || !(t && t.srvAuth)) { setGodHands({}); return; }
+                const col = window.fb.collection(window.fb.db, "tables", tableDocId, "priv");
+                const unsub = window.fb.onSnapshot(col, s => { const m = {}; s.forEach(d => { m[d.id] = (d.data().cards) || []; }); setGodHands(m); }, () => {});
+                return () => unsub();
+            }, [isGod, godOpen, tableDocId, t && t.srvAuth]);
             const myLvlRef = useRef(null);
             // מזהה עליית-רמה של השחקן עצמו (אחרי שהסטטיסטיקה מתעדכנת) ומפעיל חגיגה
             useEffect(() => {
@@ -10272,7 +10292,7 @@
 
             // ── חלקים משותפים לשתי הפריסות (לרוחב / לאורך) ──
             const oppCards = uids.filter(u => u !== user.uid).map(u => {
-                const p = t.players[u]; const cnt = (p.cards || []).filter(Boolean).length;
+                const p = t.players[u]; const cnt = (srvAuth && !p.isBot) ? (Number(p.handCount) || 0) : (p.cards || []).filter(Boolean).length;
                 const isTheirTurn = t.currentTurn === u && t.phase === 'playing';
                 const oppTbUses = Number(p.tbUses) || 0;
                 const threw = (p.threw || []).slice(-5);
@@ -10348,7 +10368,7 @@
                     <div className="text-center"><span className="text-2xl">👁️</span> <span className="text-slate-200 font-black text-sm">אתה צופה — הידיים מוסתרות</span></div>
                     <div className="grid grid-cols-1 gap-2">
                         {uids.map(u => {
-                            const p = t.players[u] || {}; const cnt = (p.cards || []).filter(Boolean).length; const turn = t.currentTurn === u && t.phase === 'playing';
+                            const p = t.players[u] || {}; const cnt = (srvAuth && !p.isBot && u !== user.uid) ? (Number(p.handCount) || 0) : ((u === user.uid ? myHand : (p.cards || [])).filter(Boolean).length); const turn = t.currentTurn === u && t.phase === 'playing';
                             return (
                                 <div key={u} className={`flex items-center gap-3 rounded-xl px-3 py-2 border ${turn ? 'border-emerald-400 bg-emerald-500/15 animate-pulse' : 'border-white/10 bg-slate-950/40'}`}>
                                     <img src={avatarUrl({ ...p, uid: u })} className="w-9 h-9 rounded-full border border-white/20 bg-slate-800 shrink-0" />
@@ -10499,7 +10519,7 @@
                                     <button onClick={() => setGodOpen(false)} className="text-slate-500 hover:text-white text-lg"><i className="fa-solid fa-xmark"></i></button>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mb-2">קופה: {(t.deck || []).length} אבנים בערימה</div>
-                                {Object.entries(t.players || {}).map(([uid, p]) => { const cards = (p.cards || []).filter(Boolean); const bp = bestPartition(cards); return (
+                                {Object.entries(t.players || {}).map(([uid, p]) => { const cards = ((srvAuth && !p.isBot) ? (godHands[uid] || (uid === user.uid ? myHand : [])) : (p.cards || [])).filter(Boolean); const bp = bestPartition(cards); return (
                                     <div key={uid} className="mb-2.5 pb-2 border-b border-white/5 last:border-0">
                                         <div className="text-xs font-bold text-white mb-1">{p.username}{p.isBot ? ' 🤖' : ''}{uid === t.currentTurn ? ' ⏳' : ''} <span className="text-slate-500 font-normal">({cards.length} אבנים · {bp.leftoverPoints} נק'{bp.complete ? ' · ✅ יד שלמה!' : ''})</span></div>
                                         <div className="flex flex-wrap gap-0.5" dir="ltr">{cards.map(c => <RamiTile key={c.id} tile={c} board mini />)}</div>

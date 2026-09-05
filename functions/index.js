@@ -714,7 +714,7 @@ exports.ramiSit = onCall(async (request) => {
     const players = {...(t.players || {}), [uid]: {username: m.username || "", photo: m.photo || "", avatarSeed: m.avatarSeed || "", cards: [], stack: buyIn, isBot: false, missed: 0}};
     const bank = {...(t.bank || {}), [uid]: buyIn};
     tx.update(memRef, {balance: round2(bal - total)});
-    if (Object.keys(players).length === max) { tx.update(tRef, {...ramiDeal(players, bank, t.timeBank, t.timeBankUses), bank}); return true; }
+    if (Object.keys(players).length === max) { tx.update(tRef, {...dealSplit(tx, tableId, ramiDeal(players, bank, t.timeBank, t.timeBankUses), t.srvAuth), bank}); return true; }
     tx.update(tRef, {players, bank});
     return false;
   });
@@ -1378,7 +1378,7 @@ exports.ramiAddBot = onCall(async (request) => {
     const botStack = round2(Math.max(buyIn * 25, 2500));
     const players = {...(t.players || {}), [bot.id]: {username: botName, cards: [], stack: botStack, isBot: true, missed: 0}};
     const bank = {...(t.bank || {}), [bot.id]: botStack};
-    if (Object.keys(players).length === max) { tx.update(tRef0, {...ramiDeal(players, bank, t.timeBank, t.timeBankUses), bank}); return true; }
+    if (Object.keys(players).length === max) { tx.update(tRef0, {...dealSplit(tx, tableId, ramiDeal(players, bank, t.timeBank, t.timeBankUses), t.srvAuth), bank}); return true; }
     tx.update(tRef0, {players, bank});
     return false;
   });
@@ -1579,6 +1579,46 @@ function mapEngineErr(e) {
 }
 const histPush = (arr, tile, cap) => [...((arr) || []), tile].slice(-cap);
 
+// ── פרטיות-ידיים (srvAuth): היד של כל שחקן-אנושי נשמרת במסמך פרטי משלו
+// tables/{id}/priv/{uid} — קריא רק לו ול-GOD (חוקי-אבטחה), נכתב רק ע"י השרת. כך יריב
+// לא יכול לקרוא את הקלפים של אחר מהמסמך-הציבורי. ידי-בוטים נשארות ציבוריות (אין מה
+// להסתיר, והבוט "מציץ" בשרת ממילא). המסמך-הציבורי מחזיק handCount בלבד לשחקן-אנושי.
+const privRef = (tableId, u) => db.doc(`tables/${tableId}/priv/${u}`);
+// מפצל תוצאת-חלוקה: ידי-אנוש → priv, ידי-בוט → נשארות; ציבורי מקבל handCount לאנוש.
+function dealSplit(tx, tableId, dealt, srvAuth) {
+  if (!srvAuth) return dealt;
+  const pub = {...dealt, players: {}};
+  for (const [u, p] of Object.entries(dealt.players || {})) {
+    if (p.isBot) { pub.players[u] = p; }
+    else {
+      tx.set(privRef(tableId, u), {cards: (p.cards || [])});
+      pub.players[u] = {...p, cards: [], handCount: (p.cards || []).length};
+    }
+  }
+  return pub;
+}
+// קורא את כל הידיים (אנוש מ-priv, בוט מהציבורי). כל הקריאות חייבות לקרות לפני כתיבות.
+async function readHands(tx, tableId, players) {
+  const out = {};
+  for (const [u, p] of Object.entries(players || {})) {
+    if (p.isBot) { out[u] = (p.cards || []).filter(Boolean); }
+    else { const s = await tx.get(privRef(tableId, u)); out[u] = s.exists ? ((s.data().cards) || []).filter(Boolean) : []; }
+  }
+  return out;
+}
+// כותב יד יחידה: אנוש → priv (+handCount ציבורי), בוט → ציבורי. מחזיר שדות-ציבור לעדכון.
+function writeHand(tx, tableId, uid, cards, isBot) {
+  if (isBot) return {[`players.${uid}.cards`]: cards};
+  tx.set(privRef(tableId, uid), {cards});
+  return {[`players.${uid}.handCount`]: cards.length};
+}
+// בונה t עם ידיים משוחזרות (hydrate) לצורך settle/מוח-בוט; ידי-אנוש מגיעות מ-priv.
+function hydratePlayers(players, hands) {
+  const np = {};
+  for (const [u, p] of Object.entries(players || {})) np[u] = {...p, cards: hands[u] || (p.cards || [])};
+  return np;
+}
+
 exports.ramiDrawSrv = onCall(async (request) => {
   const uid = request.auth && request.auth.uid;
   const email = request.auth && request.auth.token && request.auth.token.email;
@@ -1595,16 +1635,19 @@ exports.ramiDrawSrv = onCall(async (request) => {
     const p = (t.players || {})[uid];
     if (!p) throw new HttpsError("permission-denied", "אינך בשולחן");
     const top = (t.discard || [])[(t.discard || []).length - 1];
+    // היד הפרטית של הקורא מגיעה מ-priv (אנוש) או מהציבורי (בוט — לא רלוונטי לקריאת-אדם).
+    const myCards = p.isBot ? (p.cards || []).filter(Boolean) : await readHands(tx, tableId, {[uid]: p}).then((h) => h[uid]);
     const st = buildEngineState(t);
+    st.players = {...st.players, [uid]: {...p, cards: myCards}};
     try { RAMI_ENGINE.applyDraw(st, uid, source === "discard" ? "discard" : "deck"); } catch (e) { throw mapEngineErr(e); }
     // תיקו-קופה (מכסת-מחזורים): הסבב נגמר ללא מנצח; הכסף לא זז (כל אחד שומר את ה-bank).
     if (st.phase === "showdown" && !st.winner) {
-      tx.update(tRef, {deck: st.deck, discard: st.discard, [`players.${uid}.cards`]: st.players[uid].cards,
+      tx.update(tRef, {deck: st.deck, discard: st.discard, ...writeHand(tx, tableId, uid, st.players[uid].cards, p.isBot),
         phase: "showdown", winner: null, currentTurn: null, turnPhase: null, settlePending: null,
         lastResults: {draw: true, potDraw: true, endedAt: Date.now()}});
       return;
     }
-    const upd = {[`players.${uid}.cards`]: st.players[uid].cards, deck: st.deck, discard: st.discard,
+    const upd = {...writeHand(tx, tableId, uid, st.players[uid].cards, p.isBot), deck: st.deck, discard: st.discard,
       turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, [`players.${uid}.missed`]: 0};
     if (source === "discard") upd[`players.${uid}.picked`] = histPush(p.picked, top, 8);
     else if (top) upd[`players.${uid}.passed`] = histPush(p.passed, top, 8);
@@ -1628,10 +1671,12 @@ exports.ramiDiscardSrv = onCall(async (request) => {
     assertParticipant(t, uid, email);
     const p = (t.players || {})[uid];
     if (!p) throw new HttpsError("permission-denied", "אינך בשולחן");
-    const tile = (p.cards || []).find((x) => x && x.id === tileId);
+    const myCards = p.isBot ? (p.cards || []).filter(Boolean) : (await readHands(tx, tableId, {[uid]: p}))[uid];
+    const tile = myCards.find((x) => x && x.id === tileId);
     const st = buildEngineState(t);
+    st.players = {...st.players, [uid]: {...p, cards: myCards}};
     try { RAMI_ENGINE.applyDiscard(st, uid, tileId); } catch (e) { throw mapEngineErr(e); }
-    tx.update(tRef, {[`players.${uid}.cards`]: st.players[uid].cards, discard: st.discard,
+    tx.update(tRef, {...writeHand(tx, tableId, uid, st.players[uid].cards, p.isBot), discard: st.discard,
       [`players.${uid}.threw`]: histPush(p.threw, tile, 6), currentTurn: st.currentTurn,
       turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, turnStartedAt: Date.now()});
   });
@@ -1651,10 +1696,13 @@ exports.ramiGoOutSrv = onCall(async (request) => {
     const t = snap.data();
     requireSrvAuth(t);
     assertParticipant(t, uid, email);
+    // לשחזר את כל הידיים מ-priv (כל הקריאות לפני הכתיבות) — settleRamiTx צריך את היד המנצחת
+    // (בדיקת-השלמות) ואת כל האבנים (שימור-אבנים). settle כותב showdown עם הידיים גלויות
+    // (חשיפה בסיום-יד — לגיטימי), והחלוקה הבאה מנקה את priv ממילא.
+    const hands = await readHands(tx, tableId, t.players);
     const st = buildEngineState(t);
+    st.players = hydratePlayers(t.players, hands);
     try { RAMI_ENGINE.applyGoOut(st, uid, tileId); } catch (e) { throw mapEngineErr(e); }
-    // המנוע כבר וידא ירידה-חוקית והזיז את האבן להשלכה. settleRamiTx מבצע את הכסף
-    // (עונשין/רייק/סוכנים) + בדיקת-השלמות + שימור-אבנים שלו, וכותב showdown.
     const t2 = {...t, players: st.players, deck: st.deck, discard: st.discard};
     return await settleRamiTx(tx, tRef, t2, uid);
   });
@@ -1687,16 +1735,19 @@ exports.ramiForceMoveSrv = onCall(async (request) => {
     // שעון-שרת: לא מזיזים לפני שבאמת עברו turnSecs+bonus+grace מאז תחילת-התור.
     if (!startAt || (Date.now() - startAt) < (turnSecs + bonus + GRACE) * 1000) return;
     const stuck = t.currentTurn;
+    // יד השחקן התקוע מגיעה מ-priv (אנוש) או מהציבורי (בוט). קריאה לפני כתיבה.
+    const stuckCards = cp.isBot ? (cp.cards || []).filter(Boolean) : (await readHands(tx, tableId, {[stuck]: cp}))[stuck];
     const st = buildEngineState(t);
+    st.players = {...st.players, [stuck]: {...cp, cards: stuckCards}};
     const r = RAMI_ENGINE.applyTimeout(st);
     if (!r.moved) return;
     if (st.phase === "showdown" && !st.winner) {
-      tx.update(tRef, {deck: st.deck, discard: st.discard, [`players.${stuck}.cards`]: st.players[stuck].cards,
+      tx.update(tRef, {deck: st.deck, discard: st.discard, ...writeHand(tx, tableId, stuck, st.players[stuck].cards, cp.isBot),
         phase: "showdown", winner: null, currentTurn: null, turnPhase: null, settlePending: null,
         lastResults: {draw: true, potDraw: true, endedAt: Date.now()}});
       return;
     }
-    tx.update(tRef, {[`players.${stuck}.cards`]: st.players[stuck].cards, deck: st.deck, discard: st.discard,
+    tx.update(tRef, {...writeHand(tx, tableId, stuck, st.players[stuck].cards, cp.isBot), deck: st.deck, discard: st.discard,
       [`players.${stuck}.missed`]: (Number(cp.missed) || 0) + 1,
       [`players.${stuck}.threw`]: r.dropped ? histPush(cp.threw, r.dropped, 6) : (cp.threw || []),
       currentTurn: st.currentTurn, turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, turnStartedAt: Date.now()});
@@ -1751,7 +1802,8 @@ exports.ramiFreshSrv = onCall(async (request) => {
     if (!allOk) throw new HttpsError("failed-precondition", "לא כל השחקנים אישרו פריש");
     const nm = Math.min(RAMI_FRESH_CAP, (Number(t.freshMult) || 1) * 2);
     const dealt = ramiDeal(players, t.bank || {}, t.timeBank, t.timeBankUses);
-    tx.update(tRef, {...dealt, freshMult: nm, freshReq: null});
+    // srvAuth: הידיים החדשות → priv (פרטי); ציבורי מקבל handCount. גם מנקה חשיפת-סוף-יד קודמת.
+    tx.update(tRef, {...dealSplit(tx, tableId, dealt, t.srvAuth), freshMult: nm, freshReq: null});
   });
   return {ok: true};
 });
@@ -1835,14 +1887,18 @@ async function botStepTx(tableId) {
     if (t.type !== "rami" || t.phase !== "playing") return;
     const cur = t.currentTurn; const p = (t.players || {})[cur];
     if (!p || !p.isBot) return;
+    // srvAuth: ידי-האנוש שמורות ב-priv. משחזרים אותן (כל הקריאות לפני כתיבות) כדי שהמוח
+    // יוכל "להציץ" וכדי ש-settle יראה את כל האבנים. ידי-בוט ממילא ציבוריות.
+    const hands = t.srvAuth ? await readHands(tx, tableId, t.players) : null;
+    const playersH = hands ? hydratePlayers(t.players, hands) : t.players;
     const deck = [...(t.deck || [])]; const discard = [...(t.discard || [])];
     if (!deck.length && discard.length > 1) { const top = discard.pop(); const rest = discard.splice(0, discard.length); for (let i = rest.length - 1; i > 0; i--) { const j = (i * 2654435761 + 12345) % (i + 1); const tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp; } deck.push(...rest); if (top) discard.push(top); }
-    let hand = [...(p.cards || [])].filter(Boolean);
+    let hand = [...((hands ? hands[cur] : p.cards) || [])].filter(Boolean);
     // Bot brain v2 (ramiBrain.js — the same brain the client driver runs). Bots see
     // the hands by default (botsPeek:false on the table switches them to public
     // information only).
-    const peek = t.botsPeek !== false ? Object.fromEntries(Object.entries(t.players || {}).filter(([u]) => u !== cur).map(([u, q]) => [u, (q.cards || []).filter(Boolean)])) : null;
-    const ctx = {hand, discard, players: t.players, me: cur, budgetMs: 350, peek};
+    const peek = t.botsPeek !== false ? Object.fromEntries(Object.entries(playersH || {}).filter(([u]) => u !== cur).map(([u, q]) => [u, (q.cards || []).filter(Boolean)])) : null;
+    const ctx = {hand, discard, players: playersH, me: cur, budgetMs: 350, peek};
     let drawn = null; let pickedTile = null; let passedTile = null;
     const top = discard[discard.length - 1];
     let take = "deck";
@@ -1856,7 +1912,8 @@ async function botStepTx(tableId) {
     }
     if (goTile) {
       final = hand.filter((x) => x.id !== goTile.id); discard.push(goTile);
-      t.players = {...t.players, [cur]: {...p, cards: final}}; t.deck = deck; t.discard = discard;
+      // srvAuth: משחזרים את כל הידיים (playersH) כדי ש-settle יבדוק שימור-אבנים ויחשב נכון.
+      t.players = {...playersH, [cur]: {...p, cards: final}}; t.deck = deck; t.discard = discard;
       settleOut = await settleRamiTx(tx, tRef, t, cur); winnerUid = cur; return;
     }
     final = hand.filter((x) => x.id !== drop.id); discard.push(drop);
@@ -2004,7 +2061,7 @@ exports.ramiNewRound = onCall(async (request) => {
     }
     if (Object.keys(eligible).length < 2) throw new HttpsError("failed-precondition", "אין מספיק שחקנים עם צ'יפים");
     for (const [u, amt] of Object.entries(walletDebits)) { const d = memData[u]; if (d) tx.update(memRefs[u], {balance: round2((Number(d.balance) || 0) - amt)}); }
-    tx.update(tRef, {...ramiDeal(eligible, eBank, t.timeBank, t.timeBankUses), bank: eBank});
+    tx.update(tRef, {...dealSplit(tx, tableId, ramiDeal(eligible, eBank, t.timeBank, t.timeBankUses), t.srvAuth), bank: eBank});
   });
   return {ok: true};
 });

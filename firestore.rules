@@ -146,9 +146,10 @@ service cloud.firestore {
         || isStaffOf(resource.data.clubId)
         || resource.data.get('bank', {}).size() == 0;
     }
-    // קלפים פרטיים למנוע-שרת עתידי: כל שחקן קורא רק את שלו, כותב רק השרת
+    // קלפים פרטיים (מנוע-שרת srvAuth): כל שחקן קורא רק את היד שלו; GOD קורא הכל (פיקוח/רנטגן).
+    // כותב רק השרת (Cloud Functions עוקפות חוקים) — הלקוח לעולם לא כותב יד.
     match /tables/{id}/priv/{u} {
-      allow read: if signedIn() && uid() == u;
+      allow read: if signedIn() && (uid() == u || isGod());
       allow write: if false;
     }
 
