@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v181';
+        window.__APP_VER = 'v182';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -7757,6 +7757,14 @@
                             const playersCount = Object.keys(t.players || {}).length;
                             if (playersCount === 0 || playersCount >= t.maxPlayers || t.phase !== 'waiting') return;
                             if (!botsAreActive()) return;
+
+                            // srvAuth: הצטרפות+חלוקה חייבות לעבור בשרת (rummyAddBot) כדי שהמגשים ילכו
+                            // ל-priv (פרטי). חלוקה מהלקוח הייתה כותבת מגשים למסמך הציבורי.
+                            if (srvAuth) {
+                                const res = await callFn('rummyAddBot', { tableId: tableDocId });
+                                if (res?.data?.becameFull) spawnTwinTable(t);
+                                return;
+                            }
 
                             const botQ = window.fb.query(window.fb.collection(window.fb.db, "users"), window.fb.where("isBot", "==", true));
                             const botSnaps = await window.fb.getDocs(botQ);
