@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v179';
+        window.__APP_VER = 'v180';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -2300,8 +2300,9 @@
             players: {}, bank: {}, deck: [], discard: [],
             phase: 'waiting', currentTurn: null, turnPhase: 'draw', drawnThisTurn: false,
             freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now(),
-            // מנוע-שרת מלא (אֶפֶס-אֵמון): הקלפים/הקופה/התור נעולים לשרת; מהלכים דרך callables.
-            srvAuth: !!o.srvAuth
+            // מנוע-שרת מלא (אֶפֶס-אֵמון) — ברירת-מחדל! הקלפים/הקופה/התור נעולים לשרת; מהלכים
+            // דרך callables + עדכון-תצוגה מיָדִי. כבוי רק אם הועבר במפורש srvAuth:false.
+            srvAuth: o.srvAuth !== false
         });
         // חלוקת סבב רמי בצד-הלקוח (רק GOD מפעיל, כשהשולחן מתמלא בבוטים) — זהה לשרת.
         // freshMult נשמר בין חלוקות של אותה יד (פריש מחלק-מחדש ומכפיל); mult פרמטר.
@@ -5205,7 +5206,7 @@
                 finally { setBotTblBusy(false); }
             };
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
-            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10, srvAuth: false });
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10, srvAuth: true });
             // תבניות (טמפלטים) שמורות מקומית לכל קלאב — כמו ב-POKERTEN
             const RAMI_TPL_KEY = `rummi_rami_tpls_${CLUB_ID}`;
             const [ramiTpls, setRamiTpls] = useState(() => { try { return JSON.parse(localStorage.getItem(RAMI_TPL_KEY) || '[]'); } catch (e) { return []; } });
@@ -6097,13 +6098,10 @@
                                                     : `כל שחקן משלם בכניסה ${formatMoney(buyIn)} + ${formatMoney(fee)} עמלה = ${formatMoney(buyIn + fee)} ₪. אין עמלה על היד.`}
                                             </p>
                                         </div>
-                                        <label className="flex items-center gap-3 rounded-2xl p-3 mb-4 cursor-pointer border border-white/10 bg-slate-950/50">
-                                            <input type="checkbox" checked={!!ramiOpts.srvAuth} onChange={e => setRamiOpts({ ...ramiOpts, srvAuth: e.target.checked })} className="accent-emerald-500 w-5 h-5" />
-                                            <span className="flex-1">
-                                                <span className="font-black text-white text-sm block">🔒 מנוע-שרת מלא (אבטחה מרבית)</span>
-                                                <span className="text-slate-400 text-[11px] font-bold" dir="rtl">הקלפים מנוהלים בשרת בלבד — אי-אפשר לזייף יד או לראות קלפים של אחרים. מומלץ לבדוק שולחן אחד לפני שמפעילים על הכל.</span>
-                                            </span>
-                                        </label>
+                                        <div className="flex items-center gap-2 rounded-2xl px-3 py-2 mb-4 border border-emerald-500/20 bg-emerald-500/5">
+                                            <i className="fa-solid fa-shield-halved text-emerald-400"></i>
+                                            <span className="text-emerald-300/90 text-[11px] font-bold" dir="rtl">אבטחה מלאה: הקלפים מנוהלים בשרת — אי-אפשר לזייף יד או לראות קלפים של אחרים.</span>
+                                        </div>
                                         <div className="flex items-center gap-2 mb-3 pt-3 border-t border-white/5">
                                             <input value={ramiTplName} onChange={e => setRamiTplName(e.target.value)} placeholder="שם תבנית (לא חובה)" className="flex-1 bg-slate-900 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 font-bold" />
                                             <button onClick={saveRamiTpl} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-4 py-2 rounded-xl font-bold text-sm border border-emerald-500/30"><i className="fa-solid fa-bookmark ml-1"></i>שמור תבנית</button>
@@ -9088,8 +9086,28 @@
             const turnSecs = (t && Number(t.turnSeconds)) || TURN_SECONDS;
             const myTb = (meP && Number(meP.tb)) || 0;          // שניות שמתווספות בכל הפעלה
             const myTbUses = (meP && Number(meP.tbUses)) || 0;  // הפעלות בנק-זמן שנותרו
-            // במצב שרת-מלא היד שלי מגיעה מ-priv (פרטי); אחרת מהמסמך הציבורי כרגיל.
-            const myHand = srvAuth ? (privHand || []) : ((meP && meP.cards) || []);
+            // ── עדכון-תצוגה מיָדִי (optimistic) למצב שרת-מלא ──
+            // כדי שההשהיה של סיבוב-השרת לא תורגש: ברגע שאתה זורק/מושך-מהזריקה, התצוגה
+            // מתעדכנת מיד מקומית, והשרת מאשר ברקע. כשהמצב האמיתי מגיע (או אם הפעולה נכשלת)
+            // השכבה המקומית מתנקה. זו תצוגה בלבד — השרת נשאר מקור-האמת (אין סיכון-כסף).
+            const [optim, setOptim] = useState(null);
+            const myHandCountLive = srvAuth ? (privHand ? privHand.length : (Number(meP && meP.handCount) || 0)) : ((meP && meP.cards) || []).length;
+            const liveSig = t ? `${t.turnStartedAt}|${t.currentTurn}|${t.phase}|${t.drawnThisTurn}|${myHandCountLive}` : '';
+            useEffect(() => { setOptim(null); }, [liveSig]); // המצב האמיתי התקדם → מנקים את השכבה המקומית
+            // רשת-ביטחון: אם משום-מה לא הגיע עדכון (רשת) — לא משאירים תצוגה מקומית "תקועה".
+            useEffect(() => { if (!optim) return; const tm = setTimeout(() => setOptim(null), 6000); return () => clearTimeout(tm); }, [optim]);
+            // במצב שרת-מלא היד שלי מגיעה מ-priv (פרטי) בזמן משחק; בסיום-יד השרת חושף את הידיים
+            // במסמך הציבורי (settle), אז אם יש שם קלפים משתמשים בהם. אחרת — הזרימה הרגילה.
+            let myHand = srvAuth ? (((meP && meP.cards && meP.cards.length) ? meP.cards : (privHand || []))) : ((meP && meP.cards) || []);
+            if (optim) {
+                if (optim.removeId) myHand = myHand.filter(x => x && x.id !== optim.removeId);
+                if (optim.addTile) myHand = [...myHand, optim.addTile];
+            }
+            let dispDiscard = (t && t.discard) || [];
+            if (optim) {
+                if (optim.popDiscard) dispDiscard = dispDiscard.slice(0, -1);
+                if (optim.addToDiscard) dispDiscard = [...dispDiscard, optim.addToDiscard];
+            }
             // דרגות שחקנים לתצוגה בשולחן: מנוי-קריאה בלבד למ-memberships (בלי נגיעה בכסף)
             const [memRanks, setMemRanks] = useState({});
             const [profileUid, setProfileUid] = useState(null);
@@ -9514,10 +9532,13 @@
             const doDraw = (fromDeck) => {
                 haptic(12);
                 if (srvAuth) {
-                    if (!myTurn || (t && t.turnPhase !== 'draw')) return;
+                    if (!myTurn || (t && t.turnPhase !== 'draw') || optim) return;
                     const now = Date.now(); if (actingRef.current && (now - actingRef.current) < 3500) return; actingRef.current = now; const myLock = now;
+                    // משיכה-מהזריקה: האבן ידועה → תצוגה מיָדִית. משיכה-מהחפיסה: האבן לא ידועה
+                    // מראש (רק השרת יודע), אז מחכים לתשובה — זה ה"מה משכתי" הטבעי.
+                    if (!fromDeck) { const td = (t.discard || [])[(t.discard || []).length - 1]; if (td) setOptim({ addTile: td, popDiscard: true }); }
                     return callFn('ramiDrawSrv', { tableId: t.id, source: fromDeck ? 'deck' : 'discard' })
-                        .catch(e => showToast(fnErr(e), 'error'))
+                        .catch(e => { setOptim(null); showToast(fnErr(e), 'error'); })
                         .finally(() => { if (actingRef.current === myLock) actingRef.current = null; });
                 }
                 return applyTx(cur => {
@@ -9538,10 +9559,13 @@
 
             const doDiscard = (tileId) => {
                 if (srvAuth) {
-                    if (!myTurn || (t && t.turnPhase !== 'discard')) return;
+                    if (!myTurn || (t && t.turnPhase !== 'discard') || optim) return;
+                    const tile = myHand.find(x => x && x.id === tileId);
                     const now = Date.now(); if (actingRef.current && (now - actingRef.current) < 3500) return; actingRef.current = now; const myLock = now;
+                    // תצוגה מיָדִית: האבן עוזבת את היד ונוחתת על ערמת-ההשלכה מיד; השרת מאשר ברקע.
+                    if (tile) setOptim({ removeId: tileId, addToDiscard: tile });
                     return callFn('ramiDiscardSrv', { tableId: t.id, tileId })
-                        .catch(e => showToast(fnErr(e), 'error'))
+                        .catch(e => { setOptim(null); showToast(fnErr(e), 'error'); })
                         .finally(() => { if (actingRef.current === myLock) actingRef.current = null; });
                 }
                 return applyTx(cur => {
@@ -9627,7 +9651,9 @@
                     }
                     if (srvAuth) {
                         // מצב שרת-מלא: השרת מסיר את האבן, מוודא ירידה-חוקית + שימור-אבנים ומסדר את הכסף.
-                        await callFn('ramiGoOutSrv', { tableId: t.id, tileId: go.discard.id });
+                        setOptim({ removeId: go.discard.id, addToDiscard: go.discard }); // תצוגה מיָדִית של הירידה
+                        try { await callFn('ramiGoOutSrv', { tableId: t.id, tileId: go.discard.id }); }
+                        catch (e) { setOptim(null); throw e; }
                     } else {
                         await window.fb.runTransaction(window.fb.db, async (tx) => {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
@@ -10287,7 +10313,7 @@
             const freshReq = t.freshReq;
             const iApprovedFresh = freshReq && (freshReq.approvals || {})[user.uid];
             const freshApprovedCount = freshReq ? Object.keys(freshReq.approvals || {}).length : 0;
-            const topDiscard = (t.discard || [])[(t.discard || []).length - 1];
+            const topDiscard = dispDiscard[dispDiscard.length - 1];
             const turnName = t.players[t.currentTurn]?.username || '';
 
             // ── חלקים משותפים לשתי הפריסות (לרוחב / לאורך) ──
@@ -10382,8 +10408,8 @@
                     <div className="rounded-xl bg-slate-950/50 border border-white/10 p-3">
                         <div className="text-[11px] text-slate-400 font-bold mb-2 flex justify-between"><span>🗑 זריקות אחרונות</span><span dir="ltr">קופה: {(t.deck || []).length}</span></div>
                         <div className="flex flex-wrap gap-1 justify-center" dir="ltr">
-                            {((t.discard || []).slice(-10)).map((tile, i, a) => <div key={tile.id} style={{ opacity: 0.55 + 0.45 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>)}
-                            {(!t.discard || !t.discard.length) && <span className="text-slate-500 text-xs font-bold">אין עדיין זריקות</span>}
+                            {(dispDiscard.slice(-10)).map((tile, i, a) => <div key={tile.id} style={{ opacity: 0.55 + 0.45 * (i / Math.max(1, a.length - 1)) }}><RamiTile tile={tile} board /></div>)}
+                            {(!dispDiscard.length) && <span className="text-slate-500 text-xs font-bold">אין עדיין זריקות</span>}
                         </div>
                     </div>
                 </div>
