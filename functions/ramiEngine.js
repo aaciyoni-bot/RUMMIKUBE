@@ -52,7 +52,11 @@ function nextUid(state, uid) {
   return uids[(uids.indexOf(uid) + 1) % uids.length];
 }
 
+// כמה מחזורי-חפיסה מלאים ללא מנצח נחשבים תיקו (מונע קיפאון-נצח כשאיש לא יורד).
+const MAX_RESHUFFLES = 3;
+
 // אם הקופה ריקה — מחזירים את ערמת-ההשלכה (חוץ מהאבן העליונה) לקופה, מעורבבת.
+// סופרים ערבובים: אחרי MAX_RESHUFFLES מחזורים בלי מנצח — הסבב תיקו (isStalemate).
 function reshuffleIfNeeded(state, rng) {
   if (state.deck.length === 0 && state.discard.length > 1) {
     const top = state.discard.pop();
@@ -60,8 +64,11 @@ function reshuffleIfNeeded(state, rng) {
     shuffle(rest, rng);
     state.deck = rest;
     state.discard = [top];
+    state.reshuffles = (state.reshuffles || 0) + 1;
   }
 }
+// תיקו-קופה: עברנו את מכסת-המחזורים ואיש לא ירד → הסבב נגמר בלי מנצח (מחזירים הימור).
+function isStalemate(state) { return (state.reshuffles || 0) >= MAX_RESHUFFLES; }
 
 // ── משיכה: source 'deck' | 'discard' ──────────────────────────────────
 function applyDraw(state, uid, source, rng) {
@@ -82,6 +89,8 @@ function applyDraw(state, uid, source, rng) {
   p.cards = [...(p.cards || []), drawn];
   state.turnPhase = "discard";
   state.drawnThisTurn = true;
+  // תיקו-קופה: אם חצינו את מכסת-המחזורים בלי מנצח — הסבב נגמר ללא זוכה.
+  if (isStalemate(state)) { state.phase = "showdown"; state.winner = null; state.currentTurn = null; state.turnPhase = null; }
   return state;
 }
 
@@ -127,6 +136,33 @@ function applyGoOut(state, uid, tileId) {
   return state;
 }
 
+// ── תפוגת-תור (שומר-מפני-קיפאון): מזיז את השחקן הנוכחי בכפייה ──────────
+// אם טרם משך — מושך מהקופה; ואז זורק את האבן בעלת-הערך-הגבוה-ביותר (לא ג'וקר אם
+// אפשר) ומעביר תור. משמש את ramiForceMoveSrv כשתור פג ובעל-התור לא זמין. פונקציה
+// טהורה — נבדקת בסימולציה. מחזירה {moved, uid} או {moved:false} אם אין את מי להזיז.
+function applyTimeout(state, rng) {
+  if (state.phase !== "playing" || !state.currentTurn) return {moved: false};
+  const uid = state.currentTurn;
+  const p = state.players[uid];
+  if (!p) return {moved: false};
+  if (state.turnPhase === "draw" || !state.drawnThisTurn) {
+    reshuffleIfNeeded(state, rng);
+    if (isStalemate(state)) { state.phase = "showdown"; state.winner = null; state.currentTurn = null; state.turnPhase = null; return {moved: true, uid, draw: true}; }
+    if (state.deck.length) { p.cards = [...(p.cards || []), state.deck.pop()]; }
+    state.turnPhase = "discard"; state.drawnThisTurn = true;
+  }
+  const hand = (p.cards || []).filter(Boolean);
+  if (!hand.length) { state.currentTurn = nextUid(state, uid); state.turnPhase = "draw"; state.drawnThisTurn = false; return {moved: true, uid}; }
+  // זריקת האבן היקרה ביותר; מעדיפים לא לזרוק ג'וקר אם יש חלופה
+  const nonJoker = hand.filter((t) => t.val !== "☻");
+  const pool = nonJoker.length ? nonJoker : hand;
+  let drop = pool[0]; for (const t of pool) if ((t.val === "☻" ? 30 : Number(t.val)) > (drop.val === "☻" ? 30 : Number(drop.val))) drop = t;
+  p.cards = hand.filter((t) => t.id !== drop.id);
+  state.discard = [...state.discard, drop];
+  state.currentTurn = nextUid(state, uid); state.turnPhase = "draw"; state.drawnThisTurn = false;
+  return {moved: true, uid, dropped: drop};
+}
+
 // שימור-אבנים: כל האבנים (ידיים + קופה + ערמה) = בדיוק 2 לכל (ערך,צבע) + 2 ג'וקרים.
 // מחזיר {ok, total, excess} — excess=מפתח שחרג (סימן לזיוף). used by tests + callables.
 function tileCensus(state) {
@@ -140,4 +176,4 @@ function tileCensus(state) {
   return {ok: !excess, total, excess};
 }
 
-module.exports = {EngineError, newDeck, shuffle, deal, nextUid, reshuffleIfNeeded, applyDraw, applyDiscard, canGoOut, applyGoOut, tileCensus, COLORS};
+module.exports = {EngineError, newDeck, shuffle, deal, nextUid, reshuffleIfNeeded, isStalemate, MAX_RESHUFFLES, applyDraw, applyDiscard, canGoOut, applyGoOut, applyTimeout, tileCensus, COLORS};

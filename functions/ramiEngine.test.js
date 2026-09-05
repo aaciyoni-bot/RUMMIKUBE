@@ -69,6 +69,7 @@ function playGame(seed, nPlayers) {
     }
     E.applyDraw(state, uid, takeDiscard ? "discard" : "deck", rng);
     assertConserved(state, `after draw t${turns}`);
+    if (state.phase !== "playing") break; // תיקו-קופה (מכסת-מחזורים)
     assert.strictEqual(state.players[uid].cards.length, 15, "hand=15 after draw");
     // ירידה או השלכה
     const hand = state.players[uid].cards;
@@ -114,6 +115,37 @@ console.log("  ✓ every winner went out with a genuinely complete hand");
   assert.throws(() => E.applyDraw(st, "a", "deck"), code("already_drew"), "double draw rejected");
   assert.throws(() => E.applyGoOut(st, "a", st.players.a.cards[0].id), code("not_complete"), "bogus go-out rejected");
   console.log("  ✓ illegal moves rejected (off-turn / double-draw / discard-first / bogus go-out)");
+})();
+
+// ── מבחן שומר-מפני-קיפאון: לפעמים בעל-התור "נעלם" ומופעל force-move ─────
+(function timeoutStress() {
+  let tg = 0; let tw = 0;
+  const M = Number(process.env.TGAMES || 500);
+  for (let s = 1; s <= M; s++) {
+    const rng = rngFrom(90000 + s);
+    const uids = ["a", "b", "c"];
+    let state = E.deal(uids, rng);
+    let turns = 0;
+    while (state.phase === "playing") {
+      if (++turns > 4000) throw new Error(`FREEZE (timeout test) seed=${s}`);
+      const uid = state.currentTurn;
+      // 35% מהמקרים: השחקן "נעלם" → force-move; אחרת משחק רגיל
+      if (rng() < 0.35) {
+        E.applyTimeout(state, rng);
+        assertConserved(state, `after timeout t${turns}`);
+        continue;
+      }
+      E.applyDraw(state, uid, "deck", rng);
+      assertConserved(state, `to t${turns}`);
+      if (state.phase !== "playing") break; // תיקו-קופה
+      const go = goOutTileFor(state.players[uid].cards);
+      if (go) { E.applyGoOut(state, uid, go.id); assertConserved(state, `go t${turns}`); assert.ok(B.bestPartition(state.players[uid].cards).complete); break; }
+      E.applyDiscard(state, uid, pickWorst(state.players[uid].cards).id);
+      assertConserved(state, `disc t${turns}`);
+    }
+    tg++; if (state.winner) tw++;
+  }
+  console.log(`  ✓ timeout/force-move stress: ${tg} games, ${tw} wins, conservation held, no freeze`);
 })();
 
 console.log("\nramiEngine: ALL OK");

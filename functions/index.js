@@ -1597,6 +1597,13 @@ exports.ramiDrawSrv = onCall(async (request) => {
     const top = (t.discard || [])[(t.discard || []).length - 1];
     const st = buildEngineState(t);
     try { RAMI_ENGINE.applyDraw(st, uid, source === "discard" ? "discard" : "deck"); } catch (e) { throw mapEngineErr(e); }
+    // תיקו-קופה (מכסת-מחזורים): הסבב נגמר ללא מנצח; הכסף לא זז (כל אחד שומר את ה-bank).
+    if (st.phase === "showdown" && !st.winner) {
+      tx.update(tRef, {deck: st.deck, discard: st.discard, [`players.${uid}.cards`]: st.players[uid].cards,
+        phase: "showdown", winner: null, currentTurn: null, turnPhase: null, settlePending: null,
+        lastResults: {draw: true, potDraw: true, endedAt: Date.now()}});
+      return;
+    }
     const upd = {[`players.${uid}.cards`]: st.players[uid].cards, deck: st.deck, discard: st.discard,
       turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, [`players.${uid}.missed`]: 0};
     if (source === "discard") upd[`players.${uid}.picked`] = histPush(p.picked, top, 8);
@@ -1652,6 +1659,127 @@ exports.ramiGoOutSrv = onCall(async (request) => {
     return await settleRamiTx(tx, tRef, t2, uid);
   });
   await logRamiSettle(out, uid, tableId);
+  return {ok: true};
+});
+
+// שומר-מפני-קיפאון בצד-שרת: כל יושב יכול לקרוא כשתור פג. השרת מוודא (בשעון-שרת) שהתור
+// אכן פג — ורק אז מזיז בכפייה את השחקן התקוע (משיכה+זריקה יקרה, או תיקו-קופה). מונע
+// גם ניצול שבו יריב "מדלג" על תור באמצע ע"י קריאה מוקדמת.
+exports.ramiForceMoveSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר מזהה-שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) return;
+    const t = snap.data();
+    if (t.type !== "rami" || !t.srvAuth || t.phase !== "playing" || !t.currentTurn) return;
+    assertParticipant(t, uid, email);
+    if (t.settlePending) return; // יד מנצחת שממתינה ל-settle — לא להרוס בזריקה כפויה
+    const startAt = Number(t.turnStartedAt) || 0;
+    const turnSecs = (Number(t.turnSeconds) || 40);
+    const cp = (t.players || {})[t.currentTurn] || {};
+    const bonus = (Number(cp.tbBonusAt) || 0) === startAt ? (Number(cp.tbBonus) || 0) : 0;
+    const GRACE = 5;
+    // שעון-שרת: לא מזיזים לפני שבאמת עברו turnSecs+bonus+grace מאז תחילת-התור.
+    if (!startAt || (Date.now() - startAt) < (turnSecs + bonus + GRACE) * 1000) return;
+    const stuck = t.currentTurn;
+    const st = buildEngineState(t);
+    const r = RAMI_ENGINE.applyTimeout(st);
+    if (!r.moved) return;
+    if (st.phase === "showdown" && !st.winner) {
+      tx.update(tRef, {deck: st.deck, discard: st.discard, [`players.${stuck}.cards`]: st.players[stuck].cards,
+        phase: "showdown", winner: null, currentTurn: null, turnPhase: null, settlePending: null,
+        lastResults: {draw: true, potDraw: true, endedAt: Date.now()}});
+      return;
+    }
+    tx.update(tRef, {[`players.${stuck}.cards`]: st.players[stuck].cards, deck: st.deck, discard: st.discard,
+      [`players.${stuck}.missed`]: (Number(cp.missed) || 0) + 1,
+      [`players.${stuck}.threw`]: r.dropped ? histPush(cp.threw, r.dropped, 6) : (cp.threw || []),
+      currentTurn: st.currentTurn, turnPhase: st.turnPhase, drawnThisTurn: st.drawnThisTurn, turnStartedAt: Date.now()});
+  });
+  return {ok: true};
+});
+
+// צעד-בוט בצד-שרת לשולחן srvAuth: כשתור הוא של בוט, המנהיג היושב קורא לזה. משתמש
+// באותו botStepTx של מנוע-הבוטים (משיכה+ירידה/זריקה + settle). נדרש כי במצב srvAuth
+// כתיבת-הקלפים חסומה ללקוח, אז המהלך חייב לעבור בשרת.
+exports.ramiBotStepSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר מזהה-שולחן");
+  const pre = await db.doc(`tables/${tableId}`).get();
+  if (!pre.exists) return {ok: false};
+  const t = pre.data();
+  if (t.type !== "rami" || !t.srvAuth || t.phase !== "playing") return {ok: false};
+  assertParticipant(t, uid, email);
+  const cp = (t.players || {})[t.currentTurn];
+  if (!cp || !cp.isBot) return {ok: false}; // רק כשתור-בוט
+  await botStepTx(tableId);
+  return {ok: true};
+});
+
+// "פריש" בצד-שרת לשולחן srvAuth: הכפלת-מכפיל וחלוקה-מחדש. השרת מוודא שכל היושבים
+// האנושיים אישרו (בוטים תמיד מסכימים), ורק אז מחלק — כתיבת-הקלפים חסומה ללקוח.
+exports.ramiFreshSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר מזהה-שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    requireSrvAuth(t);
+    assertParticipant(t, uid, email);
+    if ((Number(t.freshMult) || 1) >= RAMI_FRESH_CAP) throw new HttpsError("failed-precondition", "הגעת לתקרת הפריש");
+    const players = t.players || {};
+    const seated = Object.keys(players);
+    const req = t.freshReq || null;
+    // הקורא נספר תמיד כמאשר — הוא המאשר-האחרון שהדק את הסף; כך אין תלות בכך שכתיבת-האישור
+    // האחרונה כבר נחתה במסמך (מירוץ) לפני הקריאה לפונקציה.
+    const approvals = {...((req && req.approvals) || {}), [uid]: true};
+    // אישור: כל יושב אנושי אישר (בוט תמיד מסכים).
+    const allOk = seated.every((u) => approvals[u] || (players[u] && players[u].isBot));
+    if (!allOk) throw new HttpsError("failed-precondition", "לא כל השחקנים אישרו פריש");
+    const nm = Math.min(RAMI_FRESH_CAP, (Number(t.freshMult) || 1) * 2);
+    const dealt = ramiDeal(players, t.bank || {}, t.timeBank, t.timeBankUses);
+    tx.update(tRef, {...dealt, freshMult: nm, freshReq: null});
+  });
+  return {ok: true};
+});
+
+// בנק-זמן בצד-שרת לשולחן srvAuth: מוסיף שניות לתור הנוכחי ומנכה שימוש. כתיבת players
+// חסומה ללקוח במצב זה, אז ההפעלה עוברת בשרת. רק בעל-התור, פעם אחת לתור.
+exports.ramiTimeBankSrv = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!uid) throw new HttpsError("unauthenticated", "צריך להתחבר");
+  const {tableId} = request.data || {};
+  if (!tableId) throw new HttpsError("invalid-argument", "חסר מזהה-שולחן");
+  await db.runTransaction(async (tx) => {
+    const tRef = db.doc(`tables/${tableId}`);
+    const snap = await tx.get(tRef);
+    if (!snap.exists) throw new HttpsError("not-found", "השולחן לא קיים");
+    const t = snap.data();
+    requireSrvAuth(t);
+    assertParticipant(t, uid, email);
+    if (t.currentTurn !== uid) throw new HttpsError("failed-precondition", "לא תורך");
+    const me = (t.players || {})[uid] || {};
+    const uses = Number(me.tbUses) || 0;
+    const add = Number(t.timeBank) || 0;
+    if (uses <= 0 || add <= 0) throw new HttpsError("failed-precondition", "אין בנק-זמן זמין");
+    const startAt = Number(t.turnStartedAt) || 0;
+    const already = (Number(me.tbBonusAt) || 0) === startAt ? (Number(me.tbBonus) || 0) : 0;
+    tx.update(tRef, {[`players.${uid}.tbUses`]: uses - 1, [`players.${uid}.tbBonus`]: already + add, [`players.${uid}.tbBonusAt`]: startAt});
+  });
   return {ok: true};
 });
 

@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v177';
+        window.__APP_VER = 'v178';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -2299,7 +2299,9 @@
             rakeFee: round2(Number(o.rakeFee) || 0),
             players: {}, bank: {}, deck: [], discard: [],
             phase: 'waiting', currentTurn: null, turnPhase: 'draw', drawnThisTurn: false,
-            freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now()
+            freshMult: 1, freshReq: null, winner: null, lastResults: null, chat: [], createdAt: Date.now(),
+            // מנוע-שרת מלא (אֶפֶס-אֵמון): הקלפים/הקופה/התור נעולים לשרת; מהלכים דרך callables.
+            srvAuth: !!o.srvAuth
         });
         // חלוקת סבב רמי בצד-הלקוח (רק GOD מפעיל, כשהשולחן מתמלא בבוטים) — זהה לשרת.
         // freshMult נשמר בין חלוקות של אותה יד (פריש מחלק-מחדש ומכפיל); mult פרמטר.
@@ -2345,7 +2347,7 @@
                         players: {}, board: [], deck: [], phase: 'waiting', winner: null, lastResults: null, chat: [], createdAt: Date.now()
                     });
                 } else if (t.type === 'rami') {
-                    await window.fb.addDoc(col, ramiTableDoc({ maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes, rakeMode: t.rakeMode, rakePct: t.rakePct, rakeFee: t.rakeFee }));
+                    await window.fb.addDoc(col, ramiTableDoc({ maxPlayers: t.maxPlayers, minBuyIn: t.minBuyIn, stakes: t.stakes, rakeMode: t.rakeMode, rakePct: t.rakePct, rakeFee: t.rakeFee, turnSeconds: t.turnSeconds, timeBank: t.timeBank, timeBankUses: t.timeBankUses, srvAuth: t.srvAuth }));
                 } else if (t.type === 'poker') {
                     await window.fb.addDoc(col, {
                         type: 'poker', clubId: CLUB_ID, createdAt: Date.now(), settings: { ...t.settings }, players: {}, chat: [], leftStacks: {},
@@ -5203,7 +5205,7 @@
                 finally { setBotTblBusy(false); }
             };
             const clubRake = clubSettings?.rakePct ?? DEFAULT_RAKE_PCT;
-            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10 });
+            const [ramiOpts, setRamiOpts] = useState({ maxPlayers: 4, buyIn: 100, turnSeconds: 60, timeBank: 30, timeBankUses: 2, rakeMode: 'pct', rakePct: clubRake, rakeFee: 10, srvAuth: false });
             // תבניות (טמפלטים) שמורות מקומית לכל קלאב — כמו ב-POKERTEN
             const RAMI_TPL_KEY = `rummi_rami_tpls_${CLUB_ID}`;
             const [ramiTpls, setRamiTpls] = useState(() => { try { return JSON.parse(localStorage.getItem(RAMI_TPL_KEY) || '[]'); } catch (e) { return []; } });
@@ -5227,7 +5229,8 @@
                         timeBankUses: Math.max(0, Math.min(10, Number(ramiOpts.timeBankUses) || 0)),
                         rakeMode: ramiOpts.rakeMode,
                         rakePct: ramiOpts.rakeMode === 'pct' ? (ramiOpts.rakePct === '' ? null : Math.max(0, Math.min(20, Number(ramiOpts.rakePct)))) : null,
-                        rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0
+                        rakeFee: ramiOpts.rakeMode === 'flat' ? Math.max(0, round2(Number(ramiOpts.rakeFee) || 0)) : 0,
+                        srvAuth: !!ramiOpts.srvAuth
                     });
                     await window.fb.addDoc(window.fb.collection(window.fb.db, "tables"), doc);
                     setShowCreateRami(false); showToast("שולחן רמי נפתח!", "success");
@@ -6094,6 +6097,13 @@
                                                     : `כל שחקן משלם בכניסה ${formatMoney(buyIn)} + ${formatMoney(fee)} עמלה = ${formatMoney(buyIn + fee)} ₪. אין עמלה על היד.`}
                                             </p>
                                         </div>
+                                        <label className="flex items-center gap-3 rounded-2xl p-3 mb-4 cursor-pointer border border-white/10 bg-slate-950/50">
+                                            <input type="checkbox" checked={!!ramiOpts.srvAuth} onChange={e => setRamiOpts({ ...ramiOpts, srvAuth: e.target.checked })} className="accent-emerald-500 w-5 h-5" />
+                                            <span className="flex-1">
+                                                <span className="font-black text-white text-sm block">🔒 מנוע-שרת מלא (אבטחה מרבית)</span>
+                                                <span className="text-slate-400 text-[11px] font-bold" dir="rtl">הקלפים מנוהלים בשרת בלבד — אי-אפשר לזייף יד או לראות קלפים של אחרים. מומלץ לבדוק שולחן אחד לפני שמפעילים על הכל.</span>
+                                            </span>
+                                        </label>
                                         <div className="flex items-center gap-2 mb-3 pt-3 border-t border-white/5">
                                             <input value={ramiTplName} onChange={e => setRamiTplName(e.target.value)} placeholder="שם תבנית (לא חובה)" className="flex-1 bg-slate-900 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 font-bold" />
                                             <button onClick={saveRamiTpl} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-4 py-2 rounded-xl font-bold text-sm border border-emerald-500/30"><i className="fa-solid fa-bookmark ml-1"></i>שמור תבנית</button>
@@ -9061,6 +9071,10 @@
             const meP = t && t.players && t.players[user.uid];
             const isSeated = !!meP;
             const myTurn = !!(t && t.currentTurn === user.uid && t.phase === 'playing');
+            // מצב שרת-מלא (אֶפֶס-אֵמון): הקלפים/הקופה/התור נכתבים רק ע"י Cloud Functions.
+            // מהלכי-אדם עוברים דרך callables (ramiDrawSrv/…); כתיבה-ישירה חסומה בחוקים.
+            const srvAuth = !!(t && t.srvAuth);
+            const callFn = (name, data) => window.fb.httpsCallable(window.fb.functions, name)(data);
             const turnSecs = (t && Number(t.turnSeconds)) || TURN_SECONDS;
             const myTb = (meP && Number(meP.tb)) || 0;          // שניות שמתווספות בכל הפעלה
             const myTbUses = (meP && Number(meP.tbUses)) || 0;  // הפעלות בנק-זמן שנותרו
@@ -9477,7 +9491,16 @@
                 if (top) discard.push(top);
             };
 
-            const doDraw = (fromDeck) => { haptic(12); return applyTx(cur => {
+            const doDraw = (fromDeck) => {
+                haptic(12);
+                if (srvAuth) {
+                    if (!myTurn || (t && t.turnPhase !== 'draw')) return;
+                    const now = Date.now(); if (actingRef.current && (now - actingRef.current) < 3500) return; actingRef.current = now; const myLock = now;
+                    return callFn('ramiDrawSrv', { tableId: t.id, source: fromDeck ? 'deck' : 'discard' })
+                        .catch(e => showToast(fnErr(e), 'error'))
+                        .finally(() => { if (actingRef.current === myLock) actingRef.current = null; });
+                }
+                return applyTx(cur => {
                 if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'draw') return null;
                 const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
                 let tile;
@@ -9493,7 +9516,15 @@
                 return upd;
             }); };
 
-            const doDiscard = (tileId) => applyTx(cur => {
+            const doDiscard = (tileId) => {
+                if (srvAuth) {
+                    if (!myTurn || (t && t.turnPhase !== 'discard')) return;
+                    const now = Date.now(); if (actingRef.current && (now - actingRef.current) < 3500) return; actingRef.current = now; const myLock = now;
+                    return callFn('ramiDiscardSrv', { tableId: t.id, tileId })
+                        .catch(e => showToast(fnErr(e), 'error'))
+                        .finally(() => { if (actingRef.current === myLock) actingRef.current = null; });
+                }
+                return applyTx(cur => {
                 if (cur.currentTurn !== user.uid || cur.phase !== 'playing' || cur.turnPhase !== 'discard') return null;
                 const hand = [...((cur.players[user.uid] || {}).cards || [])].filter(Boolean);
                 const idx = hand.findIndex(x => x.id === tileId); if (idx < 0) return null;
@@ -9503,9 +9534,12 @@
                 // בנק-הזמן הוא ידני (הפעלה מדעת) ונספר ב-tbUses; אין ניכוי אוטומטי כאן.
                 return { [`players.${user.uid}.cards`]: hand, [`players.${user.uid}.missed`]: 0, discard: [...(cur.discard || []), tile], [`players.${user.uid}.threw`]: [...(((cur.players[user.uid] || {}).threw) || []), tile].slice(-6), currentTurn: next, turnPhase: 'draw', drawnThisTurn: false, turnStartedAt: Date.now() };
             });
+            };
 
             // הפעלת בנק-זמן ידנית: מוסיף tb שניות לתור הנוכחי, מנכה הפעלה אחת
-            const activateTimeBank = () => applyTx(cur => {
+            const activateTimeBank = () => {
+                if (srvAuth) { if (!myTurn) return; return callFn('ramiTimeBankSrv', { tableId: t.id }).catch(e => showToast(fnErr(e), 'error')); }
+                return applyTx(cur => {
                 if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return null;
                 const me = cur.players[user.uid] || {};
                 const uses = Number(me.tbUses) || 0;
@@ -9519,6 +9553,7 @@
                     [`players.${user.uid}.tbBonusAt`]: startAt
                 };
             });
+            };
 
             // ── טורניר-חיים: סיום יד. המנצח ירד; מבין החיים-האחרים, מי שהכי רחוק מירידה
             //    (הכי הרבה נקודות שאריות) מאבד חיים אחד; ב-0 חיים — הודח. ללא כסף. ──
@@ -9570,17 +9605,22 @@
                         if (elim) { try { await tourReportBust(t.tournamentId, [elim], [], 0, false); } catch (e) {} }
                         return;
                     }
-                    await window.fb.runTransaction(window.fb.db, async (tx) => {
-                        const ref = window.fb.doc(window.fb.db, "tables", t.id);
-                        const snap = await tx.get(ref); if (!snap.exists()) return;
-                        const cur = snap.data();
-                        if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return;
-                        const hand = ((cur.players[user.uid] || {}).cards || []).filter(Boolean);
-                        const idx = hand.findIndex(x => x.id === go.discard.id);
-                        const final = idx >= 0 ? hand.slice(0, idx).concat(hand.slice(idx + 1)) : hand;
-                        tx.update(ref, { [`players.${user.uid}.cards`]: final, discard: [...(cur.discard || []), go.discard], settlePending: user.uid });
-                    });
-                    await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: user.uid });
+                    if (srvAuth) {
+                        // מצב שרת-מלא: השרת מסיר את האבן, מוודא ירידה-חוקית + שימור-אבנים ומסדר את הכסף.
+                        await callFn('ramiGoOutSrv', { tableId: t.id, tileId: go.discard.id });
+                    } else {
+                        await window.fb.runTransaction(window.fb.db, async (tx) => {
+                            const ref = window.fb.doc(window.fb.db, "tables", t.id);
+                            const snap = await tx.get(ref); if (!snap.exists()) return;
+                            const cur = snap.data();
+                            if (cur.currentTurn !== user.uid || cur.phase !== 'playing') return;
+                            const hand = ((cur.players[user.uid] || {}).cards || []).filter(Boolean);
+                            const idx = hand.findIndex(x => x.id === go.discard.id);
+                            const final = idx >= 0 ? hand.slice(0, idx).concat(hand.slice(idx + 1)) : hand;
+                            tx.update(ref, { [`players.${user.uid}.cards`]: final, discard: [...(cur.discard || []), go.discard], settlePending: user.uid });
+                        });
+                        await window.fb.httpsCallable(window.fb.functions, 'ramiSettle')({ tableId: t.id, winnerUid: user.uid });
+                    }
                 } catch (e) { showToast(fnErr(e), "error"); }
                 finally { goOutRef.current = false; }
             };
@@ -9651,7 +9691,7 @@
                     if ((Number(cur.freshMult) || 1) >= RAMI_FRESH_CAP) return null;
                     if (!cur.players[user.uid]) return null;
                     // מול בוטים בלבד — אין למי לחכות, מכפילים ומחלקים מחדש מיד
-                    if (othersAllBots(cur.players, user.uid)) return doReDeal(cur);
+                    if (othersAllBots(cur.players, user.uid)) { if (srvAuth) { callFn('ramiFreshSrv', { tableId: t.id }).catch(e => showToast(fnErr(e), 'error')); return null; } return doReDeal(cur); }
                     return { freshReq: { by: user.uid, byName: (cur.players[user.uid] || {}).username || '', approvals: { [user.uid]: true }, at: Date.now() } };
                 });
             };
@@ -9663,6 +9703,7 @@
                 const seated = Object.keys(cur.players || {});
                 // בוטים נספרים כמאשרים תמיד — לא תלוי בשרשרת אישורים שברירית
                 if (seated.every(u => approvals[u] || (cur.players[u] && cur.players[u].isBot))) {
+                    if (srvAuth) { callFn('ramiFreshSrv', { tableId: t.id }).catch(e => showToast(fnErr(e), 'error')); return { freshReq: { ...req, approvals } }; }
                     return doReDeal(cur);
                 }
                 return { freshReq: { ...req, approvals } };
@@ -9793,6 +9834,11 @@
                 const fire = async () => {
                     const key = `${stuckUid}_${startAt}`;
                     if (stuckRef.current === key) return; stuckRef.current = key;
+                    if (srvAuth) {
+                        // מצב שרת-מלא: השחרור הכפוי עובר בשרת (בודק שוב תפוגה בשעון-שרת).
+                        try { await callFn('ramiForceMoveSrv', { tableId: t.id }); } catch (e) {}
+                        return;
+                    }
                     try {
                         await window.fb.runTransaction(window.fb.db, async (tx) => {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
@@ -9859,6 +9905,11 @@
                     // תורים ומרגיש כמו קיפאון. 1.1–2.3 שנ' שומר על תחושת-חיים בלי לעכב את השחקן.
                     const think = 1100 + Math.random() * 1200;
                     const tm = setTimeout(async () => {
+                        if (srvAuth) {
+                            // מצב שרת-מלא: מהלך-הבוט רץ בשרת (botStepTx) — כתיבת-קלפים חסומה ללקוח.
+                            try { await callFn('ramiBotStepSrv', { tableId: t.id }); } catch (e) {}
+                            return;
+                        }
                         try {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
                             const res = await window.fb.runTransaction(window.fb.db, async (tx) => {

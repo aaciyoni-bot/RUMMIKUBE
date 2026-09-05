@@ -130,8 +130,16 @@ service cloud.firestore {
       allow create: if signedIn() && (
         isGod() || request.resource.data.get('bank', {}).size() == 0
       );
+      // ברירת-מחדל: הלקוח כותב הכל חוץ מ-bank (כסף). על שולחן srvAuth (מנוע-שרת מלא)
+      // גם הקלפים/הקופה/התור נעולים לשרת בלבד — הלקוח כותב רק דרך Cloud Functions
+      // (ramiDrawSrv/…); נשאר לו chat ו-freshReq (אישורי-פריש) בלבד. כך הקלפים לא ניתנים
+      // לכתיבה מהלקוח (מונע גם זיוף-יד וגם קריאת/שינוי ידי-אחרים).
       allow update: if isGod()
-        || ( signedIn() && !('bank' in request.resource.data.diff(resource.data).affectedKeys()) );
+        || ( signedIn()
+             && !('bank' in request.resource.data.diff(resource.data).affectedKeys())
+             && ( resource.data.get('srvAuth', false) != true
+                  || !request.resource.data.diff(resource.data).affectedKeys()
+                       .hasAny(['players','deck','discard','currentTurn','turnPhase','drawnThisTurn','phase','winner','settlePending','freshMult','srvAuth']) ) );
       // מחיקה: צוות/GOD (ניקוי שולחנות, ניהול טורנירים) או שולחן ללא כסף. כך אי-אפשר
       // למחוק שולחן חי שיש בו סטאקים (=השמדת צ'יפים של שחקנים) מבלי להיות צוות.
       allow delete: if isGod()
