@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v187';
+        window.__APP_VER = 'v188';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -7566,7 +7566,11 @@
             const startTurnRef = useRef(null);
 
             const [dragData, setDragData] = useState(null);
-            const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+            // מיקום ה"רפאים" מוחזק ב-ref ומוזז ישירות ב-DOM — לא מפעיל רינדור בכל תזוזת-אצבע
+            // (זה היה מקור ה"תקיעה" בגרירה: כל תזוזה גרמה לרינדור של כל השולחן הענק).
+            const dragPosRef = useRef({ x: 0, y: 0 });
+            const hoverRef = useRef(null);
+            const hintRef = useRef(null);
             const [hoverTarget, setHoverTarget] = useState(null);
             // null = בלי קו הכנסה. {beforeId} = הקו מצויר לפני אותה קבוצה,
             // beforeId:null = בסוף הלוח.
@@ -8076,23 +8080,27 @@
             useEffect(() => {
                 const handlePointerMove = (e) => {
                     if (dragDataRef.current) {
-                        setDragPos({ x: e.clientX, y: e.clientY });
-                        if (longPressTimer.current) {
-                            const dist = Math.hypot(e.clientX - dragDataRef.current.startX, e.clientY - dragDataRef.current.startY);
-                            if (dist > 15) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-                        }
+                        const cx = e.clientX, cy = e.clientY;
+                        // מזיזים את ה"רפאים" ישירות ב-DOM (בלי setState) — כך אין רינדור-מלא בכל תזוזה.
+                        dragPosRef.current = { x: cx, y: cy };
                         const ghost = document.getElementById('drag-ghost');
                         const ghostGroup = document.getElementById('drag-ghost-group');
-                        if(ghost) ghost.style.pointerEvents = 'none';
-                        if(ghostGroup) ghostGroup.style.pointerEvents = 'none';
-                        const elem = document.elementFromPoint(e.clientX, e.clientY);
+                        if (ghost) { ghost.style.left = cx + 'px'; ghost.style.top = cy + 'px'; ghost.style.pointerEvents = 'none'; }
+                        if (ghostGroup) { ghostGroup.style.left = cx + 'px'; ghostGroup.style.top = cy + 'px'; ghostGroup.style.pointerEvents = 'none'; }
+                        if (longPressTimer.current) {
+                            const dist = Math.hypot(cx - dragDataRef.current.startX, cy - dragDataRef.current.startY);
+                            if (dist > 15) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                        }
+                        const elem = document.elementFromPoint(cx, cy);
                         if (elem) {
                             const dropZone = elem.closest('[data-drop]');
                             const zone = dropZone ? dropZone.getAttribute('data-drop') : null;
-                            setHoverTarget(zone);
-                            // מעל לבד פנוי -> מראים לאן ייכנס. מעל קבוצה -> היא תיצבע כיעד מיזוג.
-                            const rawHint = zone === 'board-new' ? boardInsertBeforeId(e.clientX, e.clientY) : undefined;
-                            setInsertHint(rawHint === undefined ? null : { beforeId: dragDataRef.current?.type === 'group' ? mapInsertAfterSelf(rawHint, dragDataRef.current.groupId) : rawHint });
+                            // רינדור רק כשאזור-היעד באמת השתנה (לא בכל פיקסל של תזוזה).
+                            if (zone !== hoverRef.current) { hoverRef.current = zone; setHoverTarget(zone); }
+                            const rawHint = zone === 'board-new' ? boardInsertBeforeId(cx, cy) : undefined;
+                            const hintVal = rawHint === undefined ? null : { beforeId: dragDataRef.current?.type === 'group' ? mapInsertAfterSelf(rawHint, dragDataRef.current.groupId) : rawHint };
+                            const hintKey = hintVal ? String(hintVal.beforeId) : '';
+                            if (hintKey !== hintRef.current) { hintRef.current = hintKey; setInsertHint(hintVal); }
                         }
                     }
                 };
@@ -8317,8 +8325,9 @@
                     pctY = Math.max(6, Math.min(94, ((e.clientY - rect.top) / rect.height) * 100));
                 }
 
+                dragPosRef.current = { x: e.clientX, y: e.clientY };
+                hoverRef.current = null; hintRef.current = null; // מתחילים גרירה נקייה
                 setDragData({ type: 'single', tile, source, groupId, tileIndex, startX: e.clientX, startY: e.clientY, startX_pct: pctX, startY_pct: pctY });
-                setDragPos({ x: e.clientX, y: e.clientY });
 
                 if (source === 'board') {
                     const grp = board.find(g => g.id === groupId);
@@ -8973,8 +8982,8 @@
                         </div>, document.body)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className={`fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl${jcls(dragData.tile.val)}`} style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}><JK v={dragData.tile.val} /></div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className={`fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl${jcls(dragData.tile.val)}`} style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}><JK v={dragData.tile.val} /></div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>))}</div>}
                 </div>
             );
         }
