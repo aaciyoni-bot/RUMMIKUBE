@@ -1044,7 +1044,7 @@
     <div id="root" class="h-full w-full"></div>
     <script>
         // גרסת האפליקציה — מקור-אמת יחיד (משותף עם חותמת-הגרסה שמוצגת במסך)
-        window.__APP_VER = 'v186';
+        window.__APP_VER = 'v187';
         // ── עדכון-אוטומטי מלא: בלי כפתור, בלי באנר בפרונט. ──
         // בכל כניסה בודקים את הגרסה החיה (fetch עם no-store שעוקף SW תקוע);
         // אם יש חדשה — מריצים עדכון אוטומטי עם פס-התקדמות מתמלא ("מעדכן גרסה…"),
@@ -8022,7 +8022,13 @@
 
             useEffect(() => {
                 if(!tableState) return;
-                if (!dragDataRef.current) {
+                // בתורך — המצב המקומי של הלוח/המגש הוא מקור-האמת. אסור שהסנכרון "ימשוך חזרה"
+                // את מה שסידרת מהשרת (זה מה שגרם לתקיעות/קפיצות בזמן סידור אבנים): אחרי שסונכרן
+                // פעם אחת בתחילת התור, מדלגים על איפוס הלוח/מגש עד שהתור מתקדם. כשלא-תורך —
+                // מסנכרנים כרגיל (רואים את מהלכי היריבים).
+                const myTurnNow = tableState.currentTurn === user.uid && tableState.phase === 'playing';
+                const alreadySyncedMyTurn = myTurnNow && startTurnRef.current === tableState.turnStartedAt;
+                if (!dragDataRef.current && !alreadySyncedMyTurn) {
                     const rawBoard = tableState.board || [];
                     setBoard(rawBoard);
                     // srvAuth: המגש שלי מגיע מ-priv (פרטי). בסיום-יד השרת חושף במסמך הציבורי.
