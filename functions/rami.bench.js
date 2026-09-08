@@ -1,6 +1,6 @@
 /**
  * Rami (closed rummy) bot benchmark — DUPLICATE games, no Firestore.
- *   node rami.bench.js [pairs=60] [budgetMs=40] [matchups=all|self|v2old|v2human|peek]
+ *   node rami.bench.js [pairs=60] [rollouts=24] [matchups=all|self|v2old|v2human|peek]
  *
  * Duplicate protocol: one seeded randomness stream per pair. Every pair plays
  * the SAME shuffled deck twice with the seats swapped, and each seat owns its
@@ -16,7 +16,7 @@
 const B = require("./ramiBrain");
 const args = process.argv.slice(2);
 const PAIRS = Number(args[0]) || 60;
-const BUDGET = Number(args[1]) || 40;
+const ROLLOUTS = Number(args[1]) || 24;
 const ONLY = args[2] || "all";
 const COLORS = B.COLORS;
 const isJ = (t) => t && t.val === "☻";
@@ -25,12 +25,10 @@ const bestPartition = B.bestPartition;
 /* ---------- seeded RNG (mulberry32) ---------- */
 const mulberry = (seed) => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 let R = Math.random; // the CURRENT seat's stream — every policy draws randomness from here
-// Virtual clock: the brain's search is time-boxed, so a real clock would make the
-// amount of search (and RNG consumed) nondeterministic. Each clock read = 1 tick;
-// BUDGET is therefore "ticks of search", identical in both games of a pair.
+// Fixed rollout count isolates decision quality from machine speed. Production
+// also has a wall-clock limit (350ms server / 650ms client), which can reduce it.
 let tick = 0;
-// BUDGET = rollouts per candidate (maxRounds); the virtual clock never expires.
-const brain = B.create({ rnd: () => R(), now: () => (tick += 1), maxRounds: BUDGET });
+const brain = B.create({ rnd: () => R(), now: () => (tick += 1), maxRounds: ROLLOUTS });
 
 let idc = 0;
 const mkDeck = (rng) => {
@@ -160,7 +158,7 @@ function duplicate(label, A, Bp, pairs) {
     const seed = 1000 + p;
     const g1 = playGame([A, Bp], seed); // A in seat 0
     const g2 = playGame([Bp, A], seed); // A in seat 1, same deck, same seat streams
-    if (!g1 || !g2) continue;
+    if (!g1 || !g2) throw new Error(`Pair ${p} did not finish; refusing to exclude unfinished games from the score`);
     const a1 = g1.winnerSeat === 0 ? 1 : 0, a2 = g2.winnerSeat === 1 ? 1 : 0;
     scores.push(a1 + a2 - 1); winsA += a1 + a2; games += 2; turns += g1.turns + g2.turns;
   }
@@ -170,7 +168,7 @@ function duplicate(label, A, Bp, pairs) {
   console.log(`${label}: paired score ${mean >= 0 ? "+" : ""}${mean.toFixed(2)} ± ${ci.toFixed(2)} (95% CI, ${n} pairs) · ${A} wins ${(winsA / games * 100).toFixed(0)}% · avg ${(turns / games).toFixed(1)} turns · ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 }
 
-console.log(`rami duplicate bench — brain v${B.VERSION}, budget ${BUDGET}ms/decision, ${PAIRS} pairs\n`);
+console.log(`rami duplicate bench — brain v${B.VERSION}, ${ROLLOUTS} rollouts/candidate (no wall-clock cutoff), ${PAIRS} pairs; human = synthetic greedy policy, not real players\n`);
 if (ONLY === "all" || ONLY === "self") duplicate("SELF v2 vs v2 (must be 0.00)", "v2", "v2", Math.min(PAIRS, 12));
 if (ONLY === "all" || ONLY === "v2old") duplicate("v2 vs old", "v2", "old", PAIRS);
 if (ONLY === "all" || ONLY === "v2human") duplicate("v2 vs human", "v2", "human", PAIRS);
