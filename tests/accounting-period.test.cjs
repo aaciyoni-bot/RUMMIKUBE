@@ -1,0 +1,7 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+for(const file of ['index.html','backoffice.html']) {
+const text=fs.readFileSync(path.join(__dirname,'..',file),'utf8'),start=text.indexOf('function cycleStartIL('),end=text.indexOf(file==='index.html'?'        const genAgentCode':'function cycleLabel(',start);const ctx={};vm.createContext(ctx);vm.runInContext(text.slice(start,end)+'\nthis.start=cycleStartIL;this.closed=closedWeekEntry;',ctx);
+test(file+': period key is stable and Tuesday 00:00 belongs to the previous week',()=>{assert.equal(ctx.start(0,new Date('2026-09-08T12:45:33.999Z')),Date.parse('2026-09-07T21:01:00Z'));assert.equal(ctx.start(0,new Date('2026-09-08T12:45:33.001Z')),Date.parse('2026-09-07T21:01:00Z'));assert.equal(ctx.start(0,new Date('2026-09-07T21:00:30Z')),Date.parse('2026-08-31T21:01:00Z'));});
+test(file+': historical Tuesday uses that date’s Israel offset',()=>{assert.equal(ctx.start(1,new Date('2026-03-31T12:00:00Z')),Date.parse('2026-03-23T22:01:00Z'));assert.equal(ctx.start(0,new Date('2026-03-31T12:00:00Z')),Date.parse('2026-03-30T21:01:00Z'));});
+test(file+': legacy millisecond keys keep payment flags readable',()=>{const start=Date.parse('2026-09-07T21:01:00Z'),record={at:10,paid:{agent:true}};const entry=ctx.closed({[start+453]:record},start);assert.equal(entry[0],String(start+453));assert.equal(entry[1].paid.agent,true);});
+}

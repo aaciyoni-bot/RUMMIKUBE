@@ -1,0 +1,34 @@
+const fs=require('fs'),{JSDOM}=require('jsdom'),babel=require('@babel/core');
+const React=require('react');const assert=require('node:assert/strict');
+const html=fs.readFileSync(require('node:path').join(__dirname,'../../index.html'),'utf8');
+const dom=new JSDOM('<html><body><div id="root"></div></body></html>',{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window;global.window=w;global.document=w.document;Object.defineProperty(global,'navigator',{value:w.navigator,configurable:true});global.IS_REACT_ACT_ENVIRONMENT=true;
+w.React=React;w.ReactDOM={...require('react-dom'),...require('react-dom/client')};w.matchMedia=()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}});
+w.screen.orientation={lock:async()=>{},unlock(){}};w.HTMLElement.prototype.scrollIntoView=function(){};
+let writes=0;const subs=[];w.fb={db:{},doc:(_, ...parts)=>parts.join('/'),collection:(_, ...parts)=>parts.join('/'),where:()=>({}),query:x=>x,
+ onSnapshot:(path,ok,err)=>{const sub={path,ok,err};subs.push(sub);if(path==='memberships')queueMicrotask(()=>ok({docs:[]}));return()=>subs.splice(subs.indexOf(sub),1);},
+ updateDoc:async()=>{writes++;},runTransaction:async()=>{writes++;},getDoc:async()=>({exists:()=>false}),httpsCallable:()=>async()=>({data:{}})};
+const jsx=html.match(/<script type="text\/babel">([\s\S]*?)<\/script>/)[1].replace(/const root = ReactDOM.createRoot[\s\S]*$/,'window.testUI = {RamiTable,RummyTable,ErrorBoundary};');
+w.eval(babel.transformSync(jsx,{plugins:[[require('@babel/plugin-transform-react-jsx'),{runtime:'classic'}]],compact:false}).code);
+const root=w.ReactDOM.createRoot(w.document.getElementById('root'));
+const hand=[];for(let v=1;v<=5;v++)for(const c of ['#ef4444','#3b82f6','#f59e0b'])hand.push({id:v+c,val:v,color:c});hand.pop();
+const table={phase:'playing',type:'rami',currentTurn:'human',turnPhase:'draw',turnStartedAt:Date.now(),players:{human:{username:'שחקן בדיקה',cards:hand,isBot:false},other:{username:'שחקן שני',cards:[],isBot:false}},deck:[],discard:[],maxPlayers:2,minBuyIn:0};
+(async()=>{await React.act(async()=>{root.render(React.createElement(w.testUI.ErrorBoundary,null,React.createElement(w.testUI.RamiTable,{tableDocId:'test',user:{uid:'human',username:'שחקן בדיקה',role:'player'},clubSettings:{},onLeave:()=>{},showToast:()=>{}})));});
+assert.match(w.document.body.textContent,/מתחברים לשולחן/);
+await React.act(async()=>{subs.find(s=>s.path==='tables/test').err({code:'unavailable'});});
+assert.match(w.document.body.textContent,/השולחן לא נטען/);
+await React.act(async()=>{[...w.document.querySelectorAll('button')].find(b=>b.textContent==='נסה שוב').click();});
+assert.match(w.document.body.textContent,/מתחברים לשולחן/);
+await React.act(async()=>{subs.find(s=>s.path==='tables/test').ok({id:'test',exists:()=>true,data:()=>table});});
+assert.equal(w.document.querySelectorAll('[data-tid]').length,14);
+assert.match(w.document.body.textContent,/משוך אבן/);
+const exposed={id:'exposed',val:6,color:'#ef4444'};
+await React.act(async()=>{subs.find(s=>s.path==='tables/test').ok({id:'test',exists:()=>true,data:()=>({...table,discard:[exposed],turnPhase:'discard'})});});
+assert.equal(w.document.querySelector('[aria-label="משוך מהזריקה"]').disabled,true);
+const element=w.document.querySelector('[data-tid]');
+await React.act(async()=>{for(const type of ['pointerdown','pointercancel']){const e=new w.Event(type,{bubbles:true});Object.assign(e,{clientX:10,clientY:10,button:0,isPrimary:true,pointerId:1});element.dispatchEvent(e);}});
+assert.equal(writes,0,'a cancelled gesture must not write a discard');
+assert.equal(w.document.querySelectorAll('[data-tid]').length,14);
+assert.doesNotMatch(w.document.body.textContent,/משהו נתקע לרגע/);
+console.log('PASS: full Rami mount, load failure, retry, hand rendering, turn controls and pointer cancellation');
+await React.act(async()=>root.unmount());w.close();})().catch(e=>{console.error(e);w.close();process.exitCode=1;});

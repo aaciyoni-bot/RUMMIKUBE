@@ -1,0 +1,12 @@
+'use strict';
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const E = require('../functions/rummyEngine');
+const rack = [{id:'a',val:7,color:'red'},{id:'b',val:7,color:'blue'},{id:'c',val:7,color:'black'}];
+const options={hasDropped:true};
+const check=tiles=>E.validateMove([],rack,[{id:'group',tiles}],[],options);
+test('changing the value while preserving the ID is rejected',()=>{assert.equal(check(rack.map(t=>({...t,val:10}))).ok,false);});
+test('changing a colour while preserving the ID is rejected',()=>{assert.equal(check(rack.map((t,i)=>i===0?{...t,color:'orange'}:t)).ok,false);});
+test('a fabricated tile without an ID is rejected',()=>{assert.equal(check([...rack,{val:7,color:'orange'}]).ok,false);});
+test('duplicate group identifiers are rejected',()=>{assert.equal(E.validateMove([],rack,[{id:'same',tiles:rack.slice(0,2)},{id:'same',tiles:rack.slice(2)}],[],options).ok,false);});
+test('unchanged tile identities remain valid',()=>{assert.equal(check(rack.map(t=>({...t}))).ok,true);});
