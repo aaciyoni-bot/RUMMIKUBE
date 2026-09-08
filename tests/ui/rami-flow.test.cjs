@@ -9,6 +9,7 @@ let writes=0;const subs=[];w.fb={db:{},doc:(_, ...parts)=>parts.join('/'),collec
  onSnapshot:(path,ok,err)=>{const sub={path,ok,err};subs.push(sub);if(path==='memberships')queueMicrotask(()=>ok({docs:[]}));return()=>subs.splice(subs.indexOf(sub),1);},
  updateDoc:async()=>{writes++;},runTransaction:async()=>{writes++;},getDoc:async()=>({exists:()=>false}),httpsCallable:()=>async()=>({data:{}})};
 const jsx=html.match(/<script type="text\/babel">([\s\S]*?)<\/script>/)[1].replace(/const root = ReactDOM.createRoot[\s\S]*$/,'window.testUI = {RamiTable,RummyTable,ErrorBoundary};');
+w.eval(fs.readFileSync(require('node:path').join(__dirname,'../../assets/js/meld-layout.js'),'utf8'));
 w.eval(babel.transformSync(jsx,{plugins:[[require('@babel/plugin-transform-react-jsx'),{runtime:'classic'}]],compact:false}).code);
 const root=w.ReactDOM.createRoot(w.document.getElementById('root'));
 const hand=[];for(let v=1;v<=5;v++)for(const c of ['#ef4444','#3b82f6','#f59e0b'])hand.push({id:v+c,val:v,color:c});hand.pop();
@@ -30,5 +31,15 @@ await React.act(async()=>{for(const type of ['pointerdown','pointercancel']){con
 assert.equal(writes,0,'a cancelled gesture must not write a discard');
 assert.equal(w.document.querySelectorAll('[data-tid]').length,14);
 assert.doesNotMatch(w.document.body.textContent,/משהו נתקע לרגע/);
-console.log('PASS: full Rami mount, load failure, retry, hand rendering, turn controls and pointer cancellation');
+await React.act(async()=>{[...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('סדר לי')).click();});
+assert.equal(w.document.querySelectorAll('[data-tid]').length,14,'Rami sort preserves the full hand');
+await React.act(async()=>{root.render(React.createElement(w.testUI.ErrorBoundary,null,React.createElement(w.testUI.RummyTable,{tableDocId:'open-test',user:{uid:'human',username:'שחקן בדיקה',role:'player'},clubSettings:{},onLeave:()=>{},showToast:()=>{}})));});
+await React.act(async()=>{subs.find(s=>s.path==='tables/open-test').ok({id:'open-test',exists:()=>true,data:()=>({...table,type:'rummikub',board:[],minBuyIn:0,stakes:1})});});
+assert.ok(w.document.querySelector('.rummikub-game'));
+const arrange=[...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('סדר לי'));assert.ok(arrange,'Rummikub exposes the same arrange action');
+const countBefore=w.document.querySelectorAll('.rack-slot .rummy-tile').length;
+await React.act(async()=>arrange.click());
+assert.equal(w.document.querySelectorAll('.rack-slot .rummy-tile').length,countBefore,'Rummikub sorting preserves every tile');
+assert.doesNotMatch(w.document.body.textContent,/משהו נתקע לרגע/);
+console.log('PASS: actual Rami and Rummikub mount, working shared sorting, load retry, tile conservation and pointer cancellation');
 await React.act(async()=>root.unmount());w.close();})().catch(e=>{console.error(e);w.close();process.exitCode=1;});

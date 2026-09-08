@@ -1002,7 +1002,8 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
 @media(max-width:600px){.accounting-entry{align-items:flex-start;flex-direction:column;padding:20px;gap:16px}.accounting-entry strong{font-size:20px}.accounting-entry small{font-size:13px}.club-admin td,.club-admin th{padding:10px}.admin-shortcuts{gap:8px;padding:10px}.admin-shortcuts a{flex:1;text-align:center;font-size:12px;padding:9px}}
 
 </style>
-<link rel="stylesheet" href="assets/css/club-ui.css?v=1">
+<link rel="stylesheet" href="assets/css/club-ui.css?v=2">
+<link rel="stylesheet" href="assets/css/approved-game-design.css?v=1">
 </head>
 <body class="bg-slate-950 h-full w-full rummy-theme">
 <!-- ═══ RUMMIKUBE BRAND INTRO · מוצג ראשון, ואז מוסר את עצמו ל-ORIZIS ═══ -->
@@ -1901,7 +1902,8 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
     </script>
     <!-- RUMMY-SOLVER-END -->
 
-    <script src="assets/js/game-audio.js?v=1"></script>
+    <script src="assets/js/game-audio.js?v=2"></script>
+    <script src="assets/js/meld-layout.js?v=1"></script>
     <script src="assets/js/club-ui.js?v=1"></script>
     <script src="assets/js/rami-worker.js?v=1"></script>
 <script type="text/babel">
@@ -2146,6 +2148,7 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
         /* ===== מנוע צלילים (Tone.js) ===== */
         const SND = {};
         const playSnd = (type) => {
+            if (window.GameAudio?.supports?.(type)) return window.GameAudio.play(type);
             try {
                 if (!window.Tone || document.hidden) return;
                 const audioPrefs = window.GameAudio?.settings();
@@ -7648,6 +7651,16 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
            ================================================================ */
         const JK = React.memo(({ v }) => v === '☻' ? <span className="joker-glyph"><JokerFace /></span> : <>{v}</>);
 
+        function TileSortControls({onRuns, onSets, onArrange}) {
+            return <div className="tile-sort-controls">
+                <div className="tile-sort-options">
+                    <button type="button" onClick={onRuns} title="מיון לפי רצף" className="tile-control"><span dir="ltr">789</span><small>רצפים</small></button>
+                    <button type="button" onClick={onSets} title="מיון לפי שלישייה" className="tile-control"><span dir="ltr">777</span><small>שלישיות</small></button>
+                </div>
+                <button type="button" onClick={onArrange} className="tile-control tile-control-primary"><i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> סדר לי</button>
+            </div>;
+        }
+
         function RummyTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -8865,7 +8878,8 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const jcls = (v) => v === '☻' ? ' joker' : '';
 
             return (
-                <div className="h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl" style={skinStyle}>
+                <div className="tile-game rummikub-game h-full w-full flex flex-col sm:flex-row bg-slate-950 font-sans overflow-hidden select-none" dir="rtl" style={skinStyle}>
+                    <GameSoundControls />
 
                     {needRotate && (
                         <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
@@ -8934,7 +8948,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                     )}
 
                     {/* יריבים — כולם נראים בלי גלילה: הפודים מתפזרים על כל גובה העמודה */}
-                    <div className="w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:px-0 sm:py-2 gap-1.5 sm:gap-0 z-20 shrink-0">
+                    <div className="rummikub-opponents w-full sm:w-32 bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:px-0 sm:py-2 gap-1.5 sm:gap-0 z-20 shrink-0">
                         <button onClick={handleLeave} className="px-3 py-1 bg-slate-800 rounded-lg text-slate-400 font-bold border border-slate-700 text-xs hover:bg-rose-900 hover:text-white transition-colors shrink-0">יציאה</button>
                         <div className="flex-1 min-h-0 min-w-0 w-auto sm:w-full flex flex-row sm:flex-col items-center justify-start sm:justify-evenly gap-1.5 sm:gap-0 overflow-x-auto sm:overflow-visible">
                         {(isPlaying || isShowdown) && Object.entries(tableState.players || {}).filter(([uid]) => uid !== user.uid).map(([uid, pData]) => {
@@ -9037,45 +9051,20 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                         )}
                     </div>
 
-                    {/* פעולות וטיימר */}
-                    <div className="w-full sm:w-24 md:w-32 bg-slate-900 border-t sm:border-t-0 sm:border-r border-slate-800 flex flex-row sm:flex-col items-center px-2 py-1 sm:p-3 gap-1.5 sm:gap-3 z-20 shrink-0 overflow-x-auto sm:overflow-visible">
-                        {isPlaying && (
-                            <div className={`col-act hidden sm:flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 w-auto px-2.5 sm:px-2 sm:w-full bg-slate-950 shadow-lg shrink-0 ${isMyTurn ? 'border-emerald-500 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'border-slate-800'}`}>
-                                <span className={`text-[10px] font-bold mb-1 whitespace-nowrap ${isMyTurn ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}>{isMyTurn ? 'התור שלך!' : 'תור יריב'}</span>
-                                <span className={`text-lg sm:text-3xl font-black font-mono leading-none ${isMyTurn ? (timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-white') : 'text-slate-500'}`}>{timeLeft.toString().padStart(2, '0')}</span>
-                            </div>
-                        )}
-
-                        {isGod && (isPlaying || isShowdown) && (
-                            <button onClick={()=>setGodOpen(!godOpen)} className={`w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 transition-all shrink-0 whitespace-nowrap ${godOpen ? 'bg-purple-700 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]' : 'bg-slate-950 border-purple-800 text-purple-400'}`}>
-                                <i className="fa-solid fa-eye ml-1"></i> GOD
-                            </button>
-                        )}
-
-                        <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className={`w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 transition-all shrink-0 whitespace-nowrap ${ch.chatOpen ? 'bg-emerald-700 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white'}`}>
-                            <i className="fa-solid fa-comment-dots ml-1"></i> צ'אט
-                        </button>
-
-                        <button onClick={()=>setSkinOpen(true)} title="עיצוב השולחן שלי" className="w-auto sm:w-full px-3 py-2 rounded-lg font-black text-[10px] border-2 bg-slate-950 border-slate-700 text-slate-300 hover:text-white transition-all shrink-0 whitespace-nowrap">
-                            <i className="fa-solid fa-palette ml-1"></i> עיצוב
-                        </button>
-
-                        {isSeated && isPlaying && (
-                            <div className="flex-1 flex flex-row sm:flex-col w-auto sm:w-full gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto items-center sm:items-stretch">
-                                <button onClick={handleSort789} title="סדר לפי סדרות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></span></button>
-                                <button onClick={handleSort777} title="סדר לפי שלישיות" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-lg sm:text-2xl shrink-0 tracking-tight"><span dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">7</span><span className="rk-sort-d3">7</span></span></button>
-                                <button onClick={handleArrangeBoard} title="סדר את הלוח" className="rk-btn w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-table-cells text-sky-300"></i></button>
-                                {isMyTurn && <button onClick={handleUndo} title="בטל את המהלך" className="rk-btn rk-btn-undo w-auto sm:w-full px-3 py-2 sm:py-3 text-sm shrink-0"><i className="fa-solid fa-rotate-left text-rose-300"></i></button>}
-                                <div className="hidden sm:block w-full h-px bg-slate-800 my-1"></div>
-                                <div className="sm:mt-auto flex flex-row sm:flex-col gap-2 shrink-0">
-                                    {isMyTurn && <button onClick={()=>handleDraw(false)} title="משוך אבן וסיים תור" className="rk-btn rk-btn-draw col-act hidden sm:flex w-12 sm:w-full py-3 sm:py-5 shrink-0 gap-1.5">
-                                        <i className="fa-solid fa-plus text-2xl text-amber-300"></i>
-                                        <span className="text-[10px] font-black text-amber-200/90" dir="ltr">{(tableState.deck || []).length}</span>
-                                    </button>}
-                                    {isMyTurn && <button onClick={handleEndTurn} title="סיים תור" className="rk-btn rk-btn-ok col-act hidden sm:flex w-12 sm:w-full py-3 sm:py-5 text-3xl shrink-0"><i className="fa-solid fa-check text-emerald-300"></i></button>}
-                                </div>
-                            </div>
-                        )}
+                    <div className="tile-action-bar rummikub-controls">
+                        <div className="tile-self-pod"><img src={avatarUrl(user)} alt="" /><div><strong>{user.username}</strong><small>{myTileCount} אבנים</small></div><span className="tile-turn-clock">{timeLeft}</span></div>
+                        {isSeated && isPlaying && <>
+                            <TileSortControls onRuns={handleSort789} onSets={handleSort777} onArrange={handleSort789} />
+                            <button onClick={()=>handleDraw(false)} disabled={!isMyTurn} className="tile-control tile-control-primary">משוך אבן</button>
+                            <button onClick={handleEndTurn} disabled={!isMyTurn} className="tile-control tile-control-primary">סיים תור</button>
+                        </>}
+                        <button onClick={()=>ch.setChatOpen(!ch.chatOpen)} className="tile-control" aria-label="צ׳אט"><i className="fa-solid fa-comment-dots" /></button>
+                        <details className="tile-more"><summary className="tile-control" aria-label="פעולות נוספות"><i className="fa-solid fa-ellipsis" /></summary><div className="tile-more-panel">
+                            <button onClick={handleArrangeBoard} className="tile-control">סדר את הלוח</button>
+                            <button onClick={handleUndo} disabled={!isMyTurn} className="tile-control">בטל מהלך</button>
+                            {isGod && <button onClick={()=>setGodOpen(!godOpen)} className="tile-control">GOD</button>}
+                            <button onClick={handleLeave} className="tile-control">יציאה</button>
+                        </div></details>
                     </div>
 
                     {/* פאנל GOD MODE */}
@@ -9294,7 +9283,8 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const [prefs, setPrefs] = useState(() => audio ? audio.settings() : {muted:false,volume:.45});
             useEffect(() => audio ? audio.subscribe(setPrefs) : undefined, [audio]);
             if (!audio) return null;
-            return <div className="flex items-center gap-2 px-3 py-1 bg-slate-950/70 border-b border-white/10 text-slate-200 shrink-0" dir="rtl">
+            return <div className="game-sound-controls flex items-center gap-2 px-3 py-1 bg-slate-950/70 border-b border-white/10 text-slate-200 shrink-0" dir="rtl">
+                <span className="tile-brand" dir="ltr">RUMMIKUBE</span>
                 <button type="button" aria-label={prefs.muted ? 'הפעל צלילים' : 'השתק צלילים'} aria-pressed={prefs.muted} onClick={() => audio.setSettings({muted:!prefs.muted})} className="min-h-[40px] px-2 rounded-lg border border-slate-600">{prefs.muted ? 'צליל כבוי' : 'צליל פעיל'}</button>
                 <label className="flex items-center gap-2 text-xs">עוצמה <input aria-label="עוצמת צלילים" type="range" min="0" max="100" value={Math.round(prefs.volume*100)} onChange={e => audio.setSettings({volume:Number(e.target.value)/100})} className="w-24 accent-cyan-400" /></label>
                 <button type="button" onClick={() => audio.play('turn')} className="min-h-[40px] px-2 text-xs">בדיקת צליל</button>
@@ -9467,7 +9457,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                 return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); try { const so = window.screen && window.screen.orientation; if (locked && so && so.unlock) so.unlock(); } catch (e) {} };
             }, []);
             const BOARD_COLS = wide ? 13 : 7, BOARD_ROWS = wide ? 1 : 2, BOARD_N = BOARD_COLS * BOARD_ROWS; // מדפים עליונים — כאן מסדרים את הקומבינציות
-            const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 2 : 3, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — כאן נוחתות אבנים חדשות (מקום סידור)
+            const RACK_COLS = BOARD_COLS, RACK_ROWS = wide ? 1 : 3, RACK_N = RACK_COLS * RACK_ROWS;         // מדפים תחתונים — כאן נוחתות אבנים חדשות (מקום סידור)
             const [boardSlots, setBoardSlots] = useState(() => Array(BOARD_N).fill(null));
             const [rackSlots, setRackSlots] = useState(() => Array(RACK_N).fill(null));
             // סיבוב-מסך משנה את מספר העמודות/שורות — ההתאמה-ליד (למטה) מזהה שינוי-מידות ובונה מחדש.
@@ -9546,28 +9536,12 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             // בלוק חוקי (רצף/שלישייה/רביעייה) → כל תאיו מודגשים בירוק. הרווח (תא ריק) הוא המפריד.
             // מעמד עץ אחד: כל שורה (בשני חלקי-המעמד) נבדקת בנפרד — כל רצף-רצוף מופרד ברווח
             // הוא קומבינציה עצמאית. בלוק חוקי → מודגש בירוק במקומו, בכל מקום על המעמד.
-            const recognizeSlots = (slots, cols, rows) => {
-                const valid = Array(cols * rows).fill(false);
-                const combos = [];
-                for (let r = 0; r < rows; r++) {
-                    let c = 0;
-                    while (c < cols) {
-                        const base = r * cols;
-                        if (!slots[base + c]) { c++; continue; }
-                        let end = c; while (end < cols && slots[base + end]) end++;
-                        const tiles = [];
-                        for (let k = c; k < end; k++) { const tt = tileById[slots[base + k]]; if (tt) tiles.push(tt); }
-                        if (tiles.length >= 3 && validateGroup(tiles)) {
-                            for (let k = c; k < end; k++) valid[base + k] = true;
-                            const nums = tiles.map(x => x.val).filter(v => v !== '☻');
-                            const isGroup = nums.length > 0 && nums.every(v => v === nums[0]);
-                            combos.push({ label: isGroup ? (tiles.length >= 4 ? 'רביעייה' : 'שלישייה') : 'רצף', n: tiles.length });
-                        }
-                        c = end;
-                    }
-                }
-                return { valid, combos };
-            };
+            const recognizeSlots = (slots, cols) => window.MeldLayout.recognize(slots, cols, tileById, validateGroup);
+            useEffect(() => {
+                if (dragId !== null) return;
+                setBoardSlots(prev => window.MeldLayout.separate(prev, BOARD_COLS, tileById, validateGroup));
+                setRackSlots(prev => window.MeldLayout.separate(prev, RACK_COLS, tileById, validateGroup));
+            }, [boardSlots, rackSlots, handKey, wide, dragId]);
             const boardRec = recognizeSlots(boardSlots, BOARD_COLS, BOARD_ROWS);
             const rackRec = recognizeSlots(rackSlots, RACK_COLS, RACK_ROWS);
             const cellValid = boardRec.valid;
@@ -9670,12 +9644,14 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const contiguousGroup = (zone, idx) => {
                 const arr = zone === 'board' ? boardSlots : rackSlots;
                 const cols = zone === 'board' ? BOARD_COLS : RACK_COLS;
-                const row = Math.floor(idx / cols), base = row * cols, col = idx % cols;
+                const recognizedGroup = recognizeSlots(arr, cols).groups.find(g => g.valid && idx >= g.start && idx < g.end);
+                if (recognizedGroup) return recognizedGroup.ids;
                 if (!arr[idx]) return [];
-                let s = col; while (s > 0 && arr[base + s - 1]) s--;
-                let e = col; while (e < cols - 1 && arr[base + e + 1]) e++;
-                const ids = []; for (let c = s; c <= e; c++) if (arr[base + c]) ids.push(arr[base + c]);
-                return ids;
+                const base = Math.floor(idx / cols) * cols;
+                let start = idx, end = idx + 1;
+                while (start > base && arr[start - 1]) start--;
+                while (end < Math.min(base + cols, arr.length) && arr[end]) end++;
+                return arr.slice(start,end).filter(Boolean);
             };
             // הנחת סדרה שלמה החל מתא-היעד: מוציאים את האבנים ומניחים ברצף פנוי הכי קרוב ליעד
             const dropGroup = (ids, groupZone, targetZone, targetIdx) => {
@@ -9741,13 +9717,14 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             // תא בודד (משמש גם ללוח וגם למגש)
             const renderCell = (zone, id, idx, valid) => {
                 const tile = id ? tileById[id] : null;
+                const boundary = (zone === 'board' ? boardRec : rackRec).boundaries[idx];
                 const isDrop = dropSlot && dropSlot.zone === zone && dropSlot.idx === idx && dragId != null;
                 // עץ חלק כמו לוח רמי מקורי — בלי ריבועי-משבצת. תא ריק שקוף (העץ של המעמד מציץ),
                 // האבן יושבת עם הצל שלה. רק קומבינציה חוקית ותא-יעד מקבלים הדגשה.
                 const comboGlow = 'inset 0 0 0 2px rgba(52,211,153,0.95), 0 0 14px 2px rgba(52,211,153,0.6)';
                 const validStyle = (valid && tile) ? { boxShadow: comboGlow, background: 'rgba(52,211,153,0.13)', zIndex: 10 } : {};
                 return (
-                    <div key={zone + idx} data-zone={zone} data-slot={idx}
+                    <div key={zone + idx} data-zone={zone} data-slot={idx} data-meld-start={boundary ? "true" : undefined}
                         style={{ touchAction: 'none', aspectRatio: '5 / 6', containerType: 'size', ...validStyle, ...(isDrop ? { boxShadow: 'inset 0 0 0 3px #34d399, 0 0 18px 4px rgba(52,211,153,0.75)', background: 'rgba(52,211,153,0.28)', transform: 'scale(1.06)', zIndex: 20 } : {}) }}
                         className={`relative flex items-center justify-center rounded-lg transition-all ${valid && tile ? 'rk-combo-glow' : ''}`}>
                         {/* סמן "כאן תונח" מעל התא — נראה גם כשהאצבע מסתירה את התא עצמו */}
@@ -10497,7 +10474,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                                 <h2 className="text-xl font-black text-white mb-1">שולחן רמי</h2>
                                 <p className="text-slate-400 font-bold text-xs mb-3" dir="rtl">דמי כניסה: {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)} ₪</p>
                                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
-                                    {uids.map(u => { const lv = lvlFor(u, t.players[u]); return <span key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className="bg-slate-800/70 border border-white/10 rounded-full pl-1 pr-3 py-0.5 text-sm font-bold text-white inline-flex items-center gap-1.5"><LevelGem level={lv.level} tier={lv.tier} size={22} />{t.players[u].username}{u === user.uid && ' (אתה)'}</span>; })}
+                                    {uids.map(u => { const lv = lvlFor(u, t.players[u]); return <span key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className="bg-slate-800/70 border border-white/10 rounded-full pl-1 pr-3 py-0.5 text-sm font-bold text-white inline-flex items-center gap-1.5"><img src={avatarUrl({...p,uid:u})} alt="" className="tile-opponent-avatar" />{t.players[u].username}{u === user.uid && ' (אתה)'}</span>; })}
                                     {Array.from({ length: Math.max(0, (Number(t.maxPlayers) || 4) - uids.length) }).map((_, i) => <span key={i} className="bg-slate-900/50 border border-dashed border-white/10 rounded-full px-3 py-1 text-sm font-bold text-slate-600">מקום פנוי</span>)}
                                 </div>
                                 {!isSeated
@@ -10614,7 +10591,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                 const oppTbUses = Number(p.tbUses) || 0;
                 const threw = (p.threw || []).slice(-5);
                 const lv = lvlFor(u, p);
-                return <div key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className={`rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
+                return <div key={u} onClick={() => setProfileUid(u)} style={{ cursor: 'pointer' }} className={`tile-opponent-pod rounded-xl px-2 py-1.5 border shrink-0 ${isTheirTurn ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-slate-900/60'}`}>
                     <div className="flex items-center justify-center gap-1">
                         <LevelGem level={lv.level} tier={lv.tier} size={22} />
                         <div className="font-black text-white text-xs whitespace-nowrap max-w-[6rem] truncate">{p.username}{p.isBot ? ' 🤖' : ''}</div>
@@ -10660,7 +10637,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                         {(() => { const lv = lvlFor(user.uid, meP); return <span onClick={() => setProfileUid(user.uid)} style={{ cursor: 'pointer' }} className="shrink-0 inline-flex items-center gap-1 px-1 py-0.5 rounded-full" title={`הרמה שלך: ${lv.tier.name}`}><LevelGem level={lv.level} tier={lv.tier} size={20} /><span className="text-[10px] font-black" style={{ color: lv.tier.color }}>{lv.tier.name}</span></span>; })()}
                         {recognized.length > 0
                             ? recognized.map((r, i) => <span key={i} className="text-[10px] font-black text-emerald-900 bg-emerald-300/70 border border-emerald-700/40 rounded-full px-2 py-0.5 shrink-0">{r.label} {r.n} ✓</span>)
-                            : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — רווח מפריד בין קבוצה לקבוצה</span>}
+                            : <span className="text-[10px] font-bold" style={{ color: '#6b4f2a' }}>סדר את הקומבינציות — הפרדה בין סדרות מתבצעת אוטומטית</span>}
                     </div>
                     {!wide && <div className="flex items-center gap-1 shrink-0">
                         <button onClick={sortRuns} title="מיון לפי רצפים" className="rk-btn px-2 py-1 rounded-lg text-sm font-black tracking-tight" dir="ltr"><span className="rk-sort-d1">7</span><span className="rk-sort-d2">8</span><span className="rk-sort-d3">9</span></button>
@@ -10724,21 +10701,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                 </div>
             );
             // אשכול-מיון פרימיום לשימוש חוזר: זוג 789/777 (אריחי-שנהב, ספרות לרוחב + תווית) מעל "סדר לי"
-            const sortControls = (
-                <div className="w-full flex flex-col gap-1.5">
-                    <div className="rk-sortpair w-full">
-                        <button onClick={sortRuns} title="מיון לפי רצף (צבע, מספרים עולים)" className="rk-sortbtn">
-                            <span className="rk-sortbtn-tiles" dir="ltr"><b className="rk-sd-r">7</b><b className="rk-sd-b">8</b><b className="rk-sd-o">9</b></span>
-                            <span className="rk-sortbtn-lbl">רצף</span>
-                        </button>
-                        <button onClick={sortSets} title="מיון לפי שלישייה (אותו מספר בצבעים)" className="rk-sortbtn">
-                            <span className="rk-sortbtn-tiles" dir="ltr"><b className="rk-sd-r">7</b><b className="rk-sd-b">7</b><b className="rk-sd-o">7</b></span>
-                            <span className="rk-sortbtn-lbl">שלישייה</span>
-                        </button>
-                    </div>
-                    <button onClick={autoArrange} className="w-full text-sm font-black text-emerald-50 bg-emerald-700 hover:bg-emerald-600 border border-emerald-400/50 rounded-xl py-2.5 shadow-lg transition-colors">✨ סדר לי</button>
-                </div>
-            );
+            const sortControls = <TileSortControls onRuns={sortRuns} onSets={sortSets} onArrange={autoArrange} />;
             const actionBar = isSeated
                 ? <div className="shrink-0 flex gap-2 px-3 py-2 border-t border-white/8 bg-slate-950/70" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
                     {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="flex-1 bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-3 rounded-2xl font-black shadow-lg">פריש ×2 🔥</button>}
@@ -10748,7 +10711,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                     <button onClick={leaveTable} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 rounded-2xl font-black border border-white/10">← יציאה מהצפייה</button>
                 </div>;
             return (
-                <div className={`absolute inset-0 flex flex-col rami-table-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
+                <div className={`tile-game absolute inset-0 flex flex-col rami-table-bg overflow-hidden ${myTurn ? (timeLeft <= 10 ? 'rami-edge-red' : 'ring-4 ring-inset ring-emerald-400/70') : ''}`} style={myTurn && timeLeft > 10 ? { boxShadow: 'inset 0 0 40px rgba(52,211,153,0.35)' } : undefined} dir="rtl">
                     <GameSoundControls />
                     {needRotate && (
                         <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 p-6 text-center" onClick={() => setNeedRotate(false)}>
@@ -10759,40 +10722,25 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                         </div>
                     )}
                     {wide && isSeated ? (
-                        /* ── פריסה לרוחב כמו רמיקוב: עמודת פעולות | מרכז (שולחן + מעמד-עץ תחום) | עמודת יריבים ── */
-                        <div className="flex-1 min-h-0 flex" dir="rtl">
-                            {/* עמודת יריבים (ימין) */}
-                            <div className="w-36 shrink-0 flex flex-col gap-1.5 p-2 border-l border-white/5 overflow-y-auto rami-side">
-                                <div className="flex items-center justify-between">
-                                    <button onClick={leaveTable} className="text-slate-400 hover:text-white font-bold text-xs">← יציאה</button>
-                                    <RulesHelp className="w-6 h-6 rounded-lg border border-sky-500/40 bg-slate-800/80 text-sky-300 flex items-center justify-center font-black text-xs" />
-                                </div>
-                                <div className="text-[10px] text-slate-400 font-bold text-center truncate">{t.tournamentId ? <span className="text-amber-300 font-black">🏆 חיים ❤️×{myLives}</span> : <>כניסה {formatMoney(t.rakeMode === 'flat' ? round2((Number(t.minBuyIn) || 0) + (Number(t.rakeFee) || 0)) : t.minBuyIn)}₪{freshMult > 1 && <span className="text-amber-400"> ·×{freshMult}</span>}</>}</div>
-                                <div className={`text-xs font-black px-2 py-1 rounded-full text-center ${myTurn ? (timeLeft <= 10 ? 'bg-rose-500/20 text-rose-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-300 animate-pulse') : 'bg-slate-800 text-slate-400'}`}>{myTurn ? `תורך ${timeLeft}s` : `תור ${turnName}`}</div>
-                                {oppCards}
+                        <div className="rami-approved-layout">
+                            <div className="tile-opponent-row">{oppCards}</div>
+                            <div className="rami-approved-playfield">
+                                {poolStrip}
+                                {turnBannerEl}
                             </div>
-                            {/* מרכז: שולחן למעלה, מעמד-עץ תחום למטה */}
-                            <div className="flex-1 min-w-0 flex flex-col">
-                                <div className="shrink-0 flex items-center justify-center px-3 pt-2">{poolStrip}</div>
-                                <div className="shrink-0 flex items-center justify-center px-3 pt-1">{turnBannerEl}</div>
-                                <div className="flex-1 min-h-0 flex flex-col items-center justify-end px-2 pb-2">
-                                    <div ref={gridRef} style={{ touchAction: 'none' }} className="rummy-rack rami-rack-frame w-full max-w-[64rem] rounded-t-2xl overflow-y-auto min-h-0">
-                                        {rackInner}
-                                    </div>
-                                    {/* הרגליות המתקפלות שבולטות קדימה מתחת למעמד */}
-                                    <div className="w-full max-w-[64rem] flex justify-between shrink-0" style={{ padding: '0 12%' }}>
-                                        <div className="rami-foot"></div>
-                                        <div className="rami-foot"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* עמודת פעולות (שמאל) */}
-                            <div className="w-32 shrink-0 flex flex-col gap-2 p-2 border-r border-white/5 justify-center rami-side">
-                                {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} title={`בנק זמן: +${myTb} שניות (${myTbUses} נותרו)`} className="w-full text-xs font-black px-2 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/50">🏦 +{myTb}s · {myTbUses}</button>}
-                                {sortControls}
-                                {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="w-full bg-amber-600/90 hover:bg-amber-500 disabled:opacity-30 text-white py-2.5 rounded-xl font-black shadow-lg text-sm">פריש ×2 🔥</button>}
-                                <button onClick={doGoOut} disabled={!goOut} className="w-full bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 disabled:opacity-30 text-white py-3 rounded-xl font-black shadow-lg">רד וגמור! 🏆</button>
-                                {isGod && <button onClick={() => setGodOpen(o => !o)} className={`w-full py-2 rounded-xl font-black text-sm border transition-all ${godOpen ? 'bg-purple-600 text-white border-purple-400' : 'bg-slate-900 text-purple-300 border-purple-700/50'}`}><i className="fa-solid fa-eye ml-1"></i>GOD</button>}
+                            <div ref={gridRef} style={{touchAction:'none'}} className="rummy-rack rami-rack-frame rami-approved-rack">{rackInner}</div>
+                            <div className="tile-action-bar">
+                                <div className="tile-self-pod"><img src={avatarUrl({...meP,uid:user.uid})} alt="" /><div><strong>{user.username}</strong><small>{myHand.filter(Boolean).length} אבנים</small></div><span className="tile-turn-clock">{timeLeft}</span></div>
+                                <TileSortControls onRuns={sortRuns} onSets={sortSets} onArrange={autoArrange} />
+                                <button onClick={() => doDraw(true)} disabled={!myTurn || t.turnPhase !== 'draw'} className="tile-control tile-control-primary">משוך אבן</button>
+                                <button onClick={doGoOut} disabled={!goOut} className="tile-control tile-control-primary">רד וגמור</button>
+                                <details className="tile-more"><summary className="tile-control" aria-label="פעולות נוספות"><i className="fa-solid fa-ellipsis" /></summary><div className="tile-more-panel">
+                                    {myTurn && myTbUses > 0 && myTb > 0 && <button onClick={activateTimeBank} className="tile-control">בנק זמן +{myTb}s</button>}
+                                    {!t.tournamentId && <button onClick={proposeFresh} disabled={!canFresh} className="tile-control">פריש ×2</button>}
+                                    {isGod && <button onClick={() => setGodOpen(o=>!o)} className="tile-control">GOD</button>}
+                                    <RulesHelp className="tile-control" />
+                                    <button onClick={leaveTable} className="tile-control">יציאה</button>
+                                </div></details>
                             </div>
                         </div>
                     ) : (

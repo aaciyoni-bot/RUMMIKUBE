@@ -36,7 +36,7 @@
   w.addEventListener('pointerdown', unlock, {passive:true});
   w.addEventListener('keydown', unlock, {passive:true});
   const cues = {
-    tile: [[320,0,.065]], draw: [[600,0,.045],[420,.045,.055]],
+    tile: [[320,0,.065]], check: [[320,0,.065],[280,.1,.06]], deal: [[600,0,.045],[420,.08,.055]], draw: [[600,0,.045],[420,.045,.055]],
     turn: [[660,0,.10],[880,.13,.14]], warning: [[660,0,.09]],
     win: [[523,0,.13],[659,.13,.13],[784,.26,.20]]
   };
@@ -64,5 +64,5 @@
     if (w.document.hidden) for (const source of active) { try {source.stop();} catch (_) {} }
   });
   syncLegacy();
-  w.GameAudio = {play, settings, setSettings, subscribe(fn) {subscribers.add(fn); return () => subscribers.delete(fn);}};
+  w.GameAudio = {play, supports: name => Object.prototype.hasOwnProperty.call(cues,name), settings, setSettings, subscribe(fn) {subscribers.add(fn); return () => subscribers.delete(fn);}};
 })(window);
