@@ -2741,7 +2741,8 @@
            רביעי לשלישייה, או קצה לרצף. סבבים חמדניים עד שאין מה להוסיף. */
         const botFindExtensions = (tiles, board) => {
             const exts = [];
-            const pool = tiles.filter(t => t.val !== '☻'); // ג'וקר לא מתבזבז על הרחבה
+            // Prefer ordinary tiles, but a joker extension may be the winning move.
+            const pool = [...tiles.filter(t => t.val !== '☻'), ...tiles.filter(t => t.val === '☻')];
             const groups = board.map(g => ({ id: g.id, tiles: [...g.tiles] }));
             let moved = true;
             while (moved) {
@@ -2778,7 +2779,9 @@
             }
             const usedIds = new Set(melds.flat().map(t => t.id));
             const exts = botFindExtensions(tiles.filter(t => !usedIds.has(t.id)), board);
-            if (melds.length === 0 && exts.length === 0) return null;
+            // The executor can build a meld by borrowing from the board even when
+            // there are no standalone melds/extensions. Do not skip that entire path.
+            if (melds.length === 0 && exts.length === 0 && !botFindSteal(tiles, board)) return null;
             return { melds, exts };
         };
 

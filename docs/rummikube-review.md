@@ -38,3 +38,7 @@ Scope: aaciyoni-bot/RUMMIKUBE, based on main commit 8cad608. CNAME identifies ww
 ## Release boundary
 
 These changes are proposed on a repair branch. No main merge, production deployment, Firestore rule update, database modification, or live financial/game operation is part of this repair set. Validate desktop/touch drag, long-press groups, crowded boards, bot turns, network failure and multiple players on a preview before release. A merge touching functions can trigger the existing Firebase deployment workflow. Product redesign and feature selection still need the user's preferences, one question at a time.
+
+## Bot-strength follow-up
+
+Two deterministic winning positions exposed weaknesses in the heuristic fallback: it returned no plan when the only move was to borrow a tile from an existing group, and it excluded jokers from extensions even when the last joker could win. Both now produce valid winning moves; first-meld restrictions and tile conservation remain checked. All 25 regression tests pass. These are tactical improvements, not measured win-rate gains against humans. The exact solver may already find these moves when it finishes; the fixes matter when using the heuristic fallback. Broader strength work should use paired deals with swapped seats, legal/public information only, and report win rate plus calculation time rather than promising that bots never lose.
