@@ -1903,6 +1903,7 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
 
     <script src="assets/js/game-audio.js?v=1"></script>
     <script src="assets/js/club-ui.js?v=1"></script>
+    <script src="assets/js/rami-worker.js?v=1"></script>
 <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
@@ -10234,32 +10235,38 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                         const iv = setInterval(step, 2600);
                         return () => { clearTimeout(firstTm); clearInterval(iv); };
                     }
+                    const botAbort = new AbortController();
                     const tm = setTimeout(async () => {
                         try {
                             const ref = window.fb.doc(window.fb.db, "tables", t.id);
                             const res = await window.fb.runTransaction(window.fb.db, async (tx) => {
                                 const snap = await tx.get(ref); if (!snap.exists()) return null;
                                 const cur = snap.data();
-                                if (cur.currentTurn !== cu || cur.phase !== 'playing') return null;
+                                if (botAbort.signal.aborted || cur.currentTurn !== cu || cur.phase !== 'playing') return null;
                                 const hand = ((cur.players[cu] || {}).cards || []).filter(Boolean);
                                 const deck = [...(cur.deck || [])], discard = [...(cur.discard || [])];
                                 let goOut = false, dropTile = null, finalHand = null, pickedTile = null, passedTile = null, source = 'deck', usedV2 = false;
                                 /* ══ מוח-הבוט v2 (המודול המשותף ramiBrain.js — אותו מוח כמו בשרת) ══
-                                   הבוטים רואים את הידיים (ברירת-מחדל) ומשחקים סימולציית-מירוץ במידע מלא.
+                                   הבוטים רואים את הידיים (ברירת-מחדל) לצורך ספירה והגנה. החיפוש רץ ברקע.
                                    botsPeek:false על השולחן מחזיר למידע גלוי בלבד.
                                    נכשל? נופלים למוח הישן. */
                                 try {
                                     if (window.RamiBotBrain) {
-                                        const brain = window.__ramiBrain || (window.__ramiBrain = window.RamiBotBrain.create({}));
+                                        const decide = (method, ctx, cards) => window.RamiBotWorker
+                                            ? window.RamiBotWorker.decide(method, ctx, cards, botAbort.signal)
+                                            : Promise.resolve(window.RamiBotBrain.create({ maxRounds: 2, maxSimTurns: 6 })[method]({ ...ctx, budgetMs: 40 }, cards));
                                         const deck2 = [...deck], discard2 = [...discard];
                                         const peek = cur.botsPeek !== false ? Object.fromEntries(Object.entries(cur.players || {}).filter(([u]) => u !== cu).map(([u, q]) => [u, (q.cards || []).filter(Boolean)])) : null;
                                         const bctx = { hand, discard: discard2, players: cur.players, me: cu, budgetMs: 650, peek };
                                         const top2 = discard2[discard2.length - 1];
-                                        const take = top2 ? brain.decideDraw(bctx).take : 'deck';
+                                        const draw = top2 ? await decide('decideDraw', bctx) : null;
+                                        if (botAbort.signal.aborted) return null;
+                                        const take = draw ? draw.take : 'deck';
                                         let newHand2, picked2 = null, passed2 = null;
                                         if (take === 'discard' && top2) { discard2.pop(); picked2 = top2; newHand2 = [...hand, top2]; }
                                         else { if (top2) passed2 = top2; reshuffleIfNeeded(deck2, discard2); const dt = deck2.pop(); newHand2 = [...hand, dt]; }
-                                        const d = brain.decideDiscard(bctx, newHand2);
+                                        const d = await decide('decideDiscard', bctx, newHand2);
+                                        if (botAbort.signal.aborted) return null;
                                         if (d && d.drop && d.rest && d.rest.length === newHand2.length - 1) {
                                             goOut = !!d.goOut; dropTile = d.drop; finalHand = d.rest; pickedTile = picked2; passedTile = passed2; source = picked2 ? 'discard' : 'deck';
                                             deck.length = 0; deck.push(...deck2); discard.length = 0; discard.push(...discard2);
@@ -10267,6 +10274,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                                         }
                                     }
                                 } catch (e) { usedV2 = false; }
+                                if (botAbort.signal.aborted) return null;
                                 if (!usedV2) {
                                 /* ══ מוח-הבוט: החזק ביותר במסגרת הוגנת ══
                                    מידע גלוי בלבד: היד של עצמו, ערימת-הזריקה, ולקיחות/זריקות
@@ -10439,9 +10447,9 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                             if (res && res.tourWin && res.elim) { try { await tourReportBust(t.tournamentId, [res.elim], [], 0, false); } catch (e) {} }
                         } catch (e) {}
                     }, think);
-                    return () => clearTimeout(tm);
+                    return () => { clearTimeout(tm); botAbort.abort(); };
                 }
-            }, [t && t.phase, t && t.currentTurn, tableDocId, isBotDriver]);
+            }, [t && t.phase, t && t.currentTurn, tableDocId, isBotDriver, srvAuth]);
 
             // המנהיג מגיב לפריש עבור הבוטים — אחד בכל פעם. בוט חכם *לא* מסכים לחלוקה-מחדש
             // כשיש לו יד טובה (הוא קרוב לרדת): פריש מאפס את היתרון שלו ומכפיל ×2. עם יד
