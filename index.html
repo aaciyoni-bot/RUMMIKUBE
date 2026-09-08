@@ -2640,6 +2640,37 @@
         /* ===== מוח הבוטים =====
            מוצא מלדים זרים מתוך אבני המגש: רצפים קודם (שווים יותר בדרך כלל),
            אחר-כך שלישיות מהנותר, ולבסוף השלמות ג'וקר לזוגות. כל אבן פעם אחת. */
+        // The exact solver can take seconds on dense boards. Never run it on the UI thread.
+        // A slow/unsupported worker returns null so the existing legal heuristic can play.
+        const solveRummyOffThread = (boardTiles, rackTiles, signal) => new Promise(resolve => {
+            let worker = null, url = null, timer = null, done = false;
+            const finish = result => {
+                if (done) return;
+                done = true;
+                if (timer !== null) clearTimeout(timer);
+                if (worker) worker.terminate();
+                if (url) URL.revokeObjectURL(url);
+                if (signal) signal.removeEventListener('abort', abort);
+                resolve(result);
+            };
+            const abort = () => finish(null);
+            if (signal && signal.aborted) { finish(null); return; }
+            try {
+                const source = document.getElementById('rummy-solver');
+                if (!source || typeof Worker === 'undefined') { finish(null); return; }
+                url = URL.createObjectURL(new Blob([source.textContent,
+                    '\nself.onmessage = function(e) { try { self.postMessage(self.RummySolver.solve(e.data.board, e.data.rack)); } catch(err) { self.postMessage(null); } };'
+                ], { type: 'text/javascript' }));
+                worker = new Worker(url);
+                worker.onmessage = e => finish(e.data);
+                worker.onerror = () => finish(null);
+                worker.onmessageerror = () => finish(null);
+                if (signal) signal.addEventListener('abort', abort, { once: true });
+                timer = setTimeout(() => finish(null), 1500);
+                worker.postMessage({ board: boardTiles, rack: rackTiles });
+            } catch (err) { finish(null); }
+        });
+
         const botFindMelds = (tiles) => {
             const used = new Set();
             const melds = [];
@@ -7552,6 +7583,8 @@
         /* ================================================================
            שולחן רמיקוב
            ================================================================ */
+        const JK = React.memo(({ v }) => v === '☻' ? <span className="joker-glyph"><JokerFace /></span> : <>{v}</>);
+
         function RummyTable({ tableDocId, user, clubSettings, onLeave, showToast }) {
             const [tableState, setTableState] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -7686,7 +7719,7 @@
                 });
                 ro.observe(el);
                 return () => ro.disconnect();
-            }, []);
+            }, [loading]);
 
             /* גרירת קבוצה: אם נקודת ההכנסה שנמדדה היא הקבוצה הנגררת עצמה
                (שכבר יוצאת מהמערך), ההכנסה האמיתית היא לפני הקבוצה שאחריה -
@@ -7806,6 +7839,7 @@
                            ויודע "להשאיל" אבן מהלוח להשלמת קומבינציה. */
                         const skill = botSkillOf(currentUid);
                         const baseThink = 3500 + (1 - skill) * 3000 + Math.random() * 2000;
+                        const solverAbort = new AbortController();
                         const runBot = async () => {
                             try {
                                 const tblRef = window.fb.doc(window.fb.db, "tables", tableState.id);
@@ -7827,11 +7861,17 @@
                                 let solved = null;
                                 if (bot.hasDropped && window.RummySolver) {
                                     try {
-                                        const res = window.RummySolver.solve(board.flatMap(g => g.tiles), rack.filter(Boolean));
+                                        const res = await solveRummyOffThread(board.flatMap(g => g.tiles), rack.filter(Boolean), solverAbort.signal);
                                         const planN = plan ? plan.melds.flat().length + plan.exts.length : 0;
                                         if (res && res.placed.length > planN && res.groups.every(g => validateGroup(g))) solved = res;
                                     } catch (e) { solved = null; }
                                 }
+                                if (solverAbort.signal.aborted) return;
+                                // Another client may have advanced the turn while the worker ran.
+                                const latestSnap = await window.fb.getDoc(tblRef);
+                                if (solverAbort.signal.aborted || !latestSnap.exists()) return;
+                                const latest = latestSnap.data();
+                                if (latest.phase !== 'playing' || latest.currentTurn !== currentUid || latest.turnStartedAt !== currentTbl.turnStartedAt) return;
                                 if (solved) {
                                     const placedIds = new Set(solved.placed.map(t => t.id));
                                     const solvedRack = rack.map(t => (t && placedIds.has(t.id)) ? null : t);
@@ -7914,13 +7954,13 @@
                             const step = async () => { if (busy) return; busy = true; try { await runBot(); } finally { busy = false; } };
                             const firstTm = setTimeout(step, baseThink);
                             const iv = setInterval(step, 3000);
-                            return () => { clearTimeout(firstTm); clearInterval(iv); };
+                            return () => { solverAbort.abort(); clearTimeout(firstTm); clearInterval(iv); };
                         }
                         const botTimer = setTimeout(runBot, baseThink);
-                        return () => clearTimeout(botTimer);
+                        return () => { solverAbort.abort(); clearTimeout(botTimer); };
                     }
                 }
-            }, [tableState?.phase, tableState?.currentTurn, rkIsBotDriver, tableDocId]);
+            }, [tableState?.phase, tableState?.currentTurn, tableState?.turnStartedAt, rkIsBotDriver, tableDocId]);
 
             /* ---------- טיימר + צליל ---------- */
             useEffect(() => {
@@ -8078,15 +8118,19 @@
 
             /* ---------- מנוע גרירה ---------- */
             useEffect(() => {
-                const handlePointerMove = (e) => {
-                    if (dragDataRef.current) {
+                let moveFrame = null;
+                let pendingPoint = null;
+                const paintDrag = () => {
+                    moveFrame = null;
+                    const e = pendingPoint;
+                    if (e && dragDataRef.current) {
                         const cx = e.clientX, cy = e.clientY;
                         // מזיזים את ה"רפאים" ישירות ב-DOM (בלי setState) — כך אין רינדור-מלא בכל תזוזה.
                         dragPosRef.current = { x: cx, y: cy };
                         const ghost = document.getElementById('drag-ghost');
                         const ghostGroup = document.getElementById('drag-ghost-group');
-                        if (ghost) { ghost.style.left = cx + 'px'; ghost.style.top = cy + 'px'; ghost.style.pointerEvents = 'none'; }
-                        if (ghostGroup) { ghostGroup.style.left = cx + 'px'; ghostGroup.style.top = cy + 'px'; ghostGroup.style.pointerEvents = 'none'; }
+                        if (ghost) ghost.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%) scale(1.1) rotate(5deg)`;
+                        if (ghostGroup) ghostGroup.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%) scale(1.1) rotate(3deg)`;
                         if (longPressTimer.current) {
                             const dist = Math.hypot(cx - dragDataRef.current.startX, cy - dragDataRef.current.startY);
                             if (dist > 15) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
@@ -8105,10 +8149,31 @@
                     }
                 };
 
+                const handlePointerMove = (e) => {
+                    if (!dragDataRef.current) return;
+                    pendingPoint = { clientX: e.clientX, clientY: e.clientY };
+                    // Cancel long-press immediately, even before the next paint.
+                    if (longPressTimer.current && Math.hypot(e.clientX - dragDataRef.current.startX, e.clientY - dragDataRef.current.startY) > 15) {
+                        clearTimeout(longPressTimer.current); longPressTimer.current = null;
+                    }
+                    if (moveFrame === null) moveFrame = requestAnimationFrame(paintDrag);
+                };
+                const clearDrag = () => {
+                    if (moveFrame !== null) cancelAnimationFrame(moveFrame);
+                    moveFrame = null; pendingPoint = null;
+                    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                    longPressTimer.current = null;
+                    dragDataRef.current = null;
+                    hoverRef.current = null; hintRef.current = null;
+                    setDragData(null); setHoverTarget(null); setInsertHint(null);
+                };
                 const handlePointerUp = async (e) => {
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                     const currentDrag = dragDataRef.current;
                     if (!currentDrag) return;
+                    clearDrag();
+                    // A server turn change during a gesture invalidates that gesture.
+                    if (currentDrag.turnStartedAt !== tableState?.turnStartedAt || tableState?.phase !== 'playing') return;
 
                     const isMyTurn = tableState?.currentTurn === user.uid;
 
@@ -8170,6 +8235,17 @@
                         }
                     }
 
+                    // No valid destination means cancellation, preserving the original slots.
+                    if (!actualTarget || actualTarget === 'rack') return;
+                    if (actualTarget.startsWith('rack-slot-')) {
+                        const slot = Number(actualTarget.slice('rack-slot-'.length));
+                        if (!Number.isInteger(slot) || slot < 0 || slot >= rack.length) return;
+                        const count = currentDrag.type === 'single' ? 1 : currentDrag.tiles.length;
+                        if (currentDrag.source === 'board' && rack.filter(t => t == null).length < count) {
+                            flashError('אין מספיק מקום במגש — פנה מקום לפני החזרת האבנים');
+                            return;
+                        }
+                    }
                     let newRack = [...rack];
                     let newBoard = board.map(g => ({...g, tiles: [...g.tiles]}));
                     let tilesToAdd = [];
@@ -8296,14 +8372,26 @@
                 if (dragData) {
                     window.addEventListener('pointermove', handlePointerMove, { passive: false });
                     window.addEventListener('pointerup', handlePointerUp);
+                    window.addEventListener('pointercancel', clearDrag);
+                    window.addEventListener('blur', clearDrag);
                 }
                 return () => {
+                    if (moveFrame !== null) cancelAnimationFrame(moveFrame);
                     window.removeEventListener('pointermove', handlePointerMove);
                     window.removeEventListener('pointerup', handlePointerUp);
+                    window.removeEventListener('pointercancel', clearDrag);
+                    window.removeEventListener('blur', clearDrag);
                 };
-            }, [dragData, hoverTarget, rack, board, tableState?.id, user.uid, tableState?.currentTurn, hasDropped, startIdsSet, startRackIds, boardScale]);
+            }, [dragData, rack, board, tableState?.id, user.uid, tableState?.currentTurn, tableState?.turnStartedAt, tableState?.phase, hasDropped, startIdsSet, startRackIds, boardScale]);
+
+            useEffect(() => () => {
+                if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                dragDataRef.current = null;
+            }, []);
 
             const startDrag = (e, tile, source, groupId, tileIndex) => {
+                if (e.isPrimary === false || (e.button !== undefined && e.button !== 0) || tableState?.phase !== 'playing' || endingRef.current) return;
+                if (longPressTimer.current) clearTimeout(longPressTimer.current);
                 const isMyTurn = tableState?.currentTurn === user.uid;
 
                 if (source === 'board') {
@@ -8327,14 +8415,16 @@
 
                 dragPosRef.current = { x: e.clientX, y: e.clientY };
                 hoverRef.current = null; hintRef.current = null; // מתחילים גרירה נקייה
-                setDragData({ type: 'single', tile, source, groupId, tileIndex, startX: e.clientX, startY: e.clientY, startX_pct: pctX, startY_pct: pctY });
+                const gesture = { turnStartedAt: tableState?.turnStartedAt, type: 'single', tile, source, groupId, tileIndex, startX: e.clientX, startY: e.clientY, startX_pct: pctX, startY_pct: pctY };
+                dragDataRef.current = gesture;
+                setDragData(gesture);
 
                 if (source === 'board') {
                     const grp = board.find(g => g.id === groupId);
                     if(grp) {
                         longPressTimer.current = setTimeout(() => {
                             if (navigator.vibrate) navigator.vibrate(50);
-                            setDragData({ type: 'group', tiles: grp.tiles, source, groupId, startX: e.clientX, startY: e.clientY, startX_pct: grp.x, startY_pct: grp.y });
+                            setDragData({ turnStartedAt: tableState?.turnStartedAt, type: 'group', tiles: grp.tiles, source, groupId, startX: e.clientX, startY: e.clientY, startX_pct: grp.x, startY_pct: grp.y });
                         }, 300);
                     }
                 } else if (source === 'rack') {
@@ -8348,7 +8438,7 @@
                         while (right < 27 && (right % 14 !== 13) && tilesChain(rack[right], rack[right + 1])) right++;
                         const groupTiles = rack.slice(left, right + 1);
                         if (groupTiles.length > 1) {
-                            setDragData({ type: 'group_from_rack', tiles: groupTiles, source: 'rack', startIndex: left, startX: e.clientX, startY: e.clientY });
+                            setDragData({ turnStartedAt: tableState?.turnStartedAt, type: 'group_from_rack', tiles: groupTiles, source: 'rack', startIndex: left, startX: e.clientX, startY: e.clientY });
                         }
                     }, 300);
                 }
@@ -8407,7 +8497,7 @@
                     return 0;
                 });
                 setBoard(arranged);
-                if (tableState?.currentTurn === user.uid) {
+                if (!srvAuth && tableState?.currentTurn === user.uid) {
                     try { await window.fb.updateDoc(window.fb.doc(window.fb.db, "tables", tableState.id), { board: arranged }); } catch(e){}
                 }
             };
@@ -8709,7 +8799,6 @@
             const myTileCount = rack.filter(t=>t!==null).length;
             const results = tableState.lastResults;
             // ג'וקר זהה למשחק הרמי: דמות 🃏 חגיגית במקום הסמל ☻
-            const JK = ({ v }) => v === '☻' ? <span className="joker-glyph"><JokerFace /></span> : <>{v}</>;
             const jcls = (v) => v === '☻' ? ' joker' : '';
 
             return (
@@ -8982,8 +9071,8 @@
                         </div>, document.body)}
 
                     {/* רוחות רפאים */}
-                    {dragData?.type === 'single' && <div id="drag-ghost" className={`fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl${jcls(dragData.tile.val)}`} style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(5deg)', color: inkOf(dragData.tile.color), pointerEvents: 'none' }}><JK v={dragData.tile.val} /></div>}
-                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, transform: 'translate(-50%, -50%) scale(1.1) rotate(3deg)', pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>))}</div>}
+                    {dragData?.type === 'single' && <div id="drag-ghost" className={`fixed z-[9999] rummy-tile w-12 h-16 sm:w-16 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-2xl${jcls(dragData.tile.val)}`} style={{ left: 0, top: 0, willChange: 'transform', transform: `translate3d(${dragPosRef.current.x}px, ${dragPosRef.current.y}px, 0) translate(-50%, -50%) scale(1.1) rotate(5deg)`, color: inkOf(dragData.tile.color), pointerEvents: 'none' }}><JK v={dragData.tile.val} /></div>}
+                    {(dragData?.type === 'group' || dragData?.type === 'group_from_rack') && <div id="drag-ghost-group" className="fixed z-[9999] flex bg-black/40 p-2 rounded-xl shadow-2xl border border-emerald-500" style={{ left: 0, top: 0, willChange: 'transform', transform: `translate3d(${dragPosRef.current.x}px, ${dragPosRef.current.y}px, 0) translate(-50%, -50%) scale(1.1) rotate(3deg)`, pointerEvents: 'none' }} dir="ltr">{dragData.tiles.map(t => (<div key={t.id} className={`rummy-tile w-10 h-14 sm:w-12 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl mx-0.5${jcls(t.val)}`} style={{ color: inkOf(t.color) }}><JK v={t.val} /></div>))}</div>}
                 </div>
             );
         }

@@ -42,6 +42,23 @@ function validateMove(snapBoard, oldRack, newBoard, newRack, opts) {
   const newTiles = boardTiles(newBoard);
   const newR = nonNull(newRack);
 
+  // IDs alone are insufficient: a client must not change a tile's face or colour.
+  const originals = new Map([...snapTiles, ...oldR].map(t => [tid(t), t]));
+  for (const tile of [...newTiles, ...newR]) {
+    const original = originals.get(tid(tile));
+    if (!tile || typeof tile.id !== 'string' || !tile.id || !original ||
+        tile.val !== original.val || tile.color !== original.color) {
+      return {ok: false, error: "אסור לשנות את זהות האבן, הערך או הצבע שלה"};
+    }
+  }
+  const groupIds = new Set();
+  for (const group of (newBoard || [])) {
+    if (!group || typeof group.id !== 'string' || !group.id || groupIds.has(group.id)) {
+      return {ok: false, error: "מזהה קבוצת אבנים חסר או כפול"};
+    }
+    groupIds.add(group.id);
+  }
+
   const snapIds = idCounts(snapTiles);
   const oldRIds = idCounts(oldR);
   const newBIds = idCounts(newTiles);
