@@ -144,14 +144,32 @@
     var tiles = (hand15 || []).filter(Boolean);
     if (tiles.length < 2) return null;
     var p = bestPartition(tiles);
-    if (p.leftover.length > 1) return null;
+    // A minimum-points partition is not necessarily the partition that permits
+    // one discard. Only rule out a win when even its minimum deadwood exceeds
+    // the value of every possible single discard.
+    var maxDiscard = tiles.reduce(function (m, t) { return Math.max(m, tv(t)); }, 0);
+    if (p.leftoverPoints > maxDiscard) return null;
     var opts = [];
     if (p.leftover.length === 1) opts.push(p.leftover[0]);
-    else for (var i = 0; i < p.melds.length; i++) {
+    else if (p.leftover.length === 0) for (var i = 0; i < p.melds.length; i++) {
       var m = p.melds[i];
       if (m.length >= 4) for (var k = 0; k < m.length; k++) { var rest = m.slice(0, k).concat(m.slice(k + 1)); if (validateGroup(rest)) opts.push(m[k]); }
     }
-    if (!opts.length) return null;
+    if (!opts.length) {
+      // E.g. five triples may also form runs of 5 + 5 + 4 after a discard.
+      // Check distinct faces only; equivalent copies have identical legality.
+      var seen = {};
+      var possible = tiles.slice();
+      if (prefer) possible.sort(function (a, b) { return prefer(a) - prefer(b); });
+      for (var q = 0; q < possible.length; q++) {
+        var candidate = possible[q], face = isJ(candidate) ? 'J' : key(candidate);
+        if (seen[face]) continue;
+        seen[face] = true;
+        var at = tiles.indexOf(candidate);
+        if (bestPartition(tiles.slice(0, at).concat(tiles.slice(at + 1))).complete) return candidate;
+      }
+      return null;
+    }
     if (prefer) opts.sort(function (a, b) { return prefer(a) - prefer(b); });
     return opts[0];
   }
