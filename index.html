@@ -1002,8 +1002,9 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
 @media(max-width:600px){.accounting-entry{align-items:flex-start;flex-direction:column;padding:20px;gap:16px}.accounting-entry strong{font-size:20px}.accounting-entry small{font-size:13px}.club-admin td,.club-admin th{padding:10px}.admin-shortcuts{gap:8px;padding:10px}.admin-shortcuts a{flex:1;text-align:center;font-size:12px;padding:9px}}
 
 </style>
+<link rel="stylesheet" href="assets/css/club-ui.css?v=1">
 </head>
-<body class="bg-slate-950 h-full w-full">
+<body class="bg-slate-950 h-full w-full rummy-theme">
 <!-- ═══ RUMMIKUBE BRAND INTRO · מוצג ראשון, ואז מוסר את עצמו ל-ORIZIS ═══ -->
 <div id="rk-intro">
   <style>
@@ -1901,7 +1902,8 @@ body{font-feature-settings:'tnum';-webkit-font-smoothing:antialiased}.aurora-bg{
     <!-- RUMMY-SOLVER-END -->
 
     <script src="assets/js/game-audio.js?v=1"></script>
-    <script type="text/babel">
+    <script src="assets/js/club-ui.js?v=1"></script>
+<script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
         /* ===== סמלי קלפים וקטוריים - חפיסת 4 צבעים ===== */
@@ -4350,7 +4352,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const fmtM = (v) => `${v} 🏆`;
 
             return (
-                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
+                <div style={{overflowX:"hidden"}} className="club-surface scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
                         {profileP && <PublicProfileModal p={profileP} onClose={() => setProfileP(null)} />}
                         <div className="text-center mb-6 mt-2">
@@ -4520,8 +4522,8 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const banned = status === 'banned', rejected = status === 'rejected';
             const icon = banned ? 'fa-ban' : rejected ? 'fa-circle-xmark' : 'fa-clock-rotate-left';
             const iconColor = banned || rejected ? 'text-rose-500' : 'text-amber-500';
-            const spin = !banned && !rejected ? ' animate-spin' : '';
-            return <div className="h-full w-full aurora-bg text-slate-300 flex justify-center items-center font-bold text-xl flex-col gap-4 px-6">
+            const spin = ''; // Approval is a waiting state, not an active loading operation.
+            return <div className="club-surface club-pending h-full w-full aurora-bg text-slate-300 flex justify-center items-center font-bold text-xl flex-col gap-4 px-6">
                 <i className={`fa-solid ${icon} text-4xl ${iconColor}${spin}`}></i>
                 <div className="text-center leading-relaxed">
                     {banned ? <>הגישה שלך לקלאב{clubName ? <span className="text-emerald-400"> "{clubName}"</span> : ''} נחסמה על ידי בעל הקלאב.</>
@@ -4813,7 +4815,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             };
 
             return (
-                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
+                <div style={{overflowX:"hidden"}} className="club-surface scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
                         <div className="float-tile rummy-tile w-16 h-20 flex items-center justify-center text-4xl" style={{ top: '12%', right: '6%', '--ft-r': '-10deg', color: '#c62828' }}>7</div>
                         <div className="float-tile rummy-tile w-14 h-[4.2rem] flex items-center justify-center text-3xl" style={{ top: '58%', left: '4%', '--ft-r': '7deg', color: '#1257a8', animationDelay: '-5s' }}>11</div>
@@ -5112,7 +5114,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                 { label: 'רווח/הפסד כולל', value: (stats.totalProfit > 0 ? '+' : '') + formatMoney(stats.totalProfit), color: stats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', icon: 'fa-chart-line' },
             ];
             return (
-                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-8">
+                <div style={{overflowX:"hidden"}} className="club-surface scrollable-content aurora-bg p-4 sm:p-8">
                     <div className="max-w-4xl mx-auto animate-fade-in relative z-10">
                         <div className="glass-panel p-8 rounded-3xl text-center mb-6">
                             <img src={avatarUrl(user)} className="w-24 h-24 rounded-full mx-auto border-2 border-cyan-400/50 shadow-[0_0_25px_rgba(6,182,212,0.25)] mb-4 bg-slate-800" />
@@ -5525,8 +5527,9 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             };
 
             return (
-                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
+                <div style={{overflowX:"hidden"}} className="club-lobby scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-6xl mx-auto animate-fade-in relative z-10">
+                        {window.ClubUI && <window.ClubUI.LobbyOverview user={user} brand="RUMMIKUBE" tables={[...ramiTables,...rummyTables]} onResume={t=>t.type==='rami'?onJoinRami(t):onJoinRummy(t)} />}
 
                         <div className="glass-panel rounded-3xl p-5 sm:p-6 mb-6 flex items-center justify-between flex-wrap gap-4">
                             <div className="flex items-center gap-4">
@@ -7142,17 +7145,19 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                 } catch (e) { showToast(fnErr(e), 'error'); }
             };
 
+            const balanceMembers = usersList.filter(m => ["approved","banned"].includes(m.status) && !m.isBot && m.uid !== user.uid && m.uid !== "bot_bank").filter(m => canManageAny || m.agentUid === user.uid);
             const statTiles = [
                 { label: 'היתרה שלך', value: formatMoney(user.balance), icon: 'fa-wallet', color: 'text-white' },
-                { label: 'סה"כ אצל שחקנים', value: formatMoney(players.reduce((s, p) => s + (p.balance || 0), 0)), icon: 'fa-users', color: 'text-blue-400' },
+                { label: 'סה"כ אצל שחקנים', value: formatMoney(balanceMembers.reduce((s, p) => s + (Number(p.balance) || 0), 0)), icon: 'fa-users', color: 'text-blue-400' },
                 { label: 'רווחי מועדון (Rake)', value: formatMoney(user.clubProfits || 0), icon: 'fa-building-columns', color: 'text-amber-400' },
-                { label: 'שחקנים רשומים', value: realPlayers.length, icon: 'fa-id-card', color: 'text-emerald-400' },
+                { label: 'שחקנים רשומים', value: realPlayers.filter(m => canManageAny || m.uid === user.uid || m.agentUid === user.uid).length, icon: 'fa-id-card', color: 'text-emerald-400' },
             ];
             // הערה: הבוטים ממומנים ע"י בעל-הקלאב (הבית), אז אין יותר "קופת בוטים" נפרדת.
 
             return (
                 <div style={{overflowX:"hidden"}} className="club-admin scrollable-content p-4 sm:p-6">
                     <div className="max-w-5xl mx-auto relative z-10">
+                        <nav className="club-admin-nav" aria-label="ניווט ניהול"><a href="#bo-overview">תמונת מצב</a><a href="#bo-players">כרטיסי שחקנים</a><a href="/backoffice.html">התחשבנות וסוכנים</a></nav>
                         <a href="/backoffice.html" className="accounting-entry"><span><strong>מרכז ההתחשבנות החדש</strong><small>סיכום שבועי, כרטיסי שחקנים ופירוט סוכנים</small></span><span>פתח התחשבנות <i className="fa-solid fa-arrow-left" aria-hidden="true"></i></span></a>
                         <div className="relative overflow-hidden rounded-3xl mb-6 border border-emerald-500/20 bg-gradient-to-l from-emerald-600/15 via-slate-900/50 to-transparent p-5 sm:p-6">
                             <div className="absolute -left-8 -top-10 w-40 h-40 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
@@ -7180,7 +7185,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div id="bo-overview" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             {statTiles.map((t, i) => (
                                 <div key={i} className="stat-tile rk-rise p-5 rounded-2xl" style={{ animationDelay: i * 55 + 'ms' }}>
                                     <div className="flex items-center justify-between mb-2">
@@ -7416,7 +7421,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                             </div>
                         )}
 
-                        <div className="glass-panel p-6 rounded-3xl mb-6">
+                        <div id="bo-players" className="glass-panel p-6 rounded-3xl mb-6">
                             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                                     <span className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"><i className="fa-solid fa-money-bill-transfer text-emerald-400 text-sm"></i></span>
@@ -7432,7 +7437,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                                     <button key={id} onClick={()=>setMemFilter(id)} className={`text-[10px] font-black px-3 py-1 rounded-full border transition-colors ${memFilter === id ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white'}`}>{lb}</button>
                                 ))}
                             </div>
-                            <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pl-1">
+                            <div className="club-player-grid">
                                 {players.map((u, pi) => {
                                     // תוצאה מאוחדת: מסכם את כל החשבונות של אותו טלפון, כדי שתראה
                                     // מספר אחד ברור (רווח/הפסד) גם כשהשחקן פוצל לכמה חשבונות-אורח.
@@ -7440,11 +7445,11 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
                                     const net = round2(((u.stats && u.stats.totalProfit) || 0) + dups.reduce((s, d) => s + ((d.stats && d.stats.totalProfit) || 0), 0));
                                     const consBal = round2((u.balance || 0) + dups.reduce((s, d) => s + (d.balance || 0), 0));
                                     return (
-                                    <div key={u.id} className="rk-rise bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors" style={{ animationDelay: Math.min(pi, 12) * 35 + 'ms' }}>
+                                    <div key={u.id} className="club-player-card rk-rise bg-slate-900/70 rounded-2xl p-3 border border-white/5 hover:border-emerald-500/30 transition-colors" style={{ animationDelay: Math.min(pi, 12) * 35 + 'ms' }}>
                                         {/* שורה עליונה: זהות + יתרה (תמיד גלויה, מיושרת) */}
                                         <div className="flex items-center gap-3">
                                             <img src={avatarUrl({ ...u, uid: u.id })} onClick={() => !u.isBot && setPlayerFile(u)} className="w-11 h-11 rounded-xl bg-slate-800 shrink-0 cursor-pointer" />
-                                            <div className="min-w-0 flex-1 cursor-pointer" onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
+                                            <div className="club-player-open min-w-0 flex-1 cursor-pointer" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();if(!u.isBot)setPlayerFile(u);}}} onClick={() => !u.isBot && setPlayerFile(u)} title="פתח תיק שחקן">
                                                 <div className="font-bold text-white truncate text-sm flex items-center gap-1.5">
                                                     {u.username}
                                                     {u.status === 'banned' && <span className="text-[9px] bg-rose-500/20 border border-rose-500/50 text-rose-300 px-1.5 py-0.5 rounded-full font-bold shrink-0">חסום</span>}
@@ -9165,7 +9170,7 @@ function ChatPanel({chat,meUid,onSend,onClose,className,targets=[],mutedUids=[],
             const sel = "w-full bg-slate-900 text-white border border-white/10 rounded-xl p-3 outline-none focus:border-amber-500/60 font-bold";
 
             return (
-                <div style={{overflowX:"hidden"}} className="scrollable-content aurora-bg p-4 sm:p-6">
+                <div style={{overflowX:"hidden"}} className="club-surface scrollable-content aurora-bg p-4 sm:p-6">
                     <div className="max-w-2xl mx-auto animate-fade-in relative z-10">
                         <div className="flex items-center gap-3 mb-6">
                             <button onClick={onBack} className="w-10 h-10 rounded-xl bg-slate-800/80 border border-white/10 text-slate-300 hover:text-white"><i className="fa-solid fa-arrow-right"></i></button>
