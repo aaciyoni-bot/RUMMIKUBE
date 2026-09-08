@@ -8,11 +8,20 @@
     if (saved) { muted = saved.muted === true; if (Number.isFinite(saved.volume)) volume = Math.max(0, Math.min(1, saved.volume)); }
   } catch (_) {}
   const settings = () => ({volume, muted});
+  function syncLegacy() {
+    try {
+      if (w.Tone?.Destination) {
+        w.Tone.Destination.mute = muted || volume === 0 || w.document.hidden;
+        w.Tone.Destination.volume.value = volume > 0 ? 20 * Math.log10(volume) : -60;
+      }
+    } catch (_) {}
+  }
   function setSettings(next) {
     if (typeof next.muted === 'boolean') muted = next.muted;
     if (Number.isFinite(next.volume)) volume = Math.max(0, Math.min(1, next.volume));
     if (muted || volume === 0) for (const source of active) { try { source.stop(); } catch (_) {} }
     try { w.localStorage.setItem('rummiAudio', JSON.stringify(settings())); } catch (_) {}
+    syncLegacy();
     subscribers.forEach(fn => fn(settings()));
   }
   function unlock() {
@@ -51,7 +60,9 @@
     }
   }
   w.document.addEventListener('visibilitychange', () => {
+    syncLegacy();
     if (w.document.hidden) for (const source of active) { try {source.stop();} catch (_) {} }
   });
+  syncLegacy();
   w.GameAudio = {play, settings, setSettings, subscribe(fn) {subscribers.add(fn); return () => subscribers.delete(fn);}};
 })(window);

@@ -28,6 +28,8 @@
   ::-webkit-scrollbar-thumb{background:#243044;border-radius:8px}
   @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+<link rel="stylesheet" href="backoffice.css?v=2"/>
 </head>
 <body>
 <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-weight:700;font-family:'Rubik',system-ui,sans-serif">טוען…</div></div>
@@ -115,7 +117,7 @@
 </script>
 
 <script type="text/babel">
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 const T = window.__TENANT;
 const TENANT_SLUG = window.__TENANT_SLUG;
 const ROLES = { SUPER_ADMIN:'super_admin', CLUB_OWNER:'club_owner', MANAGER:'manager', AGENT:'agent', PLAYER:'player' };
@@ -124,14 +126,25 @@ const round2 = (n)=>Math.round((Number(n)||0)*100)/100;
 const money = (n)=>{ const v=round2(n); return (v<0?'-':'')+Math.abs(v).toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const col = (n)=> n>0.009?'var(--pos)':n<-0.009?'var(--neg)':'var(--muted)';
 
-function cycleStartIL(weeksBack){
-  const now = new Date();
-  const il = new Date(now.toLocaleString('en-US',{timeZone:'Asia/Jerusalem'}));
-  const back = (il.getDay() + 5) % 7; // ימים אחורה עד יום שלישי → מחזור שלישי→שלישי
-  const tue = new Date(il);
-  tue.setDate(il.getDate() - back - 7*(weeksBack||0));
-  tue.setHours(0,1,0,0);
-  return tue.getTime() + (now.getTime() - il.getTime());
+function cycleStartIL(weeksBack, now = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+  const wallTime = epoch => {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(epoch)).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
+    return Date.UTC(parts.year,parts.month-1,parts.day,parts.hour,parts.minute,parts.second);
+  };
+  const wall = wallTime(now.getTime());
+  const date = new Date(wall), daysBack = (date.getUTCDay()+5)%7;
+  let target = Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()-daysBack,0,1);
+  if (wall < target) target -= 7*86400000;
+  target -= (Number(weeksBack)||0)*7*86400000;
+  let epoch = target;
+  for(let i=0;i<3;i++) epoch = target - (wallTime(epoch)-epoch);
+  return epoch;
+}
+function closedWeekEntry(weeks, start) {
+  if(weeks?.[String(start)]) return [String(start),weeks[String(start)]];
+  // Old releases included current milliseconds in the key. Keep those records readable.
+  return Object.entries(weeks||{}).filter(([key])=>Math.floor(Number(key)/1000)===Math.floor(start/1000)).sort((a,b)=>(b[1]?.at||0)-(a[1]?.at||0))[0] || null;
 }
 function cycleLabel(weeksBack){
   const s = cycleStartIL(weeksBack);
@@ -203,17 +216,19 @@ function Board({authUser,onLogout}){
   const isGod = (T.godEmails||[]).includes(email);
   const [mems,setMems]=useState(null),[logs,setLogs]=useState(null),[club,setClub]=useState(null);
   const [wk,setWk]=useState(0),[q,setQ]=useState(''),[sortBy,setSortBy]=useState('result'),[drill,setDrill]=useState(null),[loadErr,setLoadErr]=useState('');
+  const [reload,setReload]=useState(0);
 
-  useEffect(()=>{ (async()=>{
+  useEffect(()=>{ let alive=true;setLoadErr('');setMems(null);setLogs(null);(async()=>{
     try{
       const [ms,ls,cs] = await Promise.all([
         window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db,'memberships'), window.fb.where('clubId','==',T.clubId))),
         window.fb.getDocs(window.fb.query(window.fb.collection(window.fb.db,'gameLog'), window.fb.where('clubId','==',T.clubId))),
         window.fb.getDoc(window.fb.doc(window.fb.db,'clubs',T.clubId)),
       ]);
+      if(!alive)return;
       setMems(ms.docs.map(d=>({id:d.id,...d.data()}))); setLogs(ls.docs.map(d=>d.data())); setClub(cs.exists()?cs.data():{});
-    }catch(e){ setLoadErr('אין הרשאה לקרוא את נתוני-ההתחשבנות, או שגיאת-רשת. ודא שאתה מחובר כבעל-קלאב/סוכן/שחקן מאושר.'); setMems([]);setLogs([]);setClub({}); }
-  })(); },[]);
+    }catch(e){ if(!alive)return;setLoadErr('אין הרשאה לקרוא את נתוני-ההתחשבנות, או שגיאת-רשת. ודא שאתה מחובר כבעל-קלאב/סוכן/שחקן מאושר.'); setMems([]);setLogs([]);setClub({}); }
+  })(); return()=>{alive=false;};},[reload,authUser.uid]);
 
   const ownerUid = club?.ownerUid || (mems||[]).find(m=>[ROLES.CLUB_OWNER,ROLES.SUPER_ADMIN].includes(m.role))?.uid || '';
   const myMem = (mems||[]).find(m=>m.uid===authUser.uid);
@@ -231,8 +246,8 @@ function Board({authUser,onLogout}){
     let scope = real;
     if(role==='agent') scope = real.filter(m=>m.agentUid===authUser.uid||m.uid===authUser.uid);
     if(role==='player') scope = real.filter(m=>m.uid===authUser.uid);
-    const players = scope.map(m=>{ const b=byUid[m.uid]||{result:0,rake:0,n:0}; return {...m,wkResult:b.result,wkRake:b.rake,wkGames:b.n}; })
-      .filter(p=>!q||(p.username||'').toLowerCase().includes(q.toLowerCase())||String(p.phone||p.playerId||'').includes(q));
+    const allPlayers = scope.map(m=>{ const b=byUid[m.uid]||{result:0,rake:0,n:0}; return {...m,wkResult:b.result,wkRake:b.rake,wkGames:b.n}; });
+    const players = allPlayers.filter(p=>!q||(p.username||'').toLowerCase().includes(q.toLowerCase())||String(p.phone||'').includes(q)||String(p.playerId||'').includes(q));
     players.sort((a,b)=> sortBy==='balance'?(b.balance||0)-(a.balance||0):sortBy==='rake'?b.wkRake-a.wkRake:sortBy==='games'?b.wkGames-a.wkGames:b.wkResult-a.wkResult);
     const realRake = round2(real.reduce((s,m)=>s+(m.uid===ownerUid?0:((byUid[m.uid]||{}).rake||0)),0));
     const agentList = real.filter(m=>m.role===ROLES.AGENT && (role==='owner'||m.uid===authUser.uid));
@@ -253,112 +268,78 @@ function Board({authUser,onLogout}){
     const ownerNet=round2(-allPlayersResult - totalAgentCut);
     // ברוטו ששולם לשחקנים ע"י הבוטים (לפני שהרייק חזר): להצגה בלבד.
     const botGrossToPlayers=round2(allPlayersResult + realRake);
-    return {players,agents,realRake,totalAgentCut,ownerRakeKept,ownerKidsResult,allPlayersResult,ownerNet,botGrossToPlayers,byUid,nameOf};
+    return {allPlayers,players,agents,realRake,totalAgentCut,ownerRakeKept,ownerKidsResult,allPlayersResult,ownerNet,botGrossToPlayers,byUid,nameOf};
   },[mems,logs,from,to,q,sortBy,role,authUser.uid,ownerUid]);
 
   const exportCSV=()=>{ if(!view)return;
     const head=['שחקן','טלפון','סוכן','משחקים',(role==='player'?null:'רייק'),'תוצאה','יתרה'].filter(Boolean);
     const lines=[head.join(',')];
-    view.players.forEach(p=>{ const r=[p.username||'',p.phone||p.playerId||'',view.nameOf(p.agentUid)||'',p.wkGames,(role==='player'?null:round2(p.wkRake)),round2(p.wkResult),round2(p.balance||0)].filter(x=>x!==null); lines.push(r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')); });
+    filtered.forEach(p=>{ const r=[p.username||'',p.phone||p.playerId||'',view.nameOf(p.agentUid)||'',p.wkGames,(role==='player'?null:round2(p.wkRake)),round2(p.wkResult),round2(p.balance||0)].filter(x=>x!==null); lines.push(r.map(x=>`"${(typeof x==='string'&&/^[=+@\-\t\r]/.test(x)?"'"+x:String(x)).replace(/"/g,'""')}"`).join(',')); });
     const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${TENANT_SLUG}-settlement.csv`; a.click();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${TENANT_SLUG}-settlement-${wk}.csv`; a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   };
 
-  return (
-    <div style={{minHeight:'100vh'}}>
-      <div style={{position:'sticky',top:0,zIndex:20,background:'rgba(10,14,23,.86)',backdropFilter:'blur(10px)',borderBottom:'1px solid var(--line)'}}>
-        <div style={{maxWidth:1120,margin:'0 auto',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <div style={{fontWeight:900,letterSpacing:'.1em',fontSize:15}}><span style={{color:'var(--brand)'}}>CLUBCULATION</span> <span style={{color:'var(--faint)',fontWeight:700,fontSize:11}}>· {T.name}</span></div>
-          <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <select value={wk} onChange={e=>setWk(Number(e.target.value))} style={sel}>{Array.from({length:16}).map((_,i)=><option key={i} value={i}>{cycleLabel(i)}</option>)}</select>
-            <span style={{fontSize:12,fontWeight:800,color:'var(--muted)',background:'var(--chip)',padding:'6px 10px',borderRadius:10}}>{role==='owner'?'👑 בעל-קלאב':role==='agent'?'🤝 סוכן':'🎮 שחקן'}</span>
-            <button onClick={()=>{ window.location.href = T.appUrl || '/'; }} style={{background:'linear-gradient(180deg,#22d3ee,#0891b2)',border:0,color:'#04121a',borderRadius:10,padding:'6px 14px',fontWeight:900,fontSize:12}}>← חזרה לקלאב</button>
-            <button onClick={onLogout} style={{background:'var(--chip)',border:'1px solid var(--line)',color:'var(--muted)',borderRadius:10,padding:'6px 12px',fontWeight:800,fontSize:12}}>התנתק</button>
-          </div>
-        </div>
+  const [page,setPage]=useState('overview');
+  const [agentFilter,setAgentFilter]=useState('all');
+  const [resultFilter,setResultFilter]=useState('all');
+  const [agentDrill,setAgentDrill]=useState(null);
+  const closed=closedWeekEntry(club?.closedWeeks,from)?.[1]||null;
+  const filtered=view ? view.players.filter(p=>(agentFilter==='all'||(agentFilter==='direct'?!p.agentUid:p.agentUid===agentFilter))&&(resultFilter==='all'||(resultFilter==='positive'?p.wkResult>0:resultFilter==='negative'?p.wkResult<0:p.wkGames===0))) : [];
+  const scoped=view?.allPlayers||[];
+  const shownAgent=view?.agents.find(a=>a.uid===agentDrill);
+  const person=view?.allPlayers.find(p=>p.uid===drill);
+  const activity=view ? scoped.flatMap(p=>((view.byUid[p.uid]||{}).rows||[]).map(r=>({...r,person:p.username,personUid:p.uid}))).sort((a,b)=>(b.at||0)-(a.at||0)) : [];
+  const totalResult=round2(scoped.reduce((s,p)=>s+p.wkResult,0));
+  const totalGames=scoped.reduce((s,p)=>s+p.wkGames,0);
+  const nav=[['overview','סקירה שבועית','fa-chart-pie'],['players',role==='player'?'הכרטיס שלי':'שחקנים','fa-address-card'],...(role!=='player'?[['agents','סוכנים','fa-user-group']]:[]),['activity','יומן תנועות','fa-list']];
+  const titles={overview:'מרכז ההתחשבנות',players:role==='player'?'הכרטיס שלי':'כרטיסי שחקנים',agents:'התחשבנות סוכנים',activity:'יומן תנועות'};
+  const stat=(label,value,detail,tone='')=><article className={'metric '+tone}><span>{label}</span><strong dir="ltr">{value}</strong><small>{detail}</small></article>;
+  const playerCard=p=><button key={p.uid} className="player-card" onClick={()=>setDrill(p.uid)} aria-label={'פתח כרטיס שחקן '+p.username}>
+    <div className="person-head"><span className="avatar">{(p.username||'?').slice(0,2)}</span><div><strong>{p.username||'ללא שם'}</strong><small>{p.playerId||'ללא מספר שחקן'} · {p.agentUid?view.nameOf(p.agentUid):'שיוך ישיר לקלאב'}</small></div><span className="open-arrow">←</span></div>
+    <div className="player-result"><span>תוצאת התקופה</span><strong className={p.wkResult>=0?'positive':'negative'} dir="ltr">₪ {money(p.wkResult)}</strong></div>
+    <div className="card-stats"><div><small>יתרה נוכחית</small><b dir="ltr">₪ {money(p.balance||0)}</b></div><div><small>השתתפויות</small><b>{p.wkGames}</b></div>{role!=='player'&&<div><small>רייק לתקופה</small><b dir="ltr">₪ {money(p.wkRake)}</b></div>}</div>
+    <div className="card-footer"><span>{p.phone||'טלפון לא הוזן'}</span><span>כרטיס מלא ופירוט תנועות ←</span></div>
+  </button>;
+  const agencyRows=()=>view.agents.length?<div className="agency-list">{view.agents.map(a=><button className="agency-row" key={a.uid} onClick={()=>setAgentDrill(a.uid)} aria-label={'פתח כרטיס סוכן '+a.username}>
+    <span className="avatar agent-avatar">{(a.username||'?').slice(0,2)}</span><span className="agency-person"><strong>{a.username}</strong><small>{a.kids.length} שחקנים משויכים</small></span><span className="agency-amount"><small>נטו מחושב לתקופה</small><b dir="ltr">₪ {money(a.settle)}</b><small>{a.settle>0?'לזכות הסוכן':a.settle<0?'לזכות הקלאב':'מאוזן'}</small></span><span className={'badge '+(closed?.paid?.[a.uid]?'paid':'')}>{closed?.paid?.[a.uid]?'סומן שולם':'לא סומן תשלום'}</span><span>←</span>
+  </button>)}</div>:<div className="empty-state">אין סוכנים להצגה בתחום ההרשאה שלך.</div>;
+  return <div className="office-shell" dir="rtl">
+    <aside className="office-sidebar"><div className="office-brand"><span className="brand-mark">C</span><div>CLUBCULATION<small>ניהול והתחשבנות</small></div></div><div className="club-label">{T.name}<span className="live-dot"/></div>
+      <nav aria-label="ניווט ניהול">{nav.map(([id,label,icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)} aria-current={page===id?'page':undefined}><i className={"fa-solid "+icon} aria-hidden="true"></i>{label}</button>)}</nav>
+      <div className="sidebar-bottom"><span>{role==='owner'?'מנהל קלאב':role==='agent'?'חשבון סוכן':'חשבון שחקן'}</span><a href={T.appUrl||'/'}>חזרה לאפליקציה ←</a><button onClick={onLogout}>התנתקות</button></div>
+    </aside>
+    <main className="office-main"><header className="office-topbar"><span>{T.name} / ניהול / {titles[page]}</span><span className="account-pill">{authUser.displayName||'החשבון שלי'}</span></header>
+      <div className="office-content"><div className="page-heading"><div><span className="eyebrow">המספרים שלך, במקום אחד</span><h1>{titles[page]}</h1><p>שחקנים, סוכנים ותנועות — עם פירוט מאחורי כל סכום.</p></div><div className="period-control"><label htmlFor="office-period">תקופת התחשבנות</label><select id="office-period" value={wk} onChange={e=>{setWk(Number(e.target.value));setDrill(null);setAgentDrill(null);}}>{Array.from({length:16},(_,i)=><option key={i} value={i}>{cycleLabel(i)}</option>)}</select><small>{closed?'קיים רישום סגירה לתקופה':'התקופה טרם סומנה כסגורה'}</small></div></div>
+      {loadErr?<div className="office-error" role="alert"><h2>לא ניתן להציג סכומים כרגע</h2><p>{loadErr}</p><button onClick={()=>setReload(n=>n+1)}>נסה שוב</button></div>:!view?<div className="empty-state" role="status">טוענים את נתוני ההתחשבנות…</div>:<>
+        <div className="metrics">{role==='owner'?<>{stat('תוצאת הקלאב',`₪ ${money(view.ownerNet)}`,'תוצאות השחקנים ועמלות הסוכנים','featured')}{stat('רייק נטו לקלאב',`₪ ${money(view.ownerRakeKept)}`,'רייק שנגבה פחות עמלות סוכנים')}{stat('עמלות סוכנים',`₪ ${money(view.totalAgentCut)}`,'חישוב לפי שיעורי העמלה הנוכחיים')}{stat('שחקנים פעילים',scoped.filter(p=>p.wkGames>0).length,`${totalGames} השתתפויות במשחקים בתקופה`)}</>:<>{stat('תוצאת התקופה',`₪ ${money(totalResult)}`,'תוצאות החשבונות בתחום ההרשאה שלך','featured')}{stat('השתתפויות במשחקים',totalGames,'בתקופה הנבחרת')}{role==='agent'&&stat('עמלת הסוכן',`₪ ${money(view.agents[0]?.agentCut||0)}`,'לפי שיעורי העמלה הנוכחיים')}</>}</div>
+        {page==='overview'&&<><section className="weekly-banner"><div><span className="eyebrow">התחשבנות שבועית</span><h2>מתחילים מסיכום. ממשיכים לפירוט.</h2><p>בחר תקופה, בדוק את כרטיסי הסוכנים והשחקנים, וייצא את הנתונים לבקרה.</p></div><button className="primary-button" onClick={()=>setPage(role==='player'?'players':'agents')}>{role==='player'?'פתח את הכרטיס שלי':'בדיקת הסוכנים'} ←</button></section>
+          <div className="overview-columns"><section className="office-panel"><div className="panel-heading"><h2>{role==='player'?'הכרטיס שלי':'סוכנים והתחשבנות'}</h2>{role!=='player'&&<button onClick={()=>setPage('agents')}>הצג הכל ←</button>}</div>{role==='player'?scoped.map(playerCard):agencyRows()}</section>
+          <section className="office-panel"><div className="panel-heading"><h2>איך לקרוא את הסכומים</h2></div><dl className="money-explanation"><dt>תוצאת התקופה</dt><dd>רווחים והפסדים במשחקים, כולל תיקוני יומן שנרשמו.</dd><dt>יתרה נוכחית</dt><dd>היתרה בחשבון עכשיו. היא אינה יתרת פתיחה או סגירה של השבוע.</dd><dt>עמלת סוכן</dt><dd>הרייק של השחקנים המשויכים כפול אחוזי העמלה הנוכחיים.</dd><dt>תשלום בפועל</dt><dd>סימון “שולם” נקרא מדוח הסגירה. אין כאן התאמה להעברות בנקאיות.</dd></dl></section></div></>}
+        {page==='players'&&<section className="office-panel"><div className="panel-heading"><h2>{filtered.length} כרטיסים</h2><button className="secondary-button" onClick={exportCSV}>ייצוא רשימת השחקנים ↓</button></div><div className="filters"><label className="search-field"><span>חיפוש שחקן</span><input value={q} onChange={e=>setQ(e.target.value)} placeholder="שם, טלפון או מספר שחקן"/></label>{role==='owner'&&<label><span>שיוך לסוכן</span><select value={agentFilter} onChange={e=>setAgentFilter(e.target.value)}><option value="all">כל הסוכנים</option><option value="direct">ישירות לקלאב</option>{view.agents.map(a=><option key={a.uid} value={a.uid}>{a.username}</option>)}</select></label>}<label><span>תוצאה ופעילות</span><select value={resultFilter} onChange={e=>setResultFilter(e.target.value)}><option value="all">כולם</option><option value="positive">תוצאה חיובית</option><option value="negative">תוצאה שלילית</option><option value="inactive">ללא משחקים בתקופה</option></select></label><label><span>מיון</span><select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="result">תוצאת התקופה</option><option value="games">השתתפויות</option><option value="balance">יתרה נוכחית</option>{role!=='player'&&<option value="rake">רייק</option>}</select></label></div><div className="player-grid">{filtered.map(playerCard)}</div>{!filtered.length&&<div className="empty-state">לא נמצאו שחקנים התואמים לסינון.</div>}</section>}
+        {page==='agents'&&role!=='player'&&<section className="office-panel"><div className="panel-heading"><h2>כל סוכן, עם השחקנים והחישוב שלו</h2></div><p className="panel-note">לחץ על סוכן כדי לראות את תוצאות שחקניו, עמלותיו והסכום המחושב. הסכום אינו אישור להעברת תשלום.</p>{agencyRows()}</section>}
+        {page==='activity'&&<section className="office-panel"><div className="panel-heading"><h2>{activity.length} תנועות בתקופה</h2></div><div className="ledger-wrap"><table className="office-table"><thead><tr><th>תאריך</th><th>שחקן</th><th>סוג / משחק</th><th>תוצאה</th>{role!=='player'&&<th>רייק</th>}<th>פירוט</th></tr></thead><tbody>{activity.slice(0,500).map((r,i)=><tr key={i}><td>{new Date(r.at||0).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td><button onClick={()=>setDrill(r.personUid)}>{r.person}</button></td><td>{r.game==='adjust'?'תיקון יומן':r.game==='rami'?'רמי סגור':r.game==='rummikub'?'רמיקוב':r.game||'תנועה'}</td><td className={(r.profit||0)>=0?'positive':'negative'} dir="ltr">₪ {money(r.profit)}</td>{role!=='player'&&<td dir="ltr">₪ {money(r.rake)}</td>}<td>{r.note||r.tableId||'—'}</td></tr>)}</tbody></table></div>{!activity.length&&<div className="empty-state">אין תנועות בתקופה הנבחרת.</div>}{activity.length>500&&<p className="panel-note">מוצגות 500 התנועות האחרונות בתקופה.</p>}</section>}
+        <footer className="office-footnote">המידע מוצג לתקופה {cycleLabel(wk)}. חישובי עמלות היסטוריים מבוססים כרגע על שיעורי העמלה הנוכחיים; יתרות החשבון הן יתרות נוכחיות.</footer>
+      </>}
       </div>
-
-      <div style={{maxWidth:1120,margin:'0 auto',padding:'18px 16px 60px'}}>
-        {loadErr && <div style={{background:'rgba(248,113,113,.1)',border:'1px solid rgba(248,113,113,.3)',color:'#fecaca',borderRadius:16,padding:16,fontWeight:700}}>{loadErr}</div>}
-        {!view && !loadErr && <Center><Spinner/> <span style={{marginRight:8}}>טוען נתונים…</span></Center>}
-
-        {view && <>
-          {role!=='player' && (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:18}}>
-              <Card label={role==='owner'?'רייק אמיתי (בלי בעלים)':'רייק השחקנים שלי'} val={money(role==='owner'?view.realRake:view.players.reduce((s,p)=>s+p.wkRake,0))} tone="brand"/>
-              {role==='owner' && <Card label="נתחי-סוכנים" val={money(view.totalAgentCut)} tone="warn"/>}
-              {role==='owner' && <Card label="רייק שנשאר לבעלים" val={money(view.ownerRakeKept)} tone="gold"/>}
-              <Card label="משחקים במחזור" val={view.players.reduce((s,p)=>s+p.wkGames,0).toLocaleString('he-IL')} tone="muted"/>
-            </div>
-          )}
-
-          {role!=='player' && view.agents.length>0 && (
-            <Section title={role==='owner'?'התחשבנות סוכנים':'ההתחשבנות שלי'}>
-              <div style={{overflowX:'auto'}}><table style={tbl}>
-                <thead><tr><th style={th}>סוכן</th><th style={th}>שחקנים</th><th style={thN}>תוצאת שחקניו</th><th style={thN}>נתח-רייק</th><th style={thN}>להתחשבנות</th></tr></thead>
-                <tbody>{view.agents.map(a=>(
-                  <tr key={a.uid} style={{borderTop:'1px solid var(--line)'}}>
-                    <td style={td}><b>{a.username}</b></td><td style={td}>{a.kids.length}</td>
-                    <td style={tdN}><span className="tnum" style={{color:col(a.kidsResult)}}>{money(a.kidsResult)}</span></td>
-                    <td style={tdN}><span className="tnum" style={{color:'var(--warn)'}}>{money(a.agentCut)}</span></td>
-                    <td style={tdN}><SettleCell v={a.settle}/></td>
-                  </tr>))}</tbody>
-              </table></div>
-              <p style={{color:'var(--faint)',fontSize:11,fontWeight:600,marginTop:8}}>חיובי = הקלאב משלם לסוכן · שלילי = הסוכן מעביר לקלאב. (תוצאת-שחקניו + נתח-הרייק שלו)</p>
-            </Section>
-          )}
-
-          {role==='owner' && (
-            <Section title="נטו בעל-הקלאב (הבית מול השחקנים)">
-              <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
-                <KV k="תוצאת כל השחקנים" v={<span style={{color:col(view.allPlayersResult)}}>{view.allPlayersResult>0?'+':''}{money(view.allPlayersResult)}</span>}/>
-                <KV k="רייק שגבית (כלול)" v={<span style={{color:'var(--gold)'}}>{money(view.ownerRakeKept)}</span>}/>
-                <KV k="נטו בעל-הקלאב" v={<span className="tnum" style={{fontWeight:900,fontSize:20,color:col(view.ownerNet)}}>{money(view.ownerNet)} <span style={{fontSize:10,fontWeight:800,opacity:.85}}>{view.ownerNet>0.009?'רווח':view.ownerNet<-0.009?'הפסד — הבית מימן':''}</span></span>}/>
-              </div>
-              <p style={{color:'var(--faint)',fontSize:11,fontWeight:600,marginTop:10,lineHeight:1.6}}>
-                חיובי בתוצאת-השחקנים = השחקנים ניצחו את הבית (הבוטים), ובעל-הקלאב מימן זאת. הבוטים שילמו לשחקנים ברוטו {money(view.botGrossToPlayers)} ₪, מתוכם {money(view.realRake)} ₪ חזרו כרייק — ולכן הנטו לבעלים הוא {money(view.ownerNet)} ₪. (תוצאות-השחקנים כבר אחרי רייק.)
-              </p>
-            </Section>
-          )}
-
-          <Section title={role==='player'?'התוצאות שלי':'שחקנים'} right={
-            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              {role!=='player' && <input value={q} onChange={e=>setQ(e.target.value)} placeholder="חיפוש…" style={{background:'var(--chip)',border:'1px solid var(--line)',borderRadius:10,color:'var(--ink)',padding:'7px 12px',fontSize:13,fontWeight:600,width:150}}/>}
-              <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={sel2}><option value="result">תוצאה</option>{role!=='player'&&<option value="rake">רייק</option>}<option value="games">משחקים</option><option value="balance">יתרה</option></select>
-              <button onClick={exportCSV} style={{background:'var(--chip)',border:'1px solid var(--line)',borderRadius:10,color:'var(--brand)',padding:'7px 12px',fontWeight:800,fontSize:12}}>↓ CSV</button>
-            </div>
-          }>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {view.players.map(p=>(
-                <div key={p.id} onClick={()=>setDrill(p.uid)} style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:14,padding:'12px 14px',cursor:'pointer',display:'flex',flexDirection:'column',gap:8}}>
-                  <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                    <div style={{minWidth:0,flex:1}}>
-                      <div style={{fontWeight:800,fontSize:15,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.username||'(ללא שם)'}</div>
-                      <div style={{fontSize:11,color:'var(--faint)',direction:'ltr',textAlign:'right'}}>{p.phone||p.playerId||''}</div>
-                    </div>
-                    <div style={{textAlign:'left'}}>
-                      <div className="tnum" style={{fontWeight:900,fontSize:17,color:col(p.wkResult)}}>{p.wkResult>0?'+':''}{money(p.wkResult)}</div>
-                      <div style={{fontSize:10,color:'var(--faint)',fontWeight:700}}>{p.wkResult>0.009?'הרוויח':p.wkResult<-0.009?'הפסיד':'ללא שינוי'}</div>
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                    <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>🎮 {p.wkGames} משחקים</span>
-                    {role!=='player' && <span style={{fontSize:11,fontWeight:700,color:'var(--warn)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>רייק {money(p.wkRake)}</span>}
-                    <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>יתרה {money(p.balance||0)}</span>
-                    {role==='owner' && <span style={{fontSize:11,fontWeight:700,color:'var(--faint)',background:'var(--chip)',padding:'3px 9px',borderRadius:8}}>{p.agentUid?('סוכן: '+view.nameOf(p.agentUid)):(p.uid===ownerUid?'בעלים':'ישיר')}</span>}
-                    <span style={{marginInlineStart:'auto',fontSize:11,fontWeight:800,color:'var(--brand)'}}>פירוט משחקים ←</span>
-                  </div>
-                </div>))}
-              {view.players.length===0 && <div style={{textAlign:'center',color:'var(--faint)',padding:24,fontWeight:700}}>אין נתונים במחזור זה</div>}
-            </div>
-          </Section>
-        </>}
-      </div>
-
-      {drill && view && <DrillModal rows={(view.byUid[drill]||{}).rows||[]} name={(view.players.find(p=>p.uid===drill)||{}).username||''} hideRake={role==='player'} canToggle={role!=='player'} onClose={()=>setDrill(null)}/>}
-    </div>
-  );
+    </main>
+    {shownAgent&&<OfficeDialog label={'כרטיס סוכן '+shownAgent.username} onClose={()=>setAgentDrill(null)}><button className="drawer-close" onClick={()=>setAgentDrill(null)}>סגור ✕</button><span className="eyebrow">כרטיס סוכן</span><h2>{shownAgent.username}</h2><p>{shownAgent.phone||'טלפון לא הוזן'} · {shownAgent.kids.length} שחקנים</p><div className="settlement-breakdown"><div><span>תוצאת השחקנים</span><b dir="ltr">₪ {money(shownAgent.kidsResult)}</b></div><div><span>עמלת הסוכן</span><b dir="ltr">₪ {money(shownAgent.agentCut)}</b></div><div className="breakdown-total"><span>נטו מחושב</span><b dir="ltr">₪ {money(shownAgent.settle)}</b></div></div><p className="panel-note">{shownAgent.settle>0?'הסכום המחושב לזכות הסוכן':shownAgent.settle<0?'הסכום המחושב לזכות הקלאב':'אין הפרש מחושב לתקופה'}. יש לבדוק תשלומים שכבר בוצעו בנפרד.</p><h3>השחקנים המשויכים</h3>{shownAgent.kids.map(p=><button className="drawer-player" key={p.uid} onClick={()=>{setAgentDrill(null);setDrill(p.uid);}}><span>{p.username}<small>עמלה: {p.agentPct||0}% · {p.wkGames} השתתפויות</small></span><b dir="ltr">₪ {money(p.wkResult)}</b></button>)}</OfficeDialog>}
+    {person&&view&&<PlayerDrawer person={person} rows={(view.byUid[drill]||{}).rows||[]} agentName={person.agentUid?view.nameOf(person.agentUid):'ישירות לקלאב'} hideRake={role==='player'} onClose={()=>setDrill(null)}/>}
+  </div>;
 }
+
+function OfficeDialog({label,onClose,children}){
+  const panel=useRef(null),close=useRef(onClose);close.current=onClose;
+  useEffect(()=>{const previous=document.activeElement;panel.current?.querySelector('button')?.focus();const key=e=>{
+    if(e.key==='Escape'){e.preventDefault();close.current();}
+    if(e.key==='Tab'){const items=[...panel.current.querySelectorAll('button,a[href],input,select,[tabindex="0"]')].filter(el=>!el.disabled);const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}
+  };const element=panel.current;element.addEventListener('keydown',key);return()=>{element.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus();};},[]);
+  return <div className="drawer-backdrop" onClick={onClose}><section ref={panel} className="detail-drawer" role="dialog" aria-modal="true" aria-label={label} onClick={e=>e.stopPropagation()}>{children}</section></div>;
+}
+
+function PlayerDrawer({person,rows,agentName,hideRake,onClose}){
+  return <OfficeDialog label={'כרטיס שחקן '+person.username} onClose={onClose}><button className="drawer-close" onClick={onClose}>סגור ✕</button><span className="eyebrow">כרטיס שחקן</span><div className="person-head"><span className="avatar large">{(person.username||'?').slice(0,2)}</span><div><h2>{person.username}</h2><p>{person.playerId||'ללא מספר שחקן'}</p></div></div><dl className="profile-fields"><div><dt>טלפון</dt><dd>{person.phone||'לא הוזן'}</dd></div><div><dt>סוכן</dt><dd>{agentName}</dd></div><div><dt>סטטוס</dt><dd>{person.status==='approved'?'מאושר':person.status||'—'}</dd></div>{!hideRake&&<div><dt>אחוז עמלה</dt><dd>{person.agentPct||0}%</dd></div>}</dl><div className="profile-metrics"><div><small>תוצאת התקופה</small><strong className={person.wkResult>=0?'positive':'negative'} dir="ltr">₪ {money(person.wkResult)}</strong></div><div><small>יתרה נוכחית</small><strong dir="ltr">₪ {money(person.balance||0)}</strong></div></div><h3>תנועות בתקופה · {rows.length}</h3>{rows.slice().sort((a,b)=>(b.at||0)-(a.at||0)).map((r,i)=><article className="profile-transaction" key={i}><div><b>{r.game==='adjust'?'תיקון יומן':r.game==='rami'?'רמי סגור':r.game==='rummikub'?'רמיקוב':r.game||'משחק'}</b><small>{new Date(r.at||0).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem'})}</small>{r.note&&<p>{r.note}</p>}</div><div><b className={(r.profit||0)>=0?'positive':'negative'} dir="ltr">₪ {money(r.profit)}</b>{!hideRake&&<small>רייק: {money(r.rake)}</small>}</div></article>)}{!rows.length&&<div className="empty-state">אין תנועות בתקופה הנבחרת.</div>}</OfficeDialog>;
+}
+
 
 function DrillModal({rows,name,hideRake,canToggle,onClose}){
   const [hide,setHide]=useState(!!hideRake);
