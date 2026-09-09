@@ -20,6 +20,10 @@ await React.act(async()=>{subs.find(s=>s.path==='tables/test').err({code:'unavai
 assert.match(w.document.body.textContent,/השולחן לא נטען/);
 await React.act(async()=>{[...w.document.querySelectorAll('button')].find(b=>b.textContent==='נסה שוב').click();});
 assert.match(w.document.body.textContent,/מתחברים לשולחן/);
+await React.act(async()=>{subs.find(s=>s.path==='tables/test').ok({id:'test',exists:()=>true,data:()=>({...table,phase:'waiting'})});});
+assert.doesNotMatch(w.document.body.textContent,/משהו נתקע לרגע|ReferenceError/,'the occupied waiting room must render before play starts');
+assert.equal(w.document.querySelectorAll('.tile-opponent-avatar').length,2,'the waiting room renders both seated player avatars');
+assert.match(w.document.body.textContent,/שחקן שני/);
 await React.act(async()=>{subs.find(s=>s.path==='tables/test').ok({id:'test',exists:()=>true,data:()=>table});});
 assert.equal(w.document.querySelectorAll('[data-tid]').length,14);
 assert.match(w.document.body.textContent,/משוך אבן/);
